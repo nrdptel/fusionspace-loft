@@ -17,7 +17,8 @@
  *  same cloud, and a static export never depends on wall-clock entropy. */
 
 import type { Rocket } from "../model/types";
-import type { ConditionOverrides } from "./setup";
+import { defaultConditions, type ConditionOverrides } from "./setup";
+import { radToDeg } from "../units";
 import type { GeometryEdits } from "../model/edit";
 import { runFlight } from "./run";
 
@@ -244,8 +245,20 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
   const rand = mulberry32(opts.seed);
   const d = opts.dispersions;
   const base = opts.overrides ?? {};
-  const nomAngle = base.rodAngleDeg ?? 0;
-  const nomWind = base.windSpeed ?? 0;
+  // **The nominals come from `defaultConditions()`, never from a literal.** These two lines read
+  // `?? 0` and `?? 0` — hand-copies of what the engine defaults happened to be — and on 2026-08-08
+  // the wind default moved to 2 m/s and this one did not. Because the loop below ALWAYS writes an
+  // explicit `windSpeed` into each sample's overrides, the dispersion never falls through to
+  // `makeConditions`, so nothing downstream could correct it: measured on the from-scratch design,
+  // the Flight card flew a 411.28 m drift while the dispersion beside it reported a median of
+  // 0.00 m. Two surfaces, one design, one number a flyer sizes a recovery area with.
+  //
+  // This is the exact failure `flownOverrides` in `components/LoftApp.tsx` was extracted to prevent
+  // — its docblock records the same defect arriving from the other direction — and the lesson is the
+  // same one: a default written down twice is a default that will disagree with itself. Derive it.
+  const engine = defaultConditions();
+  const nomAngle = base.rodAngleDeg ?? radToDeg(engine.rodAngleFromVertical);
+  const nomWind = base.windSpeed ?? engine.windSpeed;
 
   for (let i = 0; i < opts.n; i++) {
     // Draw every random for this sample up front so the PRNG stream is a stable function of the

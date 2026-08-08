@@ -12,6 +12,110 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-08 while triaging the first `OWNER-NOTES.md` batch.** Everything below was measured
+this run; where a fan-out claimed something the corpus then refuted, the refutation is the entry.
+
+- **The `.ork` round trip is RIGHT and barely CHECKED, and a fan-out mistook the second for the
+  first.** `lib/model/id.test.ts` exercises exactly two designs (`newDesign()` and
+  `fixtures/demo-quirks.ork`) and asserts only component IDS — nothing about geometry, provenance or
+  any flown number. Driven by hand over all **27 corpus `.ork` files** on 2026-08-08, export →
+  re-import changes component ids on **0**, flips recovery-device drag-coefficient provenance on
+  **0**, and moves flown apogee on **0**; the only drift is `num()`'s 6-decimal quantisation (a
+  reference radius of 0.01240 returning 0.01239), which moves nothing a flyer reads. **So this is a
+  coverage gap, not a defect** — the fix is to widen `lib/corpus/sweep.test.ts` with a round-trip
+  case over every `.ork`, asserting ids, `cdFrom` and apogee, so the behaviour that is true today
+  cannot silently stop being. Sized at one increment.
+
+- **`<customreference>` is never written by the exporter, and it is unreachable on every real file.**
+  `lib/ork/export.ts` writes `<referencetype>` without `<customreference>`, while `lib/ork/adapt.ts`
+  reads `referenceRadius` from it — so a design declaring `referenceType: "custom"` would come back
+  with an undefined radius and fall through to `maxBodyRadius`. **Measured: 0 of 27 corpus `.ork`
+  designs use `referenceType: "custom"`**, and Loft's own starter uses `maximum`, so no flyer can
+  currently reach it. A fan-out reported this as a +22.4% apogee Sev-1; that figure came from
+  injecting a custom radius into the starter, not from any real design. Real, latent, and correctly
+  NOT preempting a milestone — but it becomes reachable the moment an editor lets someone set a
+  custom reference, so fix it with that feature rather than before it.
+
+- **The flight-path plot has no x tick labels in ANY state, so it autoscales invisibly.** Found while
+  shipping R11 increment 2 and NOT fixed by it — the milestone's *done when* asked for "a labelled
+  axis" on a degenerate range and got a caption and a sentence instead, which is recorded on R11
+  rather than glossed. `components/FlightViz.tsx` draws the axis lines and the two axis NAMES and no
+  numbers, and `xMax = Math.max(...xs, 1)` fabricates a one-unit range when there is none. Two
+  consequences: a 0.6 m down-range and a 600 m down-range are pixel-identical, and the fabricated
+  fallback is seeded in DISPLAY units (1 m metric, 1 ft imperial) while the degenerate threshold is
+  in metres — so between 0.5 m and 1 ft the two disagree, and a metric and an imperial flyer are told
+  different things about the same flight. **Fix: real tick labels on both axes**, which subsumes all
+  of it. The altitude axis has the same gap and nobody has noticed because altitude is large.
+
+- **No CSV export says which launch conditions its numbers were flown under, and R11 made that
+  matter more.** Every on-screen surface that publishes a drift-derived figure carries the notice
+  naming a defaulted condition — verified 2026-08-08 by driving a from-scratch build through all
+  four workspaces, where the "Loft read no … surface wind … so those are its own default" line is
+  present on Flight, Design, Sweep and Cross-check. **The exports are not.** The Monte-Carlo CSV
+  emits `Drift distance`, `Landing downrange`, `Landing crossrange` and a recovery radius with units
+  in every header (a prior fix) but no statement of the nominal wind, rail angle or rail length
+  behind them. Pre-existing — but at the old `windSpeed: 0` default the drift column was zeros, and
+  it is now a real recovery-walk distance resting on an assumption Loft made. **Fix: a conditions
+  preamble on every CSV that carries a flown number, saying which fields came from the design and
+  which are Loft's defaults.** One increment, and it closes the same "caveat on one surface,
+  confident number in an export" shape the ledger already lists twice.
+
+- **`lib/validation/compare.ts` has no `landed` gate, and it is LATENT rather than reachable — I
+  checked before filing it as a Sev-1, and it is not one.** The file compares `flightTime` and
+  `groundHitVelocity` unconditionally, and `groundHitVelocity` is the `0` sentinel a flight that
+  never reached the ground carries — so in principle `ValidationPanel` would publish "Loft 0.0 m/s,
+  Δ −100%" and fold −100% into its headline MAPE, for the two figures `ResultsView` withholds with a
+  stated reason. **Why it cannot currently happen:** reaching a non-landing flight takes an edit (the
+  known case is a what-if canopy scaled to 43.8 kg on a 0.80 kg rocket), and `components/LoftApp.tsx` passes
+  `validateAgainst: edited || document.flownAsReduced ? undefined : stored`, so an edited design has
+  no stored comparison at all. (`lib/sim/run.ts` only consumes that option — an earlier draft of this
+  entry cited the wrong file, which a pre-push review caught.) And unedited, all 91 corpus stored simulations land. **Fix it anyway** — the gate is one
+  condition, the mitigation is a coincidence of two unrelated rules, and this repo has shipped the
+  "caveat on one surface, confident claim on another" defect repeatedly. One increment, alongside the
+  next thing that touches `compare.ts`.
+
+- **`ValidationPanel` carries no transonic caveat while four sibling surfaces do.** It publishes
+  Loft's apogee, max velocity and max Mach against the design tool's stored figures plus a headline
+  "mean abs. error", with no extrapolation marker — where the summary strip, the flight card,
+  `DragCrossCheck` (rendered directly below it) and `RocketpyCrossCheck` all mark the same flight.
+  **NOT reachability-checked by me**, unlike the entry above: it needs a design that goes transonic
+  AND carries stored results, which the corpus certainly has. Treat as a strong hypothesis and
+  re-measure before scoping — but note it is the exact shape of defect this repo keeps shipping, and
+  the surface it is on is the accuracy panel.
+
+- **§9's greps scan `components app` and never `lib/` — and `lib/ui-tokens.ts` is where the class
+  strings every primitive renders actually live.** So the file with the most leverage over the app's
+  appearance is outside every compliance count, by construction. It already has a violation:
+  `navItemClass` spells `px-3.5`, off §4's `1 2 3 4 6 8 12` scale and off the two sanctioned
+  half-steps. This is the same shape as the three blind spots §9 already records (the stylesheet's
+  radius, the stylesheet's font sizes, and contrast) — a check that cannot see a place will report
+  zero for it forever. **Fix: add `lib/ui-tokens.ts` to the §9 grep roots and to
+  `lib/design-system.test.ts`'s source list, in both repos**, then clear whatever it turns up. One
+  increment, and it is worth more than its size because it widens what every future count can see.
+
+- **The card-variant regression has NOT recurred, and the same mechanism has moved onto four other
+  treatments.** Measured 2026-08-08: all seven §9 counts are at target and match the executable
+  ratchets exactly. What has grown instead sits in places the greps cannot match:
+  - **No `TextField` primitive.** The text-input treatment is spelled four times across three files;
+    three are byte-identical and the fourth has already drifted (a `py-1` where the others have
+    `py-1.5`, plus extra classes). This is precisely how the twelve card variants started.
+  - **No `Spinner` primitive.** The loading state is hand-rolled five times in two geometries.
+  - **Four token-shaped pills in three geometries**, while §5's `Chip` note still asserts the app
+    contains *"exactly one"* — two of the four are byte-identical copies of each other. The note is
+    now false and should be corrected in the same change that extracts the primitive.
+  - **`Tabs` has zero call sites** anywhere in `components/`, `app/` or `e2e/` — superseded by
+    `WorkspaceNav`. §5 already deleted `Chip` for having none; `Tabs` is in the same position and
+    should be decided rather than left.
+  - **9 of 9 `Figure` call sites pass no `empty`**, so every chart falls through to the primitive's
+    default *"Nothing to plot yet."* — copy that names neither what would fill the surface nor the
+    action that fills it, which §5 forbids by name.
+
+- **`.gitignore`'s throwaway-probe globs do not cover `.mts`.** It carries `*-tmp.mjs`, `*-tmp.*.ts`
+  and `*-tmp.ts`, so a probe named `foo-tmp.mts` — a natural choice for an ESM TypeScript probe, and
+  the one this run reached for first — is NOT ignored and would be committed by a `git add -A`.
+  `MAINTAINING.md` already says "check the glob covers the exact name you chose"; the cheaper fix is
+  to make the glob cover the obvious names. One line.
+
 **Filed 2026-08-03 from a six-lens opening fan-out** (phone walk, desktop tenth-use walk, design-system
 audit, competitive probe, milestone scout, Sev-1 number screen). Two of its findings became increments
 the same run — the touch scan's blind spots, and the export carrying stored results out of a design

@@ -712,6 +712,109 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     expect(off, "font sizes declared in app/globals.css that are not on DESIGN.md §3's scale").toEqual([]);
   });
 
+  it("lets no hand-written rule answer only the class half of the dark variant", () => {
+    // **The `dark` variant has TWO clauses and a hand-written rule only gets the one it asks for.**
+    // `@custom-variant dark` at the top of `app/globals.css` gives every `dark:` UTILITY both: the
+    // `.dark` class an explicit choice sets, and `prefers-color-scheme` for a visitor who has chosen
+    // neither. A rule written by hand as `:where(.dark) X { color: … }` answers the first and misses
+    // the second — and "System" is the DEFAULT theme, setting no class at all.
+    //
+    // That is not a hypothetical. All eleven `.prose-loft` rules were exactly this shape, so every
+    // first-time visitor on a dark-OS device read all six docs routes in the LIGHT palette on the
+    // dark ground `html` paints: body text at 1.91:1, `h2` and `strong` at 1.12:1, links at 3.16:1,
+    // formulas as white cards on black. WCAG AA wants 4.5:1. The owner reported it from the live
+    // site as "the font color stays grey in dark mode, incredibly hard to read".
+    //
+    // The fix is `light-dark()`, which resolves against the element's USED `color-scheme` — and the
+    // three `html` rules above already set that per clause, so one function covers both with no
+    // media query to forget. This check is what stops the old shape coming back: for every property
+    // a `:where(.dark)` rule sets, the base rule for the same selector must state that property with
+    // `light-dark()`. The `:where(.dark)` rules themselves are welcome to stay — they are the
+    // fallback for a browser without `light-dark()`, and there they carry the explicit choice.
+    //
+    // Only TOP-LEVEL rules are examined. Anything already inside an at-rule is either the variant
+    // itself or the print block, both of which resolve the clause by other means.
+    const css = readFileSync(join(ROOT, "app/globals.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+
+    // Walk the text tracking brace depth, so an `@media` body is skipped whole rather than
+    // mis-parsed by a regex that cannot count braces.
+    const rules: { selector: string; body: string }[] = [];
+    let depth = 0;
+    let prelude = "";
+    let atRuleDepth = -1;
+    let i = 0;
+    while (i < css.length) {
+      const ch = css[i];
+      if (ch === "{") {
+        const sel = prelude.trim();
+        if (depth === 0 && sel.startsWith("@")) atRuleDepth = depth;
+        else if (depth === 0) {
+          // A style rule at the top level: capture its body, which contains no nested braces.
+          const end = css.indexOf("}", i);
+          rules.push({ selector: sel, body: css.slice(i + 1, end) });
+          prelude = "";
+          i = end + 1;
+          continue;
+        }
+        depth++;
+        prelude = "";
+      } else if (ch === "}") {
+        depth--;
+        if (depth === 0 && atRuleDepth === 0) atRuleDepth = -1;
+        prelude = "";
+      } else prelude += ch;
+      i++;
+    }
+
+    const props = (body: string) =>
+      new Set(
+        [...body.matchAll(/(^|;)\s*([a-z-]+)\s*:/g)]
+          .map((m) => m[2])
+          .filter((p) => !p.startsWith("--")),
+      );
+    // A rule may be split across several declarations of the same property (the bare fallback and
+    // the `light-dark()` one), so collect every base declaration for a selector, not just the first.
+    const baseBySelector = new Map<string, string>();
+    for (const r of rules) {
+      if (r.selector.includes(".dark") || r.selector.includes(".light")) continue;
+      for (const part of r.selector.split(",")) {
+        const key = part.trim().replace(/\s+/g, " ");
+        baseBySelector.set(key, (baseBySelector.get(key) ?? "") + ";" + r.body);
+      }
+    }
+
+    const unpaired: string[] = [];
+    for (const r of rules) {
+      if (!/:where\(\.dark\)|(^|\s)\.dark(\s|$)/.test(r.selector)) continue;
+      for (const part of r.selector.split(",")) {
+        const bare = part
+          .trim()
+          .replace(/:where\(\.dark\)\s*/g, "")
+          .replace(/(^|\s)\.dark\s+/g, "$1")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (!bare) continue; // a rule ON the root itself (html.dark) — it IS the clause, not a user of it
+        const baseBody = baseBySelector.get(bare);
+        for (const p of props(r.body)) {
+          const declared = baseBody ? new RegExp(`(^|;)\\s*${p}\\s*:[^;]*light-dark\\(`, "m").test(baseBody) : false;
+          if (!declared) unpaired.push(`${part.trim()} { ${p} } — no light-dark() for "${p}" on "${bare}"`);
+        }
+      }
+    }
+    expect(
+      unpaired.sort(),
+      "hand-written dark rules in app/globals.css that answer the class clause only, so a visitor on\n" +
+        "a dark OS who has chosen no theme gets the LIGHT value. State the property with light-dark()\n" +
+        "on the base rule:\n" +
+        unpaired.sort().join("\n"),
+    ).toEqual([]);
+
+    // CONTROL. If the parse found no dark rules at all this passes vacuously, which is the exact
+    // false all-clear the check exists to prevent.
+    const darkRules = rules.filter((r) => /:where\(\.dark\)/.test(r.selector));
+    expect(darkRules.length, "the parse found no :where(.dark) rules — it is not reading the file").toBeGreaterThan(8);
+  });
+
   it("keeps the primitives themselves inside the system", () => {
     // The file everything else is converted ONTO cannot itself be off-system, and it was: three
     // `rounded-lg` in `Segmented`, `ClosePanel` and `NumberField`. A primitive that breaks the rule

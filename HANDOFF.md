@@ -4,122 +4,94 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**Fifteen increments this run, in two merged pull requests — #132 (`eae5c95`) and #133 (`d3d4de6`).
-All fifteen are on `main` and SERVED**: production was fetched afterwards and carries the per-metric
-census populations, the optimum-delay paragraph and the corrected RocketPy claim. #131, inherited
-open from the previous run, was merged at session start.
+**This was the first run to find anything in `OWNER-NOTES.md`, and that reordered everything.**
+Twelve notes, all `(pending)`, dropped by the owner on 2026-08-08 after walking the live site. The
+triage contract says every open note gets a written verdict in the run that first reads it — the
+verdict, not the work. **Twelve written, zero pending**, each reproduced before it was scoped, and
+eight milestones added to `ROADMAP.md` from them: R11, R12, P7 (shipped), P8, P9, P10, P11, P12.
 
-**Two Sev-1s and a third smaller one, all found by the opening fan-out and all CONFIRMED by an
-adversarial refuter before they were taken. R10 Size item (5) is three-quarters done and P6 is
-SHIPPED.**
+**The owner's first note was a real defect on the live site, and it had shipped on every docs route
+since those routes existed.** The `dark` variant has two clauses — the `.dark` class an explicit
+choice sets, and `prefers-color-scheme` for a visitor who has chosen neither — and every `dark:`
+UTILITY gets both. The eleven hand-written `.prose-loft` rules asked for the class alone, and
+"System" is the DEFAULT theme, setting no class. So every first-time visitor on a dark-OS device read
+the docs in the LIGHT palette on a dark ground: body prose **1.91:1**, `h2` and `strong` **1.12:1**,
+against WCAG AA's 4.5:1.
 
-**THE TRANSFERABLE LESSON, and it cost this run two whole gate cycles: a fix that adds a REFUSAL is
-not finished until every surface that can reach the refused state has been walked.** The mount-bore
-veto was written, gated green and committed — and a four-lens pre-push review then found it
-incomplete in five ways, including **the Sev-1 itself at partial scale**: the veto was per-motor
-while the withholding was per-vehicle, so a design with two mounts of different headroom could refuse
-one, keep flying on the other, and publish a confident apogee for a rocket that cannot be built. A
-green gate could not see any of it. A refusal's failure mode IS the surfaces that do not know about
-it, so the review is worth more than the gate on that class of change.
+**THE TRANSFERABLE LESSON: three separate runs' worth of compliance counts were green while that
+shipped, because all seven §9 checks match class NAMES and readability is a rendered COLOUR.** §9's
+own prose already warned about this blind spot twice — the equation block's 8 px radius, and the
+docs' off-scale font sizes — and contrast was the third instance. A grep over class names cannot see
+a stylesheet value, and it never will. `DESIGN.md` §9 now carries contrast as a rule with two
+commands behind it, and both are ratcheted into the suite.
 
-**The second lesson is that this repo had already written down the thing that bit it.**
-`CONTRIBUTING.md` has carried "never pipe a gate step into `tail`, `head` or `grep` — the pipeline's
-exit code is the pipe's" since 2026-08-03, naming `check-text-gaps.mjs` and lost JSX spaces
-specifically. This run built its gate as `npm run build 2>&1 | tail -2` anyway and found out from CI
-after nine commits were on a pull request. The note now says to run the build to a file and grep it
-rather than to remember, and every gate step after that was run as
-`npm run <step> > log 2>&1; echo $?`. **Do that from the first increment.**
+**The second lesson is about the fan-out, and it cuts the other way from the usual warning.** Three
+of its most confident findings did not survive contact with the corpus. It reported that the `.ork`
+round trip changes component ids on 20 of 35 designs, re-attributes Loft's own drag coefficient to
+the designer on 14, and moves apogee by **+22.4%** on one save/reopen. Driven over all 27 corpus
+`.ork` files by hand: **0, 0 and 0.** The +22.4% came from injecting a custom reference radius into
+the starter — no corpus design uses `referenceType: "custom"` at all. Two later agents then reported
+the *already-fixed* dark-mode defect as live, having read the fix's own commit message and test
+comments, which state the pre-fix numbers in the past tense. **Reproduce before you scope, and be
+specific about what a "measured" claim was measured ON.**
 
-**A third, about tolerances.** The bore veto's constant was got wrong twice — first compared in radii
-while every sentence about it said diameters, then tightened to 1 mm and made four committed fixtures
-unflyable. It is 3 mm now, measured across **132 real motor instances**, and a check asserts the
-margin AND prints it. **A tolerance without its measurement written beside it is a number the next
-session changes on instinct.**
+**A third, and it is the one to carry forward: changing a DEFAULT means finding every place that
+default was written down twice — and the pre-push review is what found it, not the gate.** Moving
+`defaultConditions().windSpeed` from 0 to 2 m/s left `lib/sim/montecarlo.ts`'s `nomWind = base.windSpeed ?? 0`
+behind, a hand-copy of the old value. Because every Monte-Carlo sample writes an explicit `windSpeed`
+into its own overrides, it never falls through to `makeConditions`, so nothing downstream could
+correct it: **the Flight card reported a 411.28 m drift while the dispersion beside it reported a
+median of 0.00 m** — one design, two surfaces, and the number a flyer sizes a recovery area with.
+Lint, 1,112 unit tests and 239 e2e cases were all green over it, because every one of them either
+supplied explicit conditions or asserted a shape rather than an agreement. `flownOverrides` in
+`components/LoftApp.tsx` exists to prevent exactly this and its docblock records the same defect
+arriving from the other direction. **Derive a default, never re-spell it**, and when you change one,
+grep for its literal before you push.
 
-## This run — fifteen increments, all merged
+**A fourth, from the same review: an explanation that names a CAUSE is a claim, and it needs the same
+grounding as a number.** The first version of the no-down-range note read "the rail is plumb and the
+wind is zero" — inferred from geometry the component never receives. A rocket that never leaves the
+rail also has x ≡ 0 at every sample whatever the wind is, so that sentence would have told a flyer
+whose file states 3 m/s to go and set a wind, on a design whose real problem is a thrust-to-weight
+below 1. It says what it can SEE now, and fires only after a `liftoff` event.
+
+**A fifth, and it cost me my own uncommitted work: never `git checkout <file>` to clean up a probe.**
+I appended a scan probe to `ROADMAP.md`, then reverted it with `git checkout ROADMAP.md` — which also
+discarded four milestones I had written and not yet committed. Recovered from context; it need not
+have been. Remove the probe line, do not restore the file.
+
+## The environment, measured 2026-08-08
+
+- `node_modules` absent at session start (~90 s). **The managed Playwright browser chromium-1228 was
+  absent again** — `/opt/pw-browsers` had 1194 — and `npx playwright install chromium` fixed it in
+  about a minute. **Fourth consecutive run to report this.** Both are paid for again every session
+  until they are in the environment's setup script, which is the owner's fix and nobody else's.
+- The fixtures repo WAS attached. The suite names `imports every design file (35 present)`, and the
+  corpus sweep is green — so every "0 findings" below is from a sweep that examined something.
+- The clone is **shallow**, so any commit count here is a window, not the record.
+- Commits are signed and the identity is `Neer Patel <135655563+nrdptel@users.noreply.github.com>`,
+  set per-repo before the first commit. It arrives as the harness vendor's default; set it every run.
+- **4 cores, and the orchestration layer competes with the gate for them.** The opening fan-out ran
+  17 agents at a concurrency of 2 and took ~50 minutes wall-clock; while it ran, a `npm test` that
+  takes 185 s alone took over 8 minutes. `MAINTAINING.md` already says not to run subagents during
+  e2e; the same is true of the unit suite on this box. Dispatch the fan-out, then do LOW-CPU work
+  (reading, writing docs, scoping) until it lands — not gate cycles.
+- **Markdown IS scanned by Tailwind, confirmed by controlled experiment.** Appending two utilities
+  the app does not use — an amber border at the 300 step, and a wavy text decoration — to
+  `ROADMAP.md` grew the built stylesheet 65,895 → 66,254 bytes, and both appeared in it. The hazard
+  `MAINTAINING.md` records is real, and this bullet is deliberately written WITHOUT spelling either
+  class, because spelling them here would regenerate them and make the sentence false. Write class
+  names descriptively in prose, then confirm the built CSS is byte-identical before believing you
+  did — that check is what proved this run's ~200 lines of new ledger prose added nothing.
+
+## This run — three increments so far
 
 | # | SHA | what |
 |---|---|---|
-| 1–2 | `42c6599` `ea2bce0` | **P6 inc 8–9** — `Readout` gains `figure`, `tone`, `caution`, `bare`; the dispersion panel's five labelled values all become readouts |
-| 3 | `9d2237b` | **R10 (5a)** — optimum delay scored against the flight its own file describes; worst row **+1107% → −21%** |
-| 4 | `383f09a` | **SEV-1** — a motor that cannot physically be in its mount is refused, not flown (+69% apogee) |
-| 5 | `2c97263` | **SEV-1** — exports whose numbers flip meaning with a control on another page |
-| 6 | `cbe7bd9` | A pre-existing case that was asserting the defect, moved to a fixture with headroom |
-| 7 | `2e1cc52` | The review's five findings, including the Sev-1 at partial scale |
-| 8 | `a6b7120` | The bore tolerance set from 132 measured motor instances |
-| 9 | `97f00f2` | The e2e reaches the way out by the link that exists to offer it |
-| 10 | `b85dd6c` | **R10 (5c)** — every published median names its own population; two false doc claims corrected |
-| 11 | `0c8118d` | The JSX space CI caught, and why the local gate did not |
-| 12 | `244874c` | **SEV-1-shaped** — every landing figure withheld when nothing landed, and WHICH way it failed |
-| 13 | `7be29a1` | The handoff |
-| 14 | `b2ec64a` | **P6 SHIPPED** — one treatment at two densities, and one measured refusal |
-| 15 | `ccc4830` | **R10 (5b)** — deployment velocity read the way each file wrote it |
-
-**Reached production: 15 of 15.**
-
-## The done-check, answered out loud
-
-**What can a flyer DO that they could not before?**
-
-1. **Trust that a number on screen came from a rocket that could exist.** An airframe typed narrower
-   than its own motor used to fly to a confident **+69%** apogee — and *higher*, because a thinner
-   tube is less drag, so it was wrong in the flattering direction — with a *shorter* warning list the
-   more impossible it got. It is refused now, and the refusal names the airframe and links to the
-   field.
-2. **Open an exported CSV and know what its numbers are.** `Apogee` exported 50.6 in metric and
-   166.01049868766404 in imperial, under one header and one filename. Each row now carries its unit
-   and its own precision.
-3. **Read the accuracy census as a claim they can check**, because each of the ten figures names the
-   population it is measured over — 76 to 97, not one "97" — and the two OpenRocket-only ones say so.
-
-**What is measurably better?**
-
-- Unit **1,089 → 1,106**; e2e **231 → 233**; corpus cases **27 → 28**, still 0 findings across 35
-  real design files, census medians unmoved.
-- Worst optimum-delay row in the corpus **1107% → 59%**, with no engine change.
-- `text-[11px]` **46 → 42**; `Readout` adopters 1 → 2. §9 otherwise unmoved: rounded-lg 0, card
-  treatments 3, off-scale spacing 0, off-scale type 0, inverted files 0, hand-rolled dropdowns 0.
-- Two false sentences removed from published pages, one of which was hiding a feature: the validation
-  page told flyers RocketPy "doesn't run in your browser" while `/validate` boots it under Pyodide.
-
-**What is NOT better, stated rather than implied.** The ballistic descent figure is still **14.9%**,
-untouched — the worst number Loft publishes. `deploymentVelocity` went **6.0% → 6.2%**, which is the
-honest direction (it stopped being an OpenRocket-only figure in a cross-tool census) but it is still
-a number that went up. `maxAcceleration` is scoped and NOT started. And the two remaining broken CSV
-exports were filed rather than fixed.
-
-## Pick up first
-
-**Both tracks have an open milestone with one item left, so neither is dry.**
-
-1. **R10's last scoped item — `maxAcceleration`.** All of the 3.2% lives in the 17 `.rkt` rows
-   (median **8.8%**, every one HIGH), and `FullScaleModelTH.rkt` stores a byte-identical
-   `<MaxAcceleration>` of **125.291** across all fifteen runs — different winds, two rail lengths —
-   against Loft's 136.35. **A stored value that never varies is a sampled or rounded peak, not a
-   per-run measurement**, so part of that 8.8% is the oracle's own resolution and should be said
-   rather than carried. Loft's own window is already right for `.ork`: stored `maxacceleration`
-   equals the max before the first deployment on 77/77, which is exactly Loft's `!anyDeployed`
-   freeze. That is measured; what is not is what the `.rkt` figure actually means.
-2. **The P-track is dry and needs extending** — P6 shipped, and `ROADMAP.md`'s after-list names
-   "P6 — instrument what flyers actually hit" next, which is now misnumbered. Renaming it P7 and
-   decomposing it is one increment's work and IS the work when a track is dry. Note the after-list's
-   P7 ("the suite as one product") is blocked on the sibling repo being attachable.
-3. **Superseded — this is done.** The 19 `Readout` sites, and the density answer behind them. `ResultsView`'s `Field` (14) and its
-   what-if delta rows (5) are a different DENSITY of the same treatment, not a different treatment —
-   a `<dl>` strip at `text-sm` against a tile at `text-xl`. `frame="bare"` gave `Readout` the
-   container axis this run; the remaining axis is the value SIZE. **Note the file: they are in
-   `ResultsView.tsx`, not `LoftApp.tsx` as three previous handoffs said.** 19 of the 21
-   `following-sibling::dd` locators in the e2e suite walk off `Field` labels, and the sites are
-   `<dt>`/`<dd>` children of a `<dl>` — so the primitive has to render those elements or the
-   conversion is a repaint.
-4. **`Flight time` is rendered unconditionally while its three neighbours withhold on `!landed`.**
-   `components/ResultsView.tsx:620` against `:587`, `:597`, `:616`. Measured this run on
-   `demo-single-deploy.ork` with a 25 m main: `landed=false` and **flightTime 1.3 s** is published —
-   and 1.3 s is not the 1,200 s time cap either, it is the step budget running out, so the
-   neighbours' shared wording ("no landing inside the time cap") is wrong for that case too. Two
-   non-landing outcomes, one string.
-5. **Two CSV exports still carry the defect the other two lost** — flight phases and the parts table.
-   Both measured and filed in `BACKLOG.md`; `DataTable`'s new `csvLabel` is the mechanism.
+| 1 | `6a752ac` | **P7 SHIPPED** (from `ON-1`) — the docs, readable in the theme the visitor is actually in, plus the two checks that were missing |
+| 2 | `e396ba3` | **The triage** — twelve verdicts, eight milestones, R4 annotated rather than re-opened |
+| 3 | pending | **R11 SHIPPED** (from `ON-2`) — a scratch build that goes downrange and says whose assumption the wind is, plus a plot that explains a flight with no down-range instead of drawing one on its own axis |
+| 4 | pending | **The pre-push review's blocker** — the Monte-Carlo nominal was a hand-copy of the old wind default, so the dispersion flew 0 m/s beside a Flight card flying 2 |
 
 ## The arc so far
 
@@ -127,35 +99,45 @@ exports were filed rather than fixed.
 |---|---|
 | R1–R8 | SHIPPED 2026-07-30 → 2026-08-03 |
 | R9 — the descent Loft cannot defend | SHIPPED 2026-08-04 |
-| **R10 — the corpus comparison Loft can defend** | **IN PROGRESS** — Size (1)–(4) shipped 2026-08-04; (5) is three of four done 2026-08-05 (`optimumDelay`, `deploymentVelocity`, the published populations). Only `maxAcceleration` remains |
+| **R10 — the corpus comparison Loft can defend** | **IN PROGRESS** — only `maxAcceleration` remains of Size item (5) |
+| **R11 — a scratch build flies somewhere** (from `ON-2`) | **SHIPPED 2026-08-08** — both increments, four pinning checks, two negative controls |
+| **R12 — the component tree the flyer sees** (from `ON-6`/`ON-7`/`ON-5`/`ON-4`) | **NOT STARTED.** The batch's largest item, and the R-track's centre of gravity now |
 | P1–P5 | SHIPPED 2026-08-02 → 2026-08-03 |
-| **P6 — the primitives the design system declares** | **SHIPPED 2026-08-05** — pinned by the per-primitive adoption ratchets, the `axisTickSize` ratchet at 41, and the source counts. The last clause closed as one conversion (14 sites, by density) and one measured refusal (5 delta rows) |
-| **P-track after P6** | **DRY.** The after-list's next entry is misnumbered P6 and needs renaming to P7 and decomposing — one increment's work, and it IS the work when a track is dry |
+| P6 — the primitives the design system declares | SHIPPED 2026-08-05 |
+| **P7 — readable in every theme** (from `ON-1`) | **SHIPPED 2026-08-08** |
+| **P8–P12** (from `ON-3`, `ON-B1`, `ON-B2`, `ON-8`, `ON-9`) | **NOT STARTED**, all decomposed with *done when*s and pinning checks. The P-track is no longer dry |
 
-## Environment, re-measured 2026-08-05
+## Pick up first
 
-- `node_modules` absent at session start (~90 s). The managed Playwright browser **chromium-1228 was
-  absent again** — `/opt/pw-browsers` had 1194 — and `npx playwright install chromium` fixed it in
-  about a minute. **Both are paid for every session until they are in the environment's setup script,
-  which is the owner's fix.** This is the third consecutive run to report it.
-- The fixtures repo WAS attached. The suite names `imports every design file (35 present)`.
-- **Do not run subagents while the e2e suite is running.** Measured this run on a 4-core box: two
-  shards each reported one failure that passed in isolation, and a re-run under load reported **23
-  passed** with a "did not run" list — the same signature `MAINTAINING.md` records for concurrent
-  shards and for a stale `serve`, arriving by a third route. The suite is stable at 117 + 117 with
-  nothing else on the machine.
-- **`e2e/rocketpy-selfhosted.spec.ts:254` ("names the connection when the run fails with no signal")
-  failed once in a shard and passed in isolation and on a clean re-run**, with nothing else on the
-  box. It drives the Pyodide worker, which is 40 MB and timing-sensitive, so it is the most likely
-  spec in the suite to go flaky under load. Worth watching rather than acting on: one failure in
-  five full runs this session.
-- `tsc --noEmit` is red on `main` with **9** errors, all in `lib/model/edit.test.ts`, invisible to
-  `npm run build` because the build does not type-check test files. Unchanged from the last two runs.
+1. **R12 — the component tree.** All four editor-shape notes converge on it, and the decisive
+   measurement is already taken: **the model ALREADY carries the tree** (`children` on every
+   component, parent-relative `Placement`), so this is a UI milestone, not the architectural pivot
+   `ROADMAP.md` feared. What is missing is a surface and a selection concept. The scoping numbers are
+   in `COMPETITION.md` row 39: 75.6% of a real design's components sit at depth ≥ 2, **55.8% have no
+   hit target on the drawing at all**, 46.8% have no editable field of any kind, and every add
+   control sits behind one `kind === "bodytube"` guard so ~85% of parts offer nothing.
+2. **P8 — the phone stands the rocket up.** Fully scoped with four measurements that each kill an
+   obvious wrong turn; the sharpest is that the grips' `axis` prop means SCREEN axis, so rotating
+   without re-basing it inverts six of eight controls AND the `aria-orientation` a screen reader
+   announces.
+3. **R10's last item, `maxAcceleration`**, is still open and still scoped in `ROADMAP.md`.
 
-**One invariant could not be honoured, and it is the owner's to close.** `DESIGN.md` is shared
-verbatim with the sibling repo and a change to one is meant to be a change to both in the same run.
-This session's GitHub scope was `nrdptel/fusionspace-loft` and `nrdptel/loft-fixtures` only, so the
-§5 change — `Readout`'s two slots under the value — landed here alone. Third run in a row.
+## What is waiting on the owner
+
+**Three** entries in `OWNER-NOTES.md` under *Awaiting the owner*, all cheap and none blocking: the
+repo's GitHub description/website/topics are empty and a session cannot set them (paste-ready values
+are in that file); whether Loft's header should adopt the motor finder's two-row shape; and that the
+motor finder's own repo is not attached, only its live site — which is the one `ON-B1` needs answered
+to read the reference implementation rather than infer it from rendered output.
+
+**And the shared-`DESIGN.md` invariant, stated precisely, because two files disagreed about it before
+review caught them.** `DESIGN.md` is shared verbatim with the sibling and a change to one is a change
+to both in the same run. This session's GitHub scope was this repo and the fixtures repo, so the §9
+contrast rule landed here alone — that is the fact, and `OWNER-NOTES.md` records it under `ON-1`.
+**What is NEW is that `nrdptel/fusionspace-debrief` is listable and pushable from this session's
+tooling**, so it can be attached mid-run rather than filed as a gap for the fourth time. Mirroring
+the §9 contrast rule there — and measuring whether Debrief's own stylesheet carries the same
+class-only defect, which is likely — is the cheapest high-value work left on the P-track.
 
 ## Two runs ago — ten increments, four Sev-1s, R9 closed (2026-08-04)
 

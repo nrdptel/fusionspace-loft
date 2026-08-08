@@ -35,9 +35,21 @@ next-env.d.ts
 
 # Throwaway diagnostics. A session's probes get named *-tmp.* and live in the tree only while
 # they run; ignoring them keeps `git add -A` from sweeping one into a commit, which has happened.
+#
+# Enumerate the EXTENSIONS, not the guesses. This list was three specific spellings, and the first
+# probe of 2026-08-08 was an ESM TypeScript file named `*-tmp.mts` — an obvious choice, and not one
+# of them. `MAINTAINING.md` says to check the glob covers the name you chose; making the glob cover
+# the names anyone would choose is the cheaper half of that.
 *-tmp.mjs
-*-tmp.*.ts
+*-tmp.cjs
+*-tmp.js
+*-tmp.mts
+*-tmp.cts
 *-tmp.ts
+*-tmp.tsx
+*-tmp.*.ts
+*-tmp.json
+*-tmp.html
 
 # The real-design corpus: other people's design files, under their own terms. Never committed;
 # extracted here (or pointed at with LOFT_CORPUS_DIR) so lib/corpus/sweep.test.ts can run. The

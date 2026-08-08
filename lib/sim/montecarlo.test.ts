@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { importOrk } from "../ork/import";
 import { overridesFromStored, runFlight } from "./run";
 import { monteCarlo, exceedanceProbability, landingSpeedExceedance, type MonteCarloOptions } from "./montecarlo";
+import { newDesign } from "../model/starter";
 
 async function load(name: string) {
   const buf = readFileSync(new URL(`../../fixtures/${name}`, import.meta.url));
@@ -291,6 +292,33 @@ describe("monteCarlo", () => {
         expect(stat.p50).toBeLessThanOrEqual(stat.p95);
         expect(stat.p95).toBeLessThanOrEqual(stat.max);
       }
+    },
+    T,
+  );
+
+  it(
+    "flies the same nominal conditions the single flight does, on a design that states none",
+    async () => {
+      // **A default written down twice is a default that will disagree with itself.** `nomAngle` and
+      // `nomWind` were `?? 0` and `?? 0` — hand-copies of what `defaultConditions()` happened to
+      // hold. When the wind default moved to 2 m/s they did not, and because every sample writes an
+      // explicit `windSpeed` into its own overrides, the dispersion never falls through to
+      // `makeConditions` and nothing downstream could correct it. Measured before the fix on the
+      // from-scratch design: the Flight card reported a **411.28 m** drift and the dispersion beside
+      // it a median of **0.00 m** — two surfaces, one design, and the number a flyer sizes a
+      // recovery area with.
+      //
+      // With every dispersion off, each sample IS the nominal, so the median must land on the single
+      // flight's own answer. That is the property worth pinning: it holds whatever the defaults are
+      // later tuned to, and it fails the moment the two spellings diverge again.
+      const doc = newDesign();
+      const configId = doc.rocket.defaultConfigId;
+      const single = runFlight(doc.rocket, { configId }).result.summary;
+      const mc = monteCarlo(doc.rocket, { n: 8, seed: 7, dispersions: {}, configId });
+
+      expect(single.driftDistance).toBeGreaterThan(1); // control: a nominal of zero would pass vacuously
+      expect(mc.driftDistance.p50).toBeCloseTo(single.driftDistance, 2);
+      expect(mc.apogee.p50).toBeCloseTo(single.apogee, 2);
     },
     T,
   );

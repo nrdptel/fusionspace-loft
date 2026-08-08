@@ -97,11 +97,35 @@ input[type="number"] {
    sits in rather than declaring a size of its own, and §3's scale is about the sizes text is SET at.
    Measured, inline code lands on 12px — `text-xs`, which is what §3 gives dense metadata. The one
    thing below that on a docs route is a `<sub>` inside an equation, which the UA renders `smaller`
-   and which is what a subscript IS; it is not a seventh size. */
+   and which is what a subscript IS; it is not a seventh size.
+
+   **EVERY COLOUR HERE IS `light-dark()`, AND THAT IS THE WHOLE POINT OF THIS BLOCK.** The `dark`
+   variant at the top of this file has TWO clauses — the `.dark` class, and the OS preference for a
+   visitor who has chosen neither — and a `dark:` utility gets both. A hand-written rule does not:
+   these eleven rules were `:where(.dark) …` alone, so they answered clause (a) and missed clause (b)
+   entirely. "System" is the DEFAULT theme and sets neither class, so every first-time visitor on a
+   dark-OS device read all six docs routes in the LIGHT palette on the dark ground the `html` rule
+   above paints. Measured on the built export before this fix: body text at **1.91:1**, `h2` and
+   `strong` at **1.12:1**, links at 3.16:1, blockquotes at 2.57:1 — against WCAG AA's 4.5:1, and
+   against the 13.46:1 the same text gets once `.dark` is present. The `.eqn` and `code` blocks kept
+   their near-white backgrounds, so a formula rendered as a white card on a black page.
+
+   `light-dark()` resolves against the element's USED `color-scheme`, which is exactly the two
+   clauses: `html` declares `light dark` (so the OS decides), `html.dark` declares `dark`, and
+   `html.light` declares `light`. One function, both clauses, no media query to forget — which is
+   what the old shape kept inviting. The light value is repeated as a bare declaration first, so a
+   browser without `light-dark()` keeps precisely today's behaviour and nobody is made worse off.
+   The `:where(.dark)` rules stay for that same browser: they are what an explicit Dark choice falls
+   back to there, and on a browser that has `light-dark()` the two agree by construction.
+
+   Pinned by `e2e/contrast.spec.ts`, which rasterises the computed colours of every text node on
+   every route in an OS-dark context with no theme chosen, and by `lib/design-system.test.ts`'s
+   `no hand-written rule answers only the class half of the dark variant`. */
 .prose-loft {
   font-size: 1rem;          /* §3 text-base — "prose in docs" */
   line-height: 1.7;
-  color: #3f3f46; /* zinc-700 */
+  color: #3f3f46;
+  color: light-dark(#3f3f46, #d4d4d8); /* zinc-700 / zinc-300 */
 }
 :where(.dark) .prose-loft {
   color: #d4d4d8; /* zinc-300 */
@@ -113,6 +137,7 @@ input[type="number"] {
   font-weight: 600;
   letter-spacing: -0.01em;
   color: #18181b;
+  color: light-dark(#18181b, #fafafa);
 }
 :where(.dark) .prose-loft h2 {
   color: #fafafa;
@@ -123,6 +148,7 @@ input[type="number"] {
   font-size: 1rem;          /* §3 text-base — subsection heading */
   font-weight: 600;
   color: #27272a;
+  color: light-dark(#27272a, #f4f4f5);
 }
 :where(.dark) .prose-loft h3 {
   color: #f4f4f5;
@@ -147,7 +173,8 @@ input[type="number"] {
   list-style: decimal;
 }
 .prose-loft a {
-  color: #4f46e5; /* indigo-600 */
+  color: #4f46e5;
+  color: light-dark(#4f46e5, #818cf8); /* indigo-600 / indigo-400 */
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -158,6 +185,7 @@ input[type="number"] {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.85em;
   background: #f4f4f5;
+  background: light-dark(#f4f4f5, #27272a); /* zinc-100 / zinc-800 */
   padding: 0.1em 0.35em;
   border-radius: 4px;
 }
@@ -166,6 +194,7 @@ input[type="number"] {
 }
 .prose-loft strong {
   color: #18181b;
+  color: light-dark(#18181b, #fafafa);
   font-weight: 600;
 }
 :where(.dark) .prose-loft strong {
@@ -179,12 +208,15 @@ input[type="number"] {
   display: block;
   overflow-x: auto;
   background: #f4f4f5;
+  background: light-dark(#f4f4f5, #18181b);
   border: 1px solid #e4e4e7;
+  border-color: light-dark(#e4e4e7, #27272a);
   border-radius: 12px;
   padding: 0.6rem 0.8rem;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.85em;
   color: #27272a;
+  color: light-dark(#27272a, #e4e4e7);
   margin: 0.6rem 0;
 }
 :where(.dark) .prose-loft .eqn {
@@ -194,9 +226,11 @@ input[type="number"] {
 }
 .prose-loft blockquote {
   border-left: 3px solid #a5b4fc;
+  border-left-color: light-dark(#a5b4fc, #4f46e5); /* indigo-300 / indigo-600 */
   padding-left: 0.9rem;
   margin: 0.8rem 0;
   color: #52525b;
+  color: light-dark(#52525b, #a1a1aa); /* zinc-600 / zinc-400 */
 }
 :where(.dark) .prose-loft blockquote {
   color: #a1a1aa;
@@ -213,6 +247,7 @@ input[type="number"] {
 .prose-loft th,
 .prose-loft td {
   border: 1px solid #e4e4e7;
+  border-color: light-dark(#e4e4e7, #27272a);
   padding: 0.4rem 0.6rem;
   text-align: left;
 }
@@ -222,6 +257,7 @@ input[type="number"] {
 }
 .prose-loft th {
   background: #fafafa;
+  background: light-dark(#fafafa, #18181b); /* zinc-50 / zinc-900 */
   font-weight: 600;
 }
 :where(.dark) .prose-loft th {

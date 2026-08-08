@@ -428,6 +428,45 @@ grep but is genuinely not a card — a floating toast that needs elevation, an i
 gets its own named primitive rather than a `shadow` prop on `Card`. Record the honest floor and what
 each remaining string is, on the milestone that owns the conversion.
 
+### Contrast — the one thing every grep above is blind to
+
+**Every count above matches a class NAME, and readability is a rendered COLOUR.** So all of them can
+read zero while text on a live route is unreadable, and on 2026-08-08 that is exactly what had
+happened: the owner reported the docs "keep the font color as grey in dark mode, incredibly hard to
+read", and every §9 number was at target. Measured on the built export: body prose at **1.91:1**,
+`h2` and `strong` at **1.12:1**, links at 3.16:1, blockquotes at 2.57:1 — against WCAG AA's 4.5:1.
+It had shipped, on all six docs routes, for as long as those routes existed.
+
+**The mechanism is worth stating, because it is a trap this system sets for itself.** The `dark`
+variant has TWO clauses — the `.dark` class an explicit choice sets, and `prefers-color-scheme` for a
+visitor who has chosen neither — and every `dark:` UTILITY gets both. A rule written by hand in a
+stylesheet gets only the one it asks for, and "System" is the DEFAULT theme, setting no class at all.
+So a hand-written `:where(.dark)` rule is correct for everyone who has visited the theme toggle and
+wrong for everyone who has not.
+
+Two rules follow, and they are binding:
+
+- **A hand-written rule states its colour with `light-dark()`, never with `.dark` alone.** It
+  resolves against the element's used `color-scheme`, which is already set per clause on the root, so
+  one function covers both with no media query to forget. Keep the bare light value as a preceding
+  declaration — that is the fallback for a browser without `light-dark()`, and it costs nothing.
+- **Contrast is measured on the RENDERED page, in every theme a visitor can be in** — light, Dark
+  chosen, and a dark OS with nothing chosen. That third state is the default and is the one that was
+  broken.
+
+```bash
+# the rendered check — three themes, every docs route, plus the workspace carrying the numbers
+npx playwright test e2e/contrast.spec.ts        # target: 0 nodes below WCAG AA, 4 cases green
+
+# the source check — no hand-written rule may answer the class clause alone
+npx vitest run lib/design-system.test.ts -t "class half of the dark variant"   # target: green
+```
+
+Both are ratcheted into the suite. Colours are **rasterised onto a 1×1 canvas, never parsed**:
+Chromium reports computed colours as `lab()`/`oklab()` here, and a digit match over
+`lab(2.51 0.24 -0.89)` yields confident nonsense. And each case asserts its own sample count first —
+a walk that examined nothing reports zero unreadable nodes and prints exactly like a pass.
+
 ---
 
 ## 10. Suite consistency
