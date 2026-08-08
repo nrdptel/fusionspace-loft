@@ -36,6 +36,14 @@ this run; where a fan-out claimed something the corpus then refuted, the refutat
   NOT preempting a milestone — but it becomes reachable the moment an editor lets someone set a
   custom reference, so fix it with that feature rather than before it.
 
+- ~~**Tailwind regenerates any class named in the ledgers.**~~ **RESOLVED 2026-08-08** by adopting
+  `@source not "../**/*.md"` (and the test-file equivalents) from the sibling repo, which had carried
+  the fix since 2026-07-31. Shipped stylesheet **65,895 → 63,278 bytes**. The manual workaround —
+  write removed class names broken up, confirm with a clean rebuild — is retired in
+  `MAINTAINING.md`. Worth noting how it was found: Loft had documented the hazard and built a
+  workaround around it while the sibling had already eliminated it, and nothing surfaces that except
+  attaching both repos and diffing.
+
 - **The flight-path plot has no x tick labels in ANY state, so it autoscales invisibly.** Found while
   shipping R11 increment 2 and NOT fixed by it — the milestone's *done when* asked for "a labelled
   axis" on a degenerate range and got a caption and a sentence instead, which is recorded on R11

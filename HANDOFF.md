@@ -76,13 +76,12 @@ have been. Remove the probe line, do not restore the file.
   takes 185 s alone took over 8 minutes. `MAINTAINING.md` already says not to run subagents during
   e2e; the same is true of the unit suite on this box. Dispatch the fan-out, then do LOW-CPU work
   (reading, writing docs, scoping) until it lands — not gate cycles.
-- **Markdown IS scanned by Tailwind, confirmed by controlled experiment.** Appending two utilities
-  the app does not use — an amber border at the 300 step, and a wavy text decoration — to
-  `ROADMAP.md` grew the built stylesheet 65,895 → 66,254 bytes, and both appeared in it. The hazard
-  `MAINTAINING.md` records is real, and this bullet is deliberately written WITHOUT spelling either
-  class, because spelling them here would regenerate them and make the sentence false. Write class
-  names descriptively in prose, then confirm the built CSS is byte-identical before believing you
-  did — that check is what proved this run's ~200 lines of new ledger prose added nothing.
+- **Markdown WAS scanned by Tailwind, and is not any more.** Confirmed by controlled experiment
+  (appending two unused utilities to `ROADMAP.md` grew the stylesheet 65,895 → 66,254 bytes), then
+  fixed by adopting the sibling repo's `@source not "../**/*.md"` — which that repo has had since
+  2026-07-31. The shipped stylesheet went **65,895 → 63,278 bytes**, 2,617 bytes of dead rules
+  generated from prose. `MAINTAINING.md`'s workaround bullet is updated to say so. A ledger entry may
+  now name a class plainly; `lib/` is still scanned on purpose.
 
 ## This run — three increments so far
 
