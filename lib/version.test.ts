@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { VERSION, RELEASED, RELEASES } from "./version";
@@ -65,5 +65,58 @@ describe("the version the app shows", () => {
     const releases = parseChangelog(bumped) as { version: string }[];
     expect(releases[0].version).toBe("99.0.0");
     expect(releases[0].version).not.toBe(VERSION);
+  });
+});
+
+describe("README.md — the landing page is a surface, and it goes stale like one", () => {
+  // **Nothing in the gate read the README's CLAIMS, and it had drifted 28 commits.** `check-links`
+  // resolves its relative links and never a sentence, and the file is in no session-start list — so
+  // on 2026-08-08 it still advertised `.ork` import ALONE, four months after RockSim and RASAero
+  // shipped. A flyer with a `.rkt` reads that and concludes Loft cannot open their file. It also
+  // called RockSim and RocketPy "future" adapters, both shipped, and counted two bundled examples
+  // where there are four.
+  //
+  // The owner filed exactly this (`OWNER-NOTES.md` `ON-B2`), and the durable half of that note is
+  // the mechanism rather than the prose: a milestone that only rewrites the text is stale again
+  // within two runs. So the claims that can be tied to code are tied to it here, and a false one
+  // fails the build.
+  //
+  // Deliberately narrow. Only claims with a single mechanical source of truth are asserted — the
+  // accepted extensions and the bundled sample count. Prose about what the tool feels like is not
+  // testable and pretending otherwise would make this check noisy enough to be disabled.
+  const readme = () => read("README.md");
+
+  it("names every design format the importer actually accepts", () => {
+    const accept = read("components/ImportPanel.tsx");
+    const m = /accept="([^"]+)"/.exec(accept);
+    expect(m, "ImportPanel no longer declares an accept list — this check needs rewiring").toBeTruthy();
+    // The file extensions the input takes, minus MIME types and the gzip variant of a format
+    // already named by its base extension.
+    const exts = new Set(
+      m![1]
+        .split(",")
+        .map((x) => x.trim().toLowerCase())
+        .filter((x) => x.startsWith("."))
+        .map((x) => x.replace(/\.gz$/, ""))
+        .filter((x) => x !== ""),
+    );
+    const text = readme().toLowerCase();
+    const missing = [...exts].filter((e) => !text.includes(e));
+    expect(
+      missing,
+      `README.md does not mention design formats the import panel accepts: ${missing.join(", ")}.\n` +
+        "A flyer whose format is missing reads the landing page and concludes Loft cannot open their file.",
+    ).toEqual([]);
+  });
+
+  it("states the number of bundled examples the repo actually ships", () => {
+    const n = readdirSync(resolve(root, "public/samples")).filter((f) => /\.(ork|rkt|cdx1)$/i.test(f)).length;
+    const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight"];
+    const claim = /(\w+) bundled examples/i.exec(readme());
+    expect(claim, "README.md no longer says how many bundled examples there are").toBeTruthy();
+    expect(
+      claim![1].toLowerCase(),
+      `README.md says "${claim![1]} bundled examples" and public/samples holds ${n}`,
+    ).toBe(WORDS[n] ?? String(n));
   });
 });
