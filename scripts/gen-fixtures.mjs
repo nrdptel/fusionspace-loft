@@ -21,8 +21,26 @@ const srcDir = resolve(root, "fixtures", "src");
 const fixturesDir = resolve(root, "fixtures");
 const samplesDir = resolve(root, "public", "samples");
 
-/** The designs the app offers as one-tap examples; the rest are test fixtures only. */
-const SAMPLES = new Set(["demo-single-deploy.ork", "demo-dual-deploy.ork", "demo-multi-config.ork"]);
+/** The designs the app offers as one-tap examples; the rest are test fixtures only.
+ *
+ *  **The last two were added 2026-08-08 and closed two capability gaps for the cost of this literal.**
+ *  Measured against what the adapter and the model support, the bundled set covered NEITHER a
+ *  transition/boattail nor a non-trapezoidal fin planform — while `demo-boattail.ork` had both, was
+ *  already generated from source, already loaded, and already carried a RocketPy cross-check
+ *  reference; and `demo-payload-separation.ork` had the separation event no sample showed. They were
+ *  test fixtures and nothing else, so a flyer who arrived without a design file of their own could
+ *  not see either capability exists.
+ *
+ *  Adding a name here is the whole job for a design that already has a source: it lands in
+ *  `public/samples/` on the next run of this script, and `lib/version.test.ts` then requires the
+ *  import screen to offer it and the README's count to match. */
+const SAMPLES = new Set([
+  "demo-single-deploy.ork",
+  "demo-dual-deploy.ork",
+  "demo-multi-config.ork",
+  "demo-boattail.ork",
+  "demo-payload-separation.ork",
+]);
 
 /** A minimal, deterministic ZIP holding one deflated entry. Deterministic matters: a fixed
  *  timestamp keeps the committed binaries byte-stable, so regenerating an unchanged source

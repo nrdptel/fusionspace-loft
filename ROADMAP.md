@@ -4457,7 +4457,47 @@ component while these are static routes, so converting them is a decision rather
 
 ## P12 (from ON-9) — Samples that show what the tool can actually do
 
-**Status: NOT STARTED.**
+**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-08: **two capabilities that had no example
+at all now have one, and the sample list is pinned in both directions.**
+
+`demo-boattail.ork` and `demo-payload-separation.ork` were already generated from committed source,
+already loading, and already carrying their own stored results — they were simply absent from
+`gen-fixtures.mjs`'s `SAMPLES` set, so they existed as test fixtures nobody could reach. Adding two
+strings to a literal took the bundled set from four files / three airframes to six / five, and closed
+the two sharpest gaps: **no bundled sample had a transition or boattail, and none had a
+non-trapezoidal fin planform**, so a flyer arriving without a design of their own could not see that
+Loft handles either.
+
+Pinned by `lib/samples.test.ts`, four cases:
+
+- *offers exactly the files it ships, in both directions* — the import screen's own `SAMPLES` list
+  against `public/samples/`. The two directions are asserted separately because they fail
+  differently: offered-but-missing is a one-tap button that 404s on a flyer's first minute,
+  shipped-but-unoffered is a capability nobody can reach. Negative controls fire on both.
+- *ships a design that imports and flies for every one of them* — imported and flown through the same
+  path a first tap takes, asserting a resolved motor set and a real apogee.
+- *covers the capabilities the set exists to demonstrate, and says which are still uncovered* — the
+  covered kinds asserted by name, and the **uncovered** ones asserted as an exact list, so a sample
+  added for one of them has to shrink that list in the same commit.
+- *records that EVERY sample is still over-stable* — see below.
+
+**Three stale counts fell out of it, which is how the milestone earned its pin.** `README.md` said
+"four bundled examples", `/docs/limitations` said "two `.ork` files and one RockSim `.rkt`", and
+`/docs/validation` said "the two bundled samples". `lib/version.test.ts`'s count check caught the
+first the moment the files landed; the other two were prose nothing asserts, found by grep.
+
+**What increment 1 did NOT do, asserted rather than promised: every bundled sample is still
+over-stable.** `OVER_STABLE_CAL` is 3 and the set measures **3.06 / 3.82 / 4.07 / 4.07 / 4.38 cal** —
+so adding two designs made it six of six rather than four of four, and a stranger's first flight still
+opens with a caution. That clause needs a *synthesized* design rather than a promoted fixture, which
+is increment 2. The check asserts the count of in-band samples is **zero**, so the increment that
+fixes it cannot land without saying so.
+
+**Remaining: increment 2** (a design inside the stable band, synthesized), **increment 3** (a `.CDX1`
+example — an advertised import format with a 640-line adapter and no example anywhere in the repo,
+not even as a fixture).
+
+**Status was: NOT STARTED.**
 
 **Outcome.** A flyer who arrives without a design file of their own can see the capabilities Loft
 actually has.
@@ -4547,6 +4587,24 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-08 — P12 is taken before P8, and the reason is a question P8's own *done when* hides.**
+  Strict alternation puts P8 next on the P-track. Its first coherent slice is not small: you cannot
+  ship half a rotation, so it is the orientation switch, the drawing, **nine** `FinHandle` grips
+  re-based off the screen axis onto the model axis, three consumers of that prop, a pointer-to-value
+  mapping written twice, and both tap-column builders — in one change.
+  **And clause 4 of its *done when* asks for something the geometry may not permit.** It requires the
+  44 px tap assert to "still pass for a real reason" after the columns are rebuilt on the cross axis.
+  Today a column is full-diagram-HEIGHT and part-length WIDE, so the assert measures the height and
+  trivially passes. Rotated, the column's height becomes the part's LENGTH — and `e2e/touch.spec.ts`
+  already records **56 of 150 corpus body parts under 44 px** along it, the narrowest at 0.8 px. No
+  arrangement gives twenty stacked parts a 44 px band each inside a 500 px height budget. So the
+  honest answer is either that the drawing stops being the touch path in portrait (the parts tree
+  already is, for reorder) or that the contract is stated differently for it — **a product decision,
+  not an implementation detail**, and one worth making with a whole increment rather than at the end
+  of a long one. **Taken:** ship P12's first slice, which is complete and reaches a flyer, and leave
+  P8 to open on that question. **Rejected:** starting P8 and shipping the rotation without the touch
+  answer, which would have left the phone drawing in a state the suite's own floor says is worse.
 
 - **2026-08-08 — R12's property surface stays LIVE-COMMIT, not transactional.** `COMPETITION.md` row
   39 left this open and row 40 now settles it: OpenRocket's component dialog is transactional — it has
