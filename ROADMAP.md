@@ -4193,7 +4193,22 @@ decided here. Build the token alignment without it.
 
 ## P10 (from ON-B2) — The repo page is a surface, and it goes stale like one
 
-**Status: NOT STARTED.**
+**Status: IN PROGRESS** — increment 1 of 2 shipped 2026-08-08: the README describes what ships, and
+two of its claims are now asserted against the code that makes them true. Pinned by
+`lib/version.test.ts`'s *names every design format the importer actually accepts* (which reads
+`ImportPanel`'s own `accept` list, so a new adapter fails the build until the README names it) and
+*states the number of bundled examples the repo actually ships*. Both proved able to fail by a
+negative control that restores the shipped text: the first reports *"README.md does not mention
+design formats the import panel accepts: .rkt, .cdx1"* — the exact claim that stood for four months.
+
+**Deliberately narrow, and that is the design.** Only claims with a single mechanical source of
+truth are asserted. Prose about what the tool feels like is not testable, and pretending otherwise
+would make the check noisy enough that someone disables it — which is how a stale README happens in
+the first place.
+
+**Remaining: increment 2, the repository SETTINGS half**, which is not a file and which no tool
+available to a session can edit. Paste-ready description, website and topics are in `OWNER-NOTES.md`
+under *Awaiting the owner*. **Do not report `ON-B2` as closed while that half is open.**
 
 **Outcome.** Someone arriving from a forum link reads a landing page that describes the tool that
 exists today.
