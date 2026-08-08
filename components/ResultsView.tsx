@@ -996,6 +996,11 @@ export default function ResultsView({
           ballastKg={ballastKg}
           motorSwap={motorSwap}
           geometry={geometry}
+          // `hasPropulsion` is what decides whether this panel is offered at all — a reduced flight
+          // is still a meaningful apogee. `motorsComplete` is what decides whether ONE of its metrics
+          // can be published, and the two are not the same predicate: a cluster with one motor Loft
+          // has no curve for satisfies the first and fails the second. Same sentence as the strip.
+          marginWithheld={run.motorsComplete ? undefined : MOTOR_GAP_SHORT(run)}
         />
       )}
 
@@ -1778,7 +1783,12 @@ function BoosterDescentNote({ run, units }: { run: FlightRun; units: UnitSystem 
  *  effect of the change is legible at a glance instead of remembered. Both runs share identical
  *  launch conditions, so every delta is the design change alone. Directions are shown by sign, not
  *  colour: a lower apogee from added ballast isn't "bad", it's the trade the flyer is weighing. */
-function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: FlightRun; units: UnitSystem }) {
+/** Exported for `lib/what-if-delta.test.tsx` and for nothing else — the surface census in
+ *  `lib/margin-surfaces.test.ts` can tell that this file consults `motorsComplete`, but not that THIS
+ *  card does, and a negative control proved that gap: deleting the gate below leaves the census green
+ *  because the summary strip elsewhere in the file still mentions the predicate. A card that publishes
+ *  two static margins and a signed change between them is worth a check that renders it. */
+export function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: FlightRun; units: UnitSystem }) {
   const cur = run.result.summary;
   const base = baseline.result.summary;
 
@@ -1807,12 +1817,40 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
       cur: d.speed(cur.railExitVelocity, units),
       change: d.changePercent(base.railExitVelocity, cur.railExitVelocity),
     },
-    {
-      label: "Stability",
-      base: d.calibers(baseline.result.staticMarginCal),
-      cur: d.calibers(run.result.staticMarginCal),
-      change: d.changeAbsolute(baseline.result.staticMarginCal, run.result.staticMarginCal, "cal"),
-    },
+    // **The stability row needs BOTH flights' motors to have resolved, and it is the only row here
+    //  that does.** The margin is measured from the loaded CG, so a configuration missing a motor is
+    //  missing that motor's mass from the number — the summary strip directly above this card has
+    //  withheld it under `!motorsComplete` since that was measured (4.065 → 5.921 cal, +46%). This
+    //  card is gated on `hasPropulsion`, which is a weaker predicate: `some(match)`, satisfied by a
+    //  cluster with one motor Loft has no curve for. So it published two margins and a signed delta
+    //  under a cell reading "—".
+    //
+    //  **And the DELTA needs both ends even when the current flight is fine**, which is the half a
+    //  single check on `run` would have missed: the baseline is the design as its file describes it,
+    //  so a motor-swap what-if onto a bundled motor gives a complete `run` and an incomplete
+    //  `baseline`, and the row would then report a stability change the flyer never made. Hence the
+    //  conjunction rather than a test on either one.
+    //
+    //  Withheld, never dropped: an absent row on a card whose other three still print is a blank
+    //  cell, which `DESIGN.md` §6 calls a bug. It says which flight is short a motor and what brings
+    //  the row back.
+    ...(run.motorsComplete && baseline.motorsComplete
+      ? [
+          {
+            label: "Stability",
+            base: d.calibers(baseline.result.staticMarginCal),
+            cur: d.calibers(run.result.staticMarginCal),
+            change: d.changeAbsolute(baseline.result.staticMarginCal, run.result.staticMarginCal, "cal"),
+          },
+        ]
+      : [
+          {
+            label: "Stability",
+            base: { value: "—", unit: "" },
+            cur: { value: "—", unit: "" },
+            change: { text: "withheld" },
+          },
+        ]),
     // Fin-flutter margin, when both flights estimate one (a finned design) — so a fin edit shows its
     // effect on the flutter headroom right alongside the stability trade. All three numbers share
     // one precision, and it has to be wide enough for the CHANGE as well as for the two ends: at one
@@ -1869,6 +1907,20 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
           </div>
         ))}
       </dl>
+      {/* The withheld row's reason, and what brings it back — `DESIGN.md` §6. It sits under the grid
+          rather than inside the cell because the cell is a mono figure column three columns wide, and
+          a sentence in it wraps into the row beside it. Same gap the summary strip above names, in
+          the same words. */}
+      {!(run.motorsComplete && baseline.motorsComplete) && (
+        <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-300">
+          <strong>Stability is withheld:</strong>{" "}
+          {run.motorsComplete
+            ? "the design's own flight is missing a motor, so there is nothing to compare this margin against"
+            : MOTOR_GAP_SHORT(run)}
+          . The margin is measured from the loaded centre of gravity, so it needs every motor&apos;s
+          mass. Resolve the motor under Design and the row comes back.
+        </p>
+      )}
     </Card>
   );
 }

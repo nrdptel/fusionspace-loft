@@ -6,6 +6,7 @@ import { ballisticGap, motorSweep, parameterSweep, linRange, type SweepMotor } f
 import { allMotors } from "../motors/db";
 import { designMotorIdentity, swapOptions } from "../motors/swap";
 import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryBodyTube } from "../model/edit";
+import { flattenRocket } from "../model/geometry";
 
 async function load(name: string) {
   const buf = readFileSync(new URL(`../../fixtures/${name}`, import.meta.url));
@@ -392,6 +393,66 @@ describe("parameterSweep", () => {
     expect(pts).toHaveLength(1);
     expect(pts[0].x).toBeCloseTo(span, 9);
   });
+
+  it("withholds the static margin when a motor is missing, and keeps the flight it can still fly", async () => {
+    // **The Sev-1 this exists for, reproduced 2026-08-08 before it was fixed.** `hasPropulsion` is
+    // `some(match)` — a configuration with two mounts and one designation Loft has no curve for
+    // still flies, and its reduced apogee is treated as a meaningful answer on purpose. The static
+    // margin is not: it is measured from the LOADED CG, which is short one motor's mass. The summary
+    // strip has withheld it under `!motorsComplete` since the day that was measured (4.065 → 5.921
+    // cal, +46%, more stable than the truth); this module published it regardless, so a flyer read
+    // "Static margin —, a motor in this configuration could not be matched" with a whole curve of it
+    // plotted and CSV-exported directly below. Measured on this construction before the fix:
+    // 1.098 / 1.290 / 1.487 cal, straddling the 1-caliber line fins are sized against.
+    const doc = await load("demo-single-deploy.ork");
+    const two = structuredClone(doc.rocket);
+    const flat = flattenRocket(two);
+    const mount = flat.find((p) => (p.component as unknown as Record<string, unknown>).motorMount)!.component;
+    const host = flat.find((p) => p.component.children.includes(mount))!.component;
+    // A SECOND mount, wide enough that the bore veto does not fire — that veto withholds the whole
+    // flight and would hide the state this is about — carrying a designation nothing can resolve.
+    const roomy = structuredClone(mount) as typeof mount & { innerRadius: number; outerRadius: number };
+    roomy.id = `${mount.id}-roomy`;
+    roomy.name = "roomy mount";
+    roomy.innerRadius = 0.05;
+    roomy.outerRadius = 0.052;
+    host.children = [...host.children, roomy];
+    const cfg = two.configurations[0];
+    two.configurations = [
+      {
+        ...cfg,
+        instances: [
+          ...cfg.instances,
+          { ...cfg.instances[0], mountId: roomy.id, motor: { ...cfg.instances[0].motor, designation: "ZZ999", manufacturer: "Nobody" } },
+        ],
+      },
+    ];
+
+    const run = runFlight(two, { configId: two.configurations[0].id });
+    // The control: this construction really does reach the partial state, and not the empty one.
+    expect(run.hasPropulsion, "the construction no longer flies at all — it is testing the wrong state").toBe(true);
+    expect(run.motorsComplete, "the construction resolved every motor — it is testing the wrong state").toBe(false);
+
+    const len = primaryBodyTube(two)!.length;
+    const pts = parameterSweep(two, "bodyLength", linRange(len * 0.9, len * 1.1, 3), {
+      configId: two.configurations[0].id,
+    });
+    // The flight that is still meaningful survives...
+    expect(pts.length, "the withholding must not silently shorten the apogee curve").toBe(3);
+    for (const p of pts) expect(p.apogee).toBeGreaterThan(0);
+    // ...and the one that is not is withheld rather than published.
+    for (const p of pts) {
+      expect(
+        Number.isFinite(p.staticMarginCal),
+        `a static margin (${p.staticMarginCal}) was published for a configuration whose CG is missing a motor`,
+      ).toBe(false);
+    }
+
+    // And the motor sweep on the SAME design is safe for a reason rather than by luck: every row is
+    // flown with a `motorSwap`, and a swap replaces every instance, so the set is complete again.
+    const swapped = runFlight(two, { configId: two.configurations[0].id, motorSwap: { designation: "H128W" } });
+    expect(swapped.motorsComplete, "a motor swap no longer completes the configuration — motorSweep's margin needs re-checking").toBe(true);
+  }, 60_000);
 });
 
 

@@ -93,6 +93,7 @@ export default function ParameterSweep({
   flownOverrides,
   weatherSerial,
   conditions,
+  marginWithheld,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -118,6 +119,16 @@ export default function ParameterSweep({
   weatherSerial?: number;
   /** Where each launch condition came from, so this panel names what IT flew. */
   conditions?: ConditionsSource;
+  /** Why the static margin cannot be published for this flight, when it cannot — the SAME sentence
+   *  the summary strip withholds it with, passed in rather than re-derived, because two spellings of
+   *  one reason is how the surfaces disagreed in the first place.
+   *
+   *  The flight the strip describes and the flights this panel flies share their motor resolution:
+   *  the sweep varies a geometry dimension or the ballast, never the motor set. So a configuration
+   *  the strip calls incomplete is incomplete at every point on the curve, and one flag answers all
+   *  of them. (The motor sweep is the case where that is NOT true, and it is why that panel takes no
+   *  such prop: every row there is flown with a `motorSwap`, which replaces every instance.) */
+  marginWithheld?: string;
 }) {
   // Only the conditions a BALLISTIC ascent actually reads. Wind is excluded on purpose: `runFlight`
   // zeroes it for a ballistic run, so re-flying a whole sweep on a wind edit would throw the work
@@ -236,10 +247,18 @@ export default function ParameterSweep({
   // which is what eslint was pointing at.)
   // It reads the STRUCTURE base rather than the import so a design whose only fin set the flyer built
   // still offers the flutter metric — on a from-scratch design that is the only fin set there is.
-  const metrics = useMemo(
-    () => (primaryFinThickness(axisBase) !== undefined ? METRICS : METRICS.filter((m) => m.key !== "flutterMargin")),
-    [axisBase],
-  );
+  //
+  // The static margin drops out on the same principle, for a different reason: it is computed from
+  // the LOADED CG, so a configuration missing one of its motors has no margin to publish — which is
+  // what the summary strip above already says. Offering the metric and plotting a curve of NaN would
+  // be a blank chart with nothing saying why (`DESIGN.md` §6); removing it silently would be a
+  // "feature reachable only by knowing it is there" in reverse. It is removed AND said, below.
+  const metrics = useMemo(() => {
+    let out = METRICS;
+    if (primaryFinThickness(axisBase) === undefined) out = out.filter((m) => m.key !== "flutterMargin");
+    if (marginWithheld) out = out.filter((m) => m.key !== "staticMarginCal");
+    return out;
+  }, [axisBase, marginWithheld]);
 
   const [open, setOpen] = useState(false);
   // Which dimension to sweep and what to plot are a view the flyer set up, not a result — so they
@@ -334,10 +353,14 @@ export default function ParameterSweep({
       run="Run parameter sweep"
       what="the parameter sweep"
     >
+      {/* The pitch names the metrics on offer, so it cannot name one that has been withdrawn — a
+          panel promising "stability" over a dropdown that no longer lists it is the tell about a
+          feature reachable only by knowing it is there, pointing the other way. */}
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-        Vary one of the design&apos;s dimensions across a range and see how apogee, speed, stability,
-        or fin-flutter margin responds — the response curve behind a single edit, run entirely on your
-        device. Every other active what-if is held fixed, so the curve isolates the one variable.
+        Vary one of the design&apos;s dimensions across a range and see how apogee, speed
+        {marginWithheld ? "" : ", stability"} or fin-flutter margin responds — the response curve
+        behind a single edit, run entirely on your device. Every other active what-if is held fixed,
+        so the curve isolates the one variable.
       </p>
 
       {open && axisDef && (
@@ -378,6 +401,19 @@ export default function ParameterSweep({
               </Select>
             </label>
           </div>
+
+          {/* A withheld value says WHY and what would bring it back — `DESIGN.md` §6 — and this one
+              has to be said out loud rather than left as a missing entry in a dropdown, because the
+              metric it removes is the one a flyer opens this panel to see when they are sizing fins.
+              It names the same gap the summary strip names, in the strip's own words. */}
+          {marginWithheld && (
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">
+              <strong>Static margin is not offered here:</strong> {marginWithheld}. The margin is
+              measured from the loaded centre of gravity, so it cannot be computed until every motor
+              in this configuration resolves — the same reason it reads &ldquo;&mdash;&rdquo; on the
+              flight summary above. Swap in a bundled motor under Design, and it comes back on both.
+            </p>
+          )}
 
           {(running || points === null) && (
             <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">

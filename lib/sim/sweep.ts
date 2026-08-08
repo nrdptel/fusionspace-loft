@@ -124,7 +124,14 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
         maxVelocity: s.maxVelocity,
         railExitVelocity: s.railExitVelocity,
         thrustToWeight: s.thrustToWeight,
-        staticMarginCal: run.result.staticMarginCal,
+        // The same withholding as `parameterSweep` above, and today it never fires — which is the
+        // point of writing it rather than leaving the safety implicit. Every row here is flown with
+        // a `motorSwap`, and a swap replaces EVERY instance in the configuration with one bundled
+        // motor, so the set is always complete: verified 2026-08-08 on a two-mount design with one
+        // unresolvable designation, where the unswapped run reports `motorsComplete: false` and the
+        // swapped run reports `true`. This sweep is safe for a reason, not by luck, and the guard is
+        // what keeps that true if the swap ever becomes per-instance.
+        staticMarginCal: run.motorsComplete ? run.result.staticMarginCal : Number.NaN,
         flutterMargin: run.result.flutter ? run.result.flutter.worst.margin : Number.NaN,
         // A motor that never really flew (won't clear the rail) has no meaningful apogee delay.
         optimumDelay: Number.isFinite(s.optimumDelay) && s.optimumDelay > 0 ? s.optimumDelay : Number.NaN,
@@ -248,13 +255,30 @@ export function parameterSweep(
       });
       if (!run.hasPropulsion) continue;
       const s = run.result.summary;
-      if (!Number.isFinite(s.apogee) || !Number.isFinite(run.result.staticMarginCal)) continue;
+      if (!Number.isFinite(s.apogee)) continue;
+      // **The margin is a SEPARATE decision from the apogee, and conflating them was a Sev-1.**
+      // `hasPropulsion` is `some(match)`: a configuration with two mounts and one motor Loft has no
+      // curve for still flies, and its reduced apogee is deliberately treated as a meaningful answer.
+      // The static margin is not, because it is computed from the LOADED CG and that CG is missing a
+      // motor's mass — which is exactly why `ResultsView`'s summary strip withholds it under
+      // `!motorsComplete`, with the measurement beside it (4.065 → 5.921 cal, +46%, on a design with
+      // its motor made unresolvable). This module published it anyway, so the strip said "—, a motor
+      // in this configuration could not be matched" while the sweep directly below plotted and
+      // exported a whole curve of it: reproduced 2026-08-08 on `demo-single-deploy.ork` given a
+      // second mount whose designation is not in the bundled data — 1.098 / 1.290 / 1.487 cal, values
+      // that straddle the 1-caliber line a flyer sizes fins against.
+      //
+      // Withheld as NaN rather than by dropping the point: the apogee, max velocity and rail-exit
+      // curves are still worth plotting, and dropping the point would silently shorten every one of
+      // them. The finite-margin skip below is therefore conditioned on the same predicate, so a
+      // COMPLETE run behaves exactly as it always has.
+      if (run.motorsComplete && !Number.isFinite(run.result.staticMarginCal)) continue;
       out.push({
         x: v,
         apogee: s.apogee,
         maxVelocity: s.maxVelocity,
         railExitVelocity: s.railExitVelocity,
-        staticMarginCal: run.result.staticMarginCal,
+        staticMarginCal: run.motorsComplete ? run.result.staticMarginCal : Number.NaN,
         flutterMargin: run.result.flutter ? run.result.flutter.worst.margin : Number.NaN,
         extrapolatedTransonic: run.result.extrapolatedTransonic,
       });
