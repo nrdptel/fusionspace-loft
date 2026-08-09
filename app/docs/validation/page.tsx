@@ -193,10 +193,10 @@ export default async function Validation() {
         asked about. This page used to print one &ldquo;97&rdquo; above the whole list.
       </p>
       <ul>
-        <li>time to apogee <strong>1.5%</strong>{" "}(94), rail-exit velocity <strong>1.6%</strong>{" "}(73)</li>
-        <li>max Mach <strong>2.0%</strong>{" "}(68, OpenRocket only), max velocity <strong>2.2%</strong>{" "}(96), optimum delay <strong>2.4%</strong>{" "}(80)</li>
-        <li>apogee <strong>3.1%</strong>{" "}(97), max acceleration <strong>1.8%</strong>{" "}(80), flight time <strong>3.1%</strong>{" "}(82)</li>
-        <li>ground-hit velocity <strong>1.3%</strong>{" "}(80), deployment velocity <strong>6.2%</strong>{" "}(81)</li>
+        <li>time to apogee <strong>1.5%</strong>{" "}(94), rail-exit velocity <strong>1.9%</strong>{" "}(73)</li>
+        <li>max Mach <strong>1.7%</strong>{" "}(68, OpenRocket only), max velocity <strong>1.9%</strong>{" "}(96), optimum delay <strong>2.4%</strong>{" "}(80)</li>
+        <li>apogee <strong>2.9%</strong>{" "}(97), max acceleration <strong>1.3%</strong>{" "}(80), flight time <strong>2.8%</strong>{" "}(82)</li>
+        <li>ground-hit velocity <strong>0.8%</strong>{" "}(80), deployment velocity <strong>5.1%</strong>{" "}(81)</li>
       </ul>
       <p>
         <strong>A comparison is counted once, however many times a file repeats it.</strong>{" "}
@@ -212,7 +212,9 @@ export default async function Validation() {
         — and only where the stored value{" "}
         <em>and</em>{" "}Loft&apos;s value both repeat, so a disagreement that genuinely varies per run
         still counts every time — moved max acceleration from 3.2% to <strong>1.8%</strong>{" "}and
-        rail-exit velocity from 1.9% to <strong>1.6%</strong>. It is the second reason a population
+        rail-exit velocity from 1.9% to <strong>1.6%</strong>{" "}as they stood that day; both have
+        since moved again with the ring-bore correction below, to 1.3% and 1.9%. It is the second
+        reason a population
         above can be smaller than 97, alongside a format simply not storing the metric:{" "}
         <strong>54</strong>{" "}of the 910 comparisons were repeats.
       </p>
@@ -246,8 +248,8 @@ export default async function Validation() {
       </p>
       <p>
         <strong>
-          Ground-hit velocity went 3.0% &rarr; 8.3% &rarr; 2.0% &rarr; 1.3%, and not one of those
-          moves was the engine.
+          Ground-hit velocity went 3.0% &rarr; 8.3% &rarr; 2.0% &rarr; 1.3% &rarr; 0.8%, and not one
+          of those moves was the engine.
         </strong>{" "}
         All three were the same mistake found in three places: Loft&apos;s figure and the stored
         figure it was scored against were not always the same physical quantity, and nothing recorded
@@ -288,8 +290,9 @@ export default async function Validation() {
         </li>
       </ul>
       <p>
-        So <strong>1.3%</strong>{" "}
-        is the first figure here that measures what it always claimed to:
+        So that figure &mdash; 1.3% then, <strong>0.8%</strong>{" "}
+        after the ring-bore correction below &mdash;
+        is the first here that measures what it always claimed to:
         how far Loft&apos;s descent under a canopy is from the tool&apos;s, rather than how far a
         vertical speed is from a total one, or a lawn dart from a parachute. The remaining gap is
         Loft&apos;s own, and it is now the smallest number in the census rather than three times its
@@ -325,13 +328,54 @@ export default async function Validation() {
           The published median did not move, and that is worth saying rather than hiding.
         </strong>{" "}
         Four of optimum delay&apos;s rows changed by a factor of eighteen and the median stayed where
-        it was &mdash; 2.5% over 84 rows as it was measured then, 2.4% over 80 today &mdash;
+        it was &mdash; 2.5% over 84 rows as it was measured then, 2.4% over 80 now &mdash;
         which is what a median is for, and why it was the wrong instrument to catch this. The suite
         now asserts the <em>worst</em> optimum-delay row as well as the median, because a row
         comparing two different flights is a different defect from a metric that is simply off.
       </p>
       <p>
-        <strong>Deployment velocity went 6.0% to 6.2%, and that is the honest direction.</strong>{" "}
+        <strong>
+          Nine of these figures moved on 9 August 2026, and the cause was a file-reading bug rather
+          than anything in the solver.
+        </strong>{" "}
+        OpenRocket writes{" "}<code>auto</code>{" "}for a centring ring&apos;s inner diameter, meaning
+        &ldquo;the hole the motor mount needs&rdquo; &mdash; the mount already states it. Loft read
+        that as a missing number and fell back to the outer diameter less a wall thickness the file
+        had not given either, which resolves to no hole at all; and a ring with no hole, measured as{" "}
+        <code>&pi;(r&sup2;&nbsp;&minus;&nbsp;r&sup2;)L</code>, is a ring with no metal. Those rings
+        weighed nothing. One corpus design carries four aluminium rings of 152.3 mm outer diameter
+        that imported at <strong>0 g</strong>{" "}against about <strong>210 g</strong>{" "}each &mdash;
+        840 g of a 12,620 g airframe, <strong>6.7%</strong>, at four fixed stations, so its centre of
+        gravity and stability margin were computed without them too. Reading{" "}<code>auto</code>{" "}
+        as the mount it holds moved seven medians closer to the tools Loft is checked against:
+        deployment velocity 6.2% to <strong>5.1%</strong>, ground-hit velocity 1.3% to{" "}
+        <strong>0.8%</strong>, max acceleration 1.8% to <strong>1.3%</strong>, max velocity 2.2% to
+        1.9%, max Mach 2.0% to 1.7%, apogee 3.1% to 2.9% and flight time 3.1% to 2.8%.{" "}
+        <strong>One moved the other way and is printed here for the same reason:</strong>{" "}
+        rail-exit velocity 1.6% to <strong>1.9%</strong>. A heavier vehicle leaves the rail more
+        slowly, which is the direction a mass correction pushes; publishing the seven and not the one
+        would make the list an advertisement rather than a measurement.
+      </p>
+      <p>
+        <strong>
+          And the same principle applied per design says two of them got worse, not better.
+        </strong>{" "}
+        A median hides what happens to individual files, so both were measured. OpenRocket&apos;s own{" "}
+        <em>Base drag hack (short-wide)</em>{" "}went from <strong>&minus;3.0%</strong>{" "}to{" "}
+        <strong>&minus;8.8%</strong>{" "}on apogee, and its <em>Airstart timing</em>{" "}example from{" "}
+        <strong>+0.2%</strong>{" "}to <strong>&minus;2.7%</strong>, with all five of its stored
+        simulations moving the same way. Both carry centring rings that leave <em>both</em>{" "}radii
+        automatic, and on both the ring stopped being a 1.5&nbsp;mm hoop and became the annulus the
+        file describes &mdash; 5.4&nbsp;g to 155.8&nbsp;g each on Airstart timing, which moves that
+        design&apos;s dry mass 9,735&nbsp;g to 10,036&nbsp;g and its centre of gravity 855&nbsp;mm to
+        902&nbsp;mm from the nose. The geometry Loft now computes is the geometry OpenRocket&apos;s
+        own source computes from the same file, so the earlier closer agreement was resting on a
+        compensating error somewhere else in the model rather than on being right. Where that error
+        is has not been established, and until it is this is a worse number honestly arrived at.
+        Both designs remain inside the ±12% the corpus asserts.
+      </p>
+      <p>
+        <strong>Deployment velocity went 6.0% to 6.2% before that, and that was the honest direction.</strong>{" "}
         It was an OpenRocket-only figure standing in a cross-tool census: RockSim stores a deployment
         velocity too, in a tag it misspells as <code>VelocityAtDeplyment</code>, and Loft read none of
         it. Six more comparisons joined, and they disagree by more than the OpenRocket ones, so the
@@ -339,7 +383,7 @@ export default async function Validation() {
         figure is the speed at the <em>last</em> device to open, where Loft reports the{" "}
         <em>fastest</em> &mdash; the opening shock a flyer sizes a shock cord against, which is
         deliberately not the smaller of the two. Comparing each against the event the file describes
-        takes the OpenRocket median from 6.0% to <strong>5.6%</strong>.
+        took the OpenRocket median from 6.0% to <strong>5.6%</strong>{" "}at the time.
       </p>
       <p>
         One stored run is a charge firing with nothing out &mdash; RockSim records about 234 m/s for
@@ -354,7 +398,7 @@ export default async function Validation() {
         engine either keeps the numbers true or forces them to be updated.{" "}
         <strong>It fails in both directions.</strong>{" "}It used to fail only when this page was too
         generous to Loft, on the reasoning that getting better is always allowed — but a page
-        claiming 3.2% when the measurement is 1.8% is just as wrong about Loft, and it is the
+        claiming 3.2% when the measurement is 1.3% is just as wrong about Loft, and it is the
         direction nothing goes red on. Getting better is still always allowed; it has to be published
         in the change that earns it. The run prints the current figures so that is one edit.
       </p>
@@ -474,8 +518,8 @@ export default async function Validation() {
         carries in full through boost (as OpenRocket&apos;s does), which had been discounted — a fix
         that most matters for a body much wider than its motor, where the exhaust fills little of the
         base. All five of the file&apos;s stored simulations now land within a few percent: the three{" "}
-        <strong>C6 flights within ~1%</strong>, the <strong>B4 at +2.5%</strong>, and the
-        low-impulse <strong>A8 at +4.5%</strong> (a 2&nbsp;m difference on a 50&nbsp;m flight, where a
+        <strong>C6 flights within ~0.4%</strong>, the <strong>B4 at +1.9%</strong>, and the
+        low-impulse <strong>A8 at +3.6%</strong> (under 2&nbsp;m on a 50&nbsp;m flight, where a
         slow, near-drag-free A8 leaves little to model). Driving this file is itself what caught a
         mis-sourced B4 thrust curve: the bundled B4 had been an over-energetic data file
         (5.02&nbsp;N·s — just over the 5.0&nbsp;N·s ceiling that <em>defines</em> a B motor, averaging

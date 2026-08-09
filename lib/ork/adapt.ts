@@ -586,15 +586,23 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
     }
     case "innertube": {
       const outer = childNum(node, "outerradius", NaN); // NaN ⇒ "auto"; resolved from the enclosing tube
-      const thickness = childNum(node, "thickness", 0);
+      // NaN ⇒ the file states no wall at all, which is NOT the same as a wall of zero. A stated
+      // `<thickness>0.0</thickness>` is honoured (`02.Two-stage.ork` really does say so); an ABSENT
+      // one leaves the bore unresolved so `resolveInternalRadii` can supply one. Defaulting it to 0
+      // here made every unstated wall a zero wall, and a zero wall is a part of zero mass.
+      const thickness = childNum(node, "thickness", NaN);
       const comp: RocketComponent = {
         ...b,
         kind: "innertube",
         length: childNum(node, "length", 0),
         outerRadius: outer,
-        innerRadius: Number.isFinite(outer) ? Math.max(0, outer - thickness) : NaN,
+        innerRadius:
+          Number.isFinite(outer) && Number.isFinite(thickness) ? Math.max(0, outer - thickness) : NaN,
         children: [],
       };
+      // A wall the file DID state, on a part whose outer radius it left `auto`. Kept so the bore can
+      // be derived once the outer radius resolves, rather than thrown away and re-invented.
+      if (!Number.isFinite(outer) && Number.isFinite(thickness)) rf(comp).autoWall = thickness;
       if (parseMotorMount(node, b.id, ctx)) comp.motorMount = motorMountFrom(node);
       comp.children = parseSubcomponents(node, ctx);
       return comp;
@@ -604,13 +612,22 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
     case "bulkhead":
     case "engineblock": {
       const outer = childNum(node, "outerradius", childNum(node, "radius", NaN)); // NaN ⇒ "auto"
-      const thickness = childNum(node, "thickness", 0);
+      // NaN, not 0 — see `innertube` above. `<innerradius>auto</innerradius>` with no stated
+      // thickness is the common shape in real files, and `outer − 0` made it a zero-wall part:
+      // measured on `USLI2025-FULLSCALE-10.15 (2).ork`, four aluminium centring rings of 152.3 mm
+      // outer diameter imported at 0 g each against ~210 g, on a 12,620 g airframe. That is 6.7% of
+      // the dry mass missing at four fixed stations, so the CG and the static margin were wrong too.
+      const thickness = childNum(node, "thickness", NaN);
       const inner = childNum(
         node,
         "innerradius",
-        node.name === "bulkhead" ? 0 : Number.isFinite(outer) ? Math.max(0, outer - thickness) : NaN,
+        node.name === "bulkhead"
+          ? 0
+          : Number.isFinite(outer) && Number.isFinite(thickness)
+            ? Math.max(0, outer - thickness)
+            : NaN,
       );
-      return {
+      const ring: RocketComponent = {
         ...b,
         kind: node.name,
         length: childNum(node, "length", 0),
@@ -618,6 +635,12 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         innerRadius: inner,
         children: parseSubcomponents(node, ctx),
       };
+      // As on `innertube` above: a stated wall on an auto-radius part, parked until the outer radius
+      // is known. Not for a bulkhead, which has no wall — it is a disc, and its bore is 0.
+      if (!Number.isFinite(outer) && Number.isFinite(thickness) && node.name !== "bulkhead") {
+        rf(ring).autoWall = thickness;
+      }
+      return ring;
     }
     case "masscomponent": {
       return {
@@ -1051,6 +1074,16 @@ interface RadiusFields {
   foreRadius?: number;
   aftRadius?: number;
   thickness?: number;
+  /** A WALL the file stated on an internal part whose OUTER radius it left `auto`, parked here until
+   *  `resolveInternalRadii` knows the outer radius and can turn the two into a bore. Deleted the
+   *  moment it is used, so it never reaches the model, an export or a test.
+   *
+   *  It exists because the two facts arrive at different times and the file states both. Without it a
+   *  stated wall was simply dropped: this repo's own `fixtures/src/demo-quirks.ork.xml` writes
+   *  `<outerradius>auto</outerradius><thickness>0.002</thickness>` on its coupler — which is how
+   *  OpenRocket serialises EVERY auto-radius `ThicknessRingComponent` — and Loft imported it with the
+   *  1.5 mm wall this file invents for a part that states none, 24% light. */
+  autoWall?: number;
 }
 const rf = (c: RocketComponent): RadiusFields => c as unknown as RadiusFields;
 const ok = (x: number | undefined): x is number => typeof x === "number" && Number.isFinite(x) && x > 0;
@@ -1079,6 +1112,10 @@ function aftRadius(c: RocketComponent): number {
  *  the rocket's largest known radius; only when nothing resolves at all is a section left at
  *  zero. Either substitution is flagged, rather than silently mis-modelled. */
 function resolveAutoRadii(rocket: Rocket, warnings: string[]): void {
+  // Whether any internal part's bore had to be supplied here rather than read. Warned about below,
+  // because a dimension Loft chose is a different kind of number from one the file stated, and the
+  // safety posture says so out loud rather than letting the two look alike.
+  let bored = false;
   let unresolved = false;
   let filledFromFallback = false;
   for (const stage of rocket.stages) {
@@ -1126,7 +1163,7 @@ function resolveAutoRadii(rocket: Rocket, warnings: string[]): void {
       }
     }
 
-    resolveInternalRadii(stage.components, NaN);
+    if (resolveInternalRadii(stage.components, NaN)) bored = true;
 
     // Backstop: any internal part (bulkhead, ring, coupler…) still unresolved after the
     // above is zeroed rather than left NaN — a single NaN radius otherwise propagates into
@@ -1156,6 +1193,14 @@ function resolveAutoRadii(rocket: Rocket, warnings: string[]): void {
     warnings.push(
       'Some component radii were marked "auto" but couldn\'t be resolved from neighbours, and the ' +
         "rocket has no other radius to fall back on; those sections were treated as zero-radius.",
+    );
+  }
+  if (bored) {
+    warnings.push(
+      "Some internal parts (centring rings, couplers, motor-mount tubes) stated no usable bore, so " +
+        "Loft supplied one — a centring ring from the motor mount it holds, anything else from a " +
+        "1.5 mm wall. Left as the file reads them those parts have no wall, so no mass, which would " +
+        "understate the loaded weight and move the CG. Check their dimensions against the design.",
     );
   }
 }
@@ -1191,10 +1236,56 @@ function autoTubeFinRadius(bodyRadius: number, count: number): number {
   return (bodyRadius * s) / (1 - s);
 }
 
+/** What a centring ring's `auto` bore means, and what everything else's falls back to.
+ *
+ *  **This reproduces OpenRocket's own resolution, from its published source, because the file was
+ *  written BY OpenRocket and `auto` means "whatever OpenRocket computes here".** Reading it any other
+ *  way is not reading the file. `core/.../rocketcomponent/CenteringRing.java`'s `getInnerRadius()`
+ *  walks `getParent().getChildren()` — the ring's SIBLINGS — takes the largest `InnerTube` outer
+ *  radius among them, clamps the result to the ring's own outer radius, and leaves 0 when it finds
+ *  none. Its own tooltip states the contract in one line (`ringcompcfg.AutomaticInner.ttip`):
+ *  *"Matches inner diameter to the outer diameter of the child inner tube."* The companion rule for
+ *  an auto OUTER radius — *"Matches outer diameter to the inner diameter of the parent component"* —
+ *  is what `resolveInternalRadii` above already does.
+ *
+ *  **What Loft read instead was a missing number**, falling back to `outerradius − thickness` with
+ *  the thickness defaulting to 0 when the file gave none: a ring with no hole, and therefore — since
+ *  the volume is `π(ro² − ri²)L` — a ring with no metal. Measured on
+ *  `USLI2025-FULLSCALE-10.15 (2).ork`: four aluminium rings at 0 g against ~210 g each, 6.7% of a
+ *  12,620 g dry mass, at four fixed stations, so the CG and the static margin went with it.
+ *
+ *  **Two deliberate departures, both stated rather than silent.** Loft descends through each
+ *  sibling's own children as well, because a real file frequently nests the mount a level or two
+ *  down — inside a coupler, inside an assembly — and a rule that only reads direct siblings answers 0
+ *  on those. And OpenRocket additionally requires the tube to OVERLAP the ring axially; Loft cannot
+ *  ask that here, because stations are computed by `flattenRocket` from a tree this resolver runs
+ *  before. Both departures can only ever make the bore LARGER, i.e. the ring lighter, so neither can
+ *  manufacture mass that is not there — which is the direction a parser is allowed to be wrong in.
+ *
+ *  Anything that is not a centring ring keeps the ~1.5 mm wall this path has always used. A coupler
+ *  or an inner tube whose file states no wall is a minor mass part with nothing better to go on, and
+ *  OpenRocket has no auto-inner rule for them to reproduce. */
+function autoInternalBore(c: RocketComponent, outerRadius: number, siblings: RocketComponent[]): number {
+  if (!ok(outerRadius)) return 0;
+  if (c.kind !== "centeringring") return Math.max(0, outerRadius - 0.0015);
+  let bore = 0;
+  const walk = (n: RocketComponent) => {
+    const r = rf(n).outerRadius;
+    if (n.kind === "innertube" && ok(r)) bore = Math.max(bore, r as number);
+    for (const ch of n.children ?? []) walk(ch);
+  };
+  for (const sib of siblings) if (sib !== c) walk(sib);
+  // 0 when no inner tube was found anywhere beneath a sibling, which is OpenRocket's own answer and
+  // means a SOLID ring. It is a real reading rather than a guess: a ring holding nothing has nothing
+  // to be bored for. Clamped to the ring's own outer radius exactly as the source does.
+  return Math.min(bore, outerRadius);
+}
+
 /** Internal parts (tube couplers, inner tubes, rings, engine blocks) with an auto outer
  *  radius fit inside their enclosing body tube. Tube fins ride on the OUTSIDE of the same
  *  body, so they are sized from its outer radius instead. */
-function resolveInternalRadii(components: RocketComponent[], parentInner: number, parentOuter = NaN): void {
+function resolveInternalRadii(components: RocketComponent[], parentInner: number, parentOuter = NaN): boolean {
+  let boredFromAuto = false;
   for (const c of components) {
     if (c.kind === "tubefinset" && !ok(c.outerRadius)) {
       c.outerRadius = ok(parentOuter) ? autoTubeFinRadius(parentOuter, c.finCount) : 0;
@@ -1202,10 +1293,6 @@ function resolveInternalRadii(components: RocketComponent[], parentInner: number
     if (INTERNAL_KINDS.has(c.kind)) {
       const f = rf(c);
       if (!ok(f.outerRadius) && ok(parentInner)) f.outerRadius = parentInner;
-      if (c.kind !== "bulkhead" && (!Number.isFinite(f.innerRadius ?? NaN) || (f.innerRadius ?? 0) < 0)) {
-        // ~1.5 mm wall when the file didn't give us enough to compute it (minor mass part).
-        f.innerRadius = ok(f.outerRadius) ? Math.max(0, (f.outerRadius as number) - 0.0015) : 0;
-      }
     }
     // The enclosing inner radius handed to nested parts. A body tube encloses at its bore
     // (outer − wall); a coupler, inner tube, nose cone, or transition encloses at its radius.
@@ -1223,8 +1310,48 @@ function resolveInternalRadii(components: RocketComponent[], parentInner: number
       : c.kind === "nosecone" || c.kind === "transition"
         ? (g.aftRadius as number)
         : parentOuter;
-    if (c.children.length) resolveInternalRadii(c.children, childInner, childOuter);
+    if (c.children.length && resolveInternalRadii(c.children, childInner, childOuter)) boredFromAuto = true;
   }
+
+  // **SECOND PASS over the same list, and the two passes are the point.** Every bore below is read
+  // off a NEIGHBOUR — a centring ring's from the mount beside it, a stated wall's from this part's own
+  // now-substituted outer radius — so resolving bores in the same walk that substitutes outer radii
+  // makes the answer depend on the order two siblings happen to appear in the file. Measured on
+  // byte-identical geometry with the ring and the mount swapped: bore 0.0783 with the ring first and
+  // 0.0762 with the mount first. An importer has to be a function of the file.
+  for (const c of components) {
+    if (!INTERNAL_KINDS.has(c.kind)) continue;
+    const f = rf(c);
+    // A wall the FILE stated, on a part whose outer radius it left `auto`. Now that the outer radius
+    // is known the two make a bore, and it is the file's number rather than one of ours — so it is
+    // taken before anything below and raises no warning.
+    if (f.autoWall !== undefined) {
+      if (ok(f.outerRadius)) f.innerRadius = Math.max(0, (f.outerRadius as number) - f.autoWall);
+      delete f.autoWall;
+    }
+    // **A bore at or past the outer radius counts as unresolved, and that clause is the fix.** The
+    // test used to be NaN-or-negative only, so an `innerradius="auto"` already resolved to
+    // `outer − 0` looked like a perfectly good number — real, finite, non-negative — describing a
+    // part with no wall, no volume and therefore no mass. Loft flew designs missing that mass and
+    // reported a CG and a static margin computed without it.
+    //
+    // A bulkhead is IN this test, and only its default differs: it is a disc, so `auto` means a bore
+    // of 0. Exempting it entirely left the one kind OpenRocket always serialises with an explicit
+    // `<innerradius>` free to state one at or past its own rim, which contributes exactly 0 g and
+    // says nothing.
+    const bore = f.innerRadius ?? NaN;
+    const unusable =
+      !Number.isFinite(bore) || bore < 0 || (ok(f.outerRadius) && bore >= (f.outerRadius as number));
+    if (!unusable) continue;
+    f.innerRadius = c.kind === "bulkhead" ? 0 : autoInternalBore(c, f.outerRadius as number, components);
+    // **Warn only for the case this change introduced**, which is a bore the file gave and Loft could
+    // not use. The NaN branch is the long-standing "file said nothing" path and has invented a
+    // 1.5 mm wall since long before it; warning about that too fired on 16 of 25 corpus designs,
+    // three of which come out byte-identical in mass and CG, and told two-thirds of importers their
+    // weight would have been wrong when it would not. A caveat that cries wolf is spent.
+    if (Number.isFinite(bore) && bore >= 0 && ok(f.outerRadius)) boredFromAuto = true;
+  }
+  return boredFromAuto;
 }
 
 /** Warn (once) about assembly types Loft doesn't simulate yet, so their omission is

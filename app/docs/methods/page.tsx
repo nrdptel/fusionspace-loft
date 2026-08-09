@@ -183,6 +183,25 @@ export default function Methods() {
         anywhere resolves is a section finally treated as zero — and even then it is never left
         undefined, so one unresolved part can&apos;t poison the total mass and reference area.
       </p>
+      <p>
+        <strong>
+          An internal part&apos;s BORE has its own <code>auto</code>{" "}rule, and it decides that
+          part&apos;s mass.
+        </strong>{" "}
+        OpenRocket states it in one line &mdash; &ldquo;matches inner diameter to the outer diameter
+        of the child inner tube&rdquo; &mdash; and its own source takes the largest inner tube among
+        the ring&apos;s siblings, clamps the result to the ring&apos;s own outer radius, and leaves 0
+        (a solid disc) when it finds none. Loft reproduces that, because the file was written by that
+        tool and <code>auto</code>{" "}means whatever it computes. Read instead as a missing number,
+        the bore fell back to the outer radius less a wall thickness the file often does not state
+        either &mdash; which is no hole at all, and therefore, since the volume is{" "}
+        <code>&pi;(r<sub>o</sub>&sup2; &minus; r<sub>i</sub>&sup2;)L</code>, no material and no mass.
+        Anything that is not a centring ring, and states no wall, gets a 1.5&nbsp;mm one; that is
+        Loft&apos;s number rather than the file&apos;s and the import warnings say so. It matters
+        because these parts have no aerodynamic term at all, so every dimension of them reaches the
+        flight through mass alone &mdash; which sets the centre of gravity, and with it the stability
+        margin.
+      </p>
 
       <h2>Aerodynamic stability — Barrowman</h2>
       <p>

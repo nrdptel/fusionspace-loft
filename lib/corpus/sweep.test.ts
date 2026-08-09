@@ -159,18 +159,34 @@ const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
   // and 13 of a rail-exit row that collapses to two rather than one because rail length DOES reach
   // it. Counting each comparison once took `maxAcceleration` 3.2 -> 1.8 over 80 rows and
   // `launchRodVelocity` 1.9 -> 1.6 over 73; `optimumDelay` moved 2.5 -> 2.4 and the rest stood still.
+  //
+  // **Re-measured 2026-08-09, and the mover was a PARSER fix rather than the solver.** An OpenRocket
+  // centring ring whose file writes `<innerradius>auto</innerradius>` was read as "no number" and
+  // fell back to `outerradius − thickness` with thickness defaulting to 0 — a ring with no hole and,
+  // once the volume is `π(ro² − ri²)L`, no metal. It weighed nothing. `USLI2025-FULLSCALE-10.15 (2)`
+  // carried four such aluminium rings at 0 g against ~210 g each: 6.7% of a 12,620 g dry mass, at
+  // four fixed stations, so the CG and the static margin were wrong with it. Seven of the twelve
+  // rows below improved, on the same 35 files and with no change to the solver:
+  //
+  //   deploymentVelocity 6.2 → 5.1 · groundHitVelocity 1.3 → 0.8 · maxAcceleration 1.8 → 1.3
+  //   maxVelocity 2.2 → 1.9 · maxMach 2.0 → 1.7 · maxAltitude 3.1 → 2.9 · flightTime 3.1 → 2.8
+  //
+  // **And one moved the other way, which is stated rather than buried**: launchRodVelocity 1.6 → 1.9.
+  // It is inside the slack and it is not a regression to chase — a heavier vehicle leaves the rail
+  // more slowly, which is the direction a mass correction pushes. What would be dishonest is to
+  // publish the seven and quietly leave the one, so both directions move here.
   timeToApogee: 1.5,
-  launchRodVelocity: 1.6,
-  maxMach: 2.0,
-  maxVelocity: 2.2,
+  launchRodVelocity: 1.9,
+  maxMach: 1.7,
+  maxVelocity: 1.9,
   optimumDelay: 2.4,
-  maxAltitude: 3.1,
-  groundHitVelocity: 1.3,
+  maxAltitude: 2.9,
+  groundHitVelocity: 0.8,
   "groundHitVelocity/ballistic": 14.9,
-  flightTime: 3.1,
+  flightTime: 2.8,
   "flightTime/ballistic": 4.8,
-  maxAcceleration: 1.8,
-  deploymentVelocity: 6.2,
+  maxAcceleration: 1.3,
+  deploymentVelocity: 5.1,
 };
 
 /** How far a metric may drift from its published figure before the page counts as stale. Wide
@@ -1726,15 +1742,31 @@ suite("real-design corpus", () => {
       // 2026-08-09, because the two metrics happened to share a population of 97. The de-duplication
       // that moved time-to-apogee to 94 is what made it visible. A check that is right by
       // coincidence is not a check, so the anchor is the fix rather than reordering the page.
-      const re = new RegExp(`(?:<li>|,\\s*)${label}\\s*<strong>[^<]*</strong>[^(]*\\((\\d+)`);
+      const re = new RegExp(`(?:<li>|,\\s*)${label}\\s*<strong>([^<]*)</strong>[^(]*\\((\\d+)`);
       const hit = re.exec(page);
       if (!hit) {
         wrongN.push(`${key}: /docs/validation states no population beside "${label}"`);
-      } else if (Number(hit[1]) !== m.n) {
-        wrongN.push(`${key}: page says n=${hit[1]}, measured n=${m.n}`);
+        continue;
+      }
+      if (Number(hit[2]) !== m.n) wrongN.push(`${key}: page says n=${hit[2]}, measured n=${m.n}`);
+      // **And the PERCENTAGE the page prints, which this check captured and then threw away for its
+      // whole life.** The median gate above compares against `PUBLISHED_MEDIAN_PCT` — a hand-kept
+      // copy of what the page is believed to say — while the page itself was never read. So the
+      // page could claim anything at all as long as the constant was right, and on 2026-08-09 six
+      // separate figures on the two docs routes were stale under a gate whose own prose says it
+      // "recomputes the census on every run and fails if any metric drifts from what this page
+      // claims". It did not claim that; it claimed drift from a constant. This closes the loop: the
+      // number a reader sees is now the number that is asserted.
+      const shown = Number(hit[1].replace("%", "").trim());
+      if (!Number.isFinite(shown)) {
+        wrongN.push(`${key}: /docs/validation prints "${hit[1]}" where a percentage belongs`);
+      } else if (Math.abs(shown - PUBLISHED_MEDIAN_PCT[key]) > 1e-9) {
+        wrongN.push(
+          `${key}: /docs/validation prints ${shown}% while PUBLISHED_MEDIAN_PCT says ${PUBLISHED_MEDIAN_PCT[key]}%`,
+        );
       }
     }
-    expect(wrongN, "a published median names a population it is not measured over").toEqual([]);
+    expect(wrongN, "a published median names a population or a percentage it is not measured over").toEqual([]);
   }, 900_000);
 
   /** **R10 item 5, last part: a comparison is counted once, and the de-duplication cannot degenerate.**
