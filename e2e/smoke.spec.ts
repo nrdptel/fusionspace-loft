@@ -7362,9 +7362,29 @@ test.describe("choosing a real commercial part", () => {
     // reading rather than a caveat printed on everything.
     await expect(dialog.getByText(/frontal area/i), "nothing says the count is drag").toBeVisible();
 
+    // **The mass field states what ONE of them weighs, and the count must not move it.** The field is
+    // what the panel offers a flyer as "the design's own", and the obvious next gesture is to type it
+    // back — so if the count scaled the number sitting here, retyping it would silently divide the
+    // fitting's mass by the count.
+    //
+    // **What this pair of lines actually establishes, stated because it is less than it looks.** This
+    // lug's design count is 1, so its unit mass and its stored total are the same number and a
+    // readback taken from either would pass here — checked by reverting `fittingUnitMass` to the raw
+    // total, which leaves this green. It guards the wiring (the field renders, and the count does not
+    // blank or disturb it); the arithmetic is pinned by *never advertises a fitting mass the flight is
+    // not using* in `lib/model/edit.test.ts`, which fails on that same revert, and over every real
+    // fitting by the corpus sweep.
+    const massField = dialog.locator("label").filter({ hasText: /Fitting mass/i }).first().locator("input");
+    const advertised = await massField.getAttribute("placeholder");
+    expect(advertised, "the mass field advertises nothing at all").toBeTruthy();
+
     const count = dialog.locator("label").filter({ hasText: /How many/i }).first().locator("input");
     await count.fill("8");
     await count.blur();
+    await expect(massField, "the count moved what ONE of them weighs").toHaveAttribute(
+      "placeholder",
+      advertised!,
+    );
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
 

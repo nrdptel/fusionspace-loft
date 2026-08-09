@@ -12,6 +12,7 @@ import {
   isEditedValue,
   usableCatalogParachute,
   primaryFinSpan,
+  fittingUnitMass,
   primaryFinCount,
   primaryFinStation,
   primaryFinChord,
@@ -92,7 +93,7 @@ import type {
   Material,
   TrapezoidFinSet,
 } from "./types";
-import { overallLength } from "./geometry";
+import { overallLength, maxBodyRadius } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
 import { dryMassProperties, statedMassHolder } from "../sim/mass";
@@ -4594,7 +4595,9 @@ describe("the external fittings are parts like any other", () => {
     const f = flattenRocket(out).find((p) => p.component.id === "fit")!.component as unknown as {
       mass: number; length: number; radius: number; instanceCount: number;
     };
-    expect(f.mass).toBeCloseTo(0.004, 9);
+    // The mass field is PER INSTANCE, so two at 4 g each are stored as the 8 g total the model flies.
+    expect(f.mass).toBeCloseTo(0.008, 9);
+    expect(fittingUnitMass(out, "fit")).toBeCloseTo(0.004, 9);
     expect(f.length).toBeCloseTo(0.02, 9);
     expect(f.radius).toBeCloseTo(0.006, 9);
     expect(f.instanceCount).toBe(2);
@@ -4645,6 +4648,103 @@ describe("the external fittings are parts like any other", () => {
     const half = applyGeometryEdits(r, { fittingId: "fit", fittingCount: 2.4 });
     const h = flattenRocket(half).find((p) => p.component.id === "fit")!.component as unknown as { instanceCount: number };
     expect(h.instanceCount).toBe(2);
+  });
+
+  it("carries the mass with the count, because a fitting's mass is the total across its instances", () => {
+    // Every other consumer already reads `mass` as the total: `lib/sim/aero.ts` multiplies the frontal
+    // area by the count, `lib/ork/export.ts` divides by it to write a per-instance `<mass>`, and
+    // `lib/ork/adapt.ts` multiplies the computed per-instance mass by it on the way in. The applier
+    // did not, so a design imported at count 4 and the same design edited to count 4 were two
+    // different rockets — the drag agreed and the mass did not.
+    const r = mk("railbutton");
+    const massAt = (e: GeometryEdits) => dryMassProperties(applyGeometryEdits(r, e)).mass;
+    const one = massAt({ fittingId: "fit", fittingCount: 1 });
+    const four = massAt({ fittingId: "fit", fittingCount: 4 });
+    const own = flattenRocket(r).find((p) => p.component.id === "fit")!.component as unknown as { mass: number };
+    expect(four - one, "three more rail buttons weighed nothing").toBeCloseTo(own.mass * 3, 9);
+    // Negative control: without the count carrying the mass, this delta is exactly zero.
+    expect(four).not.toBeCloseTo(one, 9);
+    // A mass typed in the SAME edit wins outright — the flyer has answered with a scale, and that
+    // answer is the total, not a per-instance figure to be multiplied again.
+    const typed = applyGeometryEdits(r, { fittingId: "fit", fittingCount: 4, fittingMass: 0.01 });
+    const t = flattenRocket(typed).find((p) => p.component.id === "fit")!.component as unknown as { mass: number };
+    expect(t.mass, "four at 10 g each is a 40 g total").toBeCloseTo(0.04, 9);
+    // And it reads straight back out as the number that was typed, which is the property that makes
+    // this field safe to retype: the panel can never advertise a figure the flight is not using.
+    expect(fittingUnitMass(typed, "fit")).toBeCloseTo(0.01, 9);
+  });
+
+  it("never advertises a fitting mass the flight is not using, however the count moves", () => {
+    // The property that makes the per-instance field safe, and the one a first version broke: the
+    // readback is what the panel puts in front of the flyer as "the design's own", and the obvious
+    // next gesture is to type it back. With the stored TOTAL on that field, a count of four turned
+    // retyping the advertised number into a silent divide-by-four of the fitting's mass.
+    const r = mk("railbutton");
+    const advertised = fittingUnitMass(r, "fit")!;
+    for (const count of [1, 2, 5, 16]) {
+      const out = applyGeometryEdits(r, { fittingId: "fit", fittingCount: count });
+      expect(fittingUnitMass(out, "fit"), `the count ${count} moved what one of them weighs`)
+        .toBeCloseTo(advertised, 9);
+      // Retyping the advertised figure at that count is a no-op on the flown mass — the whole point.
+      const retyped = applyGeometryEdits(r, { fittingId: "fit", fittingCount: count, fittingMass: advertised });
+      expect(dryMassProperties(retyped).mass, `retyping the advertised mass at count ${count} moved the rocket`)
+        .toBeCloseTo(dryMassProperties(out).mass, 9);
+    }
+  });
+
+  it("carries a STATED mass with the count too, which on a RockSim design is the only mass there is", () => {
+    // `componentPointMass` reads `overrideMass` in preference to `mass`, and `lib/rkt/adapt.ts`
+    // synthesises one on every structural part — so on a `.rkt` fitting the mass edit above lands on a
+    // field nothing reads. Two real launch lugs on `FullScaleModelTH.rkt` are exactly this, and the
+    // corpus sweep found them after the unit case above was already green.
+    const base = mk("launchlug");
+    const withOverride = JSON.parse(JSON.stringify(base)) as Rocket;
+    const lug = flattenRocket(withOverride).find((p) => p.component.id === "fit")!.component as unknown as {
+      overrideMass?: number; instanceCount?: number;
+    };
+    lug.overrideMass = 0.008;
+    lug.instanceCount = 2;
+    const massAt = (e: GeometryEdits) => dryMassProperties(applyGeometryEdits(withOverride, e)).mass;
+    const two = massAt({ fittingId: "fit", fittingCount: 2 });
+    const six = massAt({ fittingId: "fit", fittingCount: 6 });
+    // Three times as many, so three times the stated total: 8 g becomes 24 g, a 16 g delta.
+    expect(six - two, "a stated mass ignored the count that tripled it").toBeCloseTo(0.016, 9);
+    // And typing a mass CLEARS the override, because a figure the flyer just weighed must not be
+    // shadowed by one the importer synthesised.
+    const answered = applyGeometryEdits(withOverride, { fittingId: "fit", fittingMass: 0.005 });
+    const a = flattenRocket(answered).find((p) => p.component.id === "fit")!.component as unknown as {
+      mass: number; overrideMass?: number;
+    };
+    expect(a.overrideMass).toBeUndefined();
+    // The field is PER INSTANCE and the design carries two, so the stored total is twice what was
+    // typed — and `fittingUnitMass` reads it back as the 5 g that was entered.
+    expect(a.mass).toBeCloseTo(0.010, 9);
+    expect(fittingUnitMass(answered, "fit")).toBeCloseTo(0.005, 9);
+  });
+
+  it("holds the diameter to the airframe it is FLYING, not the one it was designed at", () => {
+    // The ceiling is measured on the pristine tree and applied after `scaleAirframeRadii`, so it has
+    // to carry the caliber factor — the same correction `internalGeometryEdit` already makes. Without
+    // it the panel advertised the widened diameter while this clamped to the old one, and the field
+    // sat showing a number the flight did not use.
+    const r = mk("railbutton");
+    const pristine = 2 * maxBodyRadius(r);
+    const widened = pristine * 2;
+    // Typed between the old ceiling and the new one: it is legal against the airframe being flown.
+    const inside = pristine * 1.5;
+    const out = applyGeometryEdits(r, { bodyDiameter: widened, fittingId: "fit", fittingDiameter: inside });
+    const f = flattenRocket(out).find((p) => p.component.id === "fit")!.component as unknown as { radius: number };
+    expect(f.radius * 2, "clamped to the airframe's PRE-scale diameter").toBeCloseTo(inside, 9);
+    expect(2 * maxBodyRadius(out)).toBeCloseTo(widened, 9);
+    // And the ceiling still bites: above the flown airframe it clamps to the flown airframe.
+    const over = applyGeometryEdits(r, { bodyDiameter: widened, fittingId: "fit", fittingDiameter: widened * 2 });
+    const g = flattenRocket(over).find((p) => p.component.id === "fit")!.component as unknown as { radius: number };
+    expect(g.radius * 2).toBeCloseTo(widened, 9);
+    // A narrowing what-if tightens it in the same way, so the bound is never stale in either direction.
+    const narrow = pristine * 0.5;
+    const tight = applyGeometryEdits(r, { bodyDiameter: narrow, fittingId: "fit", fittingDiameter: pristine });
+    const h = flattenRocket(tight).find((p) => p.component.id === "fit")!.component as unknown as { radius: number };
+    expect(h.radius * 2).toBeCloseTo(narrow, 9);
   });
 
   it("takes its values with it when the aim moves or the part is removed", () => {

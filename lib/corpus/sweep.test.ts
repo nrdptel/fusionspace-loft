@@ -57,6 +57,7 @@ import {
   primaryMountGroupIds,
   unreachableMountCount,
   internalPartBounds,
+  fittingMaxOuterDiameter,
 } from "../model/edit";
 import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
 
@@ -1281,6 +1282,75 @@ suite("real-design corpus", () => {
     expect(unnamed, "a real fitting that the aim registry cannot speak for").toEqual([]);
     expect(unbounded, "a fitting flown wider than the airframe it is bolted to").toEqual([]);
     expect(inertDrag, "a fitting whose count reaches no frontal area").toEqual([]);
+  }, 300_000);
+
+  it("advertises every real fitting the ceiling it actually enforces, and carries its mass with its count", async () => {
+    // Two Sev-1s from one root, driven over every real lug and button rather than the one a unit test
+    // builds. The bound is measured on the PRISTINE tree and clamped after `scaleAirframeRadii`, so a
+    // caliber what-if made the panel's promise and the applier's enforcement two different numbers;
+    // and `mass` on a fitting is the TOTAL across its instances everywhere except the applier, which
+    // left the drag scaling with the count and the mass standing still.
+    const drifted: string[] = [];
+    const inertMass: string[] = [];
+    let bounded = 0;
+    let weighed = 0;
+    let subsumed = 0;
+    const KINDS = ["launchlug", "railbutton"];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const rocket = doc.rocket;
+      const parts = flattenRocket(rocket).filter((p) => KINDS.includes(p.component.kind));
+      if (!parts.length) continue;
+      for (const p of parts) {
+        const id = p.component.id;
+        const name = `${shortName(f.name)}/${p.component.kind}`;
+        // A caliber what-if in BOTH directions — the widening one is what shipped wrong, and a
+        // narrowing one is the same mistake with the sign flipped.
+        for (const factor of [2, 0.5]) {
+          const pristine = 2 * maxBodyRadius(rocket);
+          if (!(pristine > 0)) continue;
+          const edits = { bodyDiameter: pristine * factor, fittingId: id, bodyTubeId: undefined };
+          const promised = fittingMaxOuterDiameter(rocket, edits);
+          if (!(promised > 0)) continue;
+          bounded++;
+          // Type exactly the ceiling the panel would advertise. It must arrive intact: a value the
+          // panel called legal that the applier then trims is the defect, in either direction.
+          const out = applyGeometryEdits(rocket, { ...edits, fittingDiameter: promised });
+          const made = flattenRocket(out).find((q) => q.component.id === id)?.component as
+            | { radius?: number }
+            | undefined;
+          const flown = (made?.radius ?? 0) * 2;
+          if (Math.abs(flown - promised) > 1e-9) {
+            drifted.push(`${name} @${factor}x: promised ${promised.toFixed(4)}, flew ${flown.toFixed(4)}`);
+          }
+        }
+        // And the count has to carry the mass. Asserted through the whole design's dry mass, because a
+        // field that writes a number the mass model never reads is exactly what this found.
+        const own = p.component as { mass?: number };
+        if (own.mass === undefined || !(own.mass > 0)) continue;
+        // A part under an ancestor that overrides its whole subtree's mass contributes nothing to the
+        // dry total, by design — `structurePointMasses` drops it so the stated assembly figure is not
+        // double-counted. Its count moving no mass is correct, not inert, and four real lugs on two
+        // designs sit there (`EscapeVelocity.ork`, `FullScaleModelTH.rkt`); asserting over them would
+        // have this case fail on behaviour the mass model is right about.
+        if (statedMassHolder(rocket, id) !== null) { subsumed++; continue; }
+        weighed++;
+        const one = dryMassProperties(applyGeometryEdits(rocket, { fittingId: id, fittingCount: 1 })).mass;
+        const four = dryMassProperties(applyGeometryEdits(rocket, { fittingId: id, fittingCount: 4 })).mass;
+        const per = own.mass / Math.max(1, (p.component as { instanceCount?: number }).instanceCount ?? 1);
+        if (Math.abs(four - one - per * 3) > 1e-9) {
+          inertMass.push(`${name}: 1→4 moved ${(four - one).toFixed(6)} kg, expected ${(per * 3).toFixed(6)}`);
+        }
+      }
+    }
+    console.log(
+      `fitting bounds driven across ${files.length} design files: ${bounded} advertised ceilings, ${weighed} masses re-counted, ${subsumed} subsumed by an ancestor's stated assembly mass`,
+    );
+    expect(files.length, "no design was read — that branch proves nothing").toBeGreaterThan(20);
+    expect(bounded, "no ceiling was advertised at all — the check proves nothing").toBeGreaterThan(20);
+    expect(weighed, "no fitting carried a mass — the mass half proves nothing").toBeGreaterThan(10);
+    expect(drifted, "a ceiling the panel advertises that the applier does not enforce").toEqual([]);
+    expect(inertMass, "a fitting whose count reaches the drag but not the mass").toEqual([]);
   }, 300_000);
 
   it("finds no real design that leads with anything but a nose cone", async () => {
