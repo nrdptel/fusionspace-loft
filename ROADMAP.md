@@ -4897,7 +4897,24 @@ result a Loft-authored file carries names Loft as its source.
 
 ## P13 (from `OWNER-NOTES.md` *Awaiting the owner*, 2026-08-09) — One design system, one copy, and a check that reads it
 
-**Status: NOT STARTED.**
+**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-09. **`DESIGN.md` is read by the gate.**
+
+**Increment 1, 2026-08-09 — the file's own contradictions, and the check that stops the next one.**
+Three things this document said about itself were false and nothing could notice, because nothing in
+either repo opened it. §5's Controls heading read *"three button weights, and only three"* above four
+bullets, over the four keys `lib/ui-tokens.ts` ships — so §1's rule that inventing a new weight is a
+change to this file was broken BY the file, in the sentence that governs it. `Select` and
+`ClosePanel` shipped, were ratcheted by §9, and were named nowhere in the vocabulary §5 exists to be.
+All three are corrected, with the reason kept beside the heading rather than quietly fixed.
+
+`lib/design-doc.test.ts` reads the document now, and the durable half is that **the vocabulary has
+one mechanical definition**: §5 is the declaration, `components/ui.tsx` is the module, and the two
+directions are asserted separately because they fail for opposite reasons — a primitive that shipped
+undeclared, versus a declaration with nothing behind it. Neither direction is a hand-maintained list;
+a third list would drift exactly as the first two did. `BUTTON_VARIANT_NAMES` exists so the count is
+readable at runtime rather than only by the type system. All four assertions were proved able to fail
+by restoring each defect in turn: a fifth variant in code alone, a heading number moved alone, a
+declared `Chip` with nothing behind it, and `ClosePanel` removed from §5.
 
 **Outcome.** `DESIGN.md` stops being a binding file that nothing reads and that two repos disagree
 about. A session can no longer ship a primitive the file does not declare, declare one it does not

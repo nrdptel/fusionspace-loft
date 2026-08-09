@@ -36,7 +36,7 @@ run. The suite is one product to a flyer who uses both.
 yet, create it in `components/ui.tsx` and use it — do not hand-roll "just this once", because every
 one of the 12 card treatments above was a just-this-once.
 
-**A new visual treatment is a change to this file.** Inventing a fourth button weight or a third
+**A new visual treatment is a change to this file.** Inventing a fifth button weight or a third
 surface level in a component is how the system erodes. Add it here with its role, or use what exists.
 
 ---
@@ -314,7 +314,14 @@ hand-rolls it instead is not done.
   symptom. That is the entry earning its place: the app that wrote it second did not have to
   rediscover the other six.
 
-### Controls — three button weights, and only three
+### Controls — four button weights, and only four
+*The heading said **three** until 2026-08-09, above these same four bullets, over the same four keys
+in `lib/ui-tokens.ts`'s `BUTTON_VARIANTS`. §2's rule that inventing a new weight is a change to this
+file was therefore already broken by this file, in the sentence that governs it — and nothing could
+notice, because nothing read this document. `lib/design-doc.test.ts` reads it now: the number in this
+heading, the bullets under it and the shipped variants have to agree, in all three directions.
+`danger` is a real weight and keeps its place — it is secondary geometry in the danger ramp, and a
+removal that looks like every other button is the tell §2 is written against.*
 - **`Button variant="primary"`** — indigo fill. **At most one per surface**, and only for the action
   the surface exists to perform. Two primaries on one screen means neither is.
 - **`Button variant="secondary"`** — `control` border, transparent fill. The default for everything
@@ -328,6 +335,13 @@ hand-rolls it instead is not done.
   either app is this.** It owns the refusal behaviour the SAFETY invariant requires: a value that
   cannot mean anything physically is bounded or refused at the field, not flown into a confident
   number downstream.
+- **`Select`** — one option out of more than five, or out of a list that grows. Below that count use
+  `Segmented`, which shows them all. It carries the touch-target floor §8 states, so a select is
+  never the control that fails it.
+- **`ClosePanel`** — the way back out of a heavy panel that a Run button opened. **Every surface a
+  flyer can open must have one**, which is the "state a flyer can enter with no way back" tell in its
+  smallest form; it discards the result rather than hiding it, so the Run button coming back is what
+  says the panel is offering the run again rather than concealing an answer.
 
 ### Data
 - **`DataTable`** — sortable by any column, keyboard-navigable, copyable, with a sticky header. Every
@@ -468,6 +482,18 @@ states unreachable without hover. Both counts are zero or the surface is not don
 ---
 
 ## 9. Compliance — how a session verifies
+
+**Some of this file is now READ by the gate, and that half needs no command.** `lib/design-doc.test.ts`
+opens this document and holds §5 against the code: the number the Controls heading states, the button
+weights declared under it and the variants `lib/ui-tokens.ts` ships must agree in all three
+directions; every primitive `components/ui.tsx` exports must be declared by §5; and every name §5
+declares must resolve to a component that exists. The blocks below are the half that still cannot be
+read from prose — they count treatments across the tree, not statements in this file — and
+`lib/design-system.test.ts` is their executable copy, transcribed by hand and kept in step by hand.
+**When that transcription and this file disagree, the test is right and this block is what to
+regenerate.** Added 2026-08-09 with P13; before it, nothing in either repo opened this document, and
+the Controls heading had contradicted its own bullets for long enough that nobody could say when it
+started.
 
 Run these before calling a surface done, and put the counts in the commit message. Numbers, not
 adjectives.
