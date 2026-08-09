@@ -6,7 +6,7 @@ import { freeformChordwiseCp } from "../model/planform";
 import { importOrk } from "./import";
 import { flattenRocket, referenceRadius } from "../model/geometry";
 import { barrowman } from "../sim/aero";
-import { structurePointMasses } from "../sim/mass";
+import { structurePointMasses, dryMassProperties } from "../sim/mass";
 
 const readXml = (name: string) =>
   readFileSync(resolve(process.cwd(), "fixtures/src", name), "utf-8");
@@ -259,6 +259,222 @@ describe("graceful degradation", () => {
     }
     // The reference radius (and hence the whole simulation) stays finite.
     expect(Number.isFinite(referenceRadius(doc.rocket))).toBe(true);
+  });
+
+  it('bores a centring ring whose file says "auto" to the mount it centres, not to nothing', () => {
+    // **`auto` on a centring ring's inner radius is not a missing number — it is "the hole the mount
+    // needs", and the file writes it precisely because the mount already states the answer.** Read as
+    // missing, the fallback was `outerradius − thickness` with thickness defaulting to 0, which is a
+    // ring with no hole — and, since the volume is `pi(ro^2 - ri^2)L`, a ring with no METAL. It
+    // weighed nothing.
+    //
+    // Measured on the corpus file this came from, `USLI2025-FULLSCALE-10.15 (2).ork`: four aluminium
+    // rings of 152.3 mm outer diameter imported at 0 g against roughly 210 g each — 840 g of a
+    // 12,620 g dry mass, 6.7%, at four fixed stations, so the CG and the static margin computed from
+    // it were wrong as well as the mass.
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>AutoBore</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.0785</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.6</length><radius>0.0785</radius><thickness>0.0023</thickness><subcomponents>
+              <innertube><length>0.56</length><outerradius>0.0396875</outerradius><thickness>0.0015875</thickness>
+                <motormount><ignitionevent>automatic</ignitionevent></motormount>
+              </innertube>
+              <centeringring><length>0.00635</length><outerradius>0.0761746</outerradius><innerradius>auto</innerradius>
+                <material type="bulk" density="2700">Aluminum 6061</material>
+              </centeringring>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const ring = flattenRocket(doc.rocket).find((p) => p.component.kind === "centeringring")!.component;
+    if (ring.kind !== "centeringring") throw new Error("no ring");
+    // Bored to the motor mount's OUTER radius, which is what the ring is holding.
+    expect(ring.innerRadius).toBeCloseTo(0.0396875, 9);
+    expect(ring.innerRadius).toBeLessThan(ring.outerRadius);
+    // And it therefore weighs what an aluminium ring of those dimensions weighs. pi(ro^2 - ri^2)L*rho
+    // = pi(0.0761746^2 - 0.0396875^2) * 0.00635 * 2700 = 0.2277 kg. (The corpus file this is drawn
+    // from states 2491 kg/m3 for its own 6061, so its rings are ~210 g rather than ~228 g; this XML
+    // states the textbook 2700 and the arithmetic below is against THAT.)
+    const m = Math.PI * (ring.outerRadius ** 2 - ring.innerRadius ** 2) * ring.length * 2700;
+    expect(m).toBeCloseTo(0.2277, 4);
+    // And the ring's mass is really in the rocket's, rather than only computable from its geometry —
+    // the whole defect was a part that measured correctly and weighed nothing. The other components
+    // here state no stock, so the airframe's dry mass IS this ring.
+    expect(dryMassProperties(doc.rocket).mass).toBeCloseTo(m, 6);
+  });
+
+  it('leaves an "auto" ring with no mount beneath it SOLID, which is what OpenRocket answers', () => {
+    // No inner tube among its siblings, so there is nothing for the bore to match — and OpenRocket's
+    // own `CenteringRing.getInnerRadius()` returns 0 in exactly that case, which is a solid ring. The
+    // file was written by that tool, so this is reading the file rather than guessing at it: a ring
+    // holding nothing has nothing to be bored for. A corpus median ratio was the first answer here
+    // and it was an invented number standing where a citable one exists.
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>NoMount</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.03</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.4</length><radius>0.03</radius><thickness>0.001</thickness><subcomponents>
+              <centeringring><length>0.003</length><outerradius>0.029</outerradius><innerradius>auto</innerradius>
+                <material type="bulk" density="680">Cardboard</material>
+              </centeringring>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const ring = flattenRocket(adaptOrkXml(xml).rocket).find((p) => p.component.kind === "centeringring")!.component;
+    if (ring.kind !== "centeringring") throw new Error("no ring");
+    expect(ring.innerRadius).toBe(0);
+    // Solid, so it weighs what a disc of that stock weighs — the point being that it weighs
+    // SOMETHING. pi * 0.029^2 * 0.003 * 680 = 5.39 g.
+    expect(dryMassProperties(adaptOrkXml(xml).rocket).mass).toBeCloseTo(Math.PI * 0.029 ** 2 * 0.003 * 680, 9);
+  });
+
+  it("gives a wall to a tube that has none, and says it did", () => {
+    // **A zero wall is not a thin wall — it is a tube of zero volume and zero mass**, and flying one
+    // reports a loaded weight and a CG computed without a part the design has. Two files reach that
+    // state and the fix treats them alike: `02.Two-stage.ork` states `<thickness>0.0</thickness>` on
+    // a cardboard motor tube outright, and a file that simply omits the thickness used to be read as
+    // stating zero. Neither is flown as-is; both are warned about, because a dimension Loft chose is
+    // a different kind of number from one the file stated and the safety posture will not let the
+    // two look alike.
+    const mk = (thickness: string) => `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Wall</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.03</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.4</length><radius>0.03</radius><thickness>0.001</thickness><subcomponents>
+              <innertube><length>0.2</length><outerradius>0.02</outerradius>${thickness}</innertube>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const bore = (xml: string) => {
+      const t = flattenRocket(adaptOrkXml(xml).rocket).find((p) => p.component.kind === "innertube")!.component;
+      if (t.kind !== "innertube") throw new Error("no tube");
+      return t.innerRadius;
+    };
+    // Both end up with a wall, and that is the point: a zero wall is not a thin wall, it is no part
+    // at all.
+    expect(bore(mk("<thickness>0.0</thickness>"))).toBeCloseTo(0.02 - 0.0015, 9);
+    expect(bore(mk(""))).toBeCloseTo(0.02 - 0.0015, 9);
+    // A file that states a real wall is left entirely alone.
+    expect(bore(mk("<thickness>0.002</thickness>"))).toBeCloseTo(0.018, 9);
+
+    // **The warning fires for the STATED-but-unusable case and NOT for the silent one**, and that
+    // distinction is what keeps it worth reading. A file that says nothing about a wall has been
+    // getting Loft's 1.5 mm since long before this rule existed, so warning about it would fire on
+    // 16 of the 25 OpenRocket designs in the corpus — three of which come out byte-identical in mass
+    // and CG — and tell two-thirds of importers their weight would have been wrong when it would not.
+    const warns = (x: string) => adaptOrkXml(x).warnings.some((w) => /no usable bore/i.test(w));
+    expect(warns(mk("<thickness>0.0</thickness>")), "a stated zero wall is Loft supplying the number").toBe(true);
+    expect(warns(mk("")), "an absent wall is not news, and a caveat that cries wolf is spent").toBe(false);
+    expect(warns(mk("<thickness>0.002</thickness>")), "the file stated a usable wall").toBe(false);
+  });
+
+  it("keeps a wall the file states even when it leaves the outer radius automatic", () => {
+    // **This is how OpenRocket serialises every auto-radius ThicknessRingComponent** — the outer
+    // radius comes from the parent, the wall is stated — and the two facts arrive at different
+    // moments, so the wall was simply dropped and re-invented at 1.5 mm. This repo's own
+    // `fixtures/src/demo-quirks.ork.xml` is one: a coupler that states 2.0 mm imported at 1.5 mm,
+    // 24% light. For a centring ring it would have been worse after the bore rule above, which would
+    // have bored the part to the mount and ignored a wall the file gave.
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>AutoOuterStatedWall</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.0785</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.6</length><radius>0.0785</radius><thickness>0.0023</thickness><subcomponents>
+              <innertube><length>0.56</length><outerradius>0.0396875</outerradius><thickness>0.0015875</thickness>
+                <motormount><ignitionevent>automatic</ignitionevent></motormount>
+              </innertube>
+              <centeringring><length>0.00635</length><outerradius>auto</outerradius><thickness>0.002</thickness>
+                <material type="bulk" density="2700">Aluminum 6061</material>
+              </centeringring>
+              <tubecoupler><length>0.1</length><outerradius>auto</outerradius><thickness>0.002</thickness>
+                <material type="bulk" density="1850">FG</material>
+              </tubecoupler>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const flat = flattenRocket(doc.rocket);
+    const outer = 0.0785 - 0.0023; // the host's bore, which is what an auto outer radius resolves to
+    for (const kind of ["centeringring", "tubecoupler"]) {
+      const c = flat.find((p) => p.component.kind === kind)!.component as unknown as {
+        outerRadius: number; innerRadius: number;
+      };
+      expect(c.outerRadius, `${kind} outer radius`).toBeCloseTo(outer, 9);
+      // The FILE's 2 mm, not this file's invented 1.5 mm, and not the mount bore.
+      expect(c.outerRadius - c.innerRadius, `${kind} kept the wall the file stated`).toBeCloseTo(0.002, 9);
+    }
+    // And nothing was supplied, so nothing is claimed to have been.
+    expect(doc.warnings.some((w) => /no usable bore/i.test(w))).toBe(false);
+  });
+
+  it("does not depend on the order two siblings happen to appear in", () => {
+    // A centring ring's `auto` bore is read off the mount BESIDE it, so resolving bores in the same
+    // walk that substitutes outer radii made the answer depend on document order — measured at
+    // 0.0783 with the ring first and 0.0762 with the mount first, on byte-identical geometry. An
+    // importer is a function of the file.
+    const mk = (mountFirst: boolean) => {
+      const mount = `<innertube><length>0.5</length><outerradius>auto</outerradius><thickness>0.001</thickness>
+        <motormount><ignitionevent>automatic</ignitionevent></motormount></innertube>`;
+      const ring = `<centeringring><length>0.003</length><outerradius>0.09</outerradius><innerradius>auto</innerradius>
+        <material type="bulk" density="680">Cardboard</material></centeringring>`;
+      return `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Order</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.095</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.6</length><radius>0.095</radius><thickness>0.001</thickness><subcomponents>
+              ${mountFirst ? mount + ring : ring + mount}
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    };
+    const boreOf = (mountFirst: boolean) => {
+      const r = flattenRocket(adaptOrkXml(mk(mountFirst)).rocket).find((p) => p.component.kind === "centeringring")!.component;
+      if (r.kind !== "centeringring") throw new Error("no ring");
+      return r.innerRadius;
+    };
+    expect(boreOf(true)).toBeCloseTo(boreOf(false), 12);
+    // The mount's own outer radius here resolves to the host's bore, 94.0 mm — WIDER than the ring's
+    // own 90 mm rim — so the answer is the clamp, exactly as OpenRocket's own
+    // `innerRadius = Math.min(innerRadius, getOuterRadius())` gives. A ring cannot be bored past its
+    // own edge, and the clamp is why this case is a thin hoop rather than a negative annulus.
+    expect(boreOf(false)).toBeCloseTo(0.09, 9);
+  });
+
+  it("will not let a bulkhead state a bore past its own rim and then weigh nothing", () => {
+    // A bulkhead is the one internal kind OpenRocket always serialises with an explicit
+    // `<innerradius>`, and it used to be exempt from the annulus check entirely — so a bore at or
+    // past the rim gave `pi(ro^2 - ri^2)L <= 0`, which `massContrib` drops to null. The part simply
+    // vanished from the mass budget, silently, at a fixed station.
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Bulk</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.03</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.4</length><radius>0.03</radius><thickness>0.001</thickness><subcomponents>
+              <bulkhead><length>0.006</length><outerradius>0.029</outerradius><innerradius>0.05</innerradius>
+                <material type="bulk" density="680">Ply</material>
+              </bulkhead>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const b = flattenRocket(doc.rocket).find((p) => p.component.kind === "bulkhead")!.component;
+    if (b.kind !== "bulkhead") throw new Error("no bulkhead");
+    // A disc, which is what a bulkhead is, rather than an impossible annulus.
+    expect(b.innerRadius).toBe(0);
+    expect(dryMassProperties(doc.rocket).mass).toBeCloseTo(Math.PI * 0.029 ** 2 * 0.006 * 680, 9);
   });
 
   it("zeroes a truly unresolvable internal radius rather than leaving it NaN", () => {

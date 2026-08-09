@@ -71,8 +71,8 @@ export default function Limitations() {
         &ldquo;A simple model rocket&rdquo; example (which stores its per-step drag), Loft reproduces
         the drag coefficient closely across the whole flight — friction, pressure, and base each
         within a few percent, boosting and coasting. On that example all five stored simulations now
-        land within a few percent — the three C6 flights within ~1%, the B4 at +2.5%, and the
-        low-impulse A8 at +4.5%. Driving this file is itself what caught a motor-<em>data</em>{" "}bug: the
+        land within a few percent — the three C6 flights within ~0.4%, the B4 at +1.9%, and the
+        low-impulse A8 at +3.6%. Driving this file is itself what caught a motor-<em>data</em>{" "}bug: the
         bundled B4 had been a mis-sourced, over-energetic curve (5.02&nbsp;N·s — over the 5.0&nbsp;N·s
         B-class ceiling), which flew the B4 ~26% high until it was replaced with the NAR-certified
         4.30&nbsp;N·s curve. The shared drag model matches OpenRocket&apos;s stored coefficient to
@@ -206,7 +206,10 @@ export default function Limitations() {
         the corpus asserts. <em>The Red Hunter</em> went <strong>+4.4% → +5.3%</strong> the same way.
         Across all 97 stored simulations the per-set thickness fix moved no accuracy median toward
         zero and one away from it (max Mach <strong>1.99% → 2.03%</strong>); both together moved
-        optimum delay <strong>2.48% → 2.66%</strong>.
+        optimum delay <strong>2.48% → 2.66%</strong>. Those are the figures{" "}
+        <em>as measured then</em>{" "}(2026-08-02); the experiment has not been re-run and the census
+        has moved twice under it, so read them as that day&apos;s comparison rather than against the
+        current table.
       </p>
       <p>
         So the remaining fin work is blocked on a different question than it looks: the drag those
@@ -286,8 +289,9 @@ export default function Limitations() {
         </strong>{" "}
         Measured across the real-design corpus on 2026-08-03, the median disagreement with each
         file&apos;s own stored results was <strong>8.3% over 94 simulations</strong>, against 3.1% for
-        apogee — nearly three times the error, on the number an RSO and a waiver actually check. It is
-        now <strong>1.3%</strong> over the 82 of those 94 that came down under a canopy, and the
+        apogee at the time — nearly three times the error, on the number an RSO and a waiver actually
+        check. It is now <strong>0.8%</strong> over the 80 of those 94 that came down under a canopy
+        and are not repeats of a run already counted, against 2.9% for apogee, and the
         engine did not change: what changed is that Loft compares its descent rate against the
         quantity each file actually stored, on the flights that quantity describes. RockSim
         stores the total speed over the ground, and so does OpenRocket from release 24.12 onward,
@@ -337,9 +341,10 @@ export default function Limitations() {
         <strong>And the coefficient turns out not to be where the error lives.</strong> Splitting the
         corpus by whether each design&apos;s coefficient came from its own file or from a Loft
         fallback gave the <em>same</em> median disagreement to a tenth of a percent — 8.3% either
-        way, across 52 file-stated and 40 fallback flights. That split has since been re-measured
-        against the corrected comparison and still does not discriminate: 2.2% where the file states
-        a coefficient and 1.3% where Loft supplies one. Two things follow, and both are worth
+        way, across 52 file-stated and 40 fallback flights. That split has been re-measured twice
+        since — against the corrected comparison, and again after the ring-bore fix — and still does
+        not discriminate: <strong>1.3%</strong>{" "}where the file states a coefficient and{" "}
+        <strong>1.0%</strong>{" "}where Loft supplies one. Two things follow, and both are worth
         stating plainly rather than leaving as an implied promise to improve:
       </p>
       <ul>
