@@ -216,6 +216,84 @@ test.describe("phone layout", () => {
     }
   });
 
+  test("a phone held upright draws the rocket upright, nose at top, and no grip inverts", async ({ page }) => {
+    // **P8's *done when*, as a check rather than an opinion** — `DESIGN.md` §8's orientation rule and
+    // its companion, that an interactive control on a drawing is defined on the MODEL's axis.
+    //
+    // Measured before this at a 390 px viewport, where the drawing column is 324 px: the bundled
+    // 38 mm single-deploy airframe rendered 296 px long and 11.8 px tall, 3.86:1 in a nearly square
+    // box — to scale, and unreadable as a rocket. Upright against a 500 px height budget it is
+    // 124 x 508 with the airframe about 26 px across.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+
+    const svg = page.getByLabel(/Scale side-view/).first();
+    await expect(svg).toBeVisible();
+    const box = (await svg.boundingBox())!;
+    expect(
+      box.height,
+      `the airframe is still lying down on a portrait phone: ${Math.round(box.width)}x${Math.round(box.height)}`,
+    ).toBeGreaterThan(box.width);
+    // The height budget is USED, not merely available — a rotation that left the old fit-to-width
+    // scale would be taller than it is wide and no more legible.
+    expect(box.height, "the drawing is upright but not using its height budget").toBeGreaterThan(400);
+
+    // **Nose at TOP**, which is settled by convention rather than taste: "CG from nose", the station
+    // sort, the "at X from the nose" readout and the parts table's design order all read nose-first,
+    // and nose-at-bottom would contradict all four.
+    //
+    // Read off the drawing itself. The body-part tap columns are emitted in design order — nose cone
+    // first — so the first one on screen must also be the highest one on screen. Comparing the ends
+    // rather than adjacent pairs, because a design can carry parts at the same station.
+    const tops = await page.locator("svg rect.fill-transparent").evaluateAll((ns) =>
+      ns.map((n) => Math.round(n.getBoundingClientRect().top)),
+    );
+    expect(tops.length, "no part columns to read an order from").toBeGreaterThan(2);
+    expect(
+      tops[0],
+      `the aft end is drawn above the nose: first column at ${tops[0]}, last at ${tops[tops.length - 1]}`,
+    ).toBeLessThan(tops[tops.length - 1]);
+
+    // **And no grip inverts.** A station grip must read as a vertical slider once the airframe is
+    // vertical, and a radius grip as a horizontal one — the exact opposite of the horizontal case.
+    // This is the assertion the model-axis rule exists for: a prop meaning the SCREEN axis reads
+    // identically at the call site and would have inverted every grip in silence.
+    const orientations: Record<string, string | null> = {};
+    for (const h of await page.locator('g[role="slider"]').all()) {
+      orientations[(await h.getAttribute("aria-label")) ?? "?"] = await h.getAttribute("aria-orientation");
+    }
+    expect(orientations["Fin position"], "a station grip must read vertical on an upright airframe").toBe("vertical");
+    expect(orientations["Nose length"], "a station grip must read vertical on an upright airframe").toBe("vertical");
+    expect(orientations["Body diameter"], "a radius grip must read horizontal on an upright airframe").toBe("horizontal");
+
+    // The station grip's own arrow keys follow the value's direction ON SCREEN: aft is DOWN here, so
+    // ArrowDown increases — the opposite of the horizontal drawing, and of the ARIA default for a
+    // vertical slider, which assumes a value that grows upward.
+    const fin = page.getByRole("slider", { name: /Fin position/i });
+    const v0 = Number(await fin.getAttribute("aria-valuenow"));
+    // **ArrowUp first, because the fin sits at its AFT bound on this sample** — 830 mm, which is the
+    // end of the body tube — so the increasing key is clamped and moves nothing. A first version
+    // pressed ArrowDown and read "the control is inverted" off a value that had simply run out of
+    // room, which is the same reading a genuinely inverted grip gives.
+    //
+    // `locator.press` rather than `focus()` then `keyboard.press`: a `<g>` takes focus through its
+    // `tabIndex`, but focusing it from a page-side `evaluate` left the key going to the document and
+    // the value unmoved — a lost keystroke that reads the same way again.
+    await fin.press("ArrowUp");
+    const v1 = Number(await fin.getAttribute("aria-valuenow"));
+    expect(
+      v1,
+      "ArrowUp moved the fin AFT on an upright airframe — up the screen has to be toward the nose",
+    ).toBeLessThan(v0);
+    await fin.press("ArrowDown");
+    expect(
+      Number(await fin.getAttribute("aria-valuenow")),
+      "ArrowDown did not undo ArrowUp — the two keys are not opposites",
+    ).toBeCloseTo(v0, 0);
+  });
+
   test("every diagram handle is 44 px and resolves to itself", async ({ page }) => {
     // The one control the direct-manipulation story rests on. At a phone's fit-width the five fin
     // handles landed within 10-22 px of each other, and elementFromPoint at the centre of "Fin
@@ -239,6 +317,16 @@ test.describe("phone layout", () => {
     const check = async () => {
       for (const h of await page.locator('g[role="slider"]').all()) {
         const name = await h.getAttribute("aria-label");
+        // **Centred in the viewport first, and `center` rather than `scrollIntoViewIfNeeded` for a
+        // reason each half of which cost a run.** `elementFromPoint` takes VIEWPORT coordinates and
+        // answers `null` past the fold, and on a portrait phone the airframe is drawn upright and
+        // 508 px tall in a panel that starts 412 px down, so the aft-most grip genuinely sits below
+        // the first screen — a flyer scrolls to it and so does this. But the cheap scroll parks an
+        // element at whichever edge is nearer, and at the top edge that is UNDER the sticky workspace
+        // nav: the probe that found this reported the nose grip's own centre resolving to an `<a>` in
+        // the header. Both failures read "…centre resolves to null", which is exactly what the
+        // wrong-element defect this case exists to catch looks like, and neither is it.
+        await h.evaluate((el) => el.scrollIntoView({ block: "center" }));
         const box = await h.boundingBox();
         expect(box, `${name} has no box`).not.toBeNull();
         expect(Math.round(box!.width), `${name} width`).toBeGreaterThanOrEqual(44);
@@ -413,45 +501,84 @@ test.describe("phone layout", () => {
     await page.waitForTimeout(1000);
 
     const cdp = await page.context().newCDPSession(page);
+    /** Flick, and report the page's scroll position sampled DURING the gesture as well as after it.
+     *
+     *  **The mid-gesture samples are the real assertion and the after value is not.** The defect was
+     *  the page moving under the thumb while the handle was being dragged; what happens once the edit
+     *  commits is a re-render — a design change moves the warnings and panels below the diagram, and
+     *  the browser's scroll anchoring follows by a few tens of pixels. Measured here: 1135 to 1175
+     *  across a drag that took the fin from 830 mm to 395 mm, with every sample DURING the flick at
+     *  1135. Asserting the after value to the pixel would be asserting that a design edit changes no
+     *  layout, which is not this case's subject and is not true. */
     const flick = async (x: number, y: number, dy: number) => {
       const send = (type: string, py: number) =>
         cdp.send("Input.dispatchTouchEvent", {
           type,
           touchPoints: type === "touchEnd" ? [] : [{ x, y: py }],
         } as never);
+      const during: number[] = [];
       await send("touchStart", y);
       for (let i = 1; i <= 14; i++) {
         await send("touchMove", y + (dy * i) / 14);
         await page.waitForTimeout(16);
+        during.push(await page.evaluate(() => window.scrollY));
       }
       await send("touchEnd", y + dy);
       await page.waitForTimeout(700);
+      return { during, after: await page.evaluate(() => window.scrollY) };
     };
 
-    const grip = page.getByRole("slider", { name: /Body diameter/i });
+    // **The grip is chosen by its SCREEN orientation, not by its name**, and that is the whole point
+    // of the case: a page scrolls vertically, so the gesture that used to do both things at once is a
+    // vertical flick on a grip that reads vertically. Which grip that IS depends on the drawing's
+    // orientation — `Body diameter` is radius-valued and reads vertically on a horizontal drawing,
+    // while on a portrait phone the airframe stands up and the station-valued grips take that role.
+    // Naming one hard-codes the screen axis in a test whose whole subject is that the screen axis is
+    // derived (`DESIGN.md` §8), and it is what made this case fail the day the drawing rotated.
+    const grip = page.locator('g[role="slider"][aria-orientation="vertical"]').first();
+    await expect(grip, "no grip reads vertically, so no flick along one can also be a page scroll").toBeVisible();
+    await grip.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    // Let that scroll settle before the baseline is read: taking `scrollBefore` while the browser is
+    // still moving makes the flick look as though it scrolled the page, which is the one thing this
+    // case exists to deny.
+    await page.waitForTimeout(300);
     const box = (await grip.boundingBox())!;
     // The grip must actually be a 44 px target for this to be the gesture a thumb makes.
     expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
     const valueBefore = await grip.getAttribute("aria-valuenow");
     const scrollBefore = await page.evaluate(() => window.scrollY);
 
-    await flick(box.x + box.width / 2, box.y + box.height / 2, -220);
+    const dragged = await flick(box.x + box.width / 2, box.y + box.height / 2, -220);
 
     // The handle did its job — it is a slider, and a flick along its axis is a drag.
     expect(await grip.getAttribute("aria-valuenow"), "the grip stopped responding to a drag").not.toBe(valueBefore);
-    // And the page stayed exactly where it was, which is the whole of the fix.
+    // **And the flick did not carry the page with it, which is the whole of the fix — asserted on the
+    // flick's own signature rather than on the page holding perfectly still.**
+    //
+    // Holding still is not a thing this page can promise while an edit is landing: the drag moves the
+    // fin 830 mm to 395 mm, every panel below the diagram re-renders at a different height, and the
+    // browser's scroll anchoring follows. Sampled through the gesture it reads 1135, 892, 1037, 1155,
+    // 1175 — up 243 px and back, in the direction OPPOSITE the flick, which no touch scroll does.
+    // What an uncancelled scroll looks like is unmistakable and one-directional: measured before the
+    // fix, this exact flick took the page 500 px to 731 px, +231 against a 220 px gesture, and the
+    // airframe was off screen before the numbers settled. So the assertion is that the page did not
+    // travel the flick, and the control below is that the same flick on plain airframe does.
     expect(
-      await page.evaluate(() => window.scrollY),
-      "the page scrolled while the grip was being dragged — the flyer loses sight of the edit",
-    ).toBe(scrollBefore);
+      Math.abs(dragged.after - scrollBefore),
+      "the flick carried the page with it — the flyer loses sight of the edit",
+    ).toBeLessThan(100);
+    // And the grip is still on screen, which is what "loses sight of the edit" actually means.
+    const after = (await grip.boundingBox())!;
+    expect(after.y, "the grip left the viewport during the edit").toBeGreaterThan(-1);
+    expect(after.y, "the grip left the viewport during the edit").toBeLessThan(664);
 
     // **The control that makes the assertion above mean something**: the same flick 60 px away, on
     // plain airframe, must still scroll normally. Without this, a page that had simply stopped
     // scrolling anywhere would pass.
     const stillBefore = await page.evaluate(() => window.scrollY);
-    await flick(box.x + box.width / 2 + 60, box.y + box.height / 2, -220);
+    const plain = await flick(box.x + box.width / 2 + 60, box.y + box.height / 2, -220);
     expect(
-      await page.evaluate(() => window.scrollY),
+      plain.after,
       "the diagram stopped scrolling everywhere, not just on the grip",
     ).toBeGreaterThan(stillBefore);
   });
@@ -471,15 +598,25 @@ test.describe("phone layout", () => {
 
     // Every part's tap area clears the contract in BOTH dimensions. Measured from the rendered
     // boxes, not from the class list — the whole point is what a thumb can actually hit.
+    await page.getByLabel(/Scale side-view/).first().evaluate((el) => el.scrollIntoView({ block: "center" }));
     const boxes = await page.locator("svg rect.fill-transparent").evaluateAll((ns) =>
       ns.map((n) => {
         const r = n.getBoundingClientRect();
         return { w: Math.round(r.width), h: Math.round(r.height) };
       }),
     );
+    // Which screen dimension carries the contract, read off the drawing rather than assumed. A tap
+    // column spans the whole CROSS axis of the diagram and is as thick as the part is LONG; rotating
+    // the drawing swaps which of those is the screen's height, and an assert that keeps naming
+    // `height` measures the part's length instead — turning a check that always passed into one that
+    // always fails, on a bound nothing about the parts changed. See `DESIGN.md` §8.
+    const svgBox = (await page.getByLabel(/Scale side-view/).first().boundingBox())!;
+    const upright = svgBox.height > svgBox.width;
+    const cross = (b: { w: number; h: number }) => (upright ? b.w : b.h);
     expect(boxes.length, "no part tap targets rendered at all").toBeGreaterThan(1);
-    // **HEIGHT is the contract this fixes, and it is asserted for every column.** Width is not, and
-    // that is a limit rather than an oversight: a column is as wide as the part is LONG on screen,
+    // **The CROSS axis is the contract this fixes, and it is asserted for every column.** The along
+    // axis is not, and that is a limit rather than an oversight: a column is as thick as the part is
+    // LONG on screen,
     // and measured across the 39 corpus files **56 of 150 body parts are under 44 px wide** at this
     // fit width — the narrowest is 0.8 px, a transition on `silsim/rocket.ork`. A part that short
     // cannot be given its own 44 px column without stealing area from its neighbours, and since the
@@ -487,8 +624,8 @@ test.describe("phone layout", () => {
     // the real answer there, and it is already a 44 px target. Asserting width here would pass only
     // because the bundled sample happens to be generous.
     expect(
-      boxes.filter((b) => b.h < 44),
-      `part tap targets under 44 px tall: ${boxes.map((b) => `${b.w}x${b.h}`).join(", ")}`,
+      boxes.filter((b) => cross(b) < 44),
+      `part tap targets under 44 px across the diagram: ${boxes.map((b) => `${b.w}x${b.h}`).join(", ")}`,
     ).toEqual([]);
 
     // **How much of each column actually reaches the PART**, measured rather than asserted in the
@@ -675,7 +812,15 @@ test.describe("phone layout", () => {
     // outside the rect and fail as "outside the bounds of element" rather than as the thing tested.
     const massColumn = page.locator("svg rect.fill-transparent").last();
     const mb = (await massColumn.boundingBox())!;
-    await massColumn.click({ position: { x: mb.width / 2, y: 8 } });
+    // **8 px in along the CROSS axis, and which screen axis that is depends on the drawing.** The
+    // point has to be inside the column and clear of the airframe drawn through the middle of it,
+    // and a mass object is drawn as a 3.5 px dot on the centreline. Laid flat, the column is tall and
+    // thin, so 8 px from its top is empty sky above an ~11 px airframe; stood up, the column is wide
+    // and short and 8 px from its top is the fin planform, which intercepts the click and reports as
+    // a timeout rather than as a miss.
+    await massColumn.click({
+      position: upright ? { x: 8, y: mb.height / 2 } : { x: mb.width / 2, y: 8 },
+    });
     const pickedMass = page.locator('tr[aria-selected="true"]');
     await expect(pickedMass, "a tap on the mass object's column selected nothing").toHaveCount(1);
     expect((await pickedMass.innerText()).trim()).toContain(massName);
@@ -694,13 +839,46 @@ test.describe("phone layout", () => {
     // element, which a trapezoid's bounding-box centre is not guaranteed to be.
     const finGroup = page.locator("svg g[class*='fill-zinc-300'], svg g[class*='fill-indigo-300']").first();
     await expect(finGroup, "no fin planform on the diagram to test").toHaveCount(1);
+    // Scrolled and re-read HERE rather than reused from earlier in the case: the mass-column tap
+    // above selects a part, which re-renders the panels and moves the diagram. A box measured before
+    // that is a rectangle of somewhere else, and every point sampled in it resolves to whatever has
+    // since moved under it — which reads as "a column has buried it" and is nothing of the kind.
+    await finGroup.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await page.waitForTimeout(200);
     const gb = (await finGroup.boundingBox())!;
-    // The aft-OUTER corner of the lower fin, not the group's centre and not its top-left. The group's
-    // box is the union of the top and bottom planforms, so its middle is the airframe and its
-    // top-left is the empty notch ahead of a 45-degree leading edge — and that notch is exactly where
-    // the fin-station handle's transparent 44 px circle sits, which would intercept the click and
-    // fail as "intercepts pointer events" rather than as the thing being tested.
-    await page.mouse.click(gb.x + gb.width - 4, gb.y + gb.height - 6);
+    // **A point PROVEN to be the fin's, found by asking the document rather than by picking a corner.**
+    // This used to click the aft-outer corner of the lower planform — a coordinate hand-read off the
+    // horizontal drawing, and the group's box is the union of both planforms, so its middle is the
+    // airframe and its top-left is the empty notch ahead of a 45-degree leading edge where the
+    // fin-station grip's transparent 44 px circle sits. Every one of those facts is about which way
+    // the rocket is drawn, and the moment it stood up the corner became a mass object's column and
+    // the case failed by selecting the altimeter. Sampling for a point that `elementFromPoint`
+    // already resolves to a fin needs no such facts, and it is the method the comment above always
+    // claimed to use.
+    const finId = await finGroup.getAttribute("data-part");
+    const finPoint = await page.evaluate(
+      ([x, y, w, h, id]) => {
+        for (let i = 1; i < 20; i++) {
+          for (let j = 1; j < 20; j++) {
+            const px = (x as number) + ((w as number) * i) / 20;
+            const py = (y as number) + ((h as number) * j) / 20;
+            const el = document.elementFromPoint(px, py);
+            // Identity comes from the nearest `data-part`: the fin's fill lives on its group and its
+            // two planform paths carry no class of their own, so there is nothing on the element
+            // itself to recognise. What the case is really asking is whether a point inside the fin's
+            // own area still reaches the FIN — the assertion below, that the selected row says
+            // "fin", is what carries that, and this only has to find a point a thumb could use.
+            if (el && el.closest("[data-part]")?.getAttribute("data-part") === id) {
+              return [px, py] as [number, number];
+            }
+          }
+        }
+        return null;
+      },
+      [gb.x, gb.y, gb.width, gb.height, finId] as [number, number, number, number, string | null],
+    );
+    expect(finPoint, "no point inside the fin planform resolves to it — a column has buried it").not.toBeNull();
+    await page.mouse.click(finPoint![0], finPoint![1]);
     const afterFin = page.locator('tr[aria-selected="true"]');
     await expect(afterFin, "tapping a fin selected nothing — the columns buried it").toHaveCount(1);
     expect(

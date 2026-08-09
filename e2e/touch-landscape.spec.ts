@@ -86,3 +86,27 @@ test.describe("phone layout, landscape", () => {
     }
   });
 });
+
+test("a phone turned sideways keeps the rocket lying down", async ({ page }) => {
+  // **`DESIGN.md` §8's orientation rule is keyed on portrait AND coarse, and this is the half that
+  // says why.** A drawing is laid along the screen's LONG axis; turned sideways, that is horizontal
+  // again. At this viewport (863x360) the drawing column gives a horizontal airframe ~831 px of
+  // width, where a vertical one would get at most ~340 px of height — so rotating here is not a
+  // smaller win, it is a loss, and keying the rule on a coarse pointer alone would have taken it.
+  //
+  // Asserted on the drawn box rather than on a media query, because the media query is the mechanism
+  // and the shape on screen is the promise.
+  await page.goto("/");
+  await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+  await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Design", exact: true }).click();
+  const svg = page.getByLabel(/Scale side-view/).first();
+  await expect(svg).toBeVisible();
+  const b = (await svg.boundingBox())!;
+  expect(
+    b.width,
+    `the airframe stood up in landscape: ${Math.round(b.width)}x${Math.round(b.height)}`,
+  ).toBeGreaterThan(b.height);
+  // And it is using the width it has, rather than being drawn small in a wide box.
+  expect(b.width).toBeGreaterThan(600);
+});
