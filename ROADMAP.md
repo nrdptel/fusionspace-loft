@@ -17,7 +17,8 @@ work, and a queue containing only the first can only ever ship the first.
 
 - **R-track — capability.** What a flyer can DO that they could not before. **R1–R11 shipped**
   (R10 closed 2026-08-09 on its last item, `maxAcceleration`); **R12 is IN PROGRESS** — the first of
-  its members is met as of 2026-08-08. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
+  its members is met as of 2026-08-08, and increment 3 took the components no field describes from
+  249 of 569 corpus parts to 55 on 2026-08-09. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
   shipped; R4 is IN PROGRESS" until 2026-08-08, six milestones after it stopped being true — and it
   then went stale again inside the very commit that added this warning, caught by review rather than
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
@@ -2571,6 +2572,64 @@ would put a number on screen that no file asked for.
 
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
+
+**Increment 3 — the internal structure gets a property surface, 2026-08-09.** The largest unreachable
+population in the model is reachable. Measured over the 35-design corpus before this increment:
+**249 of 569 parts (43.8%) had no field describing them at all, and 194 of those 249 are five kinds
+that are one shape in `types.ts`** — 83 centring rings on 25 designs, 37 inner tubes on 25, 31
+couplers on 17, 29 bulkheads on 11, 14 engine blocks on 13. They selected, highlighted, and offered
+no Properties control: the "feature reachable only by knowing it is there" tell in its purest form,
+except that there was nothing there to know. One `AIM_SLOTS` entry with three targets —
+`internalLength`, `internalOuterDiameter`, `internalInnerDiameter` — takes the unreachable population
+from 249 parts to **55** (9.7%), and every one of the 55 left is a `MinorComponent` or a `Streamer`,
+which is the next increment.
+
+Pinned by `e2e/smoke.spec.ts`'s *the internal structure has properties too, and a plate is not a
+tube*, which drives the whole gesture on the bundled 38 mm single-deploy sample — it carries a
+motor-mount tube and two centring rings, so both halves are checkable on one design. Negative
+control: emptying the slot's `kinds` reports *"a centring ring offered no way to edit it"*. And by
+`lib/corpus/sweep.test.ts`'s *sizes every real design's internal structure, and never builds one out
+of nothing* (194 parts across all 35 files, every one aimable, every one bounded by its host, every
+one driven under the most hostile entry the panel's own bounds allow) and nine cases in
+`lib/model/edit.test.ts` with three negative controls.
+
+**One slot for five kinds, because they are one shape.** `RingComponent` and `InnerTube` carry the
+identical three geometry fields and both model as annular cylinders with no aerodynamic contribution.
+Five slots would have been five copies of one registry entry.
+
+**A plate has a THICKNESS and a tube has a LENGTH**, and that is not taste: OpenRocket's own dialogs
+split the same way — `CenteringRingConfig` and `BulkheadConfig` build a `Thickness` row,
+`ThicknessRingComponentConfig` (tube coupler, engine block) and `InnerTubeConfig` build a `Length`
+one. Read from that source rather than remembered. A single label would be wrong for one of the two
+on every design carrying both, and the bundled sample carries both.
+
+**Every bound is physical and the panel advertises exactly what the applier enforces**, from one
+exported function, because a bound quoted from one place and applied from another is a promise the
+validator never made — a defect this repo has shipped once already, when the boattail field
+advertised the picked tube's caliber while the validator used the aft-most tube's. Nothing fits in a
+tube wider than its host's bore; nothing is longer than the part holding it; and a bore is capped a
+hair below the outer diameter *being flown*, because a bore at it is a part made of nothing and a
+confident CG computed from a component that cannot exist.
+
+**Two defects the pre-push review found over a green gate, and both are one mistake in two places:
+a bound measured on the PRISTINE tree and applied AFTER `scaleAirframeRadii`, which moves the very
+radii it was measured against.** Typing a coupler's bore just under its own 48 mm and then halving the
+airframe left the bore wider than the 24 mm part it is cut in — a negative wall, which the mass model
+drops to nothing at a fixed station; typing its outer diameter and halving the airframe left the
+coupler wider than the tube around it, and `outerRadius()` reads the widest part, so the reference
+area the whole flight is computed against would have come from a component inside the airframe. The
+host bound now carries the caliber factor, on both the applier and the panel that advertises it, and
+the bore is re-clamped at the point it is WRITTEN — which makes "a part is never inside out" true by
+construction rather than by an argument about the order of five transforms.
+
+**And the increment's own corpus sweep found a Sev-1 in the importer** — five real parts on three
+designs whose `auto` bore had resolved to a zero wall, so they weighed nothing. Fixed first and
+separately (`373024e`, PR #147), because a parser change gets its own commit.
+
+**What is still NOT done, stated rather than implied.** 55 parts across the corpus still have no
+field: 24 shock cords, 19 launch lugs, 11 rail buttons, 1 streamer. The parts list is still collapsed
+by default. There is still no verb band beside the tree, and `add` is still behind one body-tube
+guard at `components/GeometryInspector.tsx:747` which wraps all six add verbs.
 
 **Increment 2 — the property surface, aimed by the pick.** Picking a part on the diagram or in the
 tree offers a **Properties** control on that part, which opens a popover holding exactly the fields

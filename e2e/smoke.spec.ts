@@ -7317,4 +7317,109 @@ test.describe("choosing a real commercial part", () => {
       "editing one canopy changed the other — the fields are still addressing a ROLE, not an id",
     ).toBeCloseTo(beforeOther, 0);
   });
+
+  test("the internal structure has properties too, and a plate is not a tube", async ({ page }) => {
+    // **R12's next member.** Measured over the 35-design corpus before this: 249 of 569 parts had no
+    // field describing them at all, and 194 of those 249 were the five internal kinds — 83 centring
+    // rings, 37 inner tubes, 31 couplers, 29 bulkheads, 14 engine blocks. They selected and offered
+    // no Properties control, which is the "feature reachable only by knowing it is there" tell in its
+    // purest form: the row highlights, and nothing happens.
+    //
+    // The bundled 38 mm single-deploy sample carries a motor-mount tube and TWO centring rings, which
+    // is what makes both halves of this checkable in one design: that the fields reach a part that
+    // had none, and that they reach the one that was picked rather than its identical sibling.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const openParts = async () => {
+      const summary = page.locator("summary", { hasText: /Parts ·/ });
+      await expect(summary).toBeVisible();
+      if (!(await partsTable.isVisible().catch(() => false))) await summary.click();
+      await expect(partsTable).toBeVisible();
+    };
+    await openParts();
+
+    const rings = partsTable.locator("tr").filter({ hasText: /Centering ring/ });
+    await expect(rings, "this sample must carry two centring rings for the test to mean anything").toHaveCount(2);
+
+    const openProps = async (row: import("@playwright/test").Locator) => {
+      await row.click();
+      const trigger = page.getByRole("button", { name: "Properties", exact: true });
+      // **This assertion IS the capability.** Before the `internalId` slot, picking a centring ring
+      // offered no Properties control at all, so this line is the one that goes red if the aim
+      // registry stops speaking for these kinds.
+      await expect(trigger, "a centring ring offered no way to edit it").toBeVisible();
+      await trigger.click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      return dialog;
+    };
+    const closeProps = async (row: import("@playwright/test").Locator) => {
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await row.click(); // release the pick, so the next row's click is a pick and not a toggle
+    };
+    // The axial field is read by its placeholder, which is the part's own as-designed value — the
+    // same convention the canopy test above uses, and the reason it can tell "not edited" from "edited
+    // back to the same number".
+    const spanOf = async (dialog: import("@playwright/test").Locator, label: RegExp) =>
+      parseFloat((await dialog.locator("label").filter({ hasText: label }).first().locator("input").getAttribute("placeholder")) ?? "0");
+
+    const first = await openProps(rings.nth(0));
+    // **A plate has a THICKNESS and a tube has a LENGTH.** One model field, two flyers' words, and
+    // OpenRocket's own dialogs make the same split — a single label would be wrong for one of the two
+    // on every design carrying both, and this sample carries both.
+    await expect(first.locator("label").filter({ hasText: /^Thickness/ }), "a centring ring's plate is not a length").toHaveCount(1);
+    await expect(first.locator("label").filter({ hasText: /^Length/ })).toHaveCount(0);
+    await expect(first.getByLabel(/Outer/i)).toBeVisible();
+    await expect(first.getByLabel(/Bore/i)).toBeVisible();
+    // Nothing that belongs to the whole design, and nothing that belongs to another part — the same
+    // leaks the canopy surface actually shipped once, asserted again on the surface that came after.
+    for (const leak of [/Nose ballast/, /Recovery size/, /Payload/, /Surface finish/, /Airframe material/, /Boattail/, /Swap motor/, /Fin span/, /Nose length/]) {
+      await expect(first.locator("label").filter({ hasText: leak }), `${leak} is not a property of a centring ring`).toHaveCount(0);
+    }
+    const beforeFirst = await spanOf(first, /^Thickness/);
+    expect(beforeFirst, "the field must open on the part's own size").toBeGreaterThan(0);
+    await closeProps(rings.nth(0));
+
+    const second = await openProps(rings.nth(1));
+    const beforeSecond = await spanOf(second, /^Thickness/);
+    await closeProps(rings.nth(1));
+
+    // The motor-mount tube is the other vocabulary, on the same three fields.
+    const tube = partsTable.locator("tr").filter({ hasText: /Motor mount tube/ }).first();
+    const tubeDialog = await openProps(tube);
+    await expect(tubeDialog.locator("label").filter({ hasText: /^Length/ }), "a motor-mount tube is a length, not a thickness").toHaveCount(1);
+    await expect(tubeDialog.locator("label").filter({ hasText: /^Thickness/ })).toHaveCount(0);
+    await closeProps(tube);
+
+    // Now edit the FIRST ring and confirm the flight responds. These kinds have no aerodynamic term
+    // at all, so mass is the only route to the flight — which is exactly why a part nobody could size
+    // was a mass a flyer could not correct.
+    const edit = await openProps(rings.nth(0));
+    const thickness = edit.locator("label").filter({ hasText: /^Thickness/ }).first().locator("input");
+    await thickness.fill(String(Math.round(beforeFirst * 3)));
+    await thickness.blur();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.getByRole("link", { name: "Flight", exact: true }).click();
+    await expect.poll(async () => {
+      const t = (await page.getByRole("main").textContent()) ?? "";
+      const m = t.match(/([\d.]+)\s*m\/s/);
+      return m ? parseFloat(m[1]) : NaN;
+    }, { timeout: 25000 }).toBeGreaterThan(0);
+
+    // **And the identical sibling did not move.** Two centring rings on one design are the case the
+    // old role-addressed fields could never have served: "the" ring is not a thing a real airframe
+    // has one of.
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await openParts();
+    const after = await openProps(partsTable.locator("tr").filter({ hasText: /Centering ring/ }).nth(1));
+    expect(
+      await spanOf(after, /^Thickness/),
+      "editing one centring ring changed the other — the fields are addressing a ROLE, not an id",
+    ).toBeCloseTo(beforeSecond, 3);
+  });
 });

@@ -64,6 +64,12 @@ import {
   canAddMount,
   stageSeedBase,
   internalPartDefaults,
+  primaryInternalPart,
+  primaryInternalPartAim,
+  internalPartBounds,
+  unreachableInternalCount,
+  internalSpanLabel,
+  INTERNAL_MAX_BORE_FRACTION,
   usableCatalogRing,
   type GeometryEdits,
   type PickedRing,
@@ -1339,13 +1345,23 @@ describe("aimEditsAt — which fields a pick re-aims", () => {
   });
 
   it("re-aims nothing for a part no field describes, or for an id the design does not have", async () => {
-    // `demo-quirks.ork` carries a tube coupler, a mass object, a streamer and a transition — parts a
-    // flyer reads on the diagram and that no editor field describes. Reading one must move no aim.
+    // `demo-quirks.ork` carries a streamer, which no editor field describes: `parachuteId`'s kinds
+    // are `["parachute"]` alone and a streamer is its own type in `types.ts`. Reading one must move
+    // no aim.
+    //
+    // **This case used to use the fixture's TUBE COUPLER, and the `internalId` slot took that away**
+    // — a coupler now moves an aim like any other part, which is the capability rather than a
+    // regression. The case survives on a different kind because the rule it checks is unchanged:
+    // 55 parts across the corpus (24 shock cords, 19 launch lugs, 11 rail buttons, 1 streamer) still
+    // have no field, and picking one must not silently re-point a field at something else.
     const rocket = await load("demo-quirks.ork");
-    const coupler = flattenRocket(rocket).find((p) => p.component.kind === "tubecoupler")!;
-    expect(coupler, "the fixture needs a part that drives no field").toBeTruthy();
-    expect(aimEditsAt(rocket, coupler.component.id)).toEqual({});
+    const unaimed = flattenRocket(rocket).find((p) => p.component.kind === "streamer")!;
+    expect(unaimed, "the fixture needs a part that drives no field").toBeTruthy();
+    expect(aimEditsAt(rocket, unaimed.component.id)).toEqual({});
     expect(aimEditsAt(rocket, "no-such-component")).toEqual({});
+    // And the coupler beside it DOES aim now, which is what this increment added.
+    const coupler = flattenRocket(rocket).find((p) => p.component.kind === "tubecoupler")!;
+    expect(aimEditsAt(rocket, coupler.component.id)).toEqual({ internalId: coupler.component.id });
   });
 
   it("leaves the other aim alone, so an active edit cannot follow an unrelated pick", async () => {
@@ -4345,5 +4361,192 @@ describe("applyGeometryEdits — the canopy's drag coefficient", () => {
     // A coefficient IS the lever it is advertised as: doubling it must move the arrival speed
     // materially, not by a rounding.
     expect(slippier / draggier).toBeGreaterThan(1.2);
+  });
+});
+
+describe("the internal structure is a part like any other", () => {
+  // The largest unreachable population in the model until now. Measured over the 35-design corpus:
+  // 249 of 569 parts (43.8%) had no field describing them, and 194 of those 249 are these five
+  // kinds — 83 centring rings, 37 inner tubes, 31 couplers, 29 bulkheads, 14 engine blocks.
+  const SINGLE = "fixtures/demo-single-deploy.ork";
+  const load = async (f: string) => importOrk(readFileSync(resolve(process.cwd(), f)));
+
+  /** A design with one body tube holding one coupler, built by hand so every number under test is
+   *  stated here rather than read off a fixture that may change underneath it. */
+  const hosted = (part: Partial<RingComponent & InnerTube> & { kind: RocketComponent["kind"] }): Rocket => {
+    const inner = {
+      id: "inner", name: "Coupler", placement: { method: "top" as const, offset: 0.05 },
+      length: 0.1, outerRadius: 0.024, innerRadius: 0.022, children: [],
+      // A stated stock, because these kinds reach the flight through mass alone and mass is
+      // geometry x density: with no material the density is 0 and every assertion below would pass
+      // over a part that weighs nothing however it is sized.
+      material: { name: "cardboard", density: 680, type: "bulk" } as Material, ...part,
+    } as unknown as RocketComponent;
+    const tube: BodyTube = {
+      id: "tube", name: "Body", kind: "bodytube", placement: { method: "after", offset: 0 },
+      length: 0.4, outerRadius: 0.025, thickness: 0.001, children: [inner],
+      material: { name: "cardboard", density: 680, type: "bulk" },
+    };
+    return { name: "t", stages: [{ name: "S", components: [tube] }], configurations: [], referenceType: "maximum" };
+  };
+
+  it("aims all five kinds at one slot, and nothing else at it", () => {
+    for (const kind of ["tubecoupler", "centeringring", "bulkhead", "engineblock", "innertube"] as const) {
+      const r = hosted({ kind });
+      expect(aimEditsAt(r, "inner")).toEqual({ internalId: "inner" });
+      expect(primaryInternalPart(r, "inner")!.id).toBe("inner");
+    }
+    // A body tube is not internal structure, however much of it is inside the airframe.
+    expect(aimEditsAt(hosted({ kind: "tubecoupler" }), "tube")).toEqual({ bodyTubeId: "tube" });
+  });
+
+  it("edits the part it names, and reaches the flight through its mass", () => {
+    const r = hosted({ kind: "tubecoupler" });
+    const before = dryMassProperties(r).mass;
+    const grown = applyGeometryEdits(r, { internalId: "inner", internalLength: 0.2 });
+    const made = flattenRocket(grown).find((p) => p.component.id === "inner")!.component as RingComponent;
+    expect(made.length).toBeCloseTo(0.2, 9);
+    // Twice the coupler is twice the coupler's mass, and the airframe around it has not moved: these
+    // kinds carry no aerodynamic term at all, so mass is the ONLY route to the flight and a change
+    // that did not move it would be a field that does nothing.
+    expect(dryMassProperties(grown).mass).toBeGreaterThan(before);
+    expect(overallLength(grown)).toBeCloseTo(overallLength(r), 9);
+  });
+
+  it("holds a part to the one holding it, and advertises exactly the bound it enforces", () => {
+    const r = hosted({ kind: "tubecoupler" });
+    const bounds = internalPartBounds(r, "inner");
+    // The host is 400 mm long and bores to 24 mm (25 mm outer less a 1 mm wall).
+    expect(bounds.maxLength).toBeCloseTo(0.4, 9);
+    expect(bounds.maxOuterDiameter).toBeCloseTo(0.048, 9);
+
+    // Past either bound the model takes the bound — the same number the panel advertises. A coupler
+    // longer than its tube, or wider than its tube's bore, is not a rocket anyone built.
+    const over = applyGeometryEdits(r, {
+      internalId: "inner", internalLength: 5, internalOuterDiameter: 0.5,
+    });
+    const made = flattenRocket(over).find((p) => p.component.id === "inner")!.component as RingComponent;
+    expect(made.length).toBeCloseTo(bounds.maxLength!, 9);
+    expect(made.outerRadius * 2).toBeCloseTo(bounds.maxOuterDiameter!, 9);
+  });
+
+  it("never flies a part made of nothing, however the bore is typed", () => {
+    const r = hosted({ kind: "centeringring" });
+    // A bore at or above the outer diameter is a zero wall and a zero mass, and the CG the flight
+    // reports would come from a component that cannot exist. The cap is a clamp rather than a
+    // refusal — "as thin as it goes" is legible intent — and it is the ONE constant both the panel
+    // and the applier read.
+    const flat = applyGeometryEdits(r, { internalId: "inner", internalInnerDiameter: 0.2 });
+    const ring = flattenRocket(flat).find((p) => p.component.id === "inner")!.component as RingComponent;
+    expect(ring.innerRadius).toBeLessThan(ring.outerRadius);
+    expect(ring.innerRadius).toBeCloseTo(ring.outerRadius * INTERNAL_MAX_BORE_FRACTION, 9);
+    expect(dryMassProperties(flat).mass).toBeGreaterThan(0);
+
+    // A bore of ZERO is a real answer and the only field in the editor for which it is: a disc with
+    // no hole is what a bulkhead is.
+    const solid = applyGeometryEdits(r, { internalId: "inner", internalInnerDiameter: 0 });
+    const disc = flattenRocket(solid).find((p) => p.component.id === "inner")!.component as RingComponent;
+    expect(disc.innerRadius).toBe(0);
+    expect(dryMassProperties(solid).mass).toBeGreaterThan(dryMassProperties(r).mass);
+  });
+
+  it("measures the bore against the outer diameter BEING FLOWN, not the one on file", () => {
+    // Both fields in one commit: the part narrows to 20 mm and the bore is typed at 22 mm. Measured
+    // against the file's own 24 mm the bore passes and the part flies inside out; measured against
+    // the 20 mm actually being flown it is capped under it, which is what the panel promises.
+    const r = hosted({ kind: "tubecoupler" });
+    const both = applyGeometryEdits(r, {
+      internalId: "inner", internalOuterDiameter: 0.02, internalInnerDiameter: 0.022,
+    });
+    const made = flattenRocket(both).find((p) => p.component.id === "inner")!.component as RingComponent;
+    expect(made.outerRadius * 2).toBeCloseTo(0.02, 9);
+    expect(made.innerRadius).toBeLessThan(made.outerRadius);
+    expect(made.innerRadius * 2).toBeCloseTo(0.02 * INTERNAL_MAX_BORE_FRACTION, 9);
+  });
+
+  it("keeps the wall the design drew when only the outside is narrowed", () => {
+    // The flyer narrowed the part and said nothing about the hole. Leaving the bore where it was
+    // would fly a part inside out; taking the bore cap would silently turn a 2 mm wall into foil.
+    const r = hosted({ kind: "tubecoupler" }); // 24 mm outer radius, 22 mm bore ⇒ a 2 mm wall
+    const thin = applyGeometryEdits(r, { internalId: "inner", internalOuterDiameter: 0.03 });
+    const made = flattenRocket(thin).find((p) => p.component.id === "inner")!.component as RingComponent;
+    expect(made.outerRadius).toBeCloseTo(0.015, 9);
+    expect(made.outerRadius - made.innerRadius).toBeCloseTo(0.002, 9);
+  });
+
+  it("names the part the fields are holding, told apart from every other internal part", async () => {
+    const doc = await load(SINGLE);
+    const aim = primaryInternalPartAim(doc.rocket);
+    // The fixture may or may not carry internal structure; where it does, the caption resolves and
+    // the count agrees with the flatten. Where it does not, both say so, which is also correct.
+    const all = flattenRocket(doc.rocket).filter((p) =>
+      ["tubecoupler", "centeringring", "bulkhead", "engineblock", "innertube"].includes(p.component.kind),
+    );
+    if (!all.length) {
+      expect(aim).toBeUndefined();
+      expect(unreachableInternalCount(doc.rocket)).toBe(0);
+      return;
+    }
+    expect(aim).toBeTruthy();
+    expect(unreachableInternalCount(doc.rocket)).toBe(all.length - 1);
+  });
+
+  it("calls a plate a thickness and a tube a length", () => {
+    // One model field, two flyers' words, and OpenRocket's own dialogs make the same split. A single
+    // label would be wrong for one of the two on every design that carries both.
+    expect(internalSpanLabel("centeringring")).toBe("Thickness");
+    expect(internalSpanLabel("bulkhead")).toBe("Thickness");
+    expect(internalSpanLabel("engineblock")).toBe("Thickness");
+    expect(internalSpanLabel("tubecoupler")).toBe("Length");
+    expect(internalSpanLabel("innertube")).toBe("Length");
+  });
+
+  it("never flies a part inside out or wider than its tube, under a caliber change too", () => {
+    // **Both halves of this were real and both were found by review over a green gate**, and they are
+    // the same defect: the bounds are measured on the PRISTINE tree while the edit is written after
+    // `scaleAirframeRadii`, which moves the very radii those bounds were measured against.
+    const r = hosted({ kind: "tubecoupler" }); // host D50 x 1 mm wall; coupler D48, bore D44
+    const scale = 0.5;
+    const bodyDiameter = 0.05 * scale;
+
+    // 1. **The bore.** Type a bore just under the coupler's own 48 mm, then halve the airframe. The
+    //    coupler scales with the caliber, so the bore typed against 48 mm would be wider than the
+    //    24 mm part it is cut in — a part with a negative wall, which the mass model drops to
+    //    nothing at a fixed station.
+    const both = applyGeometryEdits(r, {
+      internalId: "inner", internalInnerDiameter: 0.047, bodyDiameter,
+    });
+    const c1 = flattenRocket(both).find((p) => p.component.id === "inner")!.component as RingComponent;
+    expect(c1.innerRadius, "the bore ended up at or past the wall it is cut in").toBeLessThan(c1.outerRadius);
+    expect(dryMassProperties(both).mass).toBeGreaterThan(0);
+
+    // 2. **The outer diameter.** Type the coupler's own 48 mm — which the panel offers, it is the
+    //    placeholder — then halve the airframe. The host's bore is now 24 mm, so a 48 mm coupler is
+    //    wider than the tube around it, and `outerRadius` reads the WIDEST part: the reference area
+    //    the whole flight is computed against would come from a part inside the airframe.
+    const wide = applyGeometryEdits(r, {
+      internalId: "inner", internalOuterDiameter: 0.048, bodyDiameter,
+    });
+    const c2 = flattenRocket(wide).find((p) => p.component.id === "inner")!.component as RingComponent;
+    const host = flattenRocket(wide).find((p) => p.component.id === "tube")!.component as BodyTube;
+    expect(
+      c2.outerRadius,
+      "an internal part is wider than the tube holding it, so it sets the reference area",
+    ).toBeLessThanOrEqual(host.outerRadius + 1e-12);
+  });
+
+  it("takes its values with it when the aim moves, and when the part is removed", () => {
+    const r = hosted({ kind: "tubecoupler" });
+    const held = { internalId: "inner", internalLength: 0.2, internalOuterDiameter: 0.02 };
+    // Re-aiming at a part just authored clears the absolute numbers that described the old one —
+    // exactly as every other slot does, because both rules read `AIM_SLOTS` rather than a list.
+    const moved = aimsClearedByAiming(held, { internalId: "other" });
+    expect(moved.internalLength).toBeUndefined();
+    expect(moved.internalOuterDiameter).toBeUndefined();
+    // And a removal takes the aim AND the values, so no unaimed absolute lands on a surviving part.
+    const cleared = aimsClearedByRemoving(r, held, "inner");
+    expect(cleared.internalId).toBeUndefined();
+    expect(cleared.internalLength).toBeUndefined();
+    expect(cleared.internalOuterDiameter).toBeUndefined();
   });
 });
