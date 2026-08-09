@@ -187,6 +187,28 @@ hand-rolls it instead is not done.
   `Panel` render one shared header, so the two cannot drift — they already had, before either had a
   call site.
 - **`Disclosure`** — progressive detail. The label says what is inside, never "More".
+- **`SectionNav`** — a pinned strip of in-page links with a **you-are-here** marker, for a surface
+  longer than a couple of screens. A map with no "you are here" is a list of place names.
+
+  **Lifted out of `components/FlightReport.tsx` on 2026-08-08, where it was hand-rolled — because
+  the surface that needed it most did not have it.** The report grew this when it reached nine
+  screens on a phone; `app/methods/page.tsx` is ~12,700 words in 51 blocks and had no in-page
+  navigation of any kind. One surface solving a problem privately while the worse instance of it
+  goes unserved is the case a primitive layer exists for, and it is the same shape as `Popover`
+  one entry down: the vocabulary was short a word, so the first site to need it wrote its own.
+
+  `sticky`, not `fixed`: until the reader has scrolled past where it already sat it costs nothing.
+  It scrolls sideways rather than wrapping, because a jump bar that takes a screen of its own to
+  read is not a fix for a long page. Targets carry a `scroll-margin-top` so a heading lands below
+  it rather than under it.
+
+  **The marker must be able to reach the LAST section, and for two surfaces it could not.** A short
+  final section cannot be scrolled up to the reading line — there is no page left — so it never lit
+  up and clicking its own chip left the mark on the section above. `useCurrentSection` treats the
+  bottom of the document as the last section. Measured on `/methods`, whose last group holds one
+  short block: its heading sits 288 px down at maximum scroll on a desktop. The report had the same
+  bug and hid it behind a tall final section.
+
 - **`Popover`** — an explanation or a small set of controls, opened from a trigger and shown **over**
   the surface rather than in it. Use it where `Disclosure` would push the thing the reader is looking
   at off the screen, and where navigating away would cost them their place.

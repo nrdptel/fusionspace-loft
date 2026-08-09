@@ -270,3 +270,46 @@ test.describe("readable in the theme the visitor is actually in", () => {
     }
   });
 });
+
+test("every docs route offers a contents list, and it says where the reader is", async ({ page }) => {
+  // **P11's first clause, as a check.** Measured on the built export before this: 29,204 words across
+  // six routes, one linkable heading in eighty-nine, and no table of contents, in-page anchor,
+  // next/prev or search anywhere. `/docs/limitations` carries 11,157 words under three `h2`.
+  //
+  // The list is built from the headings the route actually rendered, so this asserts the RELATIONSHIP
+  // — every chip points at a heading that exists — rather than a hard-coded set of labels, which
+  // would pass against a list that had stopped matching the page.
+  for (const route of ["/docs/methods", "/docs/validation", "/docs/limitations"]) {
+    await page.goto(route);
+    const nav = page.getByRole("navigation", { name: /Jump to a section/i });
+    await expect(nav, `${route} offers no contents list`).toBeVisible();
+    const chips = nav.getByRole("link");
+    const n = await chips.count();
+    expect(n, `${route} contents list is empty`).toBeGreaterThan(2);
+    for (let i = 0; i < n; i++) {
+      const href = await chips.nth(i).getAttribute("href");
+      expect(href, `${route} chip ${i} has no href`).toMatch(/^#\S+/);
+      await expect(
+        page.locator(`h2[id="${href!.slice(1)}"]`),
+        `${route}: the contents list points at #${href!.slice(1)}, which is not a heading on the page`,
+      ).toHaveCount(1);
+    }
+    // Following a chip lands the heading BELOW the sticky chrome rather than under it, and the
+    // marker follows the reader to it — a map with no "you are here" is a list of place names.
+    //
+    // **Asserted after a jump rather than at the top of the page**, which is the contract the shared
+    // primitive actually has: it marks the last heading to have crossed the reading line, and at
+    // scroll zero none has. That leaves the first screen unmarked; it is filed in `BACKLOG.md` as a
+    // change to the shared hook, which lives in both repos and cannot be made from a run that can
+    // only gate one of them.
+    const target = (await chips.nth(2).getAttribute("href"))!.slice(1);
+    await chips.nth(2).click();
+    await page.waitForTimeout(500);
+    const top = await page.locator(`h2[id="${target}"]`).evaluate((el) => el.getBoundingClientRect().top);
+    expect(top, `${route}: #${target} landed under the sticky chrome at ${Math.round(top)} px`).toBeGreaterThanOrEqual(0);
+    await expect(
+      nav.locator(`[href="#${target}"][aria-current="location"]`),
+      `${route}: jumping to #${target} did not mark it as where the reader is`,
+    ).toHaveCount(1);
+  }
+});

@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+export { SectionNav } from "./SectionNav";
+
 import {
   NAV_BAR,
   TOUCH_TARGET,

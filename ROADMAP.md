@@ -17,16 +17,17 @@ work, and a queue containing only the first can only ever ship the first.
 
 - **R-track — capability.** What a flyer can DO that they could not before. **R1–R11 shipped**
   (R10 closed 2026-08-09 on its last item, `maxAcceleration`); **R12 is IN PROGRESS** — the first of
-  its members is met as of 2026-08-08, and increment 3 took the components no field describes from
-  249 of 569 corpus parts to 55 on 2026-08-09. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
+  its members is met as of 2026-08-08, and increments 3 and 4 took the components no field describes
+  from 249 of 569 corpus parts to ONE on 2026-08-09. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
   shipped; R4 is IN PROGRESS" until 2026-08-08, six milestones after it stopped being true — and it
   then went stale again inside the very commit that added this warning, caught by review rather than
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
   line it summarises, or it becomes the most misleading sentence in the file.)*
 - **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
-  shape, design system, first run, form factor, documentation, discoverability. **P1–P7, P9 and P12
-  shipped; P8 is IN PROGRESS** — its rotation shipped 2026-08-09 — **P10 is IN PROGRESS** with its
-  remaining half blocked on a repository SETTING no session can edit, and P11 is NOT STARTED.
+  shape, design system, first run, form factor, documentation, discoverability. **P1–P9 and P12
+  shipped** (P8 on 2026-08-09, in one increment rather than four); **P10 is IN PROGRESS** with its
+  remaining half blocked on a repository SETTING no session can edit; **P11 is the next unstarted
+  one.**
 
 **A run takes the next unstarted milestone from EACH track, and ships both.** Not one or the other.
 Start with whichever is smaller so something lands early, then take the other. If a run has time for
@@ -2640,8 +2641,31 @@ page called a centring ring `L 3 mm` while the panel one click away called the s
 designs whose `auto` bore had resolved to a zero wall, so they weighed nothing. Fixed first and
 separately (`373024e`, PR #147), because a parser change gets its own commit.
 
-**What is still NOT done, stated rather than implied.** 55 parts across the corpus still have no
-field: 24 shock cords, 19 launch lugs, 11 rail buttons, 1 streamer. The parts list is still collapsed
+**Increment 4 — the external fittings, 2026-08-09. ONE part in the whole corpus now has no field.**
+A shock cord, a launch lug and a rail button are one `MinorComponent` in `types.ts`, so one more slot
+with four targets — mass, length, outer diameter and how many — covers **54 parts across the 35
+designs** (24 shock cords on 21, 19 launch lugs on 14, 11 rail buttons on 9). With increment 3's 194
+that is 248 of the 249 parts that no field described; the remaining one is a single streamer, and it
+stays out deliberately (it shares the recovery job with a parachute rather than the shape of a
+fitting, and designing a vocabulary entry around its sole possible adopter is what `DESIGN.md` §5
+already declined to do once).
+
+**Two of the three reach the flight through DRAG, which is what makes this more than completeness.**
+`lib/sim/aero.ts` sums `count x pi x radius^2` over every launch lug and rail button into the
+protuberance area, so a flyer who models a pair of buttons as one is flying a drag figure they cannot
+correct. The panel says so, on those two kinds and not on the shock cord — a caveat printed on
+everything is a caveat nobody reads. Pinned by `lib/corpus/sweep.test.ts`'s *sizes every real design's
+external fittings, and the count reaches the drag* (54 parts, 30 of them protuberances, the count
+asserted through the frontal area the solver reads rather than through the field), by five cases in
+`lib/model/edit.test.ts` — one of which flies the starter with a rail button on it and moves the two
+drag inputs SEPARATELY, because a first version varied both and passed with the count wired to
+nothing — and by `e2e/smoke.spec.ts`'s *a launch lug is a part too, and its count is drag rather than
+decoration*, whose negative control reports *"a launch lug offered no way to edit it"*.
+
+**What is still NOT done, stated rather than implied.** One streamer across the corpus has no field.
+A motor mount's own overhang and cluster count have no control, and there is no mass override or
+per-part comment anywhere — which `COMPETITION.md` row 41 names as the cheapest next thing, because
+Loft honours `overrideMass` on import and offers no way to set one. The parts list is still collapsed
 by default. There is still no verb band beside the tree, and `add` is still behind one body-tube
 guard at `components/GeometryInspector.tsx:747` which wraps all six add verbs.
 
@@ -4329,7 +4353,11 @@ stylesheet carries the same class-only defect is measured in that repo, not infe
 
 ## P8 (from ON-3) — The phone stands the rocket up
 
-**Status: IN PROGRESS — increment 1 shipped 2026-08-09, and it is the whole rotation.** A phone held
+**Status: SHIPPED 2026-08-09** — in ONE increment rather than the three or four estimated, because
+the rotation turned out to be one transform rather than a second drawing. Every clause of the
+*done when* is met and pinned by `e2e/touch.spec.ts`'s *a phone held upright draws the rocket upright,
+nose at top, and no grip inverts* and `e2e/touch-landscape.spec.ts`'s *a phone turned sideways keeps
+the rocket lying down*. A phone held
 upright draws the airframe upright, nose at top, at a scale set by a named height budget; every grip
 is re-based on the model axis; the tap columns' 44 px follows the model axis too; and landscape is
 unchanged with a case saying so. Pinned by `e2e/touch.spec.ts`'s *a phone held upright draws the
@@ -4635,7 +4663,37 @@ a file, and no tool available to a session can edit it. It is parked in `OWNER-N
 
 ## P11 (from ON-8) — Docs a flyer can navigate, not just read
 
-**Status: NOT STARTED.**
+**Status: IN PROGRESS — increment 1 shipped 2026-08-09: every heading is linkable and every route
+offers a contents list.** Measured on the built export: **32 of 32 headings carry an anchor, against
+1 of 89 before** (the eighty-nine counted `h3`s and higher that the routes do not have; the thirty-two
+are every `h2` the six routes render, which is every section break they have). Pinned by
+`lib/docs-nav.test.ts` — four cases counting the export, including one asserting no two headings on a
+route answer to the same anchor and one holding `/docs/validation#rocketpy`, a URL that was already
+published and is therefore a promise — and by `e2e/contrast.spec.ts`'s *every docs route offers a
+contents list, and it says where the reader is*, which asserts the RELATIONSHIP (every chip points at
+a heading that exists on the page) rather than a hard-coded list that could stop matching.
+
+**The primitive was adopted, not invented, and that is the increment's most useful half.** The
+sibling repo shipped `SectionNav` — a pinned strip of in-page links with a you-are-here marker — out
+of its own flight report on 2026-08-08, together with `useCurrentSection`, whose docblock records two
+bugs already found and fixed in it (measuring against the strip's bottom edge is off by one section,
+because the jump margin deliberately parks a heading BELOW the strip; and a short final section can
+never reach the reading line, so the bottom of the document has to count as the last section). Loft
+was one commit from writing a third copy of that. `DESIGN.md` §5's entry is that repo's, byte-identical.
+
+**The contents list is built from the DOM rather than authored per route**, so a page that gains a
+section cannot disagree with its own list — which is the failure `P10` exists to clean up on
+`README.md`. It is a client component in a static export: a reader with no JavaScript sees the page
+complete and every heading still carries its id, so a link INTO a section keeps working. That is the
+right failure for an enhancement.
+
+**Remaining: the prose itself.** `/docs/limitations` is still 11,157 words under three `h2` — one
+section break per ~3,700 — including a single 2,800-word unbroken run, and `/docs/methods` is 7,926
+under 14 with no `h3` at all. That is increment 2 and it needs `DESIGN.md` to change first: §11 puts
+the physics pages out of scope. **Read the sibling's copy before writing that clause — it already has
+one**, with the measurement behind it (45–75 rendered characters, and an explicit warning that `ch`
+is the wrong unit: 1ch is 11.0 px against a 7.10 px average prose character, so `max-w-prose` renders
+about 101 characters per line).
 
 **Outcome.** The six docs routes can be scanned, linked into, and returned to — instead of read
 start-to-finish or not at all.
