@@ -29,6 +29,10 @@ const SAMPLES: { path: string; name: string; label: string }[] = [
   // a caution: every other bundled design measures 3.06–4.38 cal against an over-stable threshold of
   // 3, so until this existed every one-tap example opened with a warning. 2.07 cal.
   { path: "/samples/demo-stable.ork", name: "Stable trainer (H128W)", label: "Stable trainer · H128W" },
+  // The third FORMAT, and until now the one a flyer could only discover by trying it: `.CDX1` has
+  // been accepted since the RASAero adapter shipped, and the drop zone said so, but no `.CDX1`
+  // existed anywhere in the repo — not as a sample, not even as a test fixture.
+  { path: "/samples/demo-rasaero.CDX1", name: "RASAero 4 in sport (K550W)", label: "RASAero · 4 in sport · K550W" },
 ];
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim

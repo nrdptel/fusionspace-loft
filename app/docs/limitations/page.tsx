@@ -1013,7 +1013,7 @@ export default function Limitations() {
 
       <h3>Bundled sample designs use estimated stored figures</h3>
       <p>
-        The bundled example designs (six <code>.ork</code>{" "}files and one RockSim <code>.rkt</code>)
+        The bundled example designs (six <code>.ork</code>{" "}files, one RockSim <code>.rkt</code>{" "}and one RASAero <code>.CDX1</code>)
         ship with author-estimated stored results, not genuine OpenRocket or RockSim runs (Loft
         can&apos;t generate those here). The bundled &ldquo;design tool vs Loft&rdquo; comparison is
         therefore a demonstration; a real comparison uses your own file. See{" "}

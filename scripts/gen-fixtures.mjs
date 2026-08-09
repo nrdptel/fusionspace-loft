@@ -116,9 +116,13 @@ for (const file of (await readdir(srcDir)).sort()) {
     wrote++;
   }
 }
-// The RockSim source IS the loadable file, so the sample is a straight copy.
-const rkt = await readFile(resolve(srcDir, "demo-rocksim.rkt"));
-await writeFile(resolve(samplesDir, "demo-rocksim.rkt"), rkt);
-wrote++;
+// The RockSim and RASAero sources ARE the loadable files — one is XML, the other is XML in a
+// different schema, and neither is zipped — so those samples are straight copies. Listed by name
+// rather than globbed: a new format's sample should be a deliberate line here, next to the reason
+// it is not going through the zip path above.
+for (const passthrough of ["demo-rocksim.rkt", "demo-rasaero.CDX1"]) {
+  await writeFile(resolve(samplesDir, passthrough), await readFile(resolve(srcDir, passthrough)));
+  wrote++;
+}
 
 console.log(`gen-fixtures: wrote ${wrote} files from ${srcDir}`);

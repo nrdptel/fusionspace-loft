@@ -37,6 +37,30 @@ function shipped(): string[] {
 }
 
 describe("the bundled example designs", () => {
+  it("offers an example of every format the import screen accepts", () => {
+    // **`.CDX1` was advertised for months with no example anywhere in the repo** — not a sample, not
+    // even a test fixture — so the only way a RASAero flyer could learn Loft reads their file was to
+    // try it. That is the "reachable only by knowing it is there" tell, pointed at a whole format.
+    //
+    // Read from the file input's own `accept` list rather than from a list here, so a new adapter
+    // fails this the moment its extension is advertised and before anyone can forget the sample.
+    const accept = /accept="([^"]+)"/.exec(panel())?.[1] ?? "";
+    const exts = new Set(
+      accept
+        .split(",")
+        .map((x) => x.trim().toLowerCase())
+        .filter((x) => x.startsWith("."))
+        .map((x) => x.replace(/\.gz$/, ""))
+        .filter((x) => x !== "" && x !== "."),
+    );
+    const have = new Set(shipped().map((f) => f.slice(f.lastIndexOf(".")).toLowerCase()));
+    expect(exts.size, "the import panel's accept list could not be read").toBeGreaterThan(1);
+    expect(
+      [...exts].filter((e) => !have.has(e)),
+      "the import screen advertises a format with no bundled example — a flyer with that file has no way to know Loft reads it",
+    ).toEqual([]);
+  });
+
   it("offers exactly the files it ships, in both directions", () => {
     const off = offered();
     const ship = shipped();
@@ -86,7 +110,7 @@ describe("the bundled example designs", () => {
       const doc = await importDesign(new Uint8Array(readFileSync(resolve(root, "public/samples", name))));
       for (const p of flattenRocket(doc.rocket)) kinds.add(p.component.kind);
     }
-    for (const want of ["nosecone", "bodytube", "trapezoidfinset", "parachute", "masscomponent", "transition", "ellipticalfinset"]) {
+    for (const want of ["nosecone", "bodytube", "trapezoidfinset", "parachute", "masscomponent", "transition", "ellipticalfinset", "launchlug"]) {
       expect(kinds.has(want), `no bundled sample carries a ${want} — a flyer cannot see Loft supports it`).toBe(true);
     }
     // And the ones still missing, asserted as an EXACT set rather than left implicit: a sample added

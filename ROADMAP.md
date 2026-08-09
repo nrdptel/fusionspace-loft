@@ -4457,7 +4457,9 @@ component while these are static routes, so converting them is a decision rather
 
 ## P12 (from ON-9) — Samples that show what the tool can actually do
 
-**Status: IN PROGRESS** — increments 1 and 2 of 3 shipped 2026-08-08. Increment 1: **two capabilities that had no example
+**Status: SHIPPED 2026-08-08/09** — all three increments, and every clause of the *done when* met.
+Pinned by `lib/samples.test.ts` (five cases, three with negative controls) and `lib/version.test.ts`'s
+count check. Increment 1: **two capabilities that had no example
 at all now have one, and the sample list is pinned in both directions.**
 
 `demo-boattail.ork` and `demo-payload-separation.ork` were already generated from committed source,
@@ -4505,9 +4507,23 @@ was **zero** precisely so this could not land quietly, and now asserts it is at 
 a BAND rather than the number 2.07 — pinning the figure would fail on any drag or mass change that
 moved it by a hundredth, which is a check about the solver wearing a sample's clothes.
 
-**Remaining: increment 3** — a `.CDX1` example. An advertised import format with a 640-line adapter
-and no example anywhere in the repo, not even as a fixture, so the only way a RASAero flyer discovers
-Loft reads their format is to try it.
+**Increment 3 — the `.CDX1` example, and it closes the milestone.** `.CDX1` had been accepted since
+the RASAero adapter shipped, the drop zone advertised it, and **no `.CDX1` existed anywhere in the
+repo** — not a sample, not a test fixture, not a corpus file. So the only way a RASAero flyer could
+learn Loft reads their format was to try it: the *"reachable only by knowing it is there"* tell,
+pointed at a whole format.
+
+`fixtures/src/demo-rasaero.CDX1` is hand-authored against the published RASAero II layout, in that
+program's own units (inches), naming its motor the way that program names it. Clean-room: the adapter
+was written from the format and this is written to the adapter's reading of it. It brings a
+**launch lug**, which no other bundled sample had. Measured through the app: **1.92 cal, 1,083 m
+apogee, Mach 0.41, no warnings** — and the fin was searched against the solver like the trainer's
+(1.33 / 1.92 / 2.18 / 2.25 cal across four candidates; the first draft at 1.33 read as fine and is a
+third of a caliber from a low-stability warning).
+
+**The check reads the file input's own `accept` list rather than a list of formats written here**, so
+a new adapter fails it the moment its extension is advertised and before anyone can forget the
+sample. Negative control: removing the file reports `.cdx1` by name.
 
 **Status was: NOT STARTED.**
 

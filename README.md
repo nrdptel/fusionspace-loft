@@ -45,7 +45,7 @@ you drag. The parts table underneath is the component tree exactly as Loft parse
 
 <img src="docs/screenshots/phone.png" alt="Loft on a phone: the flight summary for the same design, laid out for one-handed use" width="320">
 
-**And the first screen, with no file** — seven bundled examples and a from-scratch builder, so the
+**And the first screen, with no file** — eight bundled examples and a from-scratch builder, so the
 tool is usable before you have anything to import.
 
 ![Loft's landing surface: a drop zone for an OpenRocket, RockSim or RASAero file, buttons to start a new design or open a bundled example, and the three things Loft does that other tools do not](docs/screenshots/landing.png)
