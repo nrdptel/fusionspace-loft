@@ -25,6 +25,10 @@ const SAMPLES: { path: string; name: string; label: string }[] = [
   // is what distinguishes them from the three above.
   { path: "/samples/demo-boattail.ork", name: "Boattail + elliptical fins (H128W)", label: "Boattail · elliptical fins · H128W" },
   { path: "/samples/demo-payload-separation.ork", name: "Payload separation (F32T)", label: "Payload separation · F32T" },
+  // FIRST in the list a stranger reads is still the trainer, but this is the one that flies without
+  // a caution: every other bundled design measures 3.06–4.38 cal against an over-stable threshold of
+  // 3, so until this existed every one-tap example opened with a warning. 2.07 cal.
+  { path: "/samples/demo-stable.ork", name: "Stable trainer (H128W)", label: "Stable trainer · H128W" },
 ];
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim

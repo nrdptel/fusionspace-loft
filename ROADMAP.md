@@ -4457,7 +4457,7 @@ component while these are static routes, so converting them is a decision rather
 
 ## P12 (from ON-9) — Samples that show what the tool can actually do
 
-**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-08: **two capabilities that had no example
+**Status: IN PROGRESS** — increments 1 and 2 of 3 shipped 2026-08-08. Increment 1: **two capabilities that had no example
 at all now have one, and the sample list is pinned in both directions.**
 
 `demo-boattail.ork` and `demo-payload-separation.ork` were already generated from committed source,
@@ -4486,16 +4486,28 @@ Pinned by `lib/samples.test.ts`, four cases:
 `/docs/validation` said "the two bundled samples". `lib/version.test.ts`'s count check caught the
 first the moment the files landed; the other two were prose nothing asserts, found by grep.
 
-**What increment 1 did NOT do, asserted rather than promised: every bundled sample is still
-over-stable.** `OVER_STABLE_CAL` is 3 and the set measures **3.06 / 3.82 / 4.07 / 4.07 / 4.38 cal** —
-so adding two designs made it six of six rather than four of four, and a stranger's first flight still
-opens with a caution. That clause needs a *synthesized* design rather than a promoted fixture, which
-is increment 2. The check asserts the count of in-band samples is **zero**, so the increment that
-fixes it cannot land without saying so.
+**Increment 2 shipped the same day: a stranger's first flight no longer opens with a caution.**
+`OVER_STABLE_CAL` is 3, and before this the whole set measured **3.06 / 3.82 / 4.07 / 4.07 / 4.38
+cal** — so every one-tap example Loft offered greeted a stranger with a warning, and increment 1 had
+made that six of six rather than four of four. `fixtures/src/demo-stable.ork.xml` is a synthesized
+design, not a promoted fixture: derived from the 38 mm trainer and given its own name, component ids
+and motor configuration, with the fin set reduced (root 120 → 85 mm, tip 60 → 40, sweep 60 → 40,
+semi-span 60 → 33). Found by searching the fin geometry against the solver rather than guessed —
+five candidates measured 4.07 / 3.49 / 2.83 / **2.07** / 1.49 cal, and 2.07 was taken because it sits
+clear of BOTH warnings rather than near either edge.
 
-**Remaining: increment 2** (a design inside the stable band, synthesized), **increment 3** (a `.CDX1`
-example — an advertised import format with a 640-line adapter and no example anywhere in the repo,
-not even as a fixture).
+Measured through the app's own path: **2.07 cal, 1,214 m apogee, 230 m/s max, 23.3 m/s off a 1.2 m
+rail, Mach 0.68 — inside the validated subsonic envelope — 6.6 m/s at the ground, and zero
+warnings of any kind.**
+
+The check flipped, and flipping it IS the increment: `lib/samples.test.ts` asserted the in-band count
+was **zero** precisely so this could not land quietly, and now asserts it is at least one. It asserts
+a BAND rather than the number 2.07 — pinning the figure would fail on any drag or mass change that
+moved it by a hundredth, which is a check about the solver wearing a sample's clothes.
+
+**Remaining: increment 3** — a `.CDX1` example. An advertised import format with a 640-line adapter
+and no example anywhere in the repo, not even as a fixture, so the only way a RASAero flyer discovers
+Loft reads their format is to try it.
 
 **Status was: NOT STARTED.**
 

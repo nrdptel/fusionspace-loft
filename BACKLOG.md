@@ -12,6 +12,24 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-08, third increment — what the phone cold walk and the samples work turned up.**
+
+- **`demo-multi-config.ork` is still a duplicate airframe, and P12 increment 1 did not change that.**
+  It differs from `demo-single-deploy.ork` by ids, a motor configuration and a stored simulation, and
+  by not one line of geometry — so the bundled set is now six files and **five** airframes. It earns
+  its place by being the only sample with two flight configurations, which is a real capability; the
+  entry is here so nobody counts it twice when measuring coverage.
+
+- **Every bundled sample is over-stable, and this is the count to beat: 3.06 / 3.82 / 4.07 / 4.07 /
+  4.38 cal against a threshold of 3.** A stranger's one-tap example still opens with a caution.
+  Asserted by `lib/samples.test.ts` (*records that EVERY sample is still over-stable*) rather than
+  left as prose, so the increment that fixes it has to change that line. It is P12 increment 2 and
+  needs a synthesized design, not another promoted fixture.
+
+- **`.CDX1` is an advertised import format with a 640-line adapter and no example in the repo — not
+  a sample, not even a test fixture.** So the only way a RASAero flyer finds out Loft reads their
+  format is to try it. P12 increment 3.
+
 **Filed 2026-08-08, second run of the day, from having both app repos attached at once.**
 
 - **The two `Popover`s meet one contract through two APIs, and closing that is part of the shared

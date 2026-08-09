@@ -40,6 +40,9 @@ const SAMPLES = new Set([
   "demo-multi-config.ork",
   "demo-boattail.ork",
   "demo-payload-separation.ork",
+  // The one inside the stable band — see the comment at the top of its source. Every other sample
+  // greets a stranger with an over-stable caution.
+  "demo-stable.ork",
 ]);
 
 /** A minimal, deterministic ZIP holding one deflated entry. Deterministic matters: a fixed
