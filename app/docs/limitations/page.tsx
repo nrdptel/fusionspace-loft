@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DocsH2 } from "@/components/DocsHeading";
+import { DocsH2, DocsH3 } from "@/components/DocsHeading";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -25,7 +25,7 @@ export default function Limitations() {
 
       <DocsH2>Known limitations (2026-07)</DocsH2>
 
-      <h3>Flight dynamics are 3-DOF, not 6-DOF</h3>
+      <DocsH3>Flight dynamics are 3-DOF, not 6-DOF</DocsH3>
       <p>
         The solver integrates translational motion in the vertical plane with thrust and drag along
         the flight path. It does <strong>not</strong>{" "}model rotation: no weathercocking, no
@@ -52,7 +52,7 @@ export default function Limitations() {
         is brought back into that range rather than flown.
       </p>
 
-      <h3>Drag is the largest error source</h3>
+      <DocsH3>Drag is the largest error source</DocsH3>
       <p>
         The subsonic drag buildup is defensible but simplified: fin pressure drag follows the
         fins&apos; edge cross-section (square / rounded / airfoil), and both a diameter-increasing
@@ -91,7 +91,7 @@ export default function Limitations() {
         page.
       </p>
 
-      <h3>Transonic and supersonic drag are approximate</h3>
+      <DocsH3>Transonic and supersonic drag are approximate</DocsH3>
       <p>
         Above about Mach 0.8 the drag model leaves its validated envelope. It follows the
         correct <em>shape</em> — a transonic drag rise to a peak near Mach 1.15, then a supersonic
@@ -113,7 +113,7 @@ export default function Limitations() {
         stays inside it.
       </p>
 
-      <h3>Mass of curved shells is approximated</h3>
+      <DocsH3>Mass of curved shells is approximated</DocsH3>
       <p>
         Nose-cone and transition <em>shell</em> mass (a wall of given thickness) is computed by
         subtracting an inward-offset inner contour — a good approximation, not an exact offset
@@ -124,7 +124,7 @@ export default function Limitations() {
         an explicit component mass override.
       </p>
 
-      <h3>Fin planforms beyond trapezoidal are partly reduced</h3>
+      <DocsH3>Fin planforms beyond trapezoidal are partly reduced</DocsH3>
       <p>
         An elliptical fin&apos;s centre of pressure is now computed exactly for its planform — the
         Barrowman quarter-chord aerodynamic centre integrated over the elliptical chord gives{" "}
@@ -148,7 +148,7 @@ export default function Limitations() {
         centroid for an arbitrary outline).
       </p>
 
-      <h3>Two fin-drag inputs are still one number for the whole rocket</h3>
+      <DocsH3>Two fin-drag inputs are still one number for the whole rocket</DocsH3>
       <p>
         A rocket can carry several fin sets that differ — different thicknesses, different sweeps,
         different edge sections — and the drag buildup does not yet read all three per set. The edge{" "}
@@ -221,7 +221,7 @@ export default function Limitations() {
         not at all.
       </p>
 
-      <h3>Design what-ifs address the part you pick — for three kinds of part, not all of them</h3>
+      <DocsH3>Design what-ifs address the part you pick — for three kinds of part, not all of them</DocsH3>
       <p>
         The Design workspace&apos;s what-ifs are a fixed set of fields, and most of them address one
         component. Pick a <strong>fin set</strong>, a <strong>body tube</strong> or a{" "}
@@ -282,7 +282,7 @@ export default function Limitations() {
         the part in front and is deliberately left alone: moving it would un-fair a joint you did not
         touch.
       </p>
-      <h3>The parachute drag coefficient is the least-sourced number in the flight</h3>
+      <DocsH3>The parachute drag coefficient is the least-sourced number in the flight</DocsH3>
       <p>
         <strong>
           Ground-hit velocity was the figure Loft agreed with least, and almost none of the gap was
@@ -338,6 +338,7 @@ export default function Limitations() {
         open canopy&apos;s — has no published source either and now says so in one place instead of
         being typed into three.
       </p>
+      <DocsH3>Splitting the error by where the coefficient came from</DocsH3>
       <p>
         <strong>And the coefficient turns out not to be where the error lives.</strong> Splitting the
         corpus by whether each design&apos;s coefficient came from its own file or from a Loft
@@ -381,6 +382,7 @@ export default function Limitations() {
         than accuracy. Where the accuracy actually goes is the RockSim question, and it is being worked
         as that rather than as this.
       </p>
+      <DocsH3>Static margin is withheld when a motor cannot be resolved</DocsH3>
       <p>
         <strong>
           A configuration missing one of its motors gets no static margin — on any surface, including
@@ -408,6 +410,7 @@ export default function Limitations() {
         Resolving every motor, by swapping in a bundled one under Design, brings the margin back
         everywhere at once.
       </p>
+      <DocsH3>Figures withheld rather than guessed</DocsH3>
       <p>
         <strong>A flight that never reaches the ground reports no landing figures.</strong> The
         simulation runs to a 1,200&nbsp;s cap, and a canopy large enough to descend slower than that
@@ -448,6 +451,7 @@ export default function Limitations() {
         sizes inside the field&apos;s own range. Both now fly physically, and every design in the corpus
         is flown at 0.1×, 2×, 5× and 10× on every build to keep it that way.
       </p>
+      <DocsH3>Steps in the outer mould line</DocsH3>
       <p>
         <strong>There is no drag term for a bare step in the outer mould line.</strong> Loft models a
         transition&apos;s own slope — a shoulder&apos;s joint angle, a boattail&apos;s — but a step has no
@@ -488,6 +492,7 @@ export default function Limitations() {
         and leaves the estimate withheld. Fairing the joint with a transition gets a figure the model can
         stand behind.
       </p>
+      <DocsH3>Reordering and the drag model</DocsH3>
       <p>
         <strong>Reordering can put something other than a nose cone at the front, and the drag model has
         no term for that.</strong>{" "}Forebody pressure and wave drag are taken from whichever component
@@ -501,6 +506,7 @@ export default function Limitations() {
         optimistic. None of the 35 corpus designs is in that state as imported — every real design leads
         with its nose — so this is a shape the editor can reach and a file does not.
       </p>
+      <DocsH3>Mass objects</DocsH3>
       <p>
         <strong>Mass objects are addressable too.</strong> A point mass — an altimeter, a tracker, nose
         ballast — is usually the dominant non-structural weight on a design, and 26 of the 35 corpus
@@ -528,6 +534,7 @@ export default function Limitations() {
         of what sits in front of it rather than a free number. Moving one is reordering, and that is the
         next step for the in-app editor.
       </p>
+      <DocsH3>Adding and removing parts</DocsH3>
       <p>
         <strong>Removing a part does work</strong>, on any component, and it is undoable: pick a part on
         the diagram or in the parts list and the panel offers to remove it, naming the part it will take.
@@ -566,6 +573,7 @@ export default function Limitations() {
         that way inside a body tube — carrying the corpus&apos;s median weight of 45&nbsp;g until you say
         otherwise.
       </p>
+      <DocsH3>A total that does not move when a part is added</DocsH3>
       <p>
         One thing worth knowing before you read a total that did not move: where a design states the
         weight of a whole assembly or stage outright, Loft counts no mass for the parts inside it — so a
@@ -573,6 +581,7 @@ export default function Limitations() {
         right and the model is following it; the panels say so, before the click and after it. Across
         the corpus that covers 10 of the 91 places a mass object can be added.
       </p>
+      <DocsH3>Undo and redo</DocsH3>
       <p>
         <strong>Every edit is undoable, not only a removal.</strong> Undo and redo sit in the design
         header and name what they will do — &ldquo;Undo the fin span&rdquo;, &ldquo;Undo removing
@@ -603,7 +612,7 @@ export default function Limitations() {
         and picking that set is a way to act on it.
       </p>
 
-      <h3>Tube fins are modelled as ducts, and read ~1 caliber conservative</h3>
+      <DocsH3>Tube fins are modelled as ducts, and read ~1 caliber conservative</DocsH3>
       <p>
         Tube fins are flown, not skipped. They are treated as what they are — short open cylinders
         the flow passes <em>through</em> — so they get a duct normal force{" "}
@@ -621,7 +630,7 @@ export default function Limitations() {
         that sits inside them. Ring tails (a single large ring) are still skipped.
       </p>
 
-      <h3>Fin flutter is an estimate, not a certification</h3>
+      <DocsH3>Fin flutter is an estimate, not a certification</DocsH3>
       <p>
         The fin-flutter speed Loft reports is the simplified NACA TN 4197 closed form (see{" "}
         <Link href="/docs/methods">Methods</Link>). It is a preliminary-design figure, method-dependent
@@ -676,7 +685,7 @@ export default function Limitations() {
         without saying where it came from. A flag that cries wolf teaches flyers to ignore it.
       </p>
 
-      <h3>Serial staging is simulated; parallel and strap-on staging isn&apos;t</h3>
+      <DocsH3>Serial staging is simulated; parallel and strap-on staging isn&apos;t</DocsH3>
       <p>
         In-line (serial) multi-stage flights are simulated: the booster lights at launch, each
         stage above air-starts when the one below burns out (plus any ignition delay for a boosted
@@ -706,7 +715,7 @@ export default function Limitations() {
         estimate, not a 6-DOF turning solve.
       </p>
 
-      <h3>A stage whose motors never light is flown as dead mass, and the flight says so</h3>
+      <DocsH3>A stage whose motors never light is flown as dead mass, and the flight says so</DocsH3>
       <p>
         A stage below the top can fail to fire in three ways: it holds no motor at all, the motor it
         holds cannot be resolved to a thrust curve, or that motor carries an ignition trigger that
@@ -747,7 +756,7 @@ export default function Limitations() {
         ordinary design, and three of those files are exactly that.
       </p>
 
-      <h3>Motor clusters are modelled coaxially</h3>
+      <DocsH3>Motor clusters are modelled coaxially</DocsH3>
       <p>
         A motor cluster is simulated as its full complement of identical motors — an
         OpenRocket &ldquo;4-ring,&rdquo; for example, flies four motors, with the thrust and
@@ -770,7 +779,7 @@ export default function Limitations() {
         guess it; a design that models those tubes as components has them counted like any other part.
       </p>
 
-      <h3>Air-start ignition is timed but not event-triggered</h3>
+      <DocsH3>Air-start ignition is timed but not event-triggered</DocsH3>
       <p>
         A second motor on its own mount can be timed to air-start after an <em>ignition delay</em>,
         and Loft honours that delay (read from the flown configuration), so within-stage air-start
@@ -781,7 +790,7 @@ export default function Limitations() {
         plain delay and an approximation otherwise.
       </p>
 
-      <h3>Saving a design preserves a freeform fin&apos;s outline</h3>
+      <DocsH3>Saving a design preserves a freeform fin&apos;s outline</DocsH3>
       <p>
         A freeform (arbitrary polygon) fin is defined only by its outline, and Loft keeps that outline
         on the design rather than reducing it away on import, so <em>Download .ork</em>{" "}
@@ -808,7 +817,7 @@ export default function Limitations() {
         above, because there is nothing better available to write.
       </p>
 
-      <h3>Wind model</h3>
+      <DocsH3>Wind model</DocsH3>
       <p>
         Wind is a steady surface value, or an interpolated winds-aloft profile with the live-weather
         re-run. There is no turbulence, gust, or shear-layer modelling, and no correlation with the
@@ -823,7 +832,7 @@ export default function Limitations() {
         you tap — it does not follow the clock while you keep working.
       </p>
 
-      <h3>Monte-Carlo dispersion propagates only the inputs you set</h3>
+      <DocsH3>Monte-Carlo dispersion propagates only the inputs you set</DocsH3>
       <p>
         The dispersion tool jitters five inputs — motor total impulse, dry mass, aerodynamic drag,
         rail angle, and wind speed — around their nominal values and flies each sample through the
@@ -841,7 +850,7 @@ export default function Limitations() {
         confidence interval.
       </p>
 
-      <h3>Recovery deployment is idealised</h3>
+      <DocsH3>Recovery deployment is idealised</DocsH3>
       <p>
         A device deploys on its event and honours its deploy delay — the vehicle free-falls on body
         drag until the canopy opens — but the canopy is then modelled as opening{" "}
@@ -868,7 +877,7 @@ export default function Limitations() {
         coefficient are still yours to judge.
       </p>
 
-      <h3>Override-subcomponents (resolved for mass)</h3>
+      <DocsH3>Override-subcomponents (resolved for mass)</DocsH3>
       <p>
         A component&apos;s own mass/CG override is honoured, and OpenRocket&apos;s &ldquo;override
         mass of all subcomponents&rdquo; flag is now applied too: when a section states a measured
@@ -886,7 +895,7 @@ export default function Limitations() {
         immaterial to the 3-DOF flight, which uses mass and CG.
       </p>
 
-      <h3>Under-specified airframe diameters are inferred</h3>
+      <DocsH3>Under-specified airframe diameters are inferred</DocsH3>
       <p>
         When a design leaves its whole airframe at <code>auto</code>{" "}radius with no dimensioned
         section for the tubes to inherit from — anchored only by, say, a boat-tail end or an
@@ -900,7 +909,7 @@ export default function Limitations() {
         so Loft stops with a clear message asking you to check the dimensions instead.
       </p>
 
-      <h3>Motor database is a curated subset</h3>
+      <DocsH3>Motor database is a curated subset</DocsH3>
       <p>
         The bundled database covers a representative set of common motors across classes
         &frac14;A&ndash;N — the common Estes/Quest/Apogee low-power motors, AeroTech D&ndash;N
@@ -926,7 +935,7 @@ export default function Limitations() {
         and a prominent warning says how many motors were missing.
       </p>
 
-      <h3>RASAero import is geometry, weight and CG — not RASAero&apos;s aerodynamics</h3>
+      <DocsH3>RASAero import is geometry, weight and CG — not RASAero&apos;s aerodynamics</DocsH3>
       <p>
         RASAero II <code>.CDX1</code>{" "}files import through the same internal model as the other
         formats, so the flight is computed by Loft&apos;s solver, not RASAero&apos;s. The adapter
@@ -974,7 +983,7 @@ export default function Limitations() {
         Treat all three as independent estimates that disagree, not as one number with two errors.
       </p>
 
-      <h3>RockSim import is a common-subset adapter</h3>
+      <DocsH3>RockSim import is a common-subset adapter</DocsH3>
       <p>
         RockSim <code>.rkt</code>{" "}files import through the same internal model as OpenRocket, so the
         flight is computed identically. The adapter covers the parts real designs use — nose cones,
@@ -1017,7 +1026,7 @@ export default function Limitations() {
         geometry while total mass is exactly as the file states.
       </p>
 
-      <h3>Bundled sample designs use estimated stored figures</h3>
+      <DocsH3>Bundled sample designs use estimated stored figures</DocsH3>
       <p>
         The bundled example designs (six <code>.ork</code>{" "}files, one RockSim <code>.rkt</code>{" "}and one RASAero <code>.CDX1</code>)
         ship with author-estimated stored results, not genuine OpenRocket or RockSim runs (Loft

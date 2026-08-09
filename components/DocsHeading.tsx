@@ -50,3 +50,25 @@ export function DocsH2({ children, id }: { children: ReactNode; id?: string }) {
     </h2>
   );
 }
+
+/** A subsection heading, linkable on exactly the same terms.
+ *
+ *  **It exists because chunking prose without it silently un-does the increment before it.** `P11`'s
+ *  first pass gave every `h2` an anchor and reported 32 of 32; the count was over `h2` alone, and
+ *  fifty-five bare `<h3>` elements on four routes carried none. Breaking an 800-word wall into four
+ *  subsections with `<h3>` would have added four more unlinkable headings per wall — the run gets
+ *  shorter and the route gets LESS linkable, which is the wrong trade and an easy one to make without
+ *  noticing, because nothing counted it.
+ *
+ *  Not in the contents strip, and that is deliberate. `SectionNav` is a strip of chips: `/docs/faq`
+ *  alone would put twenty-eight in it and `/docs/limitations` twenty-four more, which is a wall of
+ *  chips replacing a wall of prose. The strip carries the route's `h2` sections — where a reader is
+ *  going — and the `h3`s break up what they find when they arrive, and can be linked to directly by
+ *  anyone who wants to send one. */
+export function DocsH3({ children, id }: { children: ReactNode; id?: string }) {
+  return (
+    <h3 id={id ?? slugify(toText(children))} className="scroll-mt-12">
+      {children}
+    </h3>
+  );
+}

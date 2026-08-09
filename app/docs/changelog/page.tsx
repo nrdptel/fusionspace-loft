@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DocsH2 } from "@/components/DocsHeading";
+import { DocsH2, DocsH3, slugify } from "@/components/DocsHeading";
 import Link from "next/link";
 
 import { RELEASES } from "@/lib/version";
@@ -42,15 +42,26 @@ export default function Changelog() {
 
       {RELEASES.map((r) => (
         <section key={r.version}>
-          <h3>
+          {/* An explicit id from the version alone: the slug of these children would carry the
+              release DATE too, so every anchor on this page would change the day a release is
+              re-dated, and a link somebody has already shared would stop resolving. */}
+          <DocsH3 id={`v${slugify(r.version)}`}>
             {r.version}{" "}
             <span className="font-normal text-zinc-500 dark:text-zinc-400">
               — <time dateTime={r.date}>{r.date}</time>
             </span>
-          </h3>
+          </DocsH3>
           {r.sections.map((s, i) => (
             <div key={s.heading || `lead-${i}`}>
-              {s.heading && <h4>{s.heading}</h4>}
+              {/* Anchored like every other heading. The id carries the release too, because
+                  "Fixed" appears under most of them and a bare slug would collide the moment a
+                  second release has one — which the uniqueness check would catch, but only after
+                  somebody had shipped the release that caused it. */}
+              {s.heading && (
+                <h4 id={`v${slugify(r.version)}-${slugify(s.heading)}`} className="scroll-mt-12">
+                  {s.heading}
+                </h4>
+              )}
               {s.lead && <p>{inlineMarkdown(s.lead, `${r.version}-${i}-lead-`)}</p>}
               {s.items.length > 0 && (
                 <ul>

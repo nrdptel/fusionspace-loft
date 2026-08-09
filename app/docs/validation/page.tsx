@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DocsH2 } from "@/components/DocsHeading";
+import { DocsH2, DocsH3, slugify } from "@/components/DocsHeading";
 import Link from "next/link";
 import { loadRocketpyReference, flyReferenceDesign, flyReferenceRecovery } from "@/lib/validation/rocketpy-reference";
 import { fmt } from "@/lib/display";
@@ -177,7 +177,7 @@ export default async function Validation() {
         those files are other people&apos;s designs and aren&apos;t redistributed.
       </p>
 
-      <h3>What the corpus says, metric by metric</h3>
+      <DocsH3>What the corpus says, metric by metric</DocsH3>
       <p>
         Across the corpus — 35 design files from OpenRocket, RockSim and RASAero, carrying{" "}
         <strong>97 stored simulations</strong>{" "}that Loft flies completely — this is the median
@@ -228,6 +228,7 @@ export default async function Validation() {
         counted it fifteen times, so the corpus suite separately counts how many designs&apos; max
         acceleration sits far out, and fails when that number grows.
       </p>
+      <DocsH3>Ground-hit velocity and flight time, measured under canopy</DocsH3>
       <p>
         <strong>Two of those are over flights that came down under a canopy.</strong>{" "}
         Ground-hit velocity and flight time are reported over the <strong>82</strong>{" "}
@@ -299,6 +300,7 @@ export default async function Validation() {
         Loft&apos;s own, and it is now the smallest number in the census rather than three times its
         worst.
       </p>
+      <DocsH3>Deployment velocity, and why it reads as an outlier</DocsH3>
       <p>
         Deployment velocity looks like the outlier and mostly isn&apos;t: it is an{" "}
         <em>ill-conditioned</em> metric, not a badly modelled one. Near apogee the rocket is barely
@@ -310,6 +312,7 @@ export default async function Validation() {
         3.3% and <strong>0.9 m/s</strong>. Read it in m/s, not percent. The genuinely wrong
         deployment cases are elsewhere and are listed as known issues in the suite.
       </p>
+      <DocsH3>Optimum delay: one word, two meanings</DocsH3>
       <p>
         <strong>Optimum delay is where two formats mean different things by the same word.</strong>{" "}
         OpenRocket stores the <em>free-coast</em>{" "}delay &mdash; the time from burnout to the apogee
@@ -334,6 +337,7 @@ export default async function Validation() {
         now asserts the <em>worst</em> optimum-delay row as well as the median, because a row
         comparing two different flights is a different defect from a metric that is simply off.
       </p>
+      <DocsH3>What moved on 9 August 2026, and why</DocsH3>
       <p>
         <strong>
           Nine of these figures moved on 9 August 2026, and the cause was a file-reading bug rather
@@ -393,6 +397,7 @@ export default async function Validation() {
         treatment the ballistic descents get, because a &ldquo;deployment velocity&rdquo; for a flight
         with nothing deployed is not the same quantity.
       </p>
+      <DocsH3>How these figures are asserted</DocsH3>
       <p>
         These figures are asserted, not just written down: the corpus suite recomputes the census on
         every run and fails if any metric drifts from what this page claims, so a change to the
@@ -469,9 +474,12 @@ export default async function Validation() {
       </p>
       {rpRuns.map((r) => (
         <div key={r.key}>
-          <h3>
+          {/* Explicit id, for the same reason the changelog's is: the derived slug would carry the
+              largest-difference PERCENTAGE, so re-running the cross-check would silently rename
+              every anchor on this page. The run's own key does not move. */}
+          <DocsH3 id={`run-${slugify(r.key)}`}>
             {r.name} ({r.config}) — largest difference {fmt(r.maxAbsPct, 1)}%
-          </h3>
+          </DocsH3>
           <table>
             <thead>
               <tr>
