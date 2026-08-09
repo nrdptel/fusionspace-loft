@@ -712,10 +712,17 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
       // be computed or it silently drops out of the total. A shock cord is deliberately a mass
       // component (a long tubular-nylon harness on a high-power rocket is far from negligible);
       // a lug/button is small but still real. An explicit <mass>, if present, still wins.
+      // **Times the count on all three kinds, so a fitting's stored mass is the total across its
+      // instances everywhere.** The lug/button arm always did; the shock cord did not, which left one
+      // consumer contradicting the convention `lib/model/edit.ts` applies and `lib/ork/export.ts`
+      // divides back out — a two-harness design would have imported as one. No `<shockcord>` in the
+      // 35-design corpus carries an `<instancecount>`, so this changes no real design's mass; it
+      // closes the path by which the editor's count could scale from a base that was already half
+      // true.
       const mass =
-        node.name === "shockcord"
+        (node.name === "shockcord"
           ? shockcordMass(node)
-          : lugMass(node, radius, childNum(node, "length", 0)) * instanceCount;
+          : lugMass(node, radius, childNum(node, "length", 0))) * instanceCount;
       // A shock cord's mass sits packed at its mount over the packed length, not stretched to
       // the full cord length, so place it by the packed extent.
       const length =
