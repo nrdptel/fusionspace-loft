@@ -168,6 +168,23 @@ export default function RocketDiagram({
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
+
+  /** **A phone held upright draws the rocket upright** — `DESIGN.md` §8's orientation rule. Read in
+   *  an effect for the same reason `coarse` is: the server has no viewport, so deciding this during
+   *  render is a hydration mismatch.
+   *
+   *  **Portrait AND coarse, never coarse alone.** A phone in landscape gives a horizontal drawing far
+   *  more room than a vertical one — `e2e/touch-landscape.spec.ts` runs 863x360, where the drawing
+   *  gets ~831 px of width against at most ~340 px of height — so rotating there is strictly worse,
+   *  and that suite has a case saying it does not happen. */
+  const [portrait, setPortrait] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: portrait)");
+    const sync = () => setPortrait(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
   const [activeFin, setActiveFin] = useState<FinField>("finStation");
 
   // Half the project's own 44 px minimum, in the diagram's own units (a user unit here IS a pixel).
@@ -179,16 +196,44 @@ export default function RocketDiagram({
   const o = rocketOutline(rocket);
   if (!(o.length > 0) || !(o.maxExtent > 0) || o.body.length < 2) return null;
 
-  const W = Math.round(available * zoom);
+  const vertical = coarse && portrait;
+  /** The column the drawing sits in. `W` below is the drawing's own width, which is the same thing
+   *  horizontally and is the LENGTH extent once rotated. */
+  const colW = Math.round(available * zoom);
   const padX = 14;
   const padY = 10;
-  const s = (W - 2 * padX) / o.length; // pixels per metre (equal on both axes → true scale)
-  // Vertical extent the view frames to. Editable diagrams reserve 30% headroom around the widest part
-  // so a vertical handle (fin span, body diameter) has room to pull the edge outward; a static
-  // (view-only) diagram fits tightly. A live vertical drag holds this fixed (see vFrameExtent) so the
-  // frame doesn't chase the growing geometry.
+  // Editable diagrams reserve 30% headroom around the widest part so a radial grip (fin span, body
+  // diameter) has room to pull the edge outward; a static diagram fits tightly. A live radial drag
+  // holds this fixed (see `vFrameExtent`) so the frame doesn't chase the growing geometry.
   const V_HEADROOM = 1.3;
   const frameExtent = vFrameExtent ?? (onEdit ? o.maxExtent * V_HEADROOM : o.maxExtent);
+  /** **How much screen height a rotated airframe may use, and it is a named constant because the
+   *  milestone that needed it could not be scoped without one.** `useMeasuredWidth` is the only
+   *  measurement hook in this codebase and it measures width; a height cannot be read from `100vh`
+   *  during render without a hydration mismatch, so this is stated rather than discovered.
+   *
+   *  500 px of the 664 px `e2e/touch.spec.ts` runs at, leaving room above and below rather than
+   *  filling the viewport with one drawing. **What it buys is legibility, not hit targets:** at
+   *  fit-width the bundled 38 mm single-deploy airframe renders 296 x 11.8 px, which is to scale and
+   *  unreadable as a rocket; at this budget it is 500 x 19.2 px. None of the bundled designs reaches
+   *  §8's 44 px that way and this must not be sold as if it did — the tap columns stay the hit
+   *  targets, exactly as before. */
+  const VERTICAL_HEIGHT_BUDGET = 500;
+  /** Pixels per metre — equal on both axes, so the drawing stays true to scale whichever way it runs.
+   *
+   *  Horizontal: the length fills the column. Vertical: the length fills the HEIGHT budget, and the
+   *  result is then held so the airframe's widest point still fits the column. A short wide design is
+   *  caliber-bound rather than length-bound, and letting it overflow would push the airframe past the
+   *  panel's edge with no way to reach it, because the wrapper scrolls horizontally only. */
+  const s = vertical
+    ? Math.min(
+        (VERTICAL_HEIGHT_BUDGET - 2 * padY) / o.length,
+        (colW - 2 * padY) / (2 * frameExtent),
+      )
+    : (colW - 2 * padX) / o.length;
+  /** The drawing's own width, in its own coordinates: the airframe's LENGTH plus padding. Identical
+   *  to the column horizontally; once rotated it is what becomes the drawing's screen HEIGHT. */
+  const W = vertical ? Math.round(2 * padX + o.length * s) : colW;
   const centerY = padY + frameExtent * s;
   const H = centerY + frameExtent * s + padY;
 
@@ -547,9 +592,14 @@ export default function RocketDiagram({
     <figure className="m-0" ref={box}>
       <div className="overflow-x-auto overscroll-x-contain">
       <svg
-        viewBox={`0 0 ${W} ${H.toFixed(0)}`}
-        width={W}
-        height={Math.round(H)}
+        // **Rotated, the box swaps and NOTHING ELSE IN THIS FILE CHANGES.** Every coordinate below
+        // stays in the drawing's own space — station along `x`, radius about `centerY` — and one
+        // transform on the group that holds them turns the whole picture a quarter turn. That is why
+        // the tap columns, the labels, the CG/CP marks and the nine grips need no rotated variants:
+        // there is one drawing and two framings of it, rather than two drawings to keep in step.
+        viewBox={vertical ? `0 0 ${H.toFixed(0)} ${W}` : `0 0 ${W} ${H.toFixed(0)}`}
+        width={vertical ? Math.round(H) : W}
+        height={vertical ? W : Math.round(H)}
         className="block max-w-none"
         // A pure picture is an `img`; once it carries the interactive fin handle it becomes a
         // labelled `group` — an `img` may not hold focusable descendants (it's an atomic graphic).
@@ -557,6 +607,12 @@ export default function RocketDiagram({
         aria-label={`Scale side-view of ${rocket.name || "the rocket"}: ${lengthLabel} long, ${d.q(d.lengthMm(2 * o.maxRadius, units))} maximum diameter${motorLabel ? `, motor ${motorLabel}` : ""}${marginLabel && showCg && showCp ? `, centre of gravity ahead of centre of pressure by ${marginLabel}` : ""}`}
         preserveAspectRatio="xMidYMid meet"
       >
+      {/* **Nose at TOP, which is settled by convention rather than taste**: `MassBreakdown`'s "CG from
+          nose", `GeometryInspector`'s station sort and its "at X from the nose" readout, and the
+          parts table's design order all read nose-first, and nose-at-bottom would contradict all
+          four. `rotate(90) translate(0,-H)` sends drawing (x, y) to screen (H - y, x): station zero —
+          the nose tip — lands at screen y 0. */}
+      <g transform={vertical ? `rotate(90) translate(0,${-H})` : undefined}>
         {/* centreline */}
         <line
           x1={X(0)}
@@ -824,6 +880,7 @@ export default function RocketDiagram({
           <>
             {showFin("finStation") && (
             <FinHandle
+              vertical={vertical}
               units={units}
               field="finStation"
               label="Fin position"
@@ -842,6 +899,7 @@ export default function RocketDiagram({
             )}
             {sweepNow !== undefined && showFin("finSweepLength") && (
               <FinHandle
+              vertical={vertical}
                 units={units}
                 field="finSweepLength"
                 label="Fin sweep"
@@ -860,6 +918,7 @@ export default function RocketDiagram({
             )}
             {rootChordNow !== undefined && showFin("finRootChord") && (
               <FinHandle
+              vertical={vertical}
                 units={units}
                 field="finRootChord"
                 label="Fin root chord"
@@ -878,6 +937,7 @@ export default function RocketDiagram({
             )}
             {tipChordNow !== undefined && showFin("finTipChord") && (
               <FinHandle
+              vertical={vertical}
                 units={units}
                 field="finTipChord"
                 label="Fin tip chord"
@@ -896,9 +956,10 @@ export default function RocketDiagram({
             )}
             {spanNow !== undefined && showFin("finSpan") && (
               <FinHandle
+              vertical={vertical}
                 units={units}
                 field="finSpan"
-                axis="y"
+                axis="radius"
                 label="Fin span"
                 valueText={`${d.q(d.lengthMm(spanNow, units))} semi-span`}
                 title="Drag up/down or use arrow keys to resize the fin span"
@@ -923,6 +984,7 @@ export default function RocketDiagram({
         {/* nose-length handle — grab the nose/body joint and stretch or blunt the cone */}
         {onEdit && nosePart && noseLenNow !== undefined && (
           <FinHandle
+              vertical={vertical}
             units={units}
             field="noseLength"
             label="Nose length"
@@ -951,6 +1013,7 @@ export default function RocketDiagram({
             a phone the tube's length stays the number field, which is a real control at a real size. */}
         {onEdit && !coarse && bodyPart && bodyLenNow !== undefined && (
           <FinHandle
+              vertical={vertical}
             units={units}
             field="bodyLength"
             label="Body length"
@@ -974,6 +1037,7 @@ export default function RocketDiagram({
             On a phone the station stays the number field, which is a real control at a real size. */}
         {onEdit && !coarse && massStationNow !== undefined && massHi > massLo && (
           <FinHandle
+              vertical={vertical}
             units={units}
             field="massObjectStation"
             label="Mass position"
@@ -994,9 +1058,10 @@ export default function RocketDiagram({
         {/* body-diameter handle — grab the body wall to resize the caliber, independent of the fins */}
         {onEdit && bodyPart && bodyDiaNow !== undefined && (
           <FinHandle
+              vertical={vertical}
             units={units}
             field="bodyDiameter"
-            axis="y"
+            axis="radius"
             axisScale={2}
             label="Body diameter"
             valueText={`${d.q(d.lengthMm(bodyDiaNow, units))} diameter`}
@@ -1016,6 +1081,7 @@ export default function RocketDiagram({
             }
           />
         )}
+      </g>
       </svg>
       </div>
       <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -1163,8 +1229,9 @@ function FinHandle({
   s,
   padX,
   onEdit,
-  axis = "x",
+  axis = "station",
   axisScale = 1,
+  vertical = false,
   centerY = 0,
   onActiveChange,
   hitR = 0,
@@ -1194,15 +1261,30 @@ function FinHandle({
   s: number;
   padX: number;
   onEdit: (patch: GeometryEdits) => void;
-  /** "x" maps the pointer's horizontal position to a station; "y" maps its vertical position to a
-   *  radius (for the span). Defaults to "x". */
-  axis?: "x" | "y";
+  /** **The MODEL axis this grip moves along, never the screen's** — `DESIGN.md` §8. `"station"` is a
+   *  distance along the airframe (fin position, root chord, nose length); `"radius"` is a distance
+   *  out from the centreline (fin span, body caliber). Which way either of those runs on screen is a
+   *  rendering decision made later, by `vertical`, and everything the screen needs is derived from
+   *  the pair: the value mapping, the resize cursor, `aria-orientation`, the arrow-key direction and
+   *  the arrow glyph.
+   *
+   *  **It used to be the SCREEN axis, spelled `"x"`/`"y"`, and that is the trap the rule names.** The
+   *  call sites read identically either way, so a rotated drawing would have inverted every grip in
+   *  silence — a drag toward the nose lengthening the fin root, and a screen reader announcing the
+   *  opposite of the gesture — with the roles and accessible names unchanged and nothing red. */
+  axis?: "station" | "radius";
   /** Multiplies the mapped axis value before it becomes the field value — 1 for a station or a
    *  radius-valued field (span), 2 for a diameter-valued one (the body caliber is twice the radius
    *  the pointer's y maps to). Defaults to 1. */
   axisScale?: number;
   /** Viewbox y of the centreline — needed to turn a pointer y into a radius (the "y" axis only). */
   centerY?: number;
+  /** Whether the drawing is rotated so the airframe runs DOWN the screen (a portrait phone). The
+   *  drawing's own coordinates are unchanged — the rotation is one transform on the group that holds
+   *  everything — so the pointer mapping below is untouched by it. What this decides is only what a
+   *  flyer sees and presses: which way the resize cursor points, which arrow key increases the value,
+   *  and which way the glyph is drawn. */
+  vertical?: boolean;
   /** Called with true at drag start / false at drag end, so the parent can freeze the frame around a
    *  span drag. Only the span handle passes it. */
   onActiveChange?: (active: boolean) => void;
@@ -1217,6 +1299,8 @@ function FinHandle({
     padX: number;
     centerY: number;
     axisScale: number;
+    /** The handle's own `<g>`. Its screen CTM carries the drawing's rotation; the `<svg>`'s does not. */
+    frame: SVGGraphicsElement;
     lo: number;
     hi: number;
     svg: SVGSVGElement;
@@ -1239,18 +1323,34 @@ function FinHandle({
   const [dragging, setDragging] = useState(false);
   const [focused, setFocused] = useState(false);
 
+  /** **The screen axis, DERIVED — never stated at a call site.** A station runs across a horizontal
+   *  drawing and down a rotated one; a radius does the opposite. Everything the screen needs comes
+   *  from here, so the four presentations below (cursor, `aria-orientation`, arrow keys, glyph)
+   *  cannot disagree with each other or with the drawing. */
+  const screenAxis: "x" | "y" = (axis === "radius") !== vertical ? "y" : "x";
+  /** Which arrow key moves the value UP, on the screen the flyer is looking at. A station grows aft:
+   *  rightward on a horizontal drawing, downward on a nose-up vertical one. A radius grows outward:
+   *  upward from the centreline horizontally, rightward when the airframe is rotated. */
+  const plusKey = screenAxis === "y" ? (vertical && axis === "station" ? "ArrowDown" : "ArrowUp") : "ArrowRight";
+  const minusKey = plusKey === "ArrowDown" ? "ArrowUp" : plusKey === "ArrowUp" ? "ArrowDown" : "ArrowLeft";
+
   // Map the pending pointer position (through the SVG's live transform) to this axis's value and
   // apply it, on the next frame — the window handlers fire far faster than paint.
   const apply = useCallback(() => {
     rafRef.current = null;
     const dg = dragRef.current;
-    const ctm = dg?.svg.getScreenCTM();
+    // **The CTM comes from the HANDLE, not from the `<svg>`, and that is what makes a rotated
+    // drawing free.** An element's screen CTM carries every transform above it, so a pointer mapped
+    // through it lands in the coordinate space the handle is drawn in — which is the drawing's own,
+    // rotation included. The mapping below therefore never needs to know the drawing is rotated, and
+    // a rotation cannot silently invert a grip: there is nothing to keep in step.
+    const ctm = dg?.frame.getScreenCTM();
     if (!dg || !ctm) return;
     const pt = dg.svg.createSVGPoint();
     pt.x = pendingXRef.current;
     pt.y = pendingYRef.current;
     const local = pt.matrixTransform(ctm.inverse());
-    const mapped = (axis === "y" ? (dg.centerY - local.y) / dg.s : (local.x - dg.padX) / dg.s) * dg.axisScale;
+    const mapped = (axis === "radius" ? (dg.centerY - local.y) / dg.s : (local.x - dg.padX) / dg.s) * dg.axisScale;
     onEdit({ [field]: Math.min(dg.hi, Math.max(dg.lo, mapped - dg.grabOffset)) });
   }, [field, onEdit, axis]);
 
@@ -1304,11 +1404,11 @@ function FinHandle({
 
   return (
     <g
-      className={`group touch-none outline-none ${axis === "y" ? "cursor-ns-resize" : "cursor-ew-resize"}`}
+      className={`group touch-none outline-none ${screenAxis === "y" ? "cursor-ns-resize" : "cursor-ew-resize"}`}
       role="slider"
       tabIndex={0}
       aria-label={label}
-      aria-orientation={axis === "y" ? "vertical" : "horizontal"}
+      aria-orientation={screenAxis === "y" ? "vertical" : "horizontal"}
       aria-valuemin={ariaNum(lo)}
       aria-valuemax={ariaNum(hi)}
       aria-valuenow={ariaNum(current)}
@@ -1323,8 +1423,15 @@ function FinHandle({
         const fine = Math.max(0.0005, span / 100); // never below half a millimetre
         const step = ev.shiftKey ? fine * 10 : fine;
         let next: number | null = null;
-        if (ev.key === "ArrowLeft" || ev.key === "ArrowDown") next = current - step;
-        else if (ev.key === "ArrowRight" || ev.key === "ArrowUp") next = current + step;
+        // **Which arrow increases depends on where the value's own axis POINTS on screen**, and this
+        // was hard-coded to left-down-decreases until the drawing could rotate. On a vertical
+        // airframe drawn nose-up, a larger station is further DOWN the page, so `ArrowDown` has to
+        // increase it — the opposite of the horizontal case, and of the ARIA convention for a
+        // vertical slider, which assumes the value grows upward. The gesture on screen wins: a key
+        // that moves the grip one way while the number moves the other is the same wrong control the
+        // model-axis rule exists to prevent, just reached with a keyboard instead of a finger.
+        if (ev.key === plusKey || ev.key === (screenAxis === "y" ? "ArrowRight" : "ArrowUp")) next = current + step;
+        else if (ev.key === minusKey || ev.key === (screenAxis === "y" ? "ArrowLeft" : "ArrowDown")) next = current - step;
         else if (ev.key === "Home") next = lo;
         else if (ev.key === "End") next = hi;
         else return;
@@ -1332,8 +1439,9 @@ function FinHandle({
         onEdit({ [field]: Math.min(hi, Math.max(lo, next)) });
       }}
       onPointerDown={(ev) => {
-        const svg = ev.currentTarget.ownerSVGElement; // the containing <svg>, straight from the event
-        const ctm = svg?.getScreenCTM();
+        const svg = ev.currentTarget.ownerSVGElement; // for `createSVGPoint` only — see the CTM below
+        const frame = ev.currentTarget;
+        const ctm = frame.getScreenCTM();
         if (!svg || !ctm) return;
         ev.preventDefault();
         ev.stopPropagation();
@@ -1342,9 +1450,9 @@ function FinHandle({
         pt.x = ev.clientX;
         pt.y = ev.clientY;
         const local = pt.matrixTransform(ctm.inverse());
-        const mapped = (axis === "y" ? (centerY - local.y) / s : (local.x - padX) / s) * axisScale;
+        const mapped = (axis === "radius" ? (centerY - local.y) / s : (local.x - padX) / s) * axisScale;
         const controller = new AbortController();
-        dragRef.current = { grabOffset: mapped - current, s, padX, centerY, axisScale, lo, hi, svg, controller };
+        dragRef.current = { grabOffset: mapped - current, s, padX, centerY, axisScale, lo, hi, svg, frame, controller };
         // **The gesture belongs to the handle, and this is the only thing that makes that true on a
         // phone.** The `<g>` carries `touch-none`, but `touch-action` is not honoured on an inner SVG
         // element in Chromium — so a one-thumb flick that happened to start on a handle did BOTH: it
@@ -1372,7 +1480,7 @@ function FinHandle({
       <circle cx={cx} cy={cy} r={7} className="fill-indigo-500/90 stroke-white dark:stroke-zinc-900" strokeWidth={1.5} />
       <path
         d={
-          axis === "y"
+          screenAxis === "y"
             ? `M ${cx} ${cy - 4} v 8 M ${cx} ${cy - 4} l -2 2 m 2 -2 l 2 2 M ${cx} ${cy + 4} l -2 -2 m 2 2 l 2 -2`
             : `M ${cx - 4} ${cy} h 8 M ${cx - 4} ${cy} l 2 -2 m -2 2 l 2 2 M ${cx + 4} ${cy} l -2 -2 m 2 2 l -2 2`
         }

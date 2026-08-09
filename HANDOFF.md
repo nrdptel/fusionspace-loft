@@ -2,56 +2,81 @@
 
 Overwritten each session. What shipped, what is part-way, and what to pick up first.
 
+## Pick up first
+
+**PR #149 is open and green-gated locally — P8's rotation. Merge it, then take R12's next member.**
+Everything else this run is merged and live.
+
+1. **R12's next member: the 55 parts that still have no field.** 24 shock cords, 19 launch lugs,
+   11 rail buttons and 1 streamer across the corpus — `MinorComponent` (`mass`, `length`, `radius`,
+   `instanceCount`) and `Streamer`. `launchlug`'s `radius` is read by the drag model as protuberance
+   frontal size, and `railbutton`'s `instanceCount` matters because buttons come in pairs, so neither
+   is cosmetic. The pattern is now established: one `AIM_SLOTS` entry, three or four targets, bounds
+   from the host, an undo label each, and the row in `describeDims`.
+2. **Then P8's remaining members.** The rotation is done; what is left is the depth it costs — the
+   drawing starts 412 px down a 664 px phone and `/design` measures 8.39 screens.
+3. **`COMPETITION.md` row 41 names the cheapest next thing after that**: a mass override and a
+   per-part comment, which OpenRocket gives every component for free from its base dialog. Loft
+   HONOURS `overrideMass` on import and offers no way to set one.
+
 ## Read this first
 
-**Attach the sibling repo before you decide anything the design system governs. It is one tool call,
-and this run nearly shipped a documented, checked, wrong answer without it.**
+**The pre-push agent review is worth more than the gate, and this run is the third in a row to say
+so.** Two reviews, twenty-one findings, four of them blockers, and the full gate — lint, 1,149 unit
+tests, build, 248 e2e, the corpus sweep — was green over every one:
 
-`ON-B1` asks Loft's Tip control to match the motor finder's, which renders an amber pill. Amber is
-`DESIGN.md` §2's `warn` — a caveat on a value a flyer acts on. The note outranks `DESIGN.md` under the
-precedence rule in `OWNER-NOTES.md`, so the defensible move was to amend §2 with one bounded
-exception, add a check to hold it at one, and ship the amber. That was done: token, component,
-§2/§5/§10 amendments, three new checks with negative controls, +3,648 bytes of stylesheet, a decision
-entry recording the alternative rejected. It was measured across **two of the suite's three tools**,
-because the third was not attached.
+- **A parser fix that was right and incomplete.** The bore rule shipped correct for a flat tree and
+  silently wrong for a nested one; a stated wall was thrown away whenever the outer radius was
+  `auto`, which is how OpenRocket serialises every auto-radius coupler; bores resolved in document
+  order, so the same file imported at two different masses depending on which sibling came first.
+- **A hole in this run's OWN corpus check.** The new sweep asserted `if (bound !== undefined && …)`,
+  so 36 real parts whose host is itself internal were driven at nine metres of outer diameter and
+  then not looked at. It reported green. A missing bound is a finding now.
+- **Six stale published figures on two docs routes**, under a gate whose own prose says it fails when
+  a metric drifts from what the page claims. It never read the page — it compared against a
+  hand-kept constant. **It reads the printed percentages now.**
+- **Two ordering defects in the R12 increment**: a bound measured on the pristine tree and applied
+  after the caliber scale, which could fly a coupler inside out or wider than its own tube.
 
-Attaching `nrdptel/fusionspace-debrief` refuted it in one file read. `components/KofiButton.tsx` there
-carries the answer in a docblock: **that control used to be amber and was deliberately changed**,
-because *"every other amber in the tree is a real caveat… a flyer learns amber means 'this number is
-qualified'; spending it on a tip jar in the persistent header devalues the one signal the safety
-posture leans on. The coffee cup is what distinguishes it, and a glyph costs the colour system
-nothing."* Two of three tools already agreed, and they are the two that meet §2.
+**And the reviews are not oracles either.** One blocker was reported against code an amend had
+already replaced, and its premise — that Loft should search more widely than OpenRocket for a ring's
+mount — was wrong: OpenRocket searches siblings only, and matching it IS reading the file. Reproduce
+before you scope, including when the reviewer sounds certain.
 
-So the amber was reverted, §2 now carries **no** chrome exception at all — a stronger rule than the
-one the run started with — and the consistency the owner asked for is delivered by the **glyph**,
-which both siblings already draw. **The whole reversal cost zero shipped bytes.**
+**A subagent wrote three files into the working tree despite an explicit read-only instruction in
+every prompt.** They surfaced as lint errors and an unexplained test-file count. `MAINTAINING.md`
+already says subagents are read-only; what it does not say is that they may ignore it. **Run
+`git status --porcelain --untracked-files=all` before every gate run**, not only before a commit.
 
-**Three things follow, and they are the transferable half:**
+**Do not run a fan-out and a sharded e2e run at the same time.** Three different specs failed once
+each mid-shard this run and passed in isolation immediately afterwards, every one of them measuring
+pixel geometry while a workflow held the other cores. It is not the documented `EMFILE` shape and it
+is not any one spec.
 
-1. **`DESIGN.md` §10 now says to attach the sibling before deciding anything it governs**, and this
-   is the first run in five in which a `DESIGN.md` change actually landed in both repos in the same
-   run, as the invariant has always required. Debrief PR #147.
-2. **The previous handoff already said the sibling was attachable in one tool call.** This run read
-   that sentence late. Read `## Read this first` in full before scoping, not after.
-3. **`OWNER-NOTES.md` contained a claim written by this run — "only the owner can close it" — that
-   this run then disproved three hours later.** It is corrected in place. Do not park something under
-   *Awaiting the owner* until you have checked you cannot do it yourself.
 
-**The Sev-1 this run found and fixed, because it is the shape that keeps recurring here: two surfaces
-disagreeing about whether a number can be published at all.** `hasPropulsion` (some motor matched) and
-`motorsComplete` (all of them did) are different predicates. The flight summary withholds static
-margin under `!motorsComplete`, with the measurement beside it — 4.065 → 5.921 cal, +46%, on a design
-whose motor was made unresolvable. `lib/sim/sweep.ts` published it under `hasPropulsion` alone, so the
-parameter sweep plotted and CSV-exported a whole curve of the quantity the cell directly above was
-withholding. **Reproduced before it was scoped** on `demo-single-deploy.ork` given a second mount with
-a designation the bundled data does not carry: 1.098 / 1.290 / 1.487 cal, values straddling the
-one-caliber line fins are sized against.
+## The environment, measured 2026-08-09 (run 7)
 
-**And the fan-out that found it also produced three confidently wrong claims, so the reproduce-first
-rule earned its place again.** The Sev-1 screen's own repro hint did not reproduce — the first probe
-came back `motorsComplete: true` because `MotorInstance` carries its designation on `.motor`, not at
-the top level. Two more agent claims about P8's geometry were checked by hand and one was wrong in the
-milestone's favour and one against; both corrections are now in `ROADMAP.md` P8.
+- `node_modules` was ABSENT at session start; `npm install` took about a minute.
+- **The managed Playwright browser chromium-1228 was absent again** — `/opt/pw-browsers` had 1194 —
+  and `npx playwright install chromium` fixed it in about a minute (114 MB). **Sixth consecutive run
+  to report this.** It is paid for again every session until it is in the environment's setup script,
+  which is the owner's fix and nobody else's.
+- The fixtures repo WAS attached. The corpus suite names `imports every design file (35 present)` and
+  31 corpus cases are green, so every "0 findings" below came from a sweep that examined something.
+  `corpus/` was linked per tool directory at session start; `manifest.csv` too.
+- `nrdptel/fusionspace-debrief` attached mid-run in one `add_repo` plus a shallow clone, about
+  twenty seconds. Done because `DESIGN.md` §8 changed and the invariant requires both repos.
+- The clone is **shallow**, so any commit count here is a window, not the record.
+- Commits are signed and the identity is `Neer Patel <135655563+nrdptel@users.noreply.github.com>`,
+  set per-repo before the first commit **in both repos**. It arrives as the harness vendor's default.
+- **The harness appended an attribution footer to all three pull request bodies**, again. Read every
+  PR body back after posting and strip it.
+- **CI fires on `pull_request:` and on a push to `main`, and NOT on a branch push** — so a branch
+  push is gated only by the local run, and the pull request is what makes CI run at all.
+- **4 cores, and the orchestration layer competes with the gate.** Measured again this run and worse
+  than last: three separate e2e specs failed once each mid-shard while a workflow held the other
+  cores, every one passing in isolation immediately afterwards. Dispatch the fan-out, then do
+  LOW-CPU work until it lands — reading, scoping, writing — not gate cycles.
 
 ## The environment, measured 2026-08-08 (second run of the day)
 
@@ -79,123 +104,29 @@ milestone's favour and one against; both corrections are now in `ROADMAP.md` P8.
   trusting: a JSX text run that spans a line break loses its leading whitespace, so `<em>loaded</em>`
   followed by a newline shipped as `loadedcentre`. Baseline is 0; anything above that is yours.
 
-## This run — six increments, four milestones moved (three SHIPPED), two Sev-1 surfaces, seven PRs
-
-**Everything below is MERGED to `main` and live** except the last, which is open and green
-(`66be2b9`, `e01f4cc`, `cdbcd12`, `a769b68`, PR #145). Three more merged in the sibling repo
-(#147, #148, #150).
+## This run — one Sev-1, two milestone increments, three pull requests
 
 | # | what | where | how it was verified |
 |---|---|---|---|
-| 1 | **SEV-1 — two surfaces published a static margin the flight card was withholding**: the parameter sweep and the what-if comparison card | `66be2b9` | reproduced before scoping (1.098 / 1.290 / 1.487 cal); three checks, four negative controls |
-| 2 | **P9 SHIPPED** (`ON-B1`) — the Tip control converges on the suite's glyph and accessible name; the amber does not | `66be2b9` | four §10 checks; the amber was built, checked, then **reverted** after reading the sibling |
-| 3 | **R12's first *done when* MET** — selecting a component is how you edit it, through a `Popover` the design system was missing | `e01f4cc` | an e2e case that edits a nested canopy and asserts its sibling did not move; driven across five part kinds |
-| 4 | **P12 SHIPPED** — two capabilities that had no example, a first flight that no longer opens with a caution, and an example of the format Loft only claimed to read | `cdbcd12`, PR #144 | five checks, three with negative controls; both new designs' fins searched against the solver, not guessed |
-| 5 | **`DESIGN.md` mirrored into Debrief three times, in the same run** — §2, §5 and §10 | Debrief #147/#148/#150 | all green, all merged; the changed sections diff byte-identical |
-| 6 | **The first design-system audit this repo has run**, filed; P8's own measurements corrected; `COMPETITION.md` row 40 | `66be2b9` | each P8 correction re-verified by hand, and one of them was wrong |
-| 7 | **R10 SHIPPED** — its last item, `maxAcceleration`, where the defect was the census counting one comparison fifteen times, not the oracle's resolution the milestone predicted | PR #145 | reproduced before scoping, and the reproduction is what refuted the milestone's own diagnosis; three negative controls |
+| 1 | **SEV-1 — an OpenRocket centring ring whose file says `auto` imported with no wall and therefore NO MASS.** Four aluminium rings at 0 g against ~210 g each on one corpus design: 840 g of a 12,620 g dry mass, 6.7%, at four fixed stations, so the CG and the stability margin went with it | `8026ec0`, PR #147 | reproduced on the corpus before scoping; resolution taken from OpenRocket's own published source; three negative controls naming the numbers they caught |
+| 2 | **Seven accuracy medians improved with no solver change**, one moved the other way, and two designs got worse per-design — all published | same | the two-sided census gate, which is what caught the improvement and required it |
+| 3 | **The census gate now reads the percentages the pages PRINT.** It compared against a hand-kept constant and never opened the page it claimed to guard; six figures across two docs routes were stale under it | same | negative control: `groundHitVelocity: /docs/validation prints 1.3% while PUBLISHED_MEDIAN_PCT says 0.8%` |
+| 4 | **R12 increment 3 — the internal structure has a property surface.** 249 of 569 corpus parts had no field describing them; 194 of those were five kinds that are one shape in the model. Now 55 | `22ae04c`, PR #148 | 194 parts driven across all 35 design files; ten unit cases, five negative controls; an e2e case whose negative control reports *"a centring ring offered no way to edit it"* |
+| 5 | **P8 increment 1 — a phone held upright draws the rocket upright.** 296 x 11.8 px becomes 124 x 508, nose at top, against a named 500 px height budget | PR #149, **open** | measured on the built export; four e2e cases re-based on the model axis; a landscape case saying it does not happen there |
+| 6 | **`DESIGN.md` §8 gains the orientation rule and the model-axis rule**, byte-identical in both repos | PR #149 + Debrief #159, both **open** | `diff` of the §8 section across the two checkouts |
+| 7 | **`text-[11px]` 41 → 33.** `DesignEditor` spelled its legend six times and its field label six times, character-identical | PR #148 | `lib/design-system.test.ts`, which is the §9 block |
 
-**Counts: unit 1,116 → 1,132; e2e 243 → 245; corpus 29 → 30 cases green over 35 design files.
-`DESIGN.md` §9's counts are unmoved and at target throughout. Shipped stylesheet 63,476 → 64,129
-bytes, all of it the popover.**
+**Counts: unit 1,132 → 1,149; e2e 245 → 248; corpus 30 → 31 cases green over 35 design files.
+`DESIGN.md` §9 is green throughout and one count moved the right way.**
 
-**The finding worth carrying out of increment 7, because it is a whole class and not one metric.**
-The census had been computing medians over a population that contained duplicates: a design's stored
-runs vary the inputs their author cared about, and a quantity none of those inputs reaches is stored
-identically every time. `FullScaleModelTH.rkt`'s fifteen runs vary **rail length and ejection delay**
-— apogee ranges 323 m to 2,101 m across them — and peak acceleration comes from the thrust spike,
-which is over before the rocket clears even the short rail. So it contributed **fifteen copies of one
-+8.8% max-acceleration disagreement** to a population of 94. **54 of the census's 910 comparison rows
-were exact repeats.** Counting each once: `maxAcceleration` 3.2% → 1.8%, `launchRodVelocity`
-1.9% → 1.6%, no solver change.
+**The finding worth carrying out of the Sev-1, because it is a class and not one parser arm.** `auto`
+in a design file is not a missing value — it is a value the file expects its reader to COMPUTE, and
+the tool that wrote it has published how. Loft treated it as absence and substituted a plausible
+default, which is the difference between reading a file and guessing at one. The same shape is
+already in this repo twice more: an auto OUTER radius (handled correctly, and the rule it follows is
+the same tooltip's sibling clause) and an auto tube-fin radius (handled correctly, from geometry).
+**Look for it wherever a format has a sentinel.**
 
-**Check the file, not the plausible story.** A first draft of that paragraph — in the test, on the
-public page and here — said the runs differ in *wind*. `<LaunchWindSpeed>` is `0.` on all fifteen. It
-also said boost-phase figures do not respond to what varies; `<VelocityAtLaunchGuideEnd>` reads
-14.6479 off the 914.4 mm rail and 18.1014 off the 1422.4 mm one, which is why rail-exit velocity
-collapses fifteen rows to **two** and repeats 13, not 14. The pre-push review caught all of it by
-opening the corpus file. The de-duplication was right; the explanation shipped with it was not.
-
-Two second-order things fell out, and both are the more transferable half:
-
-- **The census gate was one-directional.** It failed when the page over-claimed and said nothing when
-  the page under-claimed, on the stated principle that improving is always allowed. So a figure could
-  sit at 3.2% while the suite measured 1.8% indefinitely, with nothing red. It is two-sided now, and
-  an improvement has to be published in the commit that earns it. **Look for this shape elsewhere:
-  a ratchet that only tightens is half a ratchet.**
-- **A check that was right by coincidence.** The population check builds a regex from each metric's
-  page label, and `apogee` is a substring of `time to apogee` — so `maxAltitude` had been reading the
-  wrong entry since the day it was written, and passed because both populations happened to be 97.
-  It surfaced only because de-duplication moved one of them. Anchored now.
-
-## The done-check, answered out loud
-
-**What can a flyer DO after this run that they could not before? (R-track)**
-
-1. **Edit a component by selecting it.** Picking a part on the diagram or in the tree opens a surface
-   holding exactly that part's fields — a nose cone's two, a body tube's two, a mass object's two, a
-   canopy's three, a fin set's nine. Before this, editing anything meant scrolling to a wall of
-   twenty-odd fields at the bottom of the page that addressed components by ROLE.
-2. **Open two designs whose capabilities Loft had never demonstrated** — a boattail with elliptical
-   fins, and a payload separation — from the import screen, without having a file of their own.
-3. **Fly a bundled example that does not warn them.** Every sample was over-stable; two are in the
-   band now (2.07 and 1.92 cal).
-4. **Open a RASAero file knowing Loft reads it.** `.CDX1` was advertised with no example anywhere in
-   the repo, so the only way to find out was to try.
-
-**What is measurably better about using the tool? (P-track)**
-
-- The Tip control matches the suite a flyer arrives from: same coffee cup, same sentence.
-- **A static margin computed from a CG missing a motor's mass is no longer published anywhere.** Two
-  surfaces were; the worst case was 46% out, in the reassuring direction.
-- Picking a part no longer drops its own row below WCAG AA (4.32:1 → 6.90:1).
-- Bundled examples: 4 files / 3 airframes → **8 / 7**; formats with an example **2 → 3**; designs
-  inside the stable band **0 → 2**.
-
-**What is NOT better, stated rather than implied.** Roughly two in five components still have no field
-that describes them, so they select and offer no Properties control. The parts list is still collapsed
-by default. There is still no verb band beside the tree. P8 has not started, and the reason is
-recorded as a decision rather than a slip.
-
-## The corpus, stated plainly
-
-**35 design files, 29 corpus cases, 0 findings** — and the suite named its own fixture count
-(`imports every design file (35 present)`), so that zero came from a sweep that examined something.
-The fixtures repo was attached; `corpus/` was linked per tool directory at session start.
-
-## What the pre-push reviews caught that the whole gate could not
-
-**Two reviews, seventeen findings, three of them blockers, and the gate was green over every single
-one.** This is the single most valuable half-hour in the run, twice over. Run it on every push.
-
-1. **`WhatIfDelta` published the very margin the increment was fixing**, one card above the sweep. The
-   Sev-1 fix was written against the surface a reproduction had pointed at, and a `grep` for the other
-   surfaces was never run — the review's second lens ran it.
-0. **The second review found nine more on the property surface**, of which the sharpest were three
-   whole-design controls leaking into a mass object's properties, a panel headed *"Drogue parachute"*
-   labelling that drogue's own 460 mm as *"Main chute Ø"*, and a **WCAG failure that only exists once
-   a row is picked** — 4.32:1 against 4.5, invisible because every contrast case in the suite walks a
-   surface in its RESTING state.
-2. **A check that could not fail.** `expect(tokens).toMatch(/TOUCH_TARGET,/)` was run against the whole
-   of `lib/ui-tokens.ts`, and that string occurs twice — so the "buttonClass keeps its 44 px floor"
-   assertion stayed green with the floor deleted. Scoped to that function's body now, and the negative
-   control fires.
-3. **Four passages of prose describing work that had been reverted three hours earlier** — `ROADMAP.md`
-   still named a `buttonClass({ variant: "support" })` that no longer exists.
-4. **A `BACKLOG.md` entry whose stated repro did not reproduce.** "Off-system radius ×7" is right; the
-   command given answers 17 for the bare form alone, because "rounded" is an English word the docs
-   pages use in prose. Corrected with what the census actually returns and why.
-5. **A line reference wrong inside a paragraph explicitly framed as hand-verified.**
-
-**And a third lens, aimed at the PROSE, earned its place too:** it found four passages describing
-work that had been reverted three hours earlier, a `BACKLOG.md` entry whose stated repro command did
-not reproduce, a docblock claiming something existed nowhere "in either app" when the sibling had it,
-and a wrong line reference inside a paragraph explicitly framed as hand-verified. Point a reviewer at
-the markdown, not only at the code.
-
-**And the review's own findings needed verifying.** One lens reported the docs claim and the code
-defect as separate items; one reported a formatting break that was real; the blocker was confirmed by
-opening the file, not by trusting the report.
 ## The arc so far
 
 | milestone | state |
@@ -204,39 +135,53 @@ opening the file, not by trusting the report.
 | R9 | SHIPPED 2026-08-04 |
 | R10 | IN PROGRESS — only `maxAcceleration` remains of Size item (5) |
 | R11 (from `ON-2`) | SHIPPED 2026-08-08 |
-| **R12** (from `ON-6`/`ON-7`/`ON-5`/`ON-4`) | **IN PROGRESS — the first *done when* is MET.** Increment 1 made the tree visible; increment 2 made selection drive the property surface |
+| R10 | SHIPPED 2026-08-09 |
+| **R12** (from `ON-6`/`ON-7`/`ON-5`/`ON-4`) | **IN PROGRESS — the first *done when* is MET.** Increment 1 made the tree visible; increment 2 made selection drive the property surface; increment 3 (2026-08-09) took the parts no field describes from 249 of 569 corpus parts to 55 |
 | P1–P5 | SHIPPED 2026-08-02 → 2026-08-03 |
 | P6 | SHIPPED 2026-08-05 |
 | P7 (from `ON-1`) | SHIPPED 2026-08-08 |
-| **P8** (from `ON-3`) | **NOT STARTED**, and deliberately so — see *Pick up first* |
+| **P8** (from `ON-3`) | **IN PROGRESS — increment 1 shipped 2026-08-09 and it is the whole rotation.** A portrait phone draws the airframe upright, nose at top, 296x11.8 px becoming 124x508. PR #149, green locally, not yet merged |
 | **P9** (from `ON-B1`) | **SHIPPED 2026-08-08** |
 | P10 (from `ON-B2`) | IN PROGRESS — increment 2 is repository SETTINGS, which only the owner can do |
 | P11 (from `ON-8`) | NOT STARTED |
 | **P12** (from `ON-9`) | **SHIPPED 2026-08-09** — all three increments; bundled examples 4 → 8, airframes 3 → 7, formats with an example 2 → 3 |
 
-## Pick up first
 
-1. **P8 — the phone stands the rocket up. It is UN-PARKED: open it on the grips, not on a question.**
-   An earlier point in this run deferred it as a product decision for the owner, on the reading that
-   clause 4 of its *done when* was geometrically impossible — the 44 px tap assert could not survive
-   columns rebuilt on the cross axis, given 56 of 150 corpus body parts are under 44 px along their
-   length. **That reading was wrong, and it was checked before this handoff was written.** A tap
-   column today is `y={0} height={H}` — the full diagram height — by part-length wide
-   (`components/RocketDiagram.tsx:608-614`), and `e2e/touch.spec.ts` asserts the HEIGHT only, its own
-   docblock already explaining that width is bounded by part length. The 44 px passes because the
-   CROSS-AXIS dimension is the whole drawing. Rotate and that is still true, at 324 px on a 390 px
-   viewport. **The contract does not change; only the screen axis it lands on does** — which makes it
-   the same defect as the milestone's correction 3 about `FinHandle`'s `axis` prop, in a second
-   place. Clause 4 is corrected in `ROADMAP.md` as correction 5, with a decision entry. All five of
-   P8's corrections are now hand-verified. Build it.
-2. **R12 increment 3.** Two obvious candidates, both named in `COMPETITION.md` row 40: a **verb band
-   beside the tree** (add is still behind one `kind === "bodytube"` guard, so ~85% of parts answer
-   "what can I add here?" with silence), and **opening the parts list by default** — which R12
-   increment 1 deliberately deferred because it moves everything below it by roughly a screen and
-   touches 36 e2e call sites that open it by clicking.
-3. **P11 — docs a flyer can navigate.** Untouched this run and fully scoped, including the part that
-   makes it a milestone rather than a tidy-up: `DESIGN.md` §11 currently puts the methods and
-   limitations pages OUT of scope, so that file changes first, in both repos.
+## The done-check, answered out loud
+
+**What can a flyer DO after this run that they could not before? (R-track)**
+
+1. **Size the internal structure.** A coupler, a centring ring, a bulkhead, an engine block and a
+   motor-mount tube each open a property surface holding their own length-or-thickness, outer
+   diameter and bore. Before this, 249 of 569 parts across the 35 real design files had no field
+   describing them at all and those five kinds were 194 of them; a flyer could already AUTHOR a
+   coupler and then not resize it.
+2. **Fly an OpenRocket design with the mass it actually has.** Seven real parts on three corpus
+   designs imported weighing nothing, one of them 840 g on a 12.6 kg airframe.
+
+**What is measurably better about using the tool? (P-track)**
+
+- **A phone held upright draws the rocket upright**: 296 x 11.8 px becomes 124 x 508, and the
+  airframe's own width goes 11.8 px to about 26. (On PR #149, not yet merged.)
+- **Seven accuracy medians improved** against the same 35 files with no change to the solver —
+  deployment velocity 6.2 → 5.1%, ground-hit 1.3 → 0.8%, max acceleration 1.8 → 1.3%, max velocity
+  2.2 → 1.9%, max Mach 2.0 → 1.7%, apogee 3.1 → 2.9%, flight time 3.1 → 2.8%.
+- **Six figures a flyer reads on the docs routes stopped being wrong**, and the check that claimed to
+  guard them now actually reads them.
+- The parts row shows a bore it never showed, and calls a plate's dimension a thickness.
+- `DESIGN.md` §9: `text-[11px]` 41 → **33**; every other count unmoved and at target.
+
+**What is NOT better, stated rather than implied.** 55 parts across the corpus still have no field.
+The parts list is still collapsed by default and there is still no verb band beside the tree. And
+`/design` is now **8.39 screens** deep on a phone — the rotation added about 0.68 of that and the
+other 7.7 predate it.
+
+## The corpus, stated plainly
+
+**35 design files, 31 corpus cases, 0 findings at the end of the run** — and the suite named its own
+fixture count (`imports every design file (35 present)`), so that zero came from a sweep that
+examined something. It did not start at zero: the new internal-structure sweep found seven parts
+importing at no mass, which became the run's Sev-1.
 
 ## What is waiting on the owner
 

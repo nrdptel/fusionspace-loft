@@ -364,6 +364,41 @@ sort and copy. Drag has an arrow-key equivalent and an undo.
 measured. No hover-only state. No horizontal scroll on the page body; wide content scrolls inside its
 own container. A phone journey is at most two screens deep to its answer.
 
+**A DRAWING OF THE SUBJECT IS ORIENTED TO THE SCREEN, NOT TO THE PAGE.** A scale drawing of something
+long and thin — a rocket, a booster, an airframe — is laid along the screen's LONG axis. On a phone
+held upright that is vertical. Measured on Loft at a 390 px viewport, where the drawing column is
+324 px: the bundled 38 mm single-deploy airframe renders **296 px long and 11.8 px tall**, 3.86:1 in
+a box that is nearly square. It is to scale and it is unreadable as a rocket. Dual-deploy is 10.3 px,
+the from-scratch starter 19.0 px.
+
+Three things this rule is NOT, each of which is an obvious wrong turn from it:
+
+- **It is not a hit-target fix.** Rotating buys about 1.62x on Loft's numbers — 11.8 px to 19.2 px on
+  a 500 px height budget — and none of the bundled designs reaches this section's 44 px that way. The
+  hit targets stay the tap columns' job. Sell it as legibility, which is what it is.
+- **It is not keyed on a coarse pointer alone.** It is keyed on `(orientation: portrait)` AND coarse.
+  A phone in landscape gives a horizontal drawing far more room than a vertical one — 863x360 gives
+  ~831 px of width against at most ~340 px of height — so rotating there is strictly worse.
+- **It is not keyed on viewport width.** Width is not orientation and it is not pointer type.
+
+**AN INTERACTIVE CONTROL ON A DRAWING IS DEFINED ON THE MODEL'S AXIS, NEVER THE SCREEN'S.** A grip
+that resizes a length is a LENGTH grip; whether that runs across the screen or down it is a rendering
+detail decided later. State the model axis at the call site and derive everything the screen needs
+from it — the value mapping, the resize cursor, `aria-orientation`, the arrow-key direction, and any
+arrow glyph drawn on the grip.
+
+**This is written as a rule because the alternative has a specific, silent failure.** A prop named
+`axis` that means the SCREEN axis reads exactly the same at the call site and inverts every control
+the moment the drawing rotates: a drag toward the nose lengthens the fin root, and a screen reader
+announces the opposite of the gesture. Nothing goes red — the roles and the accessible names are
+unchanged. The same mistake has a second home in the tap targets, whose minimum must be asserted on
+the model axis too, or a rotation turns a passing assert into a vacuous one rather than a failing one.
+
+**A drawing that is scaled to fit needs a budget on BOTH axes.** Fitting to width alone is what
+produces the hairline above. Name the height budget as a constant with the measurement behind it
+rather than discovering it mid-implementation, and do not derive it from `100vh` — that cannot be
+read during render without a hydration mismatch.
+
 **The check is a measurement, not a look:** at a 390 px viewport, count controls under 44 px and
 states unreachable without hover. Both counts are zero or the surface is not done.
 

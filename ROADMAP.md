@@ -24,7 +24,9 @@ work, and a queue containing only the first can only ever ship the first.
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
   line it summarises, or it becomes the most misleading sentence in the file.)*
 - **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
-  shape, design system, first run, form factor, documentation, discoverability.
+  shape, design system, first run, form factor, documentation, discoverability. **P1–P7, P9 and P12
+  shipped; P8 is IN PROGRESS** — its rotation shipped 2026-08-09 — **P10 is IN PROGRESS** with its
+  remaining half blocked on a repository SETTING no session can edit, and P11 is NOT STARTED.
 
 **A run takes the next unstarted milestone from EACH track, and ships both.** Not one or the other.
 Start with whichever is smaller so something lands early, then take the other. If a run has time for
@@ -4327,7 +4329,49 @@ stylesheet carries the same class-only defect is measured in that repo, not infe
 
 ## P8 (from ON-3) — The phone stands the rocket up
 
-**Status: NOT STARTED. Four corrections to this milestone's own measurements, made 2026-08-08 and
+**Status: IN PROGRESS — increment 1 shipped 2026-08-09, and it is the whole rotation.** A phone held
+upright draws the airframe upright, nose at top, at a scale set by a named height budget; every grip
+is re-based on the model axis; the tap columns' 44 px follows the model axis too; and landscape is
+unchanged with a case saying so. Pinned by `e2e/touch.spec.ts`'s *a phone held upright draws the
+rocket upright, nose at top, and no grip inverts* and by `e2e/touch-landscape.spec.ts`'s *a phone
+turned sideways keeps the rocket lying down*.
+
+**Measured on the built export at a 390 px viewport: 296 x 11.8 px becomes 124 x 508**, and the
+airframe itself goes from 11.8 px across to about 26 — better than the 1.62x this milestone predicted,
+because the prediction assumed the fin span would not share the cross axis.
+
+**The implementation is one transform, and that is the finding worth carrying.** Every coordinate in
+`RocketDiagram.tsx` stays in the drawing's own space — station along `x`, radius about `centerY` — and
+`rotate(90) translate(0,-H)` on the group that holds them turns the whole picture a quarter turn. So
+the tap columns, the labels, the CG/CP marks and the nine grips needed no rotated variants: there is
+one drawing and two framings of it, rather than two drawings to keep in step. The pointer mapping came
+free with it, because reading `getScreenCTM()` from the HANDLE rather than from the `<svg>` lands the
+pointer in the coordinate space the handle is drawn in, rotation included.
+
+**`axis` now means the MODEL axis** — `"station"` or `"radius"` — and the five things the screen needs
+are derived from it and `vertical`: the value mapping, the resize cursor, `aria-orientation`, the
+arrow-key direction and the arrow glyph. The milestone's own correction 2 undercounted those
+consumers at three, and missed a sixth thing that was not gated on `axis` at all: the arrow-key
+handler hard-coded left-and-down as decrease, so on an upright airframe `ArrowDown` would have moved
+the fin toward the nose while the number went the other way.
+
+**Four e2e cases had to follow the model axis rather than the screen**, and every one of them failed
+in a way that reads as a product defect rather than a test written against a horizontal drawing:
+`elementFromPoint` answering `null` past the fold and under the sticky nav (twice, reading as
+"centre resolves to null"); a mass column tapped 8 px from its top, which was clear sky lying down
+and the fin planform standing up; a fin tapped at a corner hand-read off the horizontal planform;
+and the Sev-1 flick regression driving a grip by NAME, so it flicked vertically along a grip that had
+become horizontal. The flick case also now asserts the flick's own signature rather than the page
+holding perfectly still — a design edit re-renders the panels below it and scroll anchoring follows,
+which is not the gesture scrolling the page.
+
+**What is NOT done.** The airframe is 508 px tall in a panel that starts 412 px down a 664 px screen,
+so the aft grips sit below the first screen and a flyer scrolls to them. That is inherent to standing
+a rocket up rather than a defect in this increment — but the 412 px of chrome above the drawing is
+its own finding and is not this milestone's. `DESIGN.md` §8 carries the orientation rule and the
+model-axis rule, in both repos, byte-identical.
+
+**Four corrections to this milestone's own measurements, made 2026-08-08 and
 each verified by hand rather than taken from the agent that reported it** — a milestone spec is not
 evidence, and three of these would have cost the run that built it.
 
