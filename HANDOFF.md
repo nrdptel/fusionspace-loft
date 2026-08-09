@@ -4,14 +4,14 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Everything this run is merged and live except PR #150, which is open with a green LOCAL gate and CI
-in flight at the moment the run ended.** A self check-in is scheduled to merge it on green; if that
-did not fire, merge it — or fix forward on the same branch if CI went red. Two increments are in it:
-R12's fourth (the external fittings) and P11's first (docs anchors and contents lists).
+**Everything this run is MERGED AND LIVE. Nothing is left open, in either repo.** Five pull requests:
+Loft #147, #148, #149, #150 and Debrief #159, the last of them merged on green at 08:15 by a check-in
+this run scheduled for itself, because auto-merge is off here and the alternative was ending the run
+holding verified work where no flyer could reach it.
 
-**Auto-merge is not enabled on this repository, and that is why a run ends holding a pull request.**
-Parked under *Awaiting the owner* in `OWNER-NOTES.md` along with the Playwright browser, which six
-consecutive runs have now installed by hand.
+**Auto-merge being off is why that was necessary**, and it is parked under *Awaiting the owner* in
+`OWNER-NOTES.md` along with the Playwright browser, which six consecutive runs have now installed by
+hand. Both are one click and both cost every run real time.
 
 1. **`COMPETITION.md` row 41 names the cheapest next R12 member**: a mass override and a per-part
    comment, which OpenRocket gives EVERY component free from its base dialog. Loft honours
@@ -124,8 +124,8 @@ is not any one spec.
 | 4 | **R12 increment 3 — the internal structure has a property surface.** 249 of 569 corpus parts had no field describing them; 194 of those were five kinds that are one shape in the model. Now 55 | `22ae04c`, PR #148 | 194 parts driven across all 35 design files; ten unit cases, five negative controls; an e2e case whose negative control reports *"a centring ring offered no way to edit it"* |
 | 5 | **P8 increment 1 — a phone held upright draws the rocket upright.** 296 x 11.8 px becomes 124 x 508, nose at top, against a named 500 px height budget | PR #149, **open** | measured on the built export; four e2e cases re-based on the model axis; a landscape case saying it does not happen there |
 | 6 | **`DESIGN.md` §8 gains the orientation rule and the model-axis rule**, byte-identical in both repos | PR #149 + Debrief #159, both **open** | `diff` of the §8 section across the two checkouts |
-| 7 | **R12 increment 4 — the external fittings.** 54 more parts across the corpus, leaving exactly ONE with no field (a streamer). Two of the three kinds reach the flight through protuberance drag | branch, **open** | 54 parts driven across all 35 files; five unit cases with two negative controls; an e2e case whose negative control reports *"a launch lug offered no way to edit it"* |
-| 8 | **P11 increment 1 — every docs heading is linkable and every route has a contents list.** 32 of 32 anchors against 1 before, over 29,204 words. The primitive was ADOPTED from the sibling, not invented — and §9 caught that its chips are a caption size where §3 says a label | branch, **open** | counted on the built export; an e2e case asserting every chip points at a heading that exists |
+| 7 | **R12 increment 4 — the external fittings.** 54 more parts across the corpus, leaving exactly ONE with no field (a streamer). Two of the three kinds reach the flight through protuberance drag | `bbc1445`, PR #150 | 54 parts driven across all 35 files; five unit cases with two negative controls; an e2e case whose negative control reports *"a launch lug offered no way to edit it"* |
+| 8 | **P11 increment 1 — every docs heading is linkable and every route has a contents list.** 32 of 32 anchors against 1 before, over 29,204 words. The primitive was ADOPTED from the sibling, not invented — and §9 caught that its chips are a caption size where §3 says a label | `bbc1445`, PR #150 | counted on the built export; an e2e case asserting every chip points at a heading that exists |
 | 9 | **`text-[11px]` 41 → 33.** `DesignEditor` spelled its legend six times and its field label six times, character-identical | PR #148 | `lib/design-system.test.ts`, which is the §9 block |
 
 **Counts: unit 1,132 → 1,149; e2e 245 → 248; corpus 30 → 31 cases green over 35 design files.
