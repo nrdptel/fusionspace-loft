@@ -28,6 +28,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
+import { exportOrk } from "../ork/export";
 import { resolveMotor, sameCasing } from "../motors/db";
 import { runFlight, runFromDocument, overridesFromStored } from "../sim/run";
 import { monteCarlo, summarizeSamples } from "../sim/montecarlo";
@@ -58,6 +59,7 @@ import {
   unreachableMountCount,
   internalPartBounds,
   fittingMaxOuterDiameter,
+  fittingUnitMass,
 } from "../model/edit";
 import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
 
@@ -373,6 +375,160 @@ suite("real-design corpus", () => {
       }
     }
     expect(failures, "design files that failed to import").toEqual([]);
+  }, 300_000);
+
+  /** **Every part of every real design comes back as itself across a round trip.**
+   *
+   *  `lib/model/id.test.ts` has pinned this on synthesized designs since R1; over the real corpus it
+   *  was false, and had been for as long as the exporter has had two fin-set cases. `componentId`
+   *  RESERVES an id rather than reading one — ask twice for the same component and the second answer
+   *  is a fabricated `uuidFrom("<id>#1")` — and the two `*finset` cases built their own opening tag
+   *  after the shared one had already been built eagerly. So a freeform fin set, and only a freeform
+   *  fin set, went out under a hash: **7 sets across 6 of the 27 `.ork` designs, and the other 325
+   *  stated ids intact.** A design authored here is persisted as its own exported bytes, so after
+   *  a reload an aim, a removal or a move naming that set resolved to nothing.
+   *
+   *  **Scoped to the parts whose id the FILE stated, which is the only promise there is to keep.**
+   *  `.rkt` and `.CDX1` carry no component id at all and neither do some hand-written `.ork` files,
+   *  so those adapters mint one per part on every import and `componentId` hashes a minted id into a
+   *  UUID on the way out — 237 of the corpus's 569 parts, none of which the design ever named. A
+   *  stated id is UUID-shaped and `uniqueUuidFrom` returns it untouched, so "the file said `X`, Loft
+   *  gave back `X`" is exactly the assertion, and it is made by set difference rather than by count
+   *  so a part returning under someone ELSE's id fails as loudly as one that vanishes. */
+  const STATED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  it("gives back every part whose id its own design file stated", async () => {
+    const lost: string[] = [];
+    let parts = 0;
+    let stated = 0;
+    let checked = 0;
+    for (const f of files.filter((f) => /\.ork(\.gz)?$/i.test(f.name))) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const before = flattenRocket(doc.rocket).map((p) => p.component);
+      const after = new Set(flattenRocket((await importDesign(exportOrk(doc))).rocket).map((p) => p.component.id));
+      checked++;
+      parts += before.length;
+      for (const c of before) {
+        // A minted id was never the design's to keep; only an id the file stated is a promise.
+        if (!STATED_ID.test(c.id)) continue;
+        stated++;
+        if (!after.has(c.id)) lost.push(`${shortName(f.name)}: ${c.kind} "${c.name}" came back under another id`);
+      }
+    }
+    console.log(
+      `round-tripped ids across ${checked} OpenRocket design files: ${parts} parts, ${stated} of them ` +
+        `carrying an id the file itself stated`,
+    );
+    expect(stated, "no design stated an id of its own, so this asserted nothing").toBeGreaterThan(0);
+    expect(lost, "parts that did not come back under their own id").toEqual([]);
+  }, 300_000);
+
+  /** **No real design flies a fitting Loft could not weigh.**
+   *
+   *  A rail button is not a short launch lug, and reading it as one gave four real designs a part
+   *  with no mass at all — see `railButtonMass` in `lib/ork/adapt.ts` for the element-by-element
+   *  reason. A part with no mass gets no row in `massByComponent`, so the parts table printed a dash
+   *  where every other part carries a figure, and the fittings fieldset that reads the same value
+   *  disappeared, leaving that part's Properties popover empty.
+   *
+   *  Asserted on the whole population rather than on the four, so the next fitting kind whose
+   *  geometry Loft reads under the wrong element names fails here rather than shipping. The census
+   *  is printed and both counts are asserted non-zero, so a corpus re-cut that dropped every design
+   *  with a fitting on it could not leave this passing on nothing.
+   *
+   *  **The RASAero designs are the one exemption, and it is a positive assertion rather than a
+   *  carve-out.** `.CDX1` declares a launch lug by DIAMETER and a rail guide by diameter alone — no
+   *  material, no wall, no height — because that format wants them for parasitic drag and nothing
+   *  else (`lib/rasaero/adapt.ts`'s `externals`). There is nothing there to weigh, and inventing a
+   *  figure would be the false precision the safety posture forbids. What makes that safe rather
+   *  than a silent hole is that the same format states the design's LAUNCH WEIGHT, which the adapter
+   *  mints as a `standsForAirframe` point mass — so every gram is already in the total, including
+   *  these. That is what is asserted for them, part by part, rather than skipped. */
+  it("weighs every external fitting on every real design, and none of them at nothing", async () => {
+    const FITTINGS = ["shockcord", "launchlug", "railbutton"] as const;
+    const byKind: Record<string, number> = {};
+    const massless: string[] = [];
+    const dragOnly: string[] = [];
+    let stated = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      // Does this design state its weight as a whole, rather than part by part? Only RASAero does.
+      const lumped = flattenRocket(doc.rocket).some(
+        (p) => p.component.kind === "masscomponent" && p.component.standsForAirframe,
+      );
+      for (const p of flattenRocket(doc.rocket)) {
+        const c = p.component as { kind: string; name: string; mass?: number; overrideMass?: number };
+        if (!(FITTINGS as readonly string[]).includes(c.kind)) continue;
+        byKind[c.kind] = (byKind[c.kind] ?? 0) + 1;
+        if (c.overrideMass !== undefined) stated++;
+        // The figure the flight and the parts table actually use: a stated mass wins over a computed
+        // one, so a part is only massless when NEITHER is there.
+        const flown = c.overrideMass ?? c.mass;
+        if (flown !== undefined && flown > 0) continue;
+        if (lumped) dragOnly.push(`${shortName(f.name)}: ${c.kind}`);
+        else massless.push(`${shortName(f.name)}: ${c.kind} "${c.name}" has no mass at all`);
+      }
+    }
+    const total = Object.values(byKind).reduce((a, n) => a + n, 0);
+    console.log(
+      `external fittings weighed across ${files.length} design files: ${total} parts ` +
+        `(${FITTINGS.map((k) => `${byKind[k] ?? 0} ${k}`).join(", ")}), ${stated} stating their own mass, ` +
+        `${dragOnly.length} declared for drag alone by a format that states the design's weight as a whole`,
+    );
+    expect(total, "no design carried a fitting, so this asserted nothing").toBeGreaterThan(0);
+    expect(byKind.railbutton ?? 0, "no design carried a rail button — the kind this pins").toBeGreaterThan(0);
+    expect(massless, "fittings a real design flies with no mass at all").toEqual([]);
+  }, 300_000);
+
+  /** **Every note a real design file carries, read in and written back out unchanged.**
+   *
+   *  Loft read none of them and wrote none of them, so import → download deleted the lot. Measured
+   *  over this corpus at the commit before the fix: 40 non-empty `<comment>` elements across 18 of
+   *  the 27 `.ork` designs — 16 on the rocket itself, 1 on a stage, 23 on components (12 centring
+   *  rings, 6 shock cords, 2 fin sets, and one each of transition, inner tube and nose cone) — plus
+   *  40 non-empty `<PartDesc>` across all 4 `.rkt` designs and one design-level `<Comments>`. Eighty
+   *  one notes on 22 of the 35 designs, and Loft destroyed every one of them. That is prose the flyer typed, and it is
+   *  the one thing a round trip cannot recompute: a dropped mass comes back slightly wrong from the
+   *  material and the geometry, a dropped sentence is gone.
+   *
+   *  Asserted as a MULTISET rather than per-part, because the round trip does not promise to keep a
+   *  component id (`.rkt` parts are minted fresh on every import) and this is a question about the
+   *  prose, not about identity. The census is printed and the count is asserted non-zero, so a
+   *  corpus re-cut that dropped every annotated file could not leave this passing on nothing. */
+  it("carries every note a real design wrote, and loses none of them on the way back out", async () => {
+    const notes = (r: Rocket): string[] => {
+      const out: string[] = [];
+      if (r.comment) out.push(r.comment);
+      for (const s of r.stages) if (s.comment) out.push(s.comment);
+      for (const p of flattenRocket(r)) if (p.component.comment) out.push(p.component.comment);
+      return out.sort();
+    };
+    let total = 0;
+    let annotated = 0;
+    const onRocket: string[] = [];
+    const lost: string[] = [];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const before = notes(doc.rocket);
+      if (!before.length) continue;
+      annotated++;
+      total += before.length;
+      if (doc.rocket.comment) onRocket.push(shortName(f.name));
+      const back = await importDesign(exportOrk(doc));
+      const after = notes(back.rocket);
+      if (JSON.stringify(after) !== JSON.stringify(before)) {
+        const missing = before.filter((n) => !after.includes(n));
+        lost.push(
+          `${shortName(f.name)}: ${before.length} note(s) in, ${after.length} out` +
+            (missing.length ? ` — first lost: ${JSON.stringify(missing[0].slice(0, 60))}` : ""),
+        );
+      }
+    }
+    console.log(
+      `author notes across ${files.length} design files: ${total} on ${annotated} annotated design(s), ` +
+        `${onRocket.length} of them a design-level note`,
+    );
+    expect(total, "no design file carried a note, so this asserted nothing").toBeGreaterThan(0);
+    expect(lost, "notes a design carried that did not survive the round trip").toEqual([]);
   }, 300_000);
 
   it("carries every real design's tree structure through the flatten, not just its order", async () => {
@@ -1326,8 +1482,15 @@ suite("real-design corpus", () => {
         }
         // And the count has to carry the mass. Asserted through the whole design's dry mass, because a
         // field that writes a number the mass model never reads is exactly what this found.
-        const own = p.component as { mass?: number };
-        if (own.mass === undefined || !(own.mass > 0)) continue;
+        // **The figure the solver actually flies, not the one the geometry computes.** A design that
+        // STATES a fitting's mass wins over the computed one, and the applier scales that stated
+        // figure with the count — so expecting the computed unit here reports every overridden
+        // fitting as inert. It did not surface until rail buttons started carrying a computed mass
+        // too (before that they had only the override, and the `mass === undefined` guard below
+        // skipped all five). `fittingUnitMass` is the panel's own readback, so this asserts the
+        // count against the number the flyer is shown.
+        const unit = fittingUnitMass(rocket, id);
+        if (unit === undefined || !(unit > 0)) continue;
         // A part under an ancestor that overrides its whole subtree's mass contributes nothing to the
         // dry total, by design — `structurePointMasses` drops it so the stated assembly figure is not
         // double-counted. Its count moving no mass is correct, not inert, and four real lugs on two
@@ -1337,9 +1500,8 @@ suite("real-design corpus", () => {
         weighed++;
         const one = dryMassProperties(applyGeometryEdits(rocket, { fittingId: id, fittingCount: 1 })).mass;
         const four = dryMassProperties(applyGeometryEdits(rocket, { fittingId: id, fittingCount: 4 })).mass;
-        const per = own.mass / Math.max(1, (p.component as { instanceCount?: number }).instanceCount ?? 1);
-        if (Math.abs(four - one - per * 3) > 1e-9) {
-          inertMass.push(`${name}: 1→4 moved ${(four - one).toFixed(6)} kg, expected ${(per * 3).toFixed(6)}`);
+        if (Math.abs(four - one - unit * 3) > 1e-9) {
+          inertMass.push(`${name}: 1→4 moved ${(four - one).toFixed(6)} kg, expected ${(unit * 3).toFixed(6)}`);
         }
       }
     }

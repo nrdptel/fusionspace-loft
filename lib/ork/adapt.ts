@@ -386,6 +386,11 @@ function base(node: XmlNode) {
   return {
     id: childText(node, "id") || nextId(),
     name: childText(node, "name") || node.name,
+    // The author's own note, read here so all eighteen kinds get it from one line — the same reason
+    // `overrides` is spread in below rather than repeated per case. An empty `<comment>` is the
+    // element OpenRocket writes when there is nothing to say, so it reads as absent rather than as
+    // a note that happens to be blank.
+    comment: childText(node, "comment")?.trim() || undefined,
     placement: parsePlacement(node),
     material: parseMaterial(node),
     finish: parseFinish(node),
@@ -722,7 +727,9 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
       const mass =
         (node.name === "shockcord"
           ? shockcordMass(node)
-          : lugMass(node, radius, childNum(node, "length", 0))) * instanceCount;
+          : node.name === "railbutton"
+            ? railButtonMass(node, radius)
+            : lugMass(node, radius, childNum(node, "length", 0))) * instanceCount;
       // A shock cord's mass sits packed at its mount over the packed length, not stretched to
       // the full cord length, so place it by the packed extent.
       const length =
@@ -796,6 +803,56 @@ function lugMass(node: XmlNode, outerRadius: number | undefined, length: number)
   return Math.PI * (outerRadius * outerRadius - ri * ri) * length * density;
 }
 
+/** A rail button's structural mass, from the spool the design file actually describes.
+ *
+ *  **A rail button is not a short launch lug, and reading it as one flew four real designs with a
+ *  weightless part on them.** OpenRocket stores a lug as a tube — `<radius>`, `<length>`,
+ *  `<thickness>` — and a button as six different elements: `<outerdiameter>`, `<innerdiameter>`,
+ *  `<height>`, `<baseheight>`, `<flangeheight>`, `<screwheight>`. It writes no `<length>` and no
+ *  `<thickness>` for a button, so `lugMass`'s tube-wall volume resolved to zero on every one of
+ *  them. Measured over the corpus: 9 rail buttons across 7 of the 27 `.ork` designs, and **not one
+ *  states a `<length>`**. Five carry a mass of their own and were unharmed; the other four —
+ *  `Dual parachute deployment.ork`, `Parallel booster staging.ork` and two on
+ *  `Two stage high power rocket.ork` — imported at 0 kg. The flight moves little, and the SCREEN
+ *  moves a lot: `Parallel booster staging.ork` goes 533.45 g → 535.10 g dry with the CG 0.7 mm aft,
+ *  `Two stage high power rocket.ork` 1,926.75 g → 1,930.06 g. But a part carrying no mass gets no
+ *  row in `massByComponent`, so the parts table printed a dash where every other part has a figure —
+ *  a flyer cannot tell that from Loft having dropped the part on import — and `fittingUnitMass`
+ *  returned undefined, which hides the whole fittings fieldset and opens that part's Properties
+ *  popover with nothing in it.
+ *
+ *  **The shape is a spool, and its three parts are exactly the three heights the file states:** a
+ *  base flange at the outer diameter sitting on the airframe, a shank at the inner diameter standing
+ *  the button off it, and an outer flange at the outer diameter again — `<height>` is the total, so
+ *  the shank is what the two flanges leave of it. Read from the elements the format publishes and
+ *  from the geometry of the hardware they name; no other simulator's source was consulted.
+ *
+ *  **What it deliberately does not include, and how that was checked.** The volume is the moulded
+ *  body only. Where a design states the part's mass instead — 5 of the 9, all of them OpenRocket
+ *  component presets — that stated figure still wins, and it is 3.0–3.2x this one: 0.890 g computed
+ *  against 2.865 g stated for the 7/16" pair on three designs, 1.355 g against 4.075 g for the 1/2"
+ *  button on `USLI2025-FULLSCALE`. The difference is the steel screw the button is mounted with,
+ *  which a preset's published weight includes and which `<screwheight>` records as 0.0 on every rail
+ *  button in this corpus — i.e. no screw is described. So a computed button is the plastic alone. */
+function railButtonMass(node: XmlNode, outerRadius: number | undefined): number {
+  const explicit = childText(node, "mass");
+  if (explicit !== undefined) return parseNum(explicit, 0);
+  const mat = child(node, "material");
+  const density = mat ? parseNum(mat.attrs.density, 0) : 0; // kg/m³ for a "bulk" material
+  const height = childNum(node, "height", 0);
+  if (!outerRadius || outerRadius <= 0 || height <= 0 || density <= 0) return 0;
+  // Clamped rather than trusted: a bore wider than the button, or flanges taller than the whole
+  // part, describe a shape that cannot exist, and an unclamped subtraction would return a negative
+  // volume and hand back a NEGATIVE mass — worse than the zero this function exists to stop.
+  const innerRadius = Math.min(Math.max(0, childNum(node, "innerdiameter", 0) / 2), outerRadius);
+  const flanges = Math.min(
+    height,
+    Math.max(0, childNum(node, "baseheight", 0)) + Math.max(0, childNum(node, "flangeheight", 0)),
+  );
+  const shank = height - flanges;
+  return Math.PI * (outerRadius * outerRadius * flanges + innerRadius * innerRadius * shank) * density;
+}
+
 /** A freeform fin's `<finpoints>` outline as plain points, in metres. A freeform fin carries NO
  *  `<rootchord>`/`<height>` elements — its shape is only these points — so the model's span, root
  *  chord, area, sweep and exact CP all come from them (see lib/model/planform.ts, shared with the
@@ -846,6 +903,7 @@ function parseStages(rocketNode: XmlNode, ctx: WalkContext): Stage[] {
     const ov = overrides(st) as { overrideMass?: number; overrideCGx?: number; overrideSubcomponents?: boolean };
     stages.push({
       name: childText(st, "name") || "Stage",
+      comment: childText(st, "comment")?.trim() || undefined,
       components: parseSubcomponents(st, ctx),
       separationEvent: mapSeparationEvent(childText(st, "separationevent")),
       separationDelay: Number.isFinite(sepDelay) ? sepDelay : undefined,
@@ -1416,6 +1474,7 @@ export function adaptOrkXml(xml: string): OrkDocument {
   const rocket: Rocket = {
     name: childText(rocketNode, "name") || "Imported rocket",
     designer: childText(rocketNode, "designer"),
+    comment: childText(rocketNode, "comment")?.trim() || undefined,
     stages,
     configurations: configs,
     defaultConfigId: defaultId,

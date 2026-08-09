@@ -17,17 +17,18 @@ work, and a queue containing only the first can only ever ship the first.
 
 - **R-track — capability.** What a flyer can DO that they could not before. **R1–R11 shipped**
   (R10 closed 2026-08-09 on its last item, `maxAcceleration`); **R12 is IN PROGRESS** — the first of
-  its members is met as of 2026-08-08, and increments 3 and 4 took the components no field describes
-  from 249 of 569 corpus parts to ONE on 2026-08-09. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
+  its members is met as of 2026-08-08, increments 3 and 4 took the components no field describes
+  from 249 of 569 corpus parts to ONE on 2026-08-09, and increment 5 stopped the file half of the
+  per-part comment being destroyed on 2026-08-09. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
   shipped; R4 is IN PROGRESS" until 2026-08-08, six milestones after it stopped being true — and it
   then went stale again inside the very commit that added this warning, caught by review rather than
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
   line it summarises, or it becomes the most misleading sentence in the file.)*
 - **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
   shape, design system, first run, form factor, documentation, discoverability. **P1–P9 and P12
-  shipped** (P8 on 2026-08-09, in one increment rather than four); **P10 is IN PROGRESS** with its
-  remaining half blocked on a repository SETTING no session can edit; **P11 is the next unstarted
-  one.**
+  shipped** (P8 on 2026-08-09, P11 on 2026-08-09); **P10 is IN PROGRESS** with its remaining half
+  blocked on a repository SETTING no session can edit; **P13 is the next unstarted one**, and it was
+  written on 2026-08-09 because the track had otherwise run dry.
 
 **A run takes the next unstarted milestone from EACH track, and ships both.** Not one or the other.
 Start with whichever is smaller so something lands early, then take the other. If a run has time for
@@ -2576,6 +2577,36 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 5 — the notes a design file carries stop being destroyed, 2026-08-09.** `COMPETITION.md`
+row 42 named the per-part comment as the more urgent of the two next members, and the measurement
+holds: **81 non-empty notes across 22 of the 35 corpus designs** — 40 `<comment>` on 18 of the 27
+`.ork` files (16 on the rocket, 1 on a stage, 23 on components), 40 `<PartDesc>` on all 4 `.rkt`
+files, and one design-level `<Comments>` — and Loft read none of them and wrote none of them, so
+import → download deleted every one. `comment` is now on the component base, the stage and the
+rocket; both importers read it and the exporter writes it. **This is the FILE half only, deliberately:
+the edit half needs a keyed bag entry that the flat patch cannot express**, which is the same
+structural obstacle the mass override hits and is recorded in `BACKLOG.md`. Pinned by
+`lib/corpus/sweep.test.ts`'s *carries every note a real design wrote* (an exact multiset, in and back
+out) plus cases in both adapters' suites.
+
+Two defects the pre-push review found over a green gate, both fixed in the same commit and both
+pinned: the exporter minted a freeform fin set's id **twice**, so 7 sets across 6 of the 27 `.ork`
+designs went out under a fabricated hash — the only 7 of 332 stated ids that did not survive a round
+trip, on a persistence path that stores a design as its own exported bytes; and `buildStage`'s
+`structuredClone` carried the original author's prose onto parts Loft invented, which the exporter
+then wrote into the flyer's file.
+
+**Increment 6 — a rail button weighs something, 2026-08-09. Sev-1, and it preempted the milestone.**
+OpenRocket stores a launch lug as a tube and a rail button as six different elements, none of them
+`<length>` or `<thickness>` — so the tube-wall volume resolved to zero on **all 9 rail buttons across
+7 of the 27 `.ork` designs**, and the 4 that state no mass of their own imported weightless. The
+flight barely moves (533.45 g → 535.10 g dry on `Parallel booster staging.ork`); the screen moves a
+lot, because a part with no mass gets no row in `massByComponent` — so the parts table printed a dash
+where every other part carries a figure, and the same undefined value hid the fittings fieldset and
+opened that part's Properties popover empty. Massed now as the spool its own six dimensions describe.
+Pinned by `lib/corpus/sweep.test.ts`'s *weighs every external fitting on every real design* over all
+54 fittings, and by four adapter cases.
+
 **Increment 3 — the internal structure gets a property surface, 2026-08-09.** The largest unreachable
 population in the model is reachable. Measured over the 35-design corpus before this increment:
 **249 of 569 parts (43.8%) had no field describing them at all, and 194 of those 249 are five kinds
@@ -4864,6 +4895,79 @@ result a Loft-authored file carries names Loft as its source.
 
 ---
 
+## P13 (from `OWNER-NOTES.md` *Awaiting the owner*, 2026-08-09) — One design system, one copy, and a check that reads it
+
+**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-09. **`DESIGN.md` is read by the gate.**
+
+**Increment 1, 2026-08-09 — the file's own contradictions, and the check that stops the next one.**
+Three things this document said about itself were false and nothing could notice, because nothing in
+either repo opened it. §5's Controls heading read *"three button weights, and only three"* above four
+bullets, over the four keys `lib/ui-tokens.ts` ships — so §1's rule that inventing a new weight is a
+change to this file was broken BY the file, in the sentence that governs it. `Select` and
+`ClosePanel` shipped, were ratcheted by §9, and were named nowhere in the vocabulary §5 exists to be.
+All three are corrected, with the reason kept beside the heading rather than quietly fixed.
+
+`lib/design-doc.test.ts` reads the document now, and the durable half is that **the vocabulary has
+one mechanical definition**: §5 is the declaration, `components/ui.tsx` is the module, and the two
+directions are asserted separately because they fail for opposite reasons — a primitive that shipped
+undeclared, versus a declaration with nothing behind it. Neither direction is a hand-maintained list;
+a third list would drift exactly as the first two did. `BUTTON_VARIANT_NAMES` exists so the count is
+readable at runtime rather than only by the type system. All four assertions were proved able to fail
+by restoring each defect in turn: a fifth variant in code alone, a heading number moved alone, a
+declared `Chip` with nothing behind it, and `ClosePanel` removed from §5.
+
+**Outcome.** `DESIGN.md` stops being a binding file that nothing reads and that two repos disagree
+about. A session can no longer ship a primitive the file does not declare, declare one it does not
+ship, or state a count the code contradicts — because the gate reads the file.
+
+**Why this and not the other two candidates.** The owner named it: `OWNER-NOTES.md`'s *Awaiting the
+owner* says a session with both repos writable should spend an increment reconciling the two copies
+clause by clause, that **it is a milestone, not a chore, and that it belongs on the P-track**. It is
+also the concrete form of the one unclaimed entry in this file's own standing P-order ("the suite as
+one product"). The two rejected alternatives are recorded under *Decisions taken without the owner*.
+
+**Measured 2026-08-09, in Loft's own copy, before writing any of this:**
+
+- §5's Controls heading reads **"three button weights, and only three"** and the four bullets under
+  it are `primary`, `secondary`, `ghost`, `danger`. `lib/ui-tokens.ts:60`'s `BUTTON_VARIANTS` ships
+  those same four. So the file's §2 rule — *"inventing a fourth button weight is a change to this
+  file"* — is already broken by the file, in the sentence that governs it.
+- §5 declares **15** primitives by name. `components/ui.tsx` exports **17**. `Select` and
+  `ClosePanel` ship, are ratcheted, and are named nowhere in §5's vocabulary (only in §9 prose and a
+  §5 aside). `DataTable` and `SectionNav` are declared by §5 and live in their own files rather than
+  in `components/ui.tsx`, so "the vocabulary" has no single mechanical definition at all.
+- **Nothing in the repo reads `DESIGN.md` as a file.** `lib/design-system.test.ts:21` re-encodes §9's
+  greps by hand and its own docblock says they are "kept in step with it deliberately" — i.e. by a
+  human. It is the only major doc with no assertion behind it, and `P10` already built exactly this
+  mechanism for `README.md`, on lower stakes.
+
+**Done when** three things are true, each pinned by a check that fails when it stops being:
+
+1. **The file's own counts match the code.** A test reads `DESIGN.md` and asserts that every key of
+   `BUTTON_VARIANTS` has a §5 bullet, and that the number the Controls heading states equals that
+   count — so adding a variant without amending the file, or amending the file's number without the
+   code, fails the build.
+2. **Declares-and-ships agree, both directions, as separate assertions.** Every primitive §5 names
+   resolves to a real exported component, and every component the vocabulary ships is named by §5.
+   The "vocabulary" gets a single mechanical definition (a named list the test and the components
+   both answer to) rather than "whatever `ui.tsx` happens to export".
+3. **The shared span of the two repos' copies is identical, and something says so.** A digest of the
+   shared span, committed in both, so a change to one that is not made to the other fails rather than
+   drifting. The two copies are 11 diff hunks apart today and the drift runs in BOTH directions.
+
+**Size.** 3 increments: (i) fix Loft's copy and land the reader check; (ii) adopt the primitives the
+reconciliation imports, at their real call sites, with per-primitive ratchets in the pattern P6 set;
+(iii) mirror to the sibling and land the shared digest in both.
+
+**Notes.** Increment (iii) needs write access to `nrdptel/fusionspace-debrief`, which the previous
+run was refused by the harness — so **(i) and (ii) are scoped to be complete and pinnable in Loft
+alone**, and (iii) is last. Otherwise this repeats `P10`'s failure mode: a milestone stranded
+half-done on a permission no session controls. One divergence is a direct contradiction rather than a
+gap and needs a decision rather than a merge: the sibling's §5 defines `Chip` and `ChipButton`, and
+Loft's copy records `Chip` as deleted on 2026-08-04 with the reason.
+
+---
+
 ## After R6 and P5 — extend this file yourself, in this order
 
 **Do not ask which of these to do, and do not fall back to the defect ledger because the list above
@@ -4915,6 +5019,24 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-09 — the P-track's next milestone is the design-system reconciliation, not the persistent
+  airframe strip and not a numeric desktop contract.** The P-track had run dry: P1–P9, P11 and P12 are
+  shipped and P10's remaining half is a repository SETTING no session can edit, so `MAINTAINING.md`'s
+  rule applies — extend the file rather than fall back to the defect ledger. Three candidates were
+  scouted and measured. **Taken: P13.** The owner named it in `OWNER-NOTES.md`'s *Awaiting the owner*
+  in as many words ("a milestone, not a chore, and it should go on the P-track"), and it is the
+  concrete form of the one unclaimed entry in this file's own standing P-order. It is also the only
+  one of the three whose failure is already live and shipping: §5's Controls heading says "three
+  button weights, and only three" over four bullets and four shipped variants.
+  **Rejected: "the airframe stays on screen"** — `COMPETITION.md` row 31, a real gap (the drawing has
+  one mount site, inside one of four workspace panels, so three of four workspaces show numbers and
+  no picture) and the cheapest of the three to ship. It loses on precedence, not on merit, and it
+  should be the P-track's next pick after P13 unless a note says otherwise. **Rejected: a numeric
+  desktop contract in §8** — the app answers every width from 1280 to 2560 with one column, which is
+  a genuine tell, but two of §8's three desktop clauses are already met and pinned, and its multi-pane
+  half overlaps what R12 is already doing with the component tree. Building both would be two runs
+  arguing over the same layout.
 
 - **2026-08-09 — the census de-duplicates comparison rows, and every published figure it moved went
   down.** The rejected option was to leave it and only say so in prose, because R10's own notes

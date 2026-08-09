@@ -693,6 +693,71 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(backLug!.mass).toBeCloseTo(0.012, 5);
     expect(structurePointMasses(back.rocket).reduce((a, m) => a + m.mass, 0)).toBeCloseTo(before, 4);
   });
+
+  /** **The notes a design carries are prose the flyer typed, and prose is the one thing a round trip
+   *  cannot recompute.** A mass that goes missing comes back from the material and the geometry,
+   *  slightly wrong; a sentence that goes missing is gone. Loft read none of them and wrote none of
+   *  them, so opening a file here and downloading it deleted every one.
+   *
+   *  Driven on all three levels at once because they are three different code paths — the rocket's
+   *  own note, a stage's, and a component's — and on a FIN SET in particular, because a fin set is
+   *  one model kind and two OpenRocket elements, so its opening tag is built separately from every
+   *  other kind's and is the one that would silently drop the note. The corpus carries 2 of them. */
+  it("carries the author's note on the rocket, the stage and a part — including both fin elements", async () => {
+    const doc = newDesign();
+    doc.rocket.comment = "Cert L2 attempt — 2.6 kg on the bench, 5° rod lean if the wind holds.";
+    doc.rocket.stages[0].comment = "Sustainer as flown at LDRS.";
+    parts(doc).body.comment = "Blue Tube 2.0, 3\" — coupler joint is epoxied, do not <cut> here.";
+    parts(doc).fins.comment = "G10, tip-to-tip layup.";
+    // **A FREEFORM set as well as the starter's trapezoid, and that is the point of the case.** One
+    // model kind is two OpenRocket elements, and the freeform branch builds its own opening — so it
+    // is the one that would silently drop the note while every other kind kept it. A first version
+    // of this test asserted only on the starter's `trapezoidfinset`, which goes through the SHARED
+    // opening, and would have passed with the note removed from both of the branch's own.
+    const points = [
+      { x: 0, y: 0 },
+      { x: 0.012, y: 0.05 },
+      { x: 0.02, y: 0.05 },
+      { x: 0.06, y: 0 },
+    ];
+    const pf = planformFromPoints(points);
+    parts(doc).body.children.push({
+      kind: "freeformfinset",
+      // UUID-shaped on purpose: `componentId` hashes anything else, so only a stated id is a promise.
+      id: "ff107e00-0000-4000-8000-00000000000f",
+      name: "Drawn",
+      finCount: 3,
+      thickness: 0.003,
+      rootChord: pf.rootChord,
+      height: pf.span,
+      sweepLength: pf.sweep,
+      area: pf.area,
+      points,
+      comment: "Cut on the club's laser — 2 mm G10, grain fore-aft.",
+      children: [],
+      placement: { method: "bottom", offset: 0 },
+    } as unknown as GenericFinSet);
+
+    const back = await roundtrip(doc);
+    expect(back.rocket.comment).toBe(doc.rocket.comment);
+    expect(back.rocket.stages[0].comment).toBe(doc.rocket.stages[0].comment);
+    // Escaped and un-escaped intact, angle brackets and all: a note is prose, not markup.
+    expect(parts(back).body.comment).toBe(parts(doc).body.comment);
+    expect(parts(back).fins.comment).toBe(parts(doc).fins.comment);
+    const drawn = flattenRocket(back.rocket).find((p) => p.component.name === "Drawn")?.component;
+    expect(drawn?.kind, "the freeform branch is the one being exercised").toBe("freeformfinset");
+    expect(drawn?.comment).toBe("Cut on the club's laser — 2 mm G10, grain fore-aft.");
+    // And it came back as ITSELF — the same branch mints the id, and it used to mint it twice.
+    expect(drawn?.id).toBe("ff107e00-0000-4000-8000-00000000000f");
+  });
+
+  /** A design with nothing to say must not gain an element saying nothing. OpenRocket writes an
+   *  empty `<comment></comment>` on every component it exports; Loft reads that as no note, so
+   *  writing one back would put the emptiness into the file rather than leave it out. */
+  it("writes no comment element for a design whose author wrote none", () => {
+    const xml = serializeRocketXml(newDesign().rocket);
+    expect(xml).not.toContain("<comment>");
+  });
 });
 
 describe("exportOrk — the launch setup survives the round trip", () => {

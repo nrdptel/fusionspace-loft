@@ -70,6 +70,12 @@ const BUTTON_VARIANTS = {
 
 export type ButtonVariant = keyof typeof BUTTON_VARIANTS;
 
+/** The weights this app ships, as a value rather than a type — so `lib/design-doc.test.ts` can hold
+ *  `DESIGN.md` §5's declaration against what is actually here. A type cannot be read at runtime, and
+ *  a hand-written second list would drift from the first, which is the whole failure that check
+ *  exists to stop. */
+export const BUTTON_VARIANT_NAMES = Object.keys(BUTTON_VARIANTS) as ButtonVariant[];
+
 /** The spacing inside a control, from `DESIGN.md` §4 — `px-3 py-1.5`, and `px-2 py-1` at caption size. */
 const BUTTON_SIZES = {
   sm: "px-2 py-1 text-xs",

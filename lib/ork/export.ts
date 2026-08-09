@@ -109,6 +109,27 @@ function axialXml(p: Placement, pad: string): string {
   return `${pad}<axialoffset method="${p.method}">${num(p.offset)}</axialoffset>\n`;
 }
 
+/** The author's own note. Shared by components, stages and the rocket, because OpenRocket spells it
+ *  `<comment>` on all three — and because a note written once and dropped on the way out is the data
+ *  loss this element exists here to stop.
+ *
+ *  Emitted only when there is one. OpenRocket itself writes an empty `<comment></comment>` on every
+ *  component; the importer reads that as absent, so writing it back would turn "no note" into an
+ *  element the next reader has to strip again. */
+function commentXml(c: { comment?: string }, pad: string): string {
+  return c.comment ? `${pad}<comment>${esc(c.comment)}</comment>\n` : "";
+}
+
+/** The opening of a component's element — tag, name, id, note.
+ *
+ *  A function rather than one string because the tag is NOT always `c.kind`: a fin set is one model
+ *  kind and two OpenRocket elements, so those two cases build their own opening and would have been
+ *  the two that silently dropped the note. That is the same shape as the six cases which once wrote
+ *  no `overrides` (see `componentXml` below), which cost the corpus 5 designs' stated masses. */
+function headXml(tag: string, c: RocketComponent, id: string, pad: string, p: string): string {
+  return `${pad}<${tag}>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${id}</id>\n` + commentXml(c, p);
+}
+
 /** Mass/CG overrides — a measured weight standing in for the computed one. Shared by components and
  *  stages (a stage is a component assembly that can carry its own measured mass). */
 function overrideXml(
@@ -265,7 +286,18 @@ function childrenXml(cs: RocketComponent[], motors: MotorsByMount, depth: number
 function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number): string {
   const pad = "  ".repeat(depth);
   const p = pad + "  ";
-  const head = `${pad}<${c.kind}>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${componentId(c)}</id>\n`;
+  /** **Minted ONCE per component, because minting is not a read — it reserves the id.**
+   *  `componentId` runs `uniqueUuidFrom` against `writtenIds`, so asking twice for the same
+   *  component's id gets a DIFFERENT answer the second time: the first call takes `X`, the second
+   *  sees `X` taken and returns `uuidFrom("X#1")`. `head` is built eagerly for every kind while the
+   *  two fin-set cases build their own opening, so those two asked twice and wrote the fabricated
+   *  hash — the real id going out with the discarded `head`. Measured over the corpus by restoring the
+   *  second mint: **7 freeform fin sets across 6 of the 27 `.ork` designs, and those seven were the
+   *  only stated ids in 332 that did not survive an export → re-import.** A design authored here is persisted as its own
+   *  exported bytes, so after a reload an aim, a removal or a move naming that set resolved to
+   *  nothing. Found by the pre-push review, over a green gate. */
+  const id = componentId(c);
+  const head = headXml(c.kind, c, id, pad, p);
   const common = axialXml(c.placement, p) + finishXml(c.finish, p) + materialXml(c.material, p);
   const overrides = overrideXml(c, p);
   const kids = childrenXml(c.children, motors, depth + 1);
@@ -361,7 +393,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
           .map((pt) => `${p}  <point x="${num(pt.x)}" y="${num(pt.y)}"/>\n`)
           .join("");
         return (
-          `${pad}<freeformfinset>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${componentId(c)}</id>\n` +
+          headXml("freeformfinset", c, id, pad, p) +
           common + overrides +
           `${p}<fincount>${c.finCount}</fincount>\n` +
           `${p}<thickness>${num(c.thickness)}</thickness>\n` +
@@ -375,7 +407,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
       }
       const tip = c.height > 0 ? Math.max(0, (2 * c.area) / c.height - c.rootChord) : c.rootChord;
       return (
-        `${pad}<trapezoidfinset>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${componentId(c)}</id>\n` +
+        headXml("trapezoidfinset", c, id, pad, p) +
         common + overrides +
         `${p}<fincount>${c.finCount}</fincount>\n` +
         `${p}<thickness>${num(c.thickness)}</thickness>\n` +
@@ -541,6 +573,7 @@ export function serializeRocketXml(
         `      <stage>\n` +
         `        <name>${esc(s.name)}</name>\n` +
         `        <id>${nextUuid()}</id>\n` +
+        commentXml(s, "        ") +
         overrideXml(s, "        ") +
         sep +
         separationConfigsXml(s.separationConfigs, "        ") +
@@ -557,6 +590,7 @@ export function serializeRocketXml(
     `  <rocket>\n` +
     `    <name>${esc(rocket.name)}</name>\n` +
     `    <id>${nextUuid()}</id>\n` +
+    commentXml(rocket, "    ") +
     (rocket.designer ? `    <designer>${esc(rocket.designer)}</designer>\n` : "") +
     configsXml(rocket) +
     `    <referencetype>${rocket.referenceType}</referencetype>\n` +

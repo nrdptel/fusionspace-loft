@@ -1067,3 +1067,122 @@ describe("whether an .ork says a recovery device came out", () => {
     ).toBeUndefined();
   });
 });
+
+describe("adaptOrkXml — the note the author wrote", () => {
+  const src = readXml("demo-single-deploy.ork.xml");
+
+  /** Injected into the fixture rather than committed into it: the fixture is a bundled sample a
+   *  flyer loads, and a note invented for a test is not the sample's author speaking. */
+  const withComments = (xml: string) =>
+    xml
+      .replace(
+        "<name>Loft Demo 38mm — single deploy</name>",
+        "<name>Loft Demo 38mm — single deploy</name>\n    <comment>  Built for a club launch.  </comment>",
+      )
+      .replace(
+        "<name>Sustainer</name>",
+        "<name>Sustainer</name>\n        <comment>One stage, nothing clever.</comment>",
+      )
+      .replace(
+        "<name>Nose cone</name>",
+        "<name>Nose cone</name>\n            <comment>3D printed, 40% infill — weigh before flying.</comment>",
+      );
+
+  it("reads it on the rocket, on the stage and on a component, trimmed", () => {
+    const doc = adaptOrkXml(withComments(src));
+    expect(doc.rocket.comment).toBe("Built for a club launch.");
+    expect(doc.rocket.stages[0].comment).toBe("One stage, nothing clever.");
+    const nose = flattenRocket(doc.rocket).find((p) => p.component.kind === "nosecone")!.component;
+    expect(nose.comment).toBe("3D printed, 40% infill — weigh before flying.");
+  });
+
+  it("reads OpenRocket's own empty comment as no note at all", () => {
+    // OpenRocket writes `<comment></comment>` on every component whether or not there is anything
+    // in it, so treating the element's presence as a note would put an empty string on almost every
+    // part of almost every real file — and a surface showing notes would then show hundreds of
+    // blank ones.
+    const doc = adaptOrkXml(
+      src.replace("<name>Nose cone</name>", "<name>Nose cone</name>\n            <comment>   </comment>"),
+    );
+    const nose = flattenRocket(doc.rocket).find((p) => p.component.kind === "nosecone")!.component;
+    expect(nose.comment).toBeUndefined();
+    expect(doc.rocket.comment).toBeUndefined();
+  });
+});
+
+describe("adaptOrkXml — a rail button is not a short launch lug", () => {
+  /** The element OpenRocket actually writes: six dimensions, no `<length>` and no `<thickness>`.
+   *  The numbers are `Dual parachute deployment.ork`'s, one of the four corpus designs that
+   *  imported a weightless button. */
+  const button = (overrides: Record<string, string> = {}) => {
+    const fields: Record<string, string> = {
+      instancecount: "2",
+      outerdiameter: "0.0097",
+      innerdiameter: "0.008",
+      height: "0.0097",
+      baseheight: "0.002",
+      flangeheight: "0.002",
+      screwheight: "0.0",
+      ...overrides,
+    };
+    return (
+      `<railbutton><name>Rail Button</name><id>rb-1</id>` +
+      `<axialoffset method="top">0.1</axialoffset>` +
+      `<material type="bulk" density="1420.0">Delrin</material>` +
+      Object.entries(fields)
+        .map(([k, v]) => `<${k}>${v}</${k}>`)
+        .join("") +
+      `</railbutton>`
+    );
+  };
+
+  /** Dropped into the body tube's own `<subcomponents>`, which is where a fitting lives. */
+  const withButton = (overrides?: Record<string, string>) =>
+    adaptOrkXml(
+      readXml("demo-single-deploy.ork.xml").replace("<radius>0.019</radius>\n            <subcomponents>", `<radius>0.019</radius>\n<subcomponents>${button(overrides)}`),
+    );
+
+  const rb = (doc: ReturnType<typeof adaptOrkXml>) =>
+    flattenRocket(doc.rocket).find((p) => p.component.kind === "railbutton")!.component as {
+      mass?: number;
+      radius?: number;
+      instanceCount?: number;
+    };
+
+  it("weighs the spool its own six dimensions describe, rather than nothing", () => {
+    // Two flanges of the outer diameter at 2 mm each, plus a 5.7 mm shank of the inner diameter, at
+    // Delrin's 1420 kg/m3 — 0.8266 g a button, 1.653 g for the pair the file states. Before this the
+    // mass was 0 kg, because the tube-wall volume needs a <length> a rail button never carries.
+    const c = rb(withButton());
+    expect(c.mass).toBeCloseTo(2 * Math.PI * (0.00485 ** 2 * 0.004 + 0.004 ** 2 * 0.0057) * 1420, 9);
+    expect((c.mass! * 1000).toFixed(3)).toBe("1.653");
+    // The frontal size the drag model squares is untouched — this fixes the mass, not the drag.
+    expect(c.radius).toBeCloseTo(0.00485, 6);
+    expect(c.instanceCount).toBe(2);
+  });
+
+  it("still lets the design's own stated mass win", () => {
+    // 5 of the corpus's 9 buttons carry a preset's published mass, which includes the steel screw
+    // the geometry does not describe. A computed figure must never displace a stated one.
+    const c = rb(withButton({ mass: "0.0029" }));
+    expect(c.mass).toBeCloseTo(0.0058, 9); // stated per instance, times the count
+  });
+
+  it("never returns a mass below zero from a shape that cannot exist", () => {
+    // A bore wider than the button and flanges taller than the whole part. Unclamped, the shank goes
+    // negative and the subtraction hands back a NEGATIVE mass — worse than the zero this function
+    // exists to stop, because a negative part subtracts from the design it is on.
+    const c = rb(withButton({ innerdiameter: "0.05", baseheight: "0.02", flangeheight: "0.02" }));
+    expect(c.mass).toBeGreaterThan(0);
+    expect(Number.isFinite(c.mass!)).toBe(true);
+    // Clamped to the button itself: two flanges filling the whole height, nothing wider than it is.
+    expect(c.mass).toBeCloseTo(2 * Math.PI * 0.00485 ** 2 * 0.0097 * 1420, 9);
+  });
+
+  it("leaves a button whose file states neither a material nor a height to an explicit mass", () => {
+    // The same posture `lugMass` takes when no wall thickness is given: an indeterminate volume is
+    // not a licence to guess one. Nothing in the corpus is this, and a hand-edited file can be.
+    const c = rb(withButton({ height: "0" }));
+    expect(c.mass).toBeUndefined();
+  });
+});

@@ -2822,6 +2822,43 @@ describe("authoring a booster stage", () => {
     return { doc, edits, seedId, mountId, staged: applyGeometryEdits(doc.rocket, edits) };
   };
 
+  it("does not put the flyer's note on a part Loft invented", () => {
+    // **The note travels with `structuredClone`, and `lib/ork/export.ts` now writes it out.** The
+    // seed tube and its kept children are cloned from the design's own aft tube, whose author may
+    // have written on them: 40 non-empty `<comment>` elements across 18 of the 27 corpus `.ork`
+    // designs, and `Dual parachute deployment.ork`'s sits on the fin set hanging off exactly that
+    // tube. Cloned through, a booster the flyer authored comes out annotated with prose about a
+    // component that has never existed — over their name, in a file they hand to someone else.
+    const doc = newDesign();
+    const aft = doc.rocket.stages[0].components.filter((c) => c.kind === "bodytube").at(-1)!;
+    aft.comment = "Blue Tube 2.0 — this one is the flight-proven tube.";
+    for (const k of aft.children) k.comment = `note on ${k.name}`;
+    const seedId = newPartId(doc.rocket, [], "stage:1");
+    const mountId = newPartId(doc.rocket, [{ id: seedId } as never], "mount:1");
+    const staged = applyGeometryEdits(doc.rocket, { addedStages: [{ seedId, mountId, name: "Booster" }] });
+
+    const booster = staged.stages.at(-1)!;
+    const notes: string[] = [];
+    const walk = (comps: readonly RocketComponent[]): void => {
+      for (const c of comps) {
+        if (c.comment) notes.push(`${c.kind} "${c.name}": ${c.comment}`);
+        walk(c.children);
+      }
+    };
+    walk(booster.components);
+    expect(notes, "notes carried onto parts Loft authored").toEqual([]);
+    // The control: the design's OWN parts keep theirs, so this is not passing by there being none.
+    const kept: string[] = [];
+    const walkKept = (comps: readonly RocketComponent[]): void => {
+      for (const c of comps) {
+        if (c.comment) kept.push(c.comment);
+        walkKept(c.children);
+      }
+    };
+    walkKept(staged.stages[0].components);
+    expect(kept.length, "the design's own notes must survive the same edit").toBeGreaterThan(1);
+  });
+
   it("gives every part it mints its own id, even when the seed tube carries two mounts", () => {
     // **A design's aft tube can hold more than one motor mount**, and `Airstart timing.ork` in the
     // corpus does: a 54 mm centre and a 38 mm airstart, side by side. Every kept mount used to take
