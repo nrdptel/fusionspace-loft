@@ -24,7 +24,9 @@ work, and a queue containing only the first can only ever ship the first.
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
   line it summarises, or it becomes the most misleading sentence in the file.)*
 - **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
-  shape, design system, first run, form factor, documentation, discoverability.
+  shape, design system, first run, form factor, documentation, discoverability. **P1–P7, P9 and P12
+  shipped; P8 is IN PROGRESS** — its rotation shipped 2026-08-09 — **P10 is IN PROGRESS** with its
+  remaining half blocked on a repository SETTING no session can edit, and P11 is NOT STARTED.
 
 **A run takes the next unstarted milestone from EACH track, and ships both.** Not one or the other.
 Start with whichever is smaller so something lands early, then take the other. If a run has time for
