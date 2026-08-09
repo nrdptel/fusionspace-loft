@@ -151,24 +151,44 @@ const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
   // away. That second figure is the honest bad news this milestone was allowed to surface: Loft's
   // no-recovery descent is its weakest published number, and it is now visible instead of diluted.
   // Same split, same reason, on `flightTime`: 3.3 -> 3.1 and 4.8.
+  //
+  // **And then the census stopped counting one comparison fifteen times.** See `censusRowId`: a
+  // quantity none of a file's varied inputs reaches is stored identically run after run, and Loft
+  // answers identically too, so `maxAcceleration` and `launchRodVelocity` were carrying 27 exact
+  // repeats between them from `FullScaleModelTH.rkt` alone — 14 copies of one +8.8% acceleration row,
+  // and 13 of a rail-exit row that collapses to two rather than one because rail length DOES reach
+  // it. Counting each comparison once took `maxAcceleration` 3.2 -> 1.8 over 80 rows and
+  // `launchRodVelocity` 1.9 -> 1.6 over 73; `optimumDelay` moved 2.5 -> 2.4 and the rest stood still.
   timeToApogee: 1.5,
-  launchRodVelocity: 1.9,
+  launchRodVelocity: 1.6,
   maxMach: 2.0,
   maxVelocity: 2.2,
-  optimumDelay: 2.5,
+  optimumDelay: 2.4,
   maxAltitude: 3.1,
   groundHitVelocity: 1.3,
   "groundHitVelocity/ballistic": 14.9,
   flightTime: 3.1,
   "flightTime/ballistic": 4.8,
-  maxAcceleration: 3.2,
+  maxAcceleration: 1.8,
   deploymentVelocity: 6.2,
 };
 
-/** How far a metric may drift past its published figure before the page counts as stale. Wide
+/** How far a metric may drift from its published figure before the page counts as stale. Wide
  *  enough that adding one design to the corpus doesn't fail the suite, tight enough that a real
- *  regression in the engine does. */
+ *  regression in the engine does.
+ *
+ *  **The band is asymmetric, and the asymmetry is the point.** Above the claim, a flat 0.75 is right:
+ *  the claims run from 1.3% to 14.9% and a REGRESSION is measured in absolute points wherever it
+ *  happens. Below the claim — the direction added 2026-08-09, where an unpublished IMPROVEMENT goes
+ *  red — a flat 0.75 is the wrong shape in both directions at once. It never bites on the small
+ *  figures (`groundHitVelocity` could improve by 58% and stay green) and it bites instantly on the
+ *  large one: `groundHitVelocity/ballistic` is 14.9 over twelve rows against a bimodal reference that
+ *  disagrees with itself by 1.94×, so any real improvement to the plugged-descent drag model — which
+ *  `ROADMAP.md` explicitly wants — would move it by many points at once and fail a 0.75 bound the
+ *  moment it worked. So the improvement side is the greater of the flat figure and a tenth of the
+ *  claim, which is the same rule at 7.5% and a proportionate one at 14.9%. */
 const CENSUS_SLACK_PCT = 0.75;
+const censusImprovementSlack = (claim: number) => Math.max(CENSUS_SLACK_PCT, claim * 0.1);
 
 /** Which census row a comparison belongs in. Everything is itself except the descent metrics on a
  *  run the writing tool marks as NOT-DEPLOYED, which get their own row.
@@ -196,6 +216,74 @@ const CENSUS_SLACK_PCT = 0.75;
 const BALLISTIC_SPLIT_METRICS = new Set(["groundHitVelocity", "flightTime", "deploymentVelocity"]);
 const censusKey = (key: string, sim: { recoveryDeployed?: boolean }) =>
   sim.recoveryDeployed === false && BALLISTIC_SPLIT_METRICS.has(key) ? `${key}/ballistic` : key;
+
+/** **One comparison, counted once — however many stored runs of a file repeat it.**
+ *
+ *  A file's stored simulations vary the inputs their author was interested in, and a quantity none of
+ *  those inputs reaches is stored identically run after run — as is Loft's answer for it. The census
+ *  counted each copy as a separate measurement.
+ *
+ *  **Read out of `FullScaleModelTH.rkt`, whose fifteen stored runs are where most of this lives.**
+ *  What varies across them is the **rail length** (`<LaunchGuideLen>` 914.4 mm on eleven, 1422.4 on
+ *  four) and the **ejection delay** (`[L1940X-0]` against the plugged `[L1940X-P]`, apogee ~323 m
+ *  against ~2,101 m). `<LaunchWindSpeed>` is `0.` on all fifteen — an earlier draft of this comment
+ *  said the runs differ in wind and was corrected by opening the file. Against that:
+ *
+ *    - `<MaxAcceleration>` is **125.291 on all fifteen**, and Loft returns **136.345** on all fifteen.
+ *      Peak axial acceleration is set by the thrust spike, which is over before the rocket leaves
+ *      even the short rail and long before any ejection charge, so neither varied input can reach it
+ *      and both tools agree it does not move. **One** disagreement, at +8.8%, was carrying fifteen
+ *      times the weight of any other design's in a population of 94.
+ *    - `<VelocityAtLaunchGuideEnd>` **does** respond, at 14.6479 off the short rail and 18.1014 off
+ *      the long one. So rail-exit velocity collapses fifteen rows to **two**, not to one — 13
+ *      repeats, not 14 — which is the shape to expect and a useful check on the rule: a metric the
+ *      varied input reaches keeps a row per distinct value of it.
+ *
+ *  **This is not the diagnosis R10's own notes predicted, and the measurement is what corrected it.**
+ *  Those notes read the invariance as "a sampled or rounded peak rather than a per-run measurement" —
+ *  the oracle's resolution, to be excused. Two things in the file say otherwise. Loft's own answer is
+ *  equally invariant, so the invariance is a fact about the flight rather than about RockSim's
+ *  output; and RockSim's acceleration fields are not quantised — `<MaxHorzAcceleration>` in the same
+ *  blocks reads 0.36345 / 0.451539 / 0.453523 / … , fifteen distinct values at six significant
+ *  figures. The stored number is fine. What was wrong is the ARITHMETIC over it.
+ *
+ *  **The key is both sides, and that is the whole of the safety.** A row is dropped only when some
+ *  earlier row of the same file and metric agrees with it on the stored value AND on Loft's value —
+ *  i.e. when it is literally the same comparison. Where the tool repeats itself and Loft does not
+ *  (or the reverse), the disagreement genuinely varies per run and every row counts. So this cannot
+ *  remove an inconvenient case: an inconvenient case differs from its neighbours by definition.
+ *
+ *  Measured over the whole census, 54 of 910 rows are exact repeats, and they are concentrated:
+ *  `maxAcceleration` 94 → 80 rows (3.2% → 1.8%) and `launchRodVelocity` 94 → 73 (1.9% → 1.6%) carry
+ *  35 of the 54. Every other metric moves by at most 0.1%, and four do not move at all — which is
+ *  the shape a correct de-duplication should have, and is asserted below rather than asserted here.
+ *
+ *  **Every figure this moved, it moved DOWNWARD**, and R10's notes forbid dropping a case to make a
+ *  median look better. That is why the rule is mechanical, metric-blind, and pinned by
+ *  `counts a stored comparison once, however many times a file repeats it` — which names the repeats
+ *  it found, requires the known concentration to still be there, and fails if the rule ever starts
+ *  removing rows that disagree. The repeats are also published rather than netted away: the page
+ *  states each metric's population, and those populations are asserted against it. Note what makes
+ *  the direction unreachable rather than merely unintended: `pctError` is a pure function of the two
+ *  values the key is built from, so every member of a duplicate group carries the SAME error and the
+ *  rule cannot see a row's magnitude at all. Had the repeated comparison been a 0.1% agreement, the
+ *  median would have gone up.
+ *
+ *  **Two limits, stated because the rule is narrower than the principle behind it.**
+ *
+ *  1. **It de-duplicates identical VALUES, not identical RUNS.** Nine of that file's fifteen runs are
+ *     byte-identical in every stated input and differ only in RockSim's own turbulence draw — their
+ *     stored apogees read 2101.98 / 2105.15 / 2098.47 / … — so on `maxAltitude` they survive as nine
+ *     rows, and one design still casts fifteen votes there while casting one on `maxAcceleration`.
+ *     The principled form is a median of per-design medians, which would weight every metric alike;
+ *     it is a larger change than this item and is filed in `BACKLOG.md` rather than smuggled in here.
+ *  2. **It costs the median its sensitivity to a single design's boost error**, which is exactly the
+ *     metric this was done for: fifteen rows moving from below the median to the top used to shift it
+ *     past `CENSUS_SLACK_PCT`, and one row cannot. That is a real loss of gate strength and it is
+ *     replaced rather than accepted — `no single design's max acceleration is quietly far out` asserts
+ *     the WORST row, the same instrument `optimumDelay` needed for the same reason. */
+const censusRowId = (file: string, key: string, stored: number, simulated: number) =>
+  `${file}|${key}|${stored.toFixed(6)}|${simulated.toFixed(6)}`;
 
 interface Case {
   file: string;
@@ -1514,9 +1602,13 @@ suite("real-design corpus", () => {
     // The docs publish a per-metric census of how far Loft lands from the numbers real design files
     // already carry. A published accuracy figure with nothing holding it to account goes quietly
     // stale the first time the engine changes — so it is asserted here, against the same corpus it
-    // was measured on. One-directional on purpose: getting better is always allowed, and the run
-    // logs the current figures so the page can be updated when it does.
+    // was measured on. **Two-directional since 2026-08-09**: it was one-directional on the principle
+    // that getting better is always allowed, which left a page free to under-claim indefinitely with
+    // nothing red. Getting better is still always allowed — it just has to be published in the change
+    // that earned it, and the run logs the current figures so that is one edit rather than a
+    // re-measurement. See `censusImprovementSlack` for why that side of the band is not flat.
     const errs = new Map<string, number[]>();
+    const counted = new Set<string>();
     for (const f of files) {
       let doc;
       try {
@@ -1538,9 +1630,15 @@ suite("real-design corpus", () => {
         if (!run.hasPropulsion || !run.validation) continue;
         for (const c of run.validation.comparisons) {
           if (!Number.isFinite(c.pctError)) continue;
-          const list = errs.get(censusKey(c.key, sim)) ?? [];
+          const key = censusKey(c.key, sim);
+          // See `censusRowId`: a stored run that repeats an earlier run's comparison exactly, on
+          // both sides, is the same measurement and is counted once.
+          const id = censusRowId(f.name, key, c.stored, c.simulated);
+          if (counted.has(id)) continue;
+          counted.add(id);
+          const list = errs.get(key) ?? [];
           list.push(Math.abs(c.pctError));
-          errs.set(censusKey(c.key, sim), list);
+          errs.set(key, list);
         }
       }
     }
@@ -1563,6 +1661,19 @@ suite("real-design corpus", () => {
       if (m.med > claim + CENSUS_SLACK_PCT) {
         stale.push(`${m.key} median |Δ| ${m.med.toFixed(1)}% > the ${claim}% on /docs/validation`);
       }
+      // **And stale in the GENEROUS direction too, which this gate could not see until 2026-08-09.**
+      // It was one-directional on the stated principle that "getting better is always allowed" — but
+      // a page claiming 3.2% while the suite measures 1.8% is just as wrong about Loft as one
+      // claiming 1.8% while it measures 3.2%, and it is the shape that rots silently: nothing goes
+      // red, so the figure sits there being under-sold for as long as nobody re-reads it. R10's
+      // *done when* asks for the page and `PUBLISHED_MEDIAN_PCT` to move in the SAME commit as the
+      // measurement, and this is what makes that a rule rather than an intention. An improvement is
+      // still always allowed — it just has to be published in the change that earned it.
+      if (m.med < claim - censusImprovementSlack(claim)) {
+        stale.push(
+          `${m.key} median |Δ| ${m.med.toFixed(1)}% is BETTER than the ${claim}% on /docs/validation — publish it in this commit`,
+        );
+      }
     }
     expect(stale, "the Validation page's accuracy census no longer holds — remeasure and update it").toEqual([]);
     // A claim nothing measured is a claim that cannot go stale, which is the same as no claim at
@@ -1577,8 +1688,14 @@ suite("real-design corpus", () => {
     // **And the POPULATION each figure is measured over is published, and matches.** The page used
     // to print one "97 stored simulations" above all ten medians while their real populations ran
     // 76 to 97 — a metric is compared where a file stores it, and the three formats do not store the
-    // same set, so max Mach (77) and deployment velocity (76) are OpenRocket-only. A reader took
-    // 6.0% as a corpus-wide figure when two of the three tools were never asked.
+    // same set, so max Mach was 77 against apogee's 97 and OpenRocket-only. A reader took 6.0% as a
+    // corpus-wide figure when two of the three tools were never asked.
+    //
+    // *Those figures are the 2026-08-04 measurement that motivated the check and are left as the
+    // history they are.* Today the range is **68 to 97**, max Mach is 68 and still the only
+    // OpenRocket-only metric — deployment velocity stopped being one on 2026-08-05, when RockSim's
+    // misspelled `VelocityAtDeplyment` was read — and only apogee reaches 97. The live figures are
+    // the page's own, asserted below; this comment does not carry any.
     //
     // Asserted against the page's own source, the way `lib/design-system.test.ts` asserts its counts,
     // because the median gate above cannot see a population change at all: dropping every RockSim row
@@ -1601,8 +1718,15 @@ suite("real-design corpus", () => {
       const m = measured.find((x) => x.key === key);
       if (!m) continue;
       // The label, then its bolded percentage, then the population in brackets — allowing the
-      // "(77, OpenRocket only)" form the two single-format metrics carry.
-      const re = new RegExp(`${label}\\s*<strong>[^<]*</strong>[^(]*\\((\\d+)`);
+      // "(68, OpenRocket only)" form the single-format metric carries.
+      //
+      // **Anchored to the start of a list entry, and it has to be.** `apogee` is a substring of
+      // `time to apogee`, so an unanchored search found the wrong entry and read the wrong
+      // population for `maxAltitude` — and it passed anyway from the day it was written until
+      // 2026-08-09, because the two metrics happened to share a population of 97. The de-duplication
+      // that moved time-to-apogee to 94 is what made it visible. A check that is right by
+      // coincidence is not a check, so the anchor is the fix rather than reordering the page.
+      const re = new RegExp(`(?:<li>|,\\s*)${label}\\s*<strong>[^<]*</strong>[^(]*\\((\\d+)`);
       const hit = re.exec(page);
       if (!hit) {
         wrongN.push(`${key}: /docs/validation states no population beside "${label}"`);
@@ -1611,6 +1735,160 @@ suite("real-design corpus", () => {
       }
     }
     expect(wrongN, "a published median names a population it is not measured over").toEqual([]);
+  }, 900_000);
+
+  /** **R10 item 5, last part: a comparison is counted once, and the de-duplication cannot degenerate.**
+   *
+   *  The rule itself is four lines in the census above, and four lines that quietly delete rows are
+   *  exactly what R10's notes forbid — *"what it must not do is widen a tolerance or drop a case to
+   *  make a median look better"*. So the rule is held from both ends here, and the assertions are
+   *  chosen so that either way of breaking it goes red:
+   *
+   *  - **it must still find repeats** — a keying mistake that made every row unique would silently
+   *    restore the old weighting and no median would move enough to notice;
+   *  - **it must not find too many** — keying on the file and metric alone, or rounding the values
+   *    hard enough to collide, would start merging genuinely different runs;
+   *  - **every dropped row must be an exact repeat of one that stayed**, checked here against the
+   *    values themselves rather than trusted from the key that built them. *This is the assertion
+   *    that actually caught the over-matching key when it was proved able to fail:* dropping Loft's
+   *    side of the key took the count from 54 to 60, which the bound above tolerates and this does
+   *    not. A count bound is a coarse instrument and is kept only for the case where the key stops
+   *    matching altogether;
+   *  - **no metric may lose its population to it**, so a metric cannot be de-duplicated into a
+   *    median over three rows.
+   *
+   *  It also prints the repeats by file and metric, because the concentration is the finding: two
+   *  metrics and one file carry most of it, and a corpus that grew a third would say so here. */
+  it("counts a stored comparison once, however many times a file repeats it", async () => {
+    const rows: { file: string; key: string; stored: number; simulated: number }[] = [];
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      for (const sim of doc.simulations) {
+        let run;
+        try {
+          run = runFromDocument(doc, {
+            configId: sim.conditions.configId,
+            validateAgainst: doc.flownAsReduced ? undefined : sim,
+            overrides: overridesFromStored(sim),
+          });
+        } catch {
+          continue;
+        }
+        if (!run.hasPropulsion || !run.validation) continue;
+        for (const c of run.validation.comparisons) {
+          if (!Number.isFinite(c.pctError)) continue;
+          rows.push({ file: f.name, key: censusKey(c.key, sim), stored: c.stored, simulated: c.simulated });
+        }
+      }
+    }
+    expect(rows.length, "no comparison rows at all — the census walk found nothing to de-duplicate").toBeGreaterThan(500);
+
+    const kept = new Map<string, { file: string; key: string; stored: number; simulated: number }>();
+    const dropped: typeof rows = [];
+    for (const r of rows) {
+      const id = censusRowId(r.file, r.key, r.stored, r.simulated);
+      if (kept.has(id)) dropped.push(r);
+      else kept.set(id, r);
+    }
+
+    const byPair = new Map<string, number>();
+    for (const r of dropped) {
+      const label = `${shortName(r.file)} :: ${r.key}`;
+      byPair.set(label, (byPair.get(label) ?? 0) + 1);
+    }
+    console.log(
+      `census de-duplication: ${dropped.length} of ${rows.length} comparison rows are exact repeats\n` +
+        [...byPair.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, n]) => `  ${String(n).padStart(3)}x  ${k}`)
+          .join("\n"),
+    );
+
+    // Both ends of the range. 54 today; the bounds are wide enough that adding a design to the
+    // corpus does not fail this, and narrow enough that "the key stopped matching" (0) and "the key
+    // started over-matching" (hundreds) both do.
+    expect(dropped.length, "the de-duplication stopped finding repeats — it is no longer doing anything").toBeGreaterThan(20);
+    expect(
+      dropped.length,
+      "the de-duplication is merging rows that are not repeats — check the key, not the corpus",
+    ).toBeLessThan(rows.length * 0.15);
+
+    // **Every dropped row is an exact repeat, re-checked from the values.** The loop above trusts
+    // the key; this does not. A key that stringified a value badly — or a future edit that keyed on
+    // the file and metric alone — would pass everything above and fail here, which is the point.
+    const notRepeats = dropped.filter((r) => {
+      const k = kept.get(censusRowId(r.file, r.key, r.stored, r.simulated));
+      return !k || k.stored !== r.stored || k.simulated !== r.simulated;
+    });
+    expect(notRepeats, "a row was de-duplicated against one it does not actually match").toEqual([]);
+
+    // **The concentration, named, and the two shapes asserted apart.** 14 of `FullScaleModelTH.rkt`'s
+    // 15 stored runs repeat one +8.8% max-acceleration comparison — nothing those runs vary reaches
+    // peak axial acceleration. Its rail-exit velocity repeats 13, not 14, because rail length DOES
+    // reach that one and the fifteen rows collapse to two rather than to one. Asserting both keeps
+    // the difference visible: a rule that started merging on the file alone would take the second to
+    // 14 and this goes red. If a future adapter change made those runs differ, it goes red too, and
+    // the published figure moves with it — the correct outcome rather than a nuisance.
+    expect(
+      byPair.get("FullScaleModelTH.rkt :: maxAcceleration") ?? 0,
+      "the known repeated max-acceleration rows are no longer being found",
+    ).toBeGreaterThanOrEqual(10);
+    expect(
+      byPair.get("FullScaleModelTH.rkt :: launchRodVelocity") ?? 0,
+      "rail-exit velocity should collapse fifteen rows to two, not to one — the rail length reaches it",
+    ).toBe(13);
+
+    // **And no metric is de-duplicated into insignificance.** One key is excused by name rather than
+    // by a lower threshold, and the distinction matters: `deploymentVelocity/ballistic` has n=1 and
+    // had n=1 before any of this — it is the single stored run in the corpus where a charge fires
+    // with nothing out, published on its own line precisely because it is not the same quantity as
+    // the other 81. De-duplication did not shrink it. Naming it keeps the floor at ten for every
+    // metric the rule can actually affect, instead of lowering the bar to one for all of them.
+    const perKey = new Map<string, number>();
+    for (const r of kept.values()) perKey.set(r.key, (perKey.get(r.key) ?? 0) + 1);
+    const gutted = [...perKey.entries()].filter(([, n]) => n < 10).map(([k, n]) => `${k} n=${n}`);
+    expect(
+      gutted.filter((g) => !g.startsWith("deploymentVelocity/ballistic ")),
+      "a metric's population fell below ten distinct comparisons — a median over that is not a census figure",
+    ).toEqual([]);
+    // …and the excused key is still there and still the size it was, so the excuse cannot start
+    // covering a metric that collapsed into it.
+    expect(perKey.get("deploymentVelocity/ballistic"), "the single not-deployed row is gone").toBe(1);
+
+    // **What the de-duplication COST, replaced rather than accepted.** Weight is the whole reason a
+    // median notices a single design: fifteen rows moving from below the median to the top used to
+    // drag it past `CENSUS_SLACK_PCT`, and after this change one row cannot. So on the metric this
+    // was done for, a max-acceleration error confined to one design would no longer turn anything
+    // red — and nothing else in the repo covers it, since the per-case `TOLERANCE_PCT` gate scores
+    // apogee and max velocity only.
+    //
+    // **The instrument is the TAIL, not the worst row**, and that distinction is load-bearing. A
+    // worst-row bound has to sit above today's worst (59.9%) to be green, so it could not see the
+    // scenario it exists for — one design moving from +8.8% to +40% passes under it untouched.
+    // Counting how many rows are far out does see that: the count goes 2 → 3 and this fails. It also
+    // survives the corpus growing, which a bound on a single number does not.
+    const accel = [...kept.values()]
+      .filter((r) => r.key === "maxAcceleration")
+      .map((r) => ({ file: shortName(r.file), pct: ((r.simulated - r.stored) / r.stored) * 100 }))
+      .filter((r) => Math.abs(r.pct) > 25)
+      .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
+    console.log(
+      `max acceleration, rows past 25% after de-duplication: ${accel.length}\n` +
+        accel.map((r) => `  ${r.pct.toFixed(1)}%  ${r.file}`).join("\n"),
+    );
+    // Two today, both small RockSim designs and both long-standing: TubeFins1 at +59.9% and
+    // rocksimTestRocket1 at -52.4%. The threshold is a round 25% rather than a figure tuned to sit
+    // just above them — the nearest row on either side of it is 8.8%, so there is a wide gap and
+    // nothing here is fitted to the data.
+    expect(
+      accel.map((r) => `${r.pct.toFixed(0)}% ${r.file}`),
+      "a design's max acceleration moved into the tail — the median cannot see this any more, which is why this counts it",
+    ).toHaveLength(2);
   }, 900_000);
 
   /** **R10: no stored optimum delay is scored against a flight that never happened.**
