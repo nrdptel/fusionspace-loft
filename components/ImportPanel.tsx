@@ -25,6 +25,14 @@ const SAMPLES: { path: string; name: string; label: string }[] = [
   // is what distinguishes them from the three above.
   { path: "/samples/demo-boattail.ork", name: "Boattail + elliptical fins (H128W)", label: "Boattail · elliptical fins · H128W" },
   { path: "/samples/demo-payload-separation.ork", name: "Payload separation (F32T)", label: "Payload separation · F32T" },
+  // FIRST in the list a stranger reads is still the trainer, but this is the one that flies without
+  // a caution: every other bundled design measures 3.06–4.38 cal against an over-stable threshold of
+  // 3, so until this existed every one-tap example opened with a warning. 2.07 cal.
+  { path: "/samples/demo-stable.ork", name: "Stable trainer (H128W)", label: "Stable trainer · H128W" },
+  // The third FORMAT, and until now the one a flyer could only discover by trying it: `.CDX1` has
+  // been accepted since the RASAero adapter shipped, and the drop zone said so, but no `.CDX1`
+  // existed anywhere in the repo — not as a sample, not even as a test fixture.
+  { path: "/samples/demo-rasaero.CDX1", name: "RASAero 4 in sport (K550W)", label: "RASAero · 4 in sport · K550W" },
 ];
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim

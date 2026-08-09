@@ -1,0 +1,163 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  The one bundled example inside the stable band, and the fins are the whole reason it exists.
+
+  Every other sample this repo ships measures 3.06-4.38 calibers against OVER_STABLE_CAL = 3, so a
+  stranger's first one-tap flight opened with a caution on every single design Loft offered them.
+  P12's *done when* asks for at least one that does not.
+
+  Derived from the 38 mm single-deploy trainer and then given its own identity — its own name, its own
+  component ids, its own motor configuration — so both can be open in one session without colliding.
+  What actually changed is the fin set: root 120 -> 85 mm, tip 60 -> 40 mm, sweep 60 -> 40 mm,
+  semi-span 60 -> 33 mm. Measured through Loft's own solver at 2.07 cal, with 1,214 m of apogee and
+  23.3 m/s off a 1.2 m rail — comfortably clear of the 1-caliber low-stability warning below it and
+  the 3-caliber over-stable warning above, rather than sitting near either edge.
+
+  Do NOT "restore" the fins to the trainer's. `lib/samples.test.ts` asserts that a sample exists in
+  the band, and this is that sample.
+
+  Its stored simulation carries CONDITIONS only and is marked status="external", exactly like the
+  other hand-authored fixtures here: Loft cannot run OpenRocket, so this file states no result it
+  would be attributing to a tool that never produced one. /docs/limitations says so.
+-->
+<openrocket version="1.10" creator="Loft fixture (hand-authored, OpenRocket 1.10 schema)">
+  <rocket>
+    <name>Loft Demo 38mm — stable trainer</name>
+    <id>10f70005-0000-4000-8000-000000000001</id>
+    <designer>Fusion Space (Loft fixture)</designer>
+    <motorconfiguration configid="cfg-38-stable-h128" default="true">
+      <stage number="0" active="true"/>
+    </motorconfiguration>
+    <referencetype>maximum</referencetype>
+    <subcomponents>
+      <stage>
+        <name>Sustainer</name>
+        <id>10f70005-0000-4000-8000-000000000002</id>
+        <subcomponents>
+          <nosecone>
+            <name>Nose cone</name>
+            <id>10f70005-0000-4000-8000-000000000003</id>
+            <finish>smooth</finish>
+            <material type="bulk" density="1850.0">Fiberglass</material>
+            <length>0.25</length>
+            <thickness>0.003</thickness>
+            <shape>ogive</shape>
+            <shapeparameter>1.0</shapeparameter>
+            <aftradius>0.019</aftradius>
+          </nosecone>
+          <bodytube>
+            <name>Body tube</name>
+            <id>10f70005-0000-4000-8000-000000000004</id>
+            <finish>smooth</finish>
+            <material type="bulk" density="1850.0">Fiberglass</material>
+            <length>0.70</length>
+            <thickness>0.002</thickness>
+            <radius>0.019</radius>
+            <subcomponents>
+              <masscomponent>
+                <name>Altimeter + battery</name>
+                <id>10f70005-0000-4000-8000-000000000005</id>
+                <axialoffset method="top">0.15</axialoffset>
+                <packedlength>0.06</packedlength>
+                <packedradius>0.015</packedradius>
+                <mass>0.070</mass>
+                <masscomponenttype>altimeter</masscomponenttype>
+              </masscomponent>
+              <parachute>
+                <name>Main parachute</name>
+                <id>10f70005-0000-4000-8000-000000000006</id>
+                <axialoffset method="top">0.05</axialoffset>
+                <packedlength>0.09</packedlength>
+                <packedradius>0.018</packedradius>
+                <cd>0.8</cd>
+                <material type="surface" density="0.067">Ripstop nylon</material>
+                <deployevent>apogee</deployevent>
+                <deploydelay>0.0</deploydelay>
+                <diameter>0.61</diameter>
+                <linecount>6</linecount>
+                <linelength>0.6</linelength>
+                <linematerial type="line" density="0.0018">Braided nylon</linematerial>
+              </parachute>
+              <innertube>
+                <name>Motor mount tube</name>
+                <id>10f70005-0000-4000-8000-000000000008</id>
+                <axialoffset method="bottom">0.0</axialoffset>
+                <material type="bulk" density="680.0">Kraft phenolic</material>
+                <length>0.20</length>
+                <outerradius>0.0145</outerradius>
+                <thickness>0.0005</thickness>
+                <motormount>
+                  <ignitionevent>automatic</ignitionevent>
+                  <ignitiondelay>0.0</ignitiondelay>
+                  <overhang>0.0</overhang>
+                  <motor configid="cfg-38-stable-h128">
+                    <type>single</type>
+                    <manufacturer>AeroTech</manufacturer>
+                    <designation>H128W</designation>
+                    <diameter>0.029</diameter>
+                    <length>0.194</length>
+                    <delay>6.0</delay>
+                  </motor>
+                </motormount>
+              </innertube>
+              <centeringring>
+                <name>Centering ring fore</name>
+                <id>10f70005-0000-4000-8000-000000000009</id>
+                <axialoffset method="bottom">-0.18</axialoffset>
+                <material type="bulk" density="630.0">Aircraft plywood</material>
+                <length>0.004</length>
+                <outerradius>0.017</outerradius>
+                <innerradius>0.0145</innerradius>
+              </centeringring>
+              <centeringring>
+                <name>Centering ring aft</name>
+                <id>10f70005-0000-4000-8000-00000000000a</id>
+                <axialoffset method="bottom">-0.005</axialoffset>
+                <material type="bulk" density="630.0">Aircraft plywood</material>
+                <length>0.004</length>
+                <outerradius>0.017</outerradius>
+                <innerradius>0.0145</innerradius>
+              </centeringring>
+              <trapezoidfinset>
+                <name>Fins</name>
+                <id>10f70005-0000-4000-8000-000000000007</id>
+                <fincount>3</fincount>
+                <instancecount>3</instancecount>
+                <axialoffset method="bottom">0.0</axialoffset>
+                <finish>smooth</finish>
+                <material type="bulk" density="1850.0">G10 fiberglass</material>
+                <thickness>0.004</thickness>
+                <crosssection>square</crosssection>
+                <cant>0.0</cant>
+                <rootchord>0.085</rootchord>
+                <tipchord>0.04</tipchord>
+                <sweeplength>0.04</sweeplength>
+                <height>0.033</height>
+              </trapezoidfinset>
+            </subcomponents>
+          </bodytube>
+        </subcomponents>
+      </stage>
+    </subcomponents>
+  </rocket>
+  <simulations>
+    <simulation status="external">
+      <name>Simulation 1</name>
+      <simulator>RK4Simulator</simulator>
+      <calculator>BarrowmanCalculator</calculator>
+      <conditions>
+        <configid>cfg-38-stable-h128</configid>
+        <launchrodlength>1.2</launchrodlength>
+        <launchintowind>true</launchintowind>
+        <launchrodangle>0.0</launchrodangle>
+        <launchroddirection>0.0</launchroddirection>
+        <windaverage>2.0</windaverage>
+        <windturbulence>0.1</windturbulence>
+        <launchaltitude>0.0</launchaltitude>
+        <launchlatitude>40.0</launchlatitude>
+        <atmosphere model="isa"/>
+        <timestep>0.01</timestep>
+      </conditions>
+    </simulation>
+  </simulations>
+</openrocket>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The bundled RASAero example, and it exists because the format was advertised with no example.
+
+  Loft's import screen has accepted `.CDX1` since the 640-line adapter in `lib/rasaero/adapt.ts`
+  shipped, and the README and the drop zone both say so — but there was no `.CDX1` anywhere in this
+  repo, not as a sample and not even as a test fixture. So the only way a RASAero flyer could find
+  out Loft reads their file was to try it, which is exactly the "a feature reachable only by knowing
+  it is there" tell. P12 increment 3.
+
+  Hand-authored against the published RASAero II file layout, in the units RASAero states — inches
+  for every length, and a motor named the way that program names it. Nothing here is copied from
+  RASAero's own files or its source; the adapter was written clean-room from the format and this is
+  written to the adapter's reading of it.
+
+  The K550W is deliberate: it is a motor Loft's bundled thrust curves resolve, so this sample flies
+  rather than importing into a design with no propulsion. `lib/samples.test.ts` requires every
+  bundled sample to resolve its whole motor set.
+
+  The fin is sized the same way the stable trainer's was — searched against Loft's own solver rather
+  than guessed. Four candidates measured 1.33 / 1.92 / 2.18 / 2.25 calibers; 10 in chord and 4.2 in
+  semi-span was taken at 1.92, which sits clear of the 1-caliber low-stability warning below and the
+  3-caliber over-stable one above rather than near either. The first draft was 1.33 and read as
+  fine — it is a third of a caliber from a warning.
+-->
+<RASAeroDocument>
+  <FileVersion>2</FileVersion>
+  <RocketDesign>
+    <NoseCone>
+      <PartType>NoseCone</PartType><Length>16</Length><Diameter>3.9</Diameter>
+      <Shape>Von Karman Ogive</Shape><Location>0</Location>
+    </NoseCone>
+    <BodyTube>
+      <PartType>BodyTube</PartType><Length>42</Length><Diameter>3.9</Diameter>
+      <LaunchLugDiameter>0.5</LaunchLugDiameter><LaunchLugLength>2</LaunchLugLength>
+      <Location>16</Location><BoattailLength>0</BoattailLength><BoattailRearDiameter>0</BoattailRearDiameter>
+      <Fin>
+        <Count>3</Count><Chord>10</Chord><Span>4.2</Span><SweepDistance>5</SweepDistance>
+        <TipChord>4</TipChord><Thickness>0.125</Thickness><Location>32</Location>
+        <AirfoilSection>Hexagonal</AirfoilSection>
+      </Fin>
+    </BodyTube>
+    <Surface>Smooth Paint</Surface>
+  </RocketDesign>
+  <LaunchSite>
+    <Altitude>600</Altitude><Pressure>29.92</Pressure><RodAngle>0</RodAngle>
+    <RodLength>8</RodLength><Temperature>59</Temperature><WindSpeed>5</WindSpeed>
+  </LaunchSite>
+  <Recovery>
+    <DeviceType1>Parachute</DeviceType1><Size1>2</Size1><CD1>1.33</CD1><Altitude1>0</Altitude1>
+    <DeviceType2>Parachute</DeviceType2><Size2>5</Size2><CD2>1.33</CD2><Altitude2>700</Altitude2>
+  </Recovery>
+  <SimulationList>
+    <Simulation>
+      <SustainerEngine>K550W  (AT)</SustainerEngine>
+      <SustainerLaunchWt>21.5</SustainerLaunchWt>
+      <SustainerCG>36.0</SustainerCG>
+      <SustainerIgnitionDelay>0</SustainerIgnitionDelay>
+    </Simulation>
+  </SimulationList>
+</RASAeroDocument>

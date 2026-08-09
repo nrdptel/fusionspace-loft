@@ -37,6 +37,30 @@ function shipped(): string[] {
 }
 
 describe("the bundled example designs", () => {
+  it("offers an example of every format the import screen accepts", () => {
+    // **`.CDX1` was advertised for months with no example anywhere in the repo** — not a sample, not
+    // even a test fixture — so the only way a RASAero flyer could learn Loft reads their file was to
+    // try it. That is the "reachable only by knowing it is there" tell, pointed at a whole format.
+    //
+    // Read from the file input's own `accept` list rather than from a list here, so a new adapter
+    // fails this the moment its extension is advertised and before anyone can forget the sample.
+    const accept = /accept="([^"]+)"/.exec(panel())?.[1] ?? "";
+    const exts = new Set(
+      accept
+        .split(",")
+        .map((x) => x.trim().toLowerCase())
+        .filter((x) => x.startsWith("."))
+        .map((x) => x.replace(/\.gz$/, ""))
+        .filter((x) => x !== "" && x !== "."),
+    );
+    const have = new Set(shipped().map((f) => f.slice(f.lastIndexOf(".")).toLowerCase()));
+    expect(exts.size, "the import panel's accept list could not be read").toBeGreaterThan(1);
+    expect(
+      [...exts].filter((e) => !have.has(e)),
+      "the import screen advertises a format with no bundled example — a flyer with that file has no way to know Loft reads it",
+    ).toEqual([]);
+  });
+
   it("offers exactly the files it ships, in both directions", () => {
     const off = offered();
     const ship = shipped();
@@ -86,7 +110,7 @@ describe("the bundled example designs", () => {
       const doc = await importDesign(new Uint8Array(readFileSync(resolve(root, "public/samples", name))));
       for (const p of flattenRocket(doc.rocket)) kinds.add(p.component.kind);
     }
-    for (const want of ["nosecone", "bodytube", "trapezoidfinset", "parachute", "masscomponent", "transition", "ellipticalfinset"]) {
+    for (const want of ["nosecone", "bodytube", "trapezoidfinset", "parachute", "masscomponent", "transition", "ellipticalfinset", "launchlug"]) {
       expect(kinds.has(want), `no bundled sample carries a ${want} — a flyer cannot see Loft supports it`).toBe(true);
     }
     // And the ones still missing, asserted as an EXACT set rather than left implicit: a sample added
@@ -102,13 +126,18 @@ describe("the bundled example designs", () => {
     ]);
   }, 120_000);
 
-  it("records that EVERY sample is still over-stable, which P12 has not fixed yet", async () => {
-    // **A caution on every first flight, and adding two designs made it six of six rather than four
-    // of four.** `OVER_STABLE_CAL` is 3, and the bundled set measures 3.06 / 3.82 / 4.07 / 4.07 /
-    // 4.38 cal (plus the RockSim file). So a stranger's one-tap example still greets them with a
-    // warning, which is the half of P12's *done when* that is NOT met — asserted here rather than
-    // left as a sentence in the roadmap, so that the increment which finally fixes it has to change
-    // this line and say so.
+  it("offers at least one design a stranger can fly without a caution", async () => {
+    // **This assertion was written the other way up one increment ago, and flipping it IS the
+    // increment.** `OVER_STABLE_CAL` is 3, and until `demo-stable.ork` existed the whole bundled set
+    // measured 3.06 / 3.82 / 4.07 / 4.07 / 4.38 cal — so every one-tap example Loft offered a
+    // stranger opened with an over-stable warning, and adding two designs had made that six of six
+    // rather than four of four. The previous form of this test asserted the in-band count was ZERO,
+    // precisely so the increment that fixed it could not land quietly.
+    //
+    // It asserts a band and not a number: pinning 2.07 would fail on any change to the drag or mass
+    // model that moved it by a hundredth, which is a check about the solver wearing a sample's
+    // clothes. What matters is that a stranger's design is clear of BOTH warnings — the 1-caliber
+    // low-stability one below and the 3-caliber over-stable one above.
     const margins: string[] = [];
     for (const name of shipped()) {
       const doc = await importDesign(new Uint8Array(readFileSync(resolve(root, "public/samples", name))));
@@ -119,10 +148,13 @@ describe("the bundled example designs", () => {
       );
       margins.push(`${name} ${run.result.staticMarginCal.toFixed(2)}`);
     }
-    const stable = margins.filter((m) => Number(m.split(" ").pop()) <= 3);
+    const inBand = margins.filter((m) => {
+      const cal = Number(m.split(" ").pop());
+      return cal > 1 && cal <= 3;
+    });
     expect(
-      stable.length,
-      `a sample is now inside the stable band — that is P12's remaining clause, so mark it shipped:\n  ${margins.join("\n  ")}`,
-    ).toBe(0);
+      inBand.length,
+      `no bundled sample is inside the stable band (1–3 cal), so a stranger's first flight opens with a caution:\n  ${margins.join("\n  ")}`,
+    ).toBeGreaterThan(0);
   }, 120_000);
 });
