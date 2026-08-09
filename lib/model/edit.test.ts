@@ -70,6 +70,8 @@ import {
   unreachableInternalCount,
   internalSpanLabel,
   INTERNAL_MAX_BORE_FRACTION,
+  primaryFitting,
+  fittingHasDrag,
   usableCatalogRing,
   type GeometryEdits,
   type PickedRing,
@@ -4548,5 +4550,111 @@ describe("the internal structure is a part like any other", () => {
     expect(cleared.internalId).toBeUndefined();
     expect(cleared.internalLength).toBeUndefined();
     expect(cleared.internalOuterDiameter).toBeUndefined();
+  });
+});
+
+describe("the external fittings are parts like any other", () => {
+  // The LAST kinds in the model with no field. 54 parts across the 35-design corpus after the
+  // internal structure was covered — 24 shock cords on 21 designs, 19 launch lugs on 14, 11 rail
+  // buttons on 9 — and two of the three reach the flight through DRAG as well as through mass.
+  const mk = (kind: "shockcord" | "launchlug" | "railbutton"): Rocket => {
+    const fitting = {
+      id: "fit", name: "Lug", kind, placement: { method: "top" as const, offset: 0.1 },
+      mass: 0.002, length: 0.05, radius: 0.004, instanceCount: 1, children: [],
+    } as unknown as RocketComponent;
+    const tube: BodyTube = {
+      id: "tube", name: "Body", kind: "bodytube", placement: { method: "after", offset: 0 },
+      length: 0.5, outerRadius: 0.025, thickness: 0.001, children: [fitting],
+      material: { name: "cardboard", density: 680, type: "bulk" },
+    };
+    const nose: NoseCone = {
+      id: "nose", name: "Nose", kind: "nosecone", placement: { method: "top", offset: 0 },
+      length: 0.1, aftRadius: 0.025, shape: "ogive", children: [],
+      material: { name: "cardboard", density: 680, type: "bulk" },
+    };
+    return { name: "t", stages: [{ name: "S", components: [nose, tube] }], configurations: [], referenceType: "maximum" };
+  };
+
+  it("aims all three kinds at one slot", () => {
+    for (const kind of ["shockcord", "launchlug", "railbutton"] as const) {
+      expect(aimEditsAt(mk(kind), "fit")).toEqual({ fittingId: "fit" });
+      expect(primaryFitting(mk(kind), "fit")!.id).toBe("fit");
+    }
+    // A streamer is a recovery device, not a fitting, and is deliberately outside this slot.
+    expect(fittingHasDrag("launchlug")).toBe(true);
+    expect(fittingHasDrag("railbutton")).toBe(true);
+    expect(fittingHasDrag("shockcord")).toBe(false);
+  });
+
+  it("changes the four numbers it names, and the count multiplies rather than replaces", () => {
+    const r = mk("railbutton");
+    const out = applyGeometryEdits(r, {
+      fittingId: "fit", fittingMass: 0.004, fittingLength: 0.02, fittingDiameter: 0.012, fittingCount: 2,
+    });
+    const f = flattenRocket(out).find((p) => p.component.id === "fit")!.component as unknown as {
+      mass: number; length: number; radius: number; instanceCount: number;
+    };
+    expect(f.mass).toBeCloseTo(0.004, 9);
+    expect(f.length).toBeCloseTo(0.02, 9);
+    expect(f.radius).toBeCloseTo(0.006, 9);
+    expect(f.instanceCount).toBe(2);
+  });
+
+  it("reaches the FLIGHT through drag, not only through mass", () => {
+    // The claim that makes this more than a completeness exercise. `lib/sim/aero.ts` sums
+    // `count x pi x radius^2` over every lug and button into the protuberance area, so a pair of
+    // buttons entered as one is drag the flight is not carrying. Driven against a real flight,
+    // because an edit that reaches the model and not the solver is the failure this catches.
+    // The STARTER design rather than the hand-built one above, because this needs a rocket that
+    // actually flies — a motor, a canopy, the lot — and a pair of rail buttons bolted onto its body
+    // tube is exactly what a real design carries.
+    const starter = newDesign().rocket;
+    const host = flattenRocket(starter).find((p) => p.component.kind === "bodytube")!.component;
+    const button = {
+      id: "fit", name: "Rail button", kind: "railbutton",
+      placement: { method: "top" as const, offset: 0.1 },
+      mass: 0.002, length: 0.01, radius: 0.004, instanceCount: 1, children: [],
+    } as unknown as RocketComponent;
+    const withButton = JSON.parse(JSON.stringify(starter)) as Rocket;
+    const hostIn = flattenRocket(withButton).find((p) => p.component.id === host.id)!.component;
+    hostIn.children = [...hostIn.children, button];
+    const r = withButton;
+    const fly = (e: GeometryEdits) => runFlight(applyGeometryEdits(r, e), {}).result.summary.apogee;
+    const base = fly({});
+    expect(base).toBeGreaterThan(0);
+    // **Each of the two drag inputs moved ON ITS OWN**, because together they cannot tell which one
+    // is doing the work — a first version varied both and passed with the count wired to nothing.
+    const wider = fly({ fittingId: "fit", fittingDiameter: 0.02 });
+    expect(wider, "a wider protuberance did not cost the flight any apogee").toBeLessThan(base);
+    const more = fly({ fittingId: "fit", fittingCount: 8 });
+    expect(more, "eight of the fitting drag no more than one — the count reaches nothing").toBeLessThan(base);
+  });
+
+  it("refuses a fitting wider than the airframe it is bolted to, and a count below one", () => {
+    const r = mk("launchlug");
+    // The airframe is 50 mm; a 200 mm lug on it would put more frontal area outside the rocket than
+    // the rocket has.
+    const wide = applyGeometryEdits(r, { fittingId: "fit", fittingDiameter: 0.2 });
+    const f = flattenRocket(wide).find((p) => p.component.id === "fit")!.component as unknown as { radius: number };
+    expect(f.radius).toBeCloseTo(0.025, 9);
+    // A count below one is a removal, which the editor has a verb for, so it is not an edit here.
+    const none = applyGeometryEdits(r, { fittingId: "fit", fittingCount: 0 });
+    const g = flattenRocket(none).find((p) => p.component.id === "fit")!.component as unknown as { instanceCount: number };
+    expect(g.instanceCount).toBe(1);
+    // And a fractional count is rounded rather than flown as it stands.
+    const half = applyGeometryEdits(r, { fittingId: "fit", fittingCount: 2.4 });
+    const h = flattenRocket(half).find((p) => p.component.id === "fit")!.component as unknown as { instanceCount: number };
+    expect(h.instanceCount).toBe(2);
+  });
+
+  it("takes its values with it when the aim moves or the part is removed", () => {
+    const r = mk("launchlug");
+    const held = { fittingId: "fit", fittingMass: 0.01, fittingDiameter: 0.01 };
+    const moved = aimsClearedByAiming(held, { fittingId: "other" });
+    expect(moved.fittingMass).toBeUndefined();
+    expect(moved.fittingDiameter).toBeUndefined();
+    const cleared = aimsClearedByRemoving(r, held, "fit");
+    expect(cleared.fittingId).toBeUndefined();
+    expect(cleared.fittingMass).toBeUndefined();
   });
 });

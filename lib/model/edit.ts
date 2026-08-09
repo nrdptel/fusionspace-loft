@@ -8,9 +8,9 @@
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
 import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent,
-  Stage, InnerTube, RingComponent,
+  Stage, InnerTube, RingComponent, MinorComponent,
 } from "./types";
-import { flattenRocket, aftOuterRadius, foreOuterRadius, nextTopLevel } from "./geometry";
+import { flattenRocket, aftOuterRadius, foreOuterRadius, nextTopLevel, maxBodyRadius } from "./geometry";
 import { uniqueUuidFrom, uuidFrom } from "./id";
 import type { Positioned } from "./geometry";
 import { LOFT_AUTHORED_PARACHUTE_CD } from "../sim/recovery-defaults";
@@ -594,6 +594,20 @@ export interface GeometryEdits {
    *  the part arrives at Loft's own corpus-median default and the flyer's real one is 1/8 inch of ply
    *  they cannot type in. */
   internalId?: string;
+  /** Which external FITTING the four fitting fields describe and edit — a shock cord, a launch lug or
+   *  a rail button. Undefined means the design's frontmost one. A SELECTION, not an edit.
+   *
+   *  **These are the last kinds in the model with no field at all**, and after `internalId` they are
+   *  the whole of what is left: 54 parts across the 35-design corpus — 24 shock cords on 21 designs,
+   *  19 launch lugs on 14, 11 rail buttons on 9 — plus one streamer, which is a different shape and
+   *  stays out (see the note on `AIM_SLOTS`).
+   *
+   *  **And two of them reach the flight through DRAG rather than only through mass**, which is what
+   *  makes this more than a completeness exercise: `lib/sim/aero.ts` sums
+   *  `count x pi x radius^2` over every launch lug and rail button into the protuberance area, so a
+   *  flyer who models a pair of buttons as one, or leaves a lug at an imported default, is flying a
+   *  drag figure they cannot correct. */
+  fittingId?: string;
   /** Components the flyer has removed, oldest first — the design's structural deletions.
    *
    *  An ordered LIST rather than a set, because the order is what makes it undoable: dropping the last
@@ -772,6 +786,19 @@ export interface GeometryEdits {
    *  diameter shrank underneath it reaches the model on the next visit. The model decides what the
    *  solver sees; it does not rely on the caller having been careful. Undefined leaves it. */
   internalInnerDiameter?: number;
+  /** Absolute mass (kg) of the fitting `fittingId` names. Undefined leaves it. */
+  fittingMass?: number;
+  /** Absolute length (m) of that fitting — a lug's or a button's axial extent, a shock cord's
+   *  packed length. Undefined leaves it. */
+  fittingLength?: number;
+  /** Absolute outer diameter (m) of that fitting. On a launch lug or a rail button this is the
+   *  FRONTAL size the drag model squares (`lib/sim/aero.ts`), so it is the one field here that moves
+   *  a number other than mass. Undefined leaves it. */
+  fittingDiameter?: number;
+  /** How many of that fitting are on the airframe — a pair of rail buttons, twin lugs. Multiplies the
+   *  protuberance area and the mass alike. Refused below 1: a fitting the design carries none of is a
+   *  removal, which the editor already has a verb for. Undefined leaves it. */
+  fittingCount?: number;
   /** Absolute mass (kg) of the mass object `massObjectId` names. The dominant non-structural weight on
    *  most designs — electronics, tracker, ballast, nose weight — so it moves loaded mass, the CG and
    *  therefore the static margin, and the apogee with them. Undefined leaves it. */
@@ -959,6 +986,10 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     // impossible entry is a bore at or above the outer diameter, and that is refused in the applier
     // rather than here — this predicate answers "did anything change", not "is it buildable".
     (e.internalInnerDiameter !== undefined && e.internalInnerDiameter >= 0) ||
+    (e.fittingMass !== undefined && e.fittingMass >= 0) ||
+    (e.fittingLength !== undefined && e.fittingLength > 0) ||
+    (e.fittingDiameter !== undefined && e.fittingDiameter > 0) ||
+    (e.fittingCount !== undefined && e.fittingCount >= 1) ||
     (e.massObjectMass !== undefined && e.massObjectMass >= 0) ||
     (e.massObjectStation !== undefined && e.massObjectStation >= 0) ||
     e.finish !== undefined ||
@@ -1075,6 +1106,42 @@ export function primaryInternalPart(
 /** How many internal parts sit OUTSIDE the one the internal fields describe. */
 export function unreachableInternalCount(rocket: Rocket): number {
   return Math.max(0, flattenRocket(rocket).filter((p) => INTERNAL_KINDS.has(p.component.kind)).length - 1);
+}
+
+/** The three external fitting kinds — one `MinorComponent` in `types.ts`, sharing `mass`, `length`,
+ *  `radius` and `instanceCount`. */
+const FITTING_KINDS: ReadonlySet<string> = new Set(["shockcord", "launchlug", "railbutton"]);
+
+/** The fitting the four fitting fields are about: the one picked, or the design's frontmost. */
+export function primaryFitting(rocket: Rocket, selectedId?: string): MinorComponent | undefined {
+  const parts = flattenRocket(rocket)
+    .map((p) => p.component)
+    .filter((c): c is MinorComponent => FITTING_KINDS.has(c.kind));
+  if (!parts.length) return undefined;
+  const picked = selectedId ? parts.find((c) => c.id === selectedId) : undefined;
+  return picked ?? parts[0];
+}
+
+/** How many fittings sit OUTSIDE the one the fitting fields describe. */
+export function unreachableFittingCount(rocket: Rocket): number {
+  return Math.max(0, flattenRocket(rocket).filter((p) => FITTING_KINDS.has(p.component.kind)).length - 1);
+}
+
+/** The fitting the panel is holding, named the way every other aim is. */
+export function primaryFittingAim(rocket: Rocket, selectedId?: string): AimedPart | undefined {
+  const parts = flattenRocket(rocket).filter((p) => FITTING_KINDS.has(p.component.kind));
+  if (!parts.length) return undefined;
+  const picked = primaryFitting(rocket, selectedId);
+  const seed = parts.find((p) => p.component.id === picked?.id) ?? parts[0];
+  return aimedPart(seed, parts, 1);
+}
+
+/** Whether this fitting's frontal size reaches the DRAG model as well as the mass. A lug and a button
+ *  are protuberances the airframe has to push through the air (`lib/sim/aero.ts`); a shock cord is
+ *  inside it. Exported so the panel can say which of the two a flyer is looking at instead of
+ *  labelling both the same and letting them find out. */
+export function fittingHasDrag(kind: string): boolean {
+  return kind === "launchlug" || kind === "railbutton";
 }
 
 /** What a flyer calls this part's axial dimension. A plate has a THICKNESS and a tube has a LENGTH;
@@ -1229,6 +1296,15 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
   internalId: {
     kinds: ["tubecoupler", "centeringring", "bulkhead", "engineblock", "innertube"],
     targets: ["internalLength", "internalOuterDiameter", "internalInnerDiameter"],
+  },
+  // The external fittings — one `MinorComponent` in `types.ts`, so one slot, on the same reasoning as
+  // `internalId` above. **A `streamer` is deliberately NOT here**: it shares the recovery job with a
+  // parachute rather than the shape of a fitting (a drag coefficient, a strip length and width, a
+  // deploy event), the corpus carries exactly one, and designing a vocabulary entry around its sole
+  // possible adopter is what `DESIGN.md` §5 already declined to do once.
+  fittingId: {
+    kinds: ["shockcord", "launchlug", "railbutton"],
+    targets: ["fittingMass", "fittingLength", "fittingDiameter", "fittingCount"],
   },
 };
 
@@ -2229,6 +2305,26 @@ function withInternalGeometry(
   }
   if (!c.children.length) return c;
   return { ...c, children: c.children.map((k) => withInternalGeometry(k, e)) };
+}
+
+/** Apply a resolved fitting edit to the one component it names. Every bound was taken already, from
+ *  the pristine tree. */
+function withFitting(
+  c: RocketComponent,
+  e: { id: string; mass?: number; length?: number; radius?: number; instanceCount?: number },
+): RocketComponent {
+  if (c.id === e.id && FITTING_KINDS.has(c.kind)) {
+    const part = c as MinorComponent;
+    return {
+      ...part,
+      ...(e.mass !== undefined ? { mass: e.mass } : {}),
+      ...(e.length !== undefined ? { length: e.length } : {}),
+      ...(e.radius !== undefined ? { radius: e.radius } : {}),
+      ...(e.instanceCount !== undefined ? { instanceCount: e.instanceCount } : {}),
+    } as RocketComponent;
+  }
+  if (!c.children.length) return c;
+  return { ...c, children: c.children.map((k) => withFitting(k, e)) };
 }
 
 /** Put one mass object at an absolute station (m from the nose tip), clamped to stay inside the part
@@ -3723,6 +3819,33 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     const tube = primaryBodyTube(rocket, edits.bodyTubeId);
     if (tube && tube.outerRadius > 0) radiusScale = edits.bodyDiameter / 2 / tube.outerRadius;
   }
+  /** The fitting's four fields, resolved once from the pristine design like every other aim.
+   *
+   *  **Bounded, and the diameter's bound is the one that matters.** A launch lug or a rail button is a
+   *  protuberance the drag model squares, so a diameter typed larger than the airframe it is bolted
+   *  to would put more frontal area on the outside of the rocket than the rocket has — held to the
+   *  airframe's own maximum diameter, which is the widest thing it could physically be a fitting on.
+   *  The count is floored at 1 and rounded: half a rail button is not a thing, and a count of zero is
+   *  a removal, which the editor already has a verb for. */
+  const fittingTarget = primaryFitting(rocket, edits.fittingId);
+  const fittingMaxDiameter = 2 * maxBodyRadius(rocket);
+  const fittingEdit = fittingTarget
+    ? {
+        id: fittingTarget.id,
+        mass: edits.fittingMass !== undefined && edits.fittingMass >= 0 ? edits.fittingMass : undefined,
+        length:
+          edits.fittingLength !== undefined && edits.fittingLength > 0 ? edits.fittingLength : undefined,
+        radius:
+          edits.fittingDiameter !== undefined && edits.fittingDiameter > 0
+            ? Math.min(edits.fittingDiameter, fittingMaxDiameter) / 2
+            : undefined,
+        instanceCount:
+          edits.fittingCount !== undefined && edits.fittingCount >= 1
+            ? Math.round(edits.fittingCount)
+            : undefined,
+      }
+    : undefined;
+
   // The internal part's three dimensions and every bound they are held to, resolved once from the
   // pristine design — see `internalGeometryEdit` for why the bounds cannot be read later, and why it
   // needs the caliber factor. Placed after `radiusScale` because it consumes it.
@@ -3759,6 +3882,10 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     // number typed here is the one flown even when `bodyDiameter` is also set. A coupler is inside the
     // airframe, so the scale reaches it — and a flyer who has typed its diameter has already answered.
     if (internalEdit) geo = withInternalGeometry(geo, internalEdit);
+    if (fittingEdit && (fittingEdit.mass !== undefined || fittingEdit.length !== undefined ||
+        fittingEdit.radius !== undefined || fittingEdit.instanceCount !== undefined)) {
+      geo = withFitting(geo, fittingEdit);
+    }
     if (massTarget && edits.massObjectMass !== undefined && edits.massObjectMass >= 0) {
       geo = withMassObject(geo, massTarget.id, edits.massObjectMass, undefined);
     }

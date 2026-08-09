@@ -7322,6 +7322,61 @@ test.describe("choosing a real commercial part", () => {
     ).toBeCloseTo(beforeOther, 0);
   });
 
+  test("a launch lug is a part too, and its count is drag rather than decoration", async ({ page }) => {
+    // **The LAST kinds in the model with no field.** After the internal structure, 54 parts across
+    // the 35-design corpus were still unreachable — 24 shock cords, 19 launch lugs, 11 rail buttons —
+    // leaving exactly one part in the whole corpus that no field describes (a streamer). Two of the
+    // three are protuberances `lib/sim/aero.ts` squares into the airframe's frontal area, so the
+    // count is a flight number and not a label.
+    //
+    // The RockSim sample is used because it is the one bundled design that carries a rail guide; the
+    // RASAero one carries a launch lug and would serve as well.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30000 });
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const summary = page.locator("summary", { hasText: /Parts ·/ });
+    await expect(summary).toBeVisible();
+    if (!(await partsTable.isVisible().catch(() => false))) await summary.click();
+    await expect(partsTable).toBeVisible();
+
+    const lug = partsTable.locator("tr").filter({ hasText: /Rail guide|Launch lug/ }).first();
+    await expect(lug, "this sample must carry a lug for the test to mean anything").toBeVisible();
+    await lug.click();
+    const trigger = page.getByRole("button", { name: "Properties", exact: true });
+    await expect(trigger, "a launch lug offered no way to edit it").toBeVisible();
+    await trigger.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    // Its own four fields, and nothing that belongs to the whole design or to another part.
+    await expect(dialog.getByLabel(/Fitting mass/i)).toBeVisible();
+    await expect(dialog.getByLabel(/How many/i)).toBeVisible();
+    for (const leak of [/Nose ballast/, /Recovery size/, /Payload/, /Surface finish/, /Airframe material/, /Boattail/, /Swap motor/, /Fin span/, /Bore/]) {
+      await expect(dialog.locator("label").filter({ hasText: leak }), `${leak} is not a property of a lug`).toHaveCount(0);
+    }
+    // **And the surface says why the count matters, on the kinds where it does.** A shock cord reaches
+    // the flight through mass alone and carries no such line, which is what keeps this one worth
+    // reading rather than a caveat printed on everything.
+    await expect(dialog.getByText(/frontal area/i), "nothing says the count is drag").toBeVisible();
+
+    const count = dialog.locator("label").filter({ hasText: /How many/i }).first().locator("input");
+    await count.fill("8");
+    await count.blur();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    // The flight moved, which is the whole claim: eight rail guides drag more than one.
+    await page.getByRole("link", { name: "Flight", exact: true }).click();
+    await expect.poll(async () => {
+      const t = (await page.getByRole("main").textContent()) ?? "";
+      const m = t.match(/([\d,]+)\s*m\b/);
+      return m ? Number(m[1].replace(/,/g, "")) : NaN;
+    }, { timeout: 25000 }).toBeGreaterThan(0);
+  });
+
   test("the internal structure has properties too, and a plate is not a tube", async ({ page }) => {
     // **R12's next member.** Measured over the 35-design corpus before this: 249 of 569 parts had no
     // field describing them at all, and 194 of those 249 were the five internal kinds — 83 centring

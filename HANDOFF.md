@@ -4,20 +4,22 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**PR #149 is open and green-gated locally — P8's rotation. Merge it, then take R12's next member.**
-Everything else this run is merged and live.
+**Everything this run is merged and live except the last increment, which is on the branch with a
+green local gate.**
 
-1. **R12's next member: the 55 parts that still have no field.** 24 shock cords, 19 launch lugs,
-   11 rail buttons and 1 streamer across the corpus — `MinorComponent` (`mass`, `length`, `radius`,
-   `instanceCount`) and `Streamer`. `launchlug`'s `radius` is read by the drag model as protuberance
-   frontal size, and `railbutton`'s `instanceCount` matters because buttons come in pairs, so neither
-   is cosmetic. The pattern is now established: one `AIM_SLOTS` entry, three or four targets, bounds
-   from the host, an undo label each, and the row in `describeDims`.
+1. **`COMPETITION.md` row 41 names the cheapest next R12 member**: a mass override and a per-part
+   comment, which OpenRocket gives EVERY component free from its base dialog. Loft honours
+   `overrideMass` on import and offers no way to set one, which is how a flyer reconciles a design
+   with a scale. After that: a motor mount's overhang and cluster count, and the verb band.
 2. **Then P8's remaining members.** The rotation is done; what is left is the depth it costs — the
    drawing starts 412 px down a 664 px phone and `/design` measures 8.39 screens.
-3. **`COMPETITION.md` row 41 names the cheapest next thing after that**: a mass override and a
-   per-part comment, which OpenRocket gives every component for free from its base dialog. Loft
-   HONOURS `overrideMass` on import and offers no way to set one.
+3. **P11 is the next unstarted P milestone after P8** — docs navigation. **Read the sibling first: it
+   already has both halves.** `fusionspace-debrief`'s `DESIGN.md` carries a long-form measure clause
+   (45–75 rendered characters, and an explicit warning that `ch` is the wrong unit — 1ch is 11.0 px
+   against a 7.10 px average prose character, so `max-w-prose` renders about 101) and a `SectionNav`
+   primitive with a you-are-here marker, lifted out of its flight report on 2026-08-08. P11 says
+   `DESIGN.md` has "no measure, line-length or prose-chunking clause anywhere" — that is true of
+   Loft's copy and false of the sibling's. Adopt, do not invent.
 
 ## Read this first
 
@@ -114,7 +116,8 @@ is not any one spec.
 | 4 | **R12 increment 3 — the internal structure has a property surface.** 249 of 569 corpus parts had no field describing them; 194 of those were five kinds that are one shape in the model. Now 55 | `22ae04c`, PR #148 | 194 parts driven across all 35 design files; ten unit cases, five negative controls; an e2e case whose negative control reports *"a centring ring offered no way to edit it"* |
 | 5 | **P8 increment 1 — a phone held upright draws the rocket upright.** 296 x 11.8 px becomes 124 x 508, nose at top, against a named 500 px height budget | PR #149, **open** | measured on the built export; four e2e cases re-based on the model axis; a landscape case saying it does not happen there |
 | 6 | **`DESIGN.md` §8 gains the orientation rule and the model-axis rule**, byte-identical in both repos | PR #149 + Debrief #159, both **open** | `diff` of the §8 section across the two checkouts |
-| 7 | **`text-[11px]` 41 → 33.** `DesignEditor` spelled its legend six times and its field label six times, character-identical | PR #148 | `lib/design-system.test.ts`, which is the §9 block |
+| 7 | **R12 increment 4 — the external fittings.** 54 more parts across the corpus, leaving exactly ONE with no field (a streamer). Two of the three kinds reach the flight through protuberance drag | branch, **open** | 54 parts driven across all 35 files; five unit cases with two negative controls; an e2e case whose negative control reports *"a launch lug offered no way to edit it"* |
+| 8 | **`text-[11px]` 41 → 33.** `DesignEditor` spelled its legend six times and its field label six times, character-identical | PR #148 | `lib/design-system.test.ts`, which is the §9 block |
 
 **Counts: unit 1,132 → 1,149; e2e 245 → 248; corpus 30 → 31 cases green over 35 design files.
 `DESIGN.md` §9 is green throughout and one count moved the right way.**
@@ -136,7 +139,7 @@ the same tooltip's sibling clause) and an auto tube-fin radius (handled correctl
 | R10 | IN PROGRESS — only `maxAcceleration` remains of Size item (5) |
 | R11 (from `ON-2`) | SHIPPED 2026-08-08 |
 | R10 | SHIPPED 2026-08-09 |
-| **R12** (from `ON-6`/`ON-7`/`ON-5`/`ON-4`) | **IN PROGRESS — the first *done when* is MET.** Increment 1 made the tree visible; increment 2 made selection drive the property surface; increment 3 (2026-08-09) took the parts no field describes from 249 of 569 corpus parts to 55 |
+| **R12** (from `ON-6`/`ON-7`/`ON-5`/`ON-4`) | **IN PROGRESS — the first *done when* is MET.** Increment 1 made the tree visible; increment 2 made selection drive the property surface; increments 3 and 4 (2026-08-09) took the parts no field describes from 249 of 569 corpus parts to ONE |
 | P1–P5 | SHIPPED 2026-08-02 → 2026-08-03 |
 | P6 | SHIPPED 2026-08-05 |
 | P7 (from `ON-1`) | SHIPPED 2026-08-08 |
@@ -151,12 +154,17 @@ the same tooltip's sibling clause) and an auto tube-fin radius (handled correctl
 
 **What can a flyer DO after this run that they could not before? (R-track)**
 
-1. **Size the internal structure.** A coupler, a centring ring, a bulkhead, an engine block and a
+1. **Size every component but one.** 249 of 569 parts across the 35 real design files had no field
+   describing them; one does now — a single streamer.
+2. **Size the internal structure.** A coupler, a centring ring, a bulkhead, an engine block and a
    motor-mount tube each open a property surface holding their own length-or-thickness, outer
    diameter and bore. Before this, 249 of 569 parts across the 35 real design files had no field
    describing them at all and those five kinds were 194 of them; a flyer could already AUTHOR a
    coupler and then not resize it.
-2. **Fly an OpenRocket design with the mass it actually has.** Seven real parts on three corpus
+3. **Correct a launch lug's or a rail button's frontal size and how many there are**, which the drag
+   model squares into the airframe's protuberance area — so a pair of buttons entered as one was drag
+   the flight was not carrying, and no field could fix it.
+4. **Fly an OpenRocket design with the mass it actually has.** Seven real parts on three corpus
    designs imported weighing nothing, one of them 840 g on a 12.6 kg airframe.
 
 **What is measurably better about using the tool? (P-track)**

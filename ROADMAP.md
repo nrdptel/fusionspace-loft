@@ -17,8 +17,8 @@ work, and a queue containing only the first can only ever ship the first.
 
 - **R-track — capability.** What a flyer can DO that they could not before. **R1–R11 shipped**
   (R10 closed 2026-08-09 on its last item, `maxAcceleration`); **R12 is IN PROGRESS** — the first of
-  its members is met as of 2026-08-08, and increment 3 took the components no field describes from
-  249 of 569 corpus parts to 55 on 2026-08-09. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
+  its members is met as of 2026-08-08, and increments 3 and 4 took the components no field describes
+  from 249 of 569 corpus parts to ONE on 2026-08-09. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
   shipped; R4 is IN PROGRESS" until 2026-08-08, six milestones after it stopped being true — and it
   then went stale again inside the very commit that added this warning, caught by review rather than
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
@@ -2640,8 +2640,31 @@ page called a centring ring `L 3 mm` while the panel one click away called the s
 designs whose `auto` bore had resolved to a zero wall, so they weighed nothing. Fixed first and
 separately (`373024e`, PR #147), because a parser change gets its own commit.
 
-**What is still NOT done, stated rather than implied.** 55 parts across the corpus still have no
-field: 24 shock cords, 19 launch lugs, 11 rail buttons, 1 streamer. The parts list is still collapsed
+**Increment 4 — the external fittings, 2026-08-09. ONE part in the whole corpus now has no field.**
+A shock cord, a launch lug and a rail button are one `MinorComponent` in `types.ts`, so one more slot
+with four targets — mass, length, outer diameter and how many — covers **54 parts across the 35
+designs** (24 shock cords on 21, 19 launch lugs on 14, 11 rail buttons on 9). With increment 3's 194
+that is 248 of the 249 parts that no field described; the remaining one is a single streamer, and it
+stays out deliberately (it shares the recovery job with a parachute rather than the shape of a
+fitting, and designing a vocabulary entry around its sole possible adopter is what `DESIGN.md` §5
+already declined to do once).
+
+**Two of the three reach the flight through DRAG, which is what makes this more than completeness.**
+`lib/sim/aero.ts` sums `count x pi x radius^2` over every launch lug and rail button into the
+protuberance area, so a flyer who models a pair of buttons as one is flying a drag figure they cannot
+correct. The panel says so, on those two kinds and not on the shock cord — a caveat printed on
+everything is a caveat nobody reads. Pinned by `lib/corpus/sweep.test.ts`'s *sizes every real design's
+external fittings, and the count reaches the drag* (54 parts, 30 of them protuberances, the count
+asserted through the frontal area the solver reads rather than through the field), by five cases in
+`lib/model/edit.test.ts` — one of which flies the starter with a rail button on it and moves the two
+drag inputs SEPARATELY, because a first version varied both and passed with the count wired to
+nothing — and by `e2e/smoke.spec.ts`'s *a launch lug is a part too, and its count is drag rather than
+decoration*, whose negative control reports *"a launch lug offered no way to edit it"*.
+
+**What is still NOT done, stated rather than implied.** One streamer across the corpus has no field.
+A motor mount's own overhang and cluster count have no control, and there is no mass override or
+per-part comment anywhere — which `COMPETITION.md` row 41 names as the cheapest next thing, because
+Loft honours `overrideMass` on import and offers no way to set one. The parts list is still collapsed
 by default. There is still no verb band beside the tree, and `add` is still behind one body-tube
 guard at `components/GeometryInspector.tsx:747` which wraps all six add verbs.
 

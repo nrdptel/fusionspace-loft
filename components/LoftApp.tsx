@@ -33,6 +33,10 @@ import {
   primaryInternalPart,
   primaryInternalPartAim,
   internalPartBounds,
+  primaryFitting,
+  primaryFittingAim,
+  unreachableFittingCount,
+  fittingHasDrag,
   unreachableInternalCount,
   internalSpanLabel,
   INTERNAL_MAX_BORE_FRACTION,
@@ -197,6 +201,9 @@ interface Edits {
   /** Which piece of internal structure the internal fields describe and edit — a coupler, a centring
    *  ring, a bulkhead, an engine block or an inner tube. A selection, not an edit — as above. */
   internalId?: string;
+  /** Which external fitting the fitting fields describe — a shock cord, a launch lug, a rail button.
+   *  A selection, not an edit — as above. */
+  fittingId?: string;
   /** Components removed from the design, oldest first. An ordered list, so undo is dropping the last. */
   removedIds?: string[];
   /** Parts the flyer authored, oldest first — see `AddedPart` in the edit model. */
@@ -240,6 +247,10 @@ interface Edits {
   internalLength?: number; // builder edit: the picked internal part's length / plate thickness (m)
   internalOuterDiameter?: number; // builder edit: the picked internal part's outer diameter (m)
   internalInnerDiameter?: number; // builder edit: the picked internal part's bore (m)
+  fittingMass?: number; // builder edit: the picked fitting's mass (kg)
+  fittingLength?: number; // builder edit: the picked fitting's length (m)
+  fittingDiameter?: number; // builder edit: the picked fitting's outer diameter (m)
+  fittingCount?: number; // builder edit: how many of the picked fitting are on the airframe
   massObjectMass?: number; // builder edit: the picked mass object's weight (kg)
   massObjectStation?: number; // builder edit: where it sits (m from the nose tip)
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
@@ -1721,6 +1732,19 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             // clamps with, so the promise and the enforcement cannot drift.
             internalMaxLength: internalPartBounds(designBase, edits.internalId).maxLength,
             internalMaxOuterDiameter: internalPartBounds(designBase, edits.internalId).maxOuterDiameter,
+            // The external fittings — shock cords, launch lugs, rail buttons. 54 parts across the 35
+            // corpus designs and the last kinds with no field; two of the three reach the flight
+            // through protuberance DRAG as well as through mass.
+            fittingMass: primaryFitting(designBase, edits.fittingId)?.mass,
+            fittingLength: primaryFitting(designBase, edits.fittingId)?.length,
+            fittingDiameter: (() => {
+              const f = primaryFitting(designBase, edits.fittingId);
+              return f?.radius !== undefined ? f.radius * 2 : undefined;
+            })(),
+            fittingCount: primaryFitting(designBase, edits.fittingId)?.instanceCount ?? (primaryFitting(designBase, edits.fittingId) ? 1 : undefined),
+            fittingKind: primaryFitting(designBase, edits.fittingId)?.kind,
+            fittingPart: primaryFittingAim(designBase, edits.fittingId),
+            unreachableFittings: unreachableFittingCount(designBase),
             // 26 of the 35 corpus designs carry a mass object, 56 in all, and until now not one could
             // be reached: the only mass a flyer could state was a payload the editor adds.
             massObjectMass: primaryMassObject(designBase, edits.massObjectId)?.mass,
@@ -1778,6 +1802,13 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             unreachableInternals: 0,
             internalMaxLength: undefined,
             internalMaxOuterDiameter: undefined,
+            fittingMass: undefined,
+            fittingLength: undefined,
+            fittingDiameter: undefined,
+            fittingCount: undefined,
+            fittingKind: undefined,
+            fittingPart: undefined,
+            unreachableFittings: 0,
             massObjectMass: undefined,
             massObjectStation: undefined,
             massObjectPart: undefined,
@@ -1795,7 +1826,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     // The fin and body readbacks take their selected part, so both selections are real dependencies:
     // without them the panel keeps showing the primary part's numbers while the edit writes to the
     // picked one.
-    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId],
+    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId, edits.fittingId],
   );
 
   return (
@@ -2455,6 +2486,15 @@ function DesignEditor({
     unreachableInternals: number;
     internalMaxLength?: number;
     internalMaxOuterDiameter?: number;
+    fittingMass?: number;
+    fittingLength?: number;
+    fittingDiameter?: number;
+    fittingCount?: number;
+    /** Which of the three kinds the aim landed on — the panel says whether the diameter reaches drag
+     *  as well as mass, and only two of them do. */
+    fittingKind?: string;
+    fittingPart?: AimedPart;
+    unreachableFittings: number;
     massObjectMass?: number;
     massObjectStation?: number;
     massObjectPart?: AimedPart;
@@ -2517,6 +2557,7 @@ function DesignEditor({
   const transPhrase = partPhrase(designDims.transitionPart, "transition");
   const massPhrase = partPhrase(designDims.massObjectPart, "mass object");
   const internalPhrase = partPhrase(designDims.internalPart, "internal part");
+  const fittingPhrase = partPhrase(designDims.fittingPart, "fitting");
   // **The caliber factor, because the internal bounds are measured on the pristine design and the
   // applier scales them.** `Body diameter` scales the whole outer airframe and every internal part
   // with it, and the internal edit is written after that scale, so `internalGeometryEdit` multiplies
@@ -2546,6 +2587,12 @@ function DesignEditor({
       : undefined);
   const internalMaxBore = internalOuterFlown !== undefined
     ? Number(toDispSpan(internalOuterFlown * INTERNAL_MAX_BORE_FRACTION))
+    : undefined;
+  // The airframe's own maximum diameter, in the flyer's span unit — the ceiling a fitting's frontal
+  // size is held to, from the same number the applier clamps with. Placed after `calibreScale`
+  // because it consumes it.
+  const fittingMaxDia = designDims.bodyDiameter !== undefined
+    ? Number(toDispSpan(designDims.bodyDiameter * calibreScale))
     : undefined;
   // Blank means "use the design's own value". A zero is a different statement, and these fields want
   // three different answers to it — so every call site says which of the three it is, and
@@ -3144,6 +3191,84 @@ function DesignEditor({
                       hint="0 is a solid disc"
                     />
                   )}
+                </div>
+              </fieldset>
+            )}
+
+            {/* The external fittings — a shock cord, a launch lug, a rail button. Its own group for
+                the same reason the internal structure has one: these are neither the mould line nor
+                what is inside it, they are bolted to the outside. Shown only when the design has one. */}
+            {designDims.fittingMass !== undefined && (
+              <fieldset className="min-w-0 border-0 p-0">
+                {!only && (
+                  <legend className={FIELDSET_LEGEND}>
+                    {designDims.unreachableFittings > 0 ? `Fittings — ${fittingPhrase}` : "Fittings"}
+                  </legend>
+                )}
+                {!only && designDims.unreachableFittings > 0 && (
+                  <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    This design has {designDims.unreachableFittings} other{" "}
+                    {designDims.unreachableFittings === 1 ? "fitting" : "fittings"} — shock cords,{" "}
+                    launch lugs and rail buttons. These fields describe and change {fittingPhrase};{" "}
+                    to edit another, pick it on the diagram or in the parts table above.
+                  </p>
+                )}
+                {/* **Why the diameter and the count are worth typing, said once and only where it is
+                    true.** A lug and a button are protuberances the airframe pushes through the air
+                    and the drag model squares their radius; a shock cord is inside it and reaches the
+                    flight through mass alone. Saying so on all three would be a caveat that does not
+                    apply to one of them, which is how a caveat stops being read. */}
+                {fittingHasDrag(designDims.fittingKind ?? "") && (
+                  <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    Diameter and count set this fitting&apos;s frontal area, which the drag model adds
+                    to the airframe&apos;s — so a pair of buttons entered as one is drag the flight is
+                    not carrying.
+                  </p>
+                )}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <NumberField
+                    label={`Fitting mass (${massU})`}
+                    value={toDispMass(edits.fittingMass)}
+                    placeholder={toDispMass(designDims.fittingMass)}
+                    onChange={(v) => onEdit({ fittingMass: fromMass(v) })}
+                    min={0}
+                  />
+                  {designDims.fittingLength !== undefined && (
+                    <NumberField
+                      label={`Fitting length (${spanU})`}
+                      value={toDispSpan(edits.fittingLength)}
+                      placeholder={toDispSpan(designDims.fittingLength)}
+                      onChange={(v) => onEdit({ fittingLength: fromSpan(v) })}
+                      min={0}
+                      positive
+                    />
+                  )}
+                  {designDims.fittingDiameter !== undefined && (
+                    <NumberField
+                      label={`Fitting Ø (${spanU})`}
+                      value={toDispSpan(edits.fittingDiameter)}
+                      placeholder={toDispSpan(designDims.fittingDiameter)}
+                      onChange={(v) => onEdit({ fittingDiameter: fromSpan(v) })}
+                      min={0}
+                      // A fitting wider than the airframe it is bolted to would put more frontal area
+                      // on the outside of the rocket than the rocket has. The applier clamps to the
+                      // same number.
+                      max={fittingMaxDia}
+                      positive
+                    />
+                  )}
+                  <NumberField
+                    label="How many"
+                    value={edits.fittingCount !== undefined ? String(edits.fittingCount) : ""}
+                    placeholder={String(designDims.fittingCount ?? 1)}
+                    onChange={(v) => onEdit({ fittingCount: v === "" ? undefined : Math.round(Number(v)) })}
+                    // Floored at 1: a design carrying none of a fitting is a removal, which the parts
+                    // panel already has a verb for, and zero here would silently delete its drag and
+                    // its mass while leaving it drawn.
+                    min={1}
+                    max={16}
+                    positive
+                  />
                 </div>
               </fieldset>
             )}

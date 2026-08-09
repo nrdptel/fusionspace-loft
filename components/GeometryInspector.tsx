@@ -238,6 +238,19 @@ function describeDims(c: RocketComponent, units: UnitSystem): string {
       return `${internalSpanLabel(c.kind) === "Thickness" ? "T" : "L"} ${L(c.length)}, ${dia(c.outerRadius)}${
         c.innerRadius > 0 ? `, bore ${dia(c.innerRadius)}` : ""
       }`;
+    // The external fittings. A launch lug's and a rail button's DIAMETER and COUNT are what the drag
+    // model squares into the protuberance area, so a row that showed only a length was hiding the
+    // two numbers that reach the flight. A count of one is left unsaid — every part is one of itself
+    // until a design says otherwise.
+    case "shockcord":
+    case "launchlug":
+    case "railbutton": {
+      const bits: string[] = [];
+      if (c.length !== undefined && c.length > 0) bits.push(`L ${L(c.length)}`);
+      if (c.radius !== undefined && c.radius > 0) bits.push(dia(c.radius));
+      if ((c.instanceCount ?? 1) > 1) bits.push(`x${c.instanceCount}`);
+      return bits.length ? bits.join(", ") : "—";
+    }
     default:
       return "length" in c && typeof c.length === "number" && c.length > 0 ? `L ${L(c.length)}` : "—";
   }

@@ -37,6 +37,7 @@ import {
   mouldLineSteps,
   STEP_NOTICE_M,
   overallLength,
+  maxBodyRadius,
 } from "../model/geometry";
 import type { Rocket, RocketComponent } from "../model/types";
 import {
@@ -1216,6 +1217,70 @@ suite("real-design corpus", () => {
     expect(unbounded, "an internal part flown past the bound its own panel advertises").toEqual([]);
     expect(insideOut, "an internal part flown with a bore at or past its own wall").toEqual([]);
     expect(inert, "an internal part whose size edit moved no mass, with nothing to explain it").toEqual([]);
+  }, 300_000);
+
+  it("sizes every real design's external fittings, and the count reaches the drag", async () => {
+    // The LAST kinds with no field, after the internal structure. Two of the three are protuberances
+    // the drag model squares, so this drives the aero as well as the geometry — over every real lug
+    // and button rather than over the one a unit test builds.
+    const unnamed: string[] = [];
+    const unbounded: string[] = [];
+    const inertDrag: string[] = [];
+    let driven = 0;
+    let withDrag = 0;
+    const KINDS = ["shockcord", "launchlug", "railbutton"];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const rocket = doc.rocket;
+      const parts = flattenRocket(rocket).filter((p) => KINDS.includes(p.component.kind));
+      if (!parts.length) continue;
+      const maxDia = 2 * maxBodyRadius(rocket);
+      for (const p of parts) {
+        const id = p.component.id;
+        const name = `${shortName(f.name)}/${p.component.kind}`;
+        driven++;
+        if (JSON.stringify(aimEditsAt(rocket, id)) !== JSON.stringify({ fittingId: id })) {
+          unnamed.push(`${name}: no aim`);
+          continue;
+        }
+        // The most hostile entry the panel's bounds would ever let through.
+        const over = applyGeometryEdits(rocket, {
+          fittingId: id, fittingDiameter: 9, fittingCount: 99, fittingLength: 9, fittingMass: 9,
+        });
+        const made = flattenRocket(over).find((q) => q.component.id === id)?.component as
+          | { radius?: number; instanceCount?: number }
+          | undefined;
+        if (!made) { unnamed.push(`${name}: the edit lost the part`); continue; }
+        if (maxDia > 0 && (made.radius ?? 0) * 2 > maxDia + 1e-9) {
+          unbounded.push(`${name}: OD ${((made.radius ?? 0) * 2).toFixed(4)} past the airframe's ${maxDia.toFixed(4)}`);
+        }
+        // And on a lug or a button the count must reach the FLIGHT. Asserted through the reference
+        // area the solver actually uses rather than through the field, because a field that writes a
+        // number nothing reads is the defect this milestone family keeps finding.
+        if (p.component.kind === "shockcord") continue;
+        withDrag++;
+        const one = applyGeometryEdits(rocket, { fittingId: id, fittingCount: 1 });
+        const many = applyGeometryEdits(rocket, { fittingId: id, fittingCount: 8 });
+        const areaOf = (r: Rocket) => {
+          const c = flattenRocket(r).find((q) => q.component.id === id)?.component as
+            | { radius?: number; instanceCount?: number }
+            | undefined;
+          return (c?.instanceCount ?? 1) * Math.PI * (c?.radius ?? 0) ** 2;
+        };
+        if (!((p.component as { radius?: number }).radius) || (p.component as { radius?: number }).radius === 0) continue;
+        if (areaOf(many) <= areaOf(one) + 1e-15) {
+          inertDrag.push(`${name}: eight of it present no more frontal area than one`);
+        }
+      }
+    }
+    console.log(
+      `external fittings driven across ${files.length} design files: ${driven} parts, ${withDrag} of them protuberances the drag model squares`,
+    );
+    expect(files.length, "no design was read — that branch proves nothing").toBeGreaterThan(20);
+    expect(driven, "no fitting was driven at all").toBeGreaterThan(40);
+    expect(unnamed, "a real fitting that the aim registry cannot speak for").toEqual([]);
+    expect(unbounded, "a fitting flown wider than the airframe it is bolted to").toEqual([]);
+    expect(inertDrag, "a fitting whose count reaches no frontal area").toEqual([]);
   }, 300_000);
 
   it("finds no real design that leads with anything but a nose cone", async () => {
