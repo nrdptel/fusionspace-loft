@@ -12,6 +12,20 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-09, from the done-check.**
+
+- **`e2e/depth.spec.ts:171` (`phone: the workspace spine stays within 1060px of the top`) failed once
+  in a sharded run and passed in isolation, on a commit that changed only markdown.** Measured: shard
+  1/2 reported `1 failed, 122 passed`; `npx playwright test e2e/depth.spec.ts` immediately afterwards
+  reported 6 passed in 15.0s; the next full sharded run was green. **This is NOT the documented
+  `EMFILE` failure** — that one takes out a trailing BLOCK of tests together with
+  `ERR_CONNECTION_REFUSED`, and this was a single test mid-shard with the 122 around it green. The
+  likely cause is that the spec measures a pixel offset and the box was running a `vitest` and a
+  `playwright` process at once, so layout settled late. **Worth knowing because the guidance in
+  `HANDOFF.md` under *Read this before trusting a red e2e run* only covers the `EMFILE` shape**, and
+  a session that matches this failure against it will conclude wrongly in either direction. If this
+  recurs, the fix is an explicit wait on the measured element rather than a retry.
+
 **Filed 2026-08-09, from the pre-push review of the census de-duplication.**
 
 - **The census weights by stored-comparison, and the principled unit is the DESIGN.** R10's last item
@@ -41,15 +55,20 @@ big for one pass. Newest first.
   its place by being the only sample with two flight configurations, which is a real capability; the
   entry is here so nobody counts it twice when measuring coverage.
 
-- **Every bundled sample is over-stable, and this is the count to beat: 3.06 / 3.82 / 4.07 / 4.07 /
-  4.38 cal against a threshold of 3.** A stranger's one-tap example still opens with a caution.
-  Asserted by `lib/samples.test.ts` (*records that EVERY sample is still over-stable*) rather than
-  left as prose, so the increment that fixes it has to change that line. It is P12 increment 2 and
-  needs a synthesized design, not another promoted fixture.
+- ~~**Every bundled sample is over-stable, and this is the count to beat: 3.06 / 3.82 / 4.07 / 4.07 /
+  4.38 cal against a threshold of 3.**~~ **RESOLVED 2026-08-09 by P12 increment 2** (`8cd2918`).
+  `demo-stable.ork` flies at **2.07 cal**, clear of both the 1-caliber and 3-caliber warnings, and
+  its fin geometry was searched against the solver rather than guessed. The assertion in
+  `lib/samples.test.ts` was written the other way up precisely so the fix had to change it, and it
+  now reads *offers at least one design a stranger can fly without a caution* — a band, not the
+  number, so a drag or mass change that moves it by a hundredth does not fail a sample's test.
 
-- **`.CDX1` is an advertised import format with a 640-line adapter and no example in the repo — not
-  a sample, not even a test fixture.** So the only way a RASAero flyer finds out Loft reads their
-  format is to try it. P12 increment 3.
+- ~~**`.CDX1` is an advertised import format with a 640-line adapter and no example in the repo — not
+  a sample, not even a test fixture.**~~ **RESOLVED 2026-08-09 by P12 increment 3** (`2e05d38`).
+  `fixtures/src/demo-rasaero.CDX1` is hand-authored against the published RASAero II layout, ships as
+  a one-tap sample, and brings a launch lug no other sample had — 1.92 cal, 1,083 m, no warnings. The
+  general form is now pinned: `lib/samples.test.ts` reads the drop zone's own `accept` list and fails
+  the moment a format is advertised without an example, so this cannot recur for the next adapter.
 
 **Filed 2026-08-08, second run of the day, from having both app repos attached at once.**
 
