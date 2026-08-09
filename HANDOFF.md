@@ -79,10 +79,11 @@ milestone's favour and one against; both corrections are now in `ROADMAP.md` P8.
   trusting: a JSX text run that spans a line break loses its leading whitespace, so `<em>loaded</em>`
   followed by a newline shipped as `loadedcentre`. Baseline is 0; anything above that is yours.
 
-## This run — five increments, three milestones moved (two SHIPPED), two Sev-1 surfaces, six PRs
+## This run — six increments, four milestones moved (three SHIPPED), two Sev-1 surfaces, seven PRs
 
 **Everything below is MERGED to `main` and live** except the last, which is open and green
-(`66be2b9`, `e01f4cc`, `cdbcd12`, PR #144). Three more merged in the sibling repo (#147, #148, #150).
+(`66be2b9`, `e01f4cc`, `cdbcd12`, `a769b68`, PR #145). Three more merged in the sibling repo
+(#147, #148, #150).
 
 | # | what | where | how it was verified |
 |---|---|---|---|
@@ -92,10 +93,40 @@ milestone's favour and one against; both corrections are now in `ROADMAP.md` P8.
 | 4 | **P12 SHIPPED** — two capabilities that had no example, a first flight that no longer opens with a caution, and an example of the format Loft only claimed to read | `cdbcd12`, PR #144 | five checks, three with negative controls; both new designs' fins searched against the solver, not guessed |
 | 5 | **`DESIGN.md` mirrored into Debrief three times, in the same run** — §2, §5 and §10 | Debrief #147/#148/#150 | all green, all merged; the changed sections diff byte-identical |
 | 6 | **The first design-system audit this repo has run**, filed; P8's own measurements corrected; `COMPETITION.md` row 40 | `66be2b9` | each P8 correction re-verified by hand, and one of them was wrong |
+| 7 | **R10 SHIPPED** — its last item, `maxAcceleration`, where the defect was the census counting one comparison fifteen times, not the oracle's resolution the milestone predicted | PR #145 | reproduced before scoping, and the reproduction is what refuted the milestone's own diagnosis; three negative controls |
 
-**Counts: unit 1,116 → 1,131; e2e 243 → 245; corpus 29 cases green over 35 design files. `DESIGN.md`
-§9's counts are unmoved and at target throughout. Shipped stylesheet 63,476 → 64,129 bytes, all of it
-the popover.**
+**Counts: unit 1,116 → 1,132; e2e 243 → 245; corpus 29 → 30 cases green over 35 design files.
+`DESIGN.md` §9's counts are unmoved and at target throughout. Shipped stylesheet 63,476 → 64,129
+bytes, all of it the popover.**
+
+**The finding worth carrying out of increment 7, because it is a whole class and not one metric.**
+The census had been computing medians over a population that contained duplicates: a design's stored
+runs vary the inputs their author cared about, and a quantity none of those inputs reaches is stored
+identically every time. `FullScaleModelTH.rkt`'s fifteen runs vary **rail length and ejection delay**
+— apogee ranges 323 m to 2,101 m across them — and peak acceleration comes from the thrust spike,
+which is over before the rocket clears even the short rail. So it contributed **fifteen copies of one
++8.8% max-acceleration disagreement** to a population of 94. **54 of the census's 910 comparison rows
+were exact repeats.** Counting each once: `maxAcceleration` 3.2% → 1.8%, `launchRodVelocity`
+1.9% → 1.6%, no solver change.
+
+**Check the file, not the plausible story.** A first draft of that paragraph — in the test, on the
+public page and here — said the runs differ in *wind*. `<LaunchWindSpeed>` is `0.` on all fifteen. It
+also said boost-phase figures do not respond to what varies; `<VelocityAtLaunchGuideEnd>` reads
+14.6479 off the 914.4 mm rail and 18.1014 off the 1422.4 mm one, which is why rail-exit velocity
+collapses fifteen rows to **two** and repeats 13, not 14. The pre-push review caught all of it by
+opening the corpus file. The de-duplication was right; the explanation shipped with it was not.
+
+Two second-order things fell out, and both are the more transferable half:
+
+- **The census gate was one-directional.** It failed when the page over-claimed and said nothing when
+  the page under-claimed, on the stated principle that improving is always allowed. So a figure could
+  sit at 3.2% while the suite measured 1.8% indefinitely, with nothing red. It is two-sided now, and
+  an improvement has to be published in the commit that earns it. **Look for this shape elsewhere:
+  a ratchet that only tightens is half a ratchet.**
+- **A check that was right by coincidence.** The population check builds a regex from each metric's
+  page label, and `apogee` is a substring of `time to apogee` — so `maxAltitude` had been reading the
+  wrong entry since the day it was written, and passed because both populations happened to be 97.
+  It surfaced only because de-duplication moved one of them. Anchored now.
 
 ## The done-check, answered out loud
 
@@ -185,22 +216,25 @@ opening the file, not by trusting the report.
 
 ## Pick up first
 
-1. **P8 — the phone stands the rocket up — and OPEN IT ON THE QUESTION, not on the code.** It was
-   deferred this run with the reason recorded in `ROADMAP.md` under decisions taken without the owner,
-   and the reason is not size: **clause 4 of its own *done when* asks for something the geometry may
-   not permit.** It requires the 44 px tap assert to still pass once the columns are rebuilt on the
-   cross axis, where a column's height becomes the part's LENGTH — and `e2e/touch.spec.ts` already
-   records 56 of 150 corpus body parts under 44 px along it, the narrowest at 0.8 px. No arrangement
-   gives twenty stacked parts a 44 px band inside a 500 px height budget. **Decide first whether the
-   drawing stays the touch path in portrait** (the parts tree already is, for reorder), then build.
-   Its four other measurements were corrected this run and are hand-verified.
+1. **P8 — the phone stands the rocket up. It is UN-PARKED: open it on the grips, not on a question.**
+   An earlier point in this run deferred it as a product decision for the owner, on the reading that
+   clause 4 of its *done when* was geometrically impossible — the 44 px tap assert could not survive
+   columns rebuilt on the cross axis, given 56 of 150 corpus body parts are under 44 px along their
+   length. **That reading was wrong, and it was checked before this handoff was written.** A tap
+   column today is `y={0} height={H}` — the full diagram height — by part-length wide
+   (`components/RocketDiagram.tsx:608-614`), and `e2e/touch.spec.ts` asserts the HEIGHT only, its own
+   docblock already explaining that width is bounded by part length. The 44 px passes because the
+   CROSS-AXIS dimension is the whole drawing. Rotate and that is still true, at 324 px on a 390 px
+   viewport. **The contract does not change; only the screen axis it lands on does** — which makes it
+   the same defect as the milestone's correction 3 about `FinHandle`'s `axis` prop, in a second
+   place. Clause 4 is corrected in `ROADMAP.md` as correction 5, with a decision entry. All five of
+   P8's corrections are now hand-verified. Build it.
 2. **R12 increment 3.** Two obvious candidates, both named in `COMPETITION.md` row 40: a **verb band
    beside the tree** (add is still behind one `kind === "bodytube"` guard, so ~85% of parts answer
    "what can I add here?" with silence), and **opening the parts list by default** — which R12
    increment 1 deliberately deferred because it moves everything below it by roughly a screen and
    touches 36 e2e call sites that open it by clicking.
-3. **R10's last item, `maxAcceleration`**, still open and still scoped.
-4. **P11 — docs a flyer can navigate.** Untouched this run and fully scoped, including the part that
+3. **P11 — docs a flyer can navigate.** Untouched this run and fully scoped, including the part that
    makes it a milestone rather than a tidy-up: `DESIGN.md` §11 currently puts the methods and
    limitations pages OUT of scope, so that file changes first, in both repos.
 

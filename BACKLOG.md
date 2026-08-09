@@ -12,6 +12,27 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-09, from the pre-push review of the census de-duplication.**
+
+- **The census weights by stored-comparison, and the principled unit is the DESIGN.** R10's last item
+  stopped the census counting one comparison fifteen times, keyed on the file, the metric, the stored
+  value and Loft's value. That is correct and it is narrower than the principle behind it: it
+  de-duplicates identical *values*, not identical *runs*. Measured on
+  `FullScaleModelTH.rkt`, nine of its fifteen stored runs are byte-identical in every stated input —
+  same rail, same delay, same zero wind — and differ only in RockSim's own turbulence draw, so their
+  stored apogees read 2101.98 / 2105.15 / 2098.47 / … and all nine survive. **The result is that one
+  design casts fifteen votes on `maxAltitude` and one on `maxAcceleration`, and what separates the
+  two is whether the oracle happened to be deterministic, not whether the runs were distinct.** The
+  fix is a median of per-design medians (or per `(file, configuration)`), which would weight every
+  metric the same way and would show whether the downward direction of the de-duplication survives a
+  principled weighting. It is a bigger change than the item it came out of — every published figure
+  and population on `/docs/validation` moves — which is why it is filed rather than done.
+
+- **`new RegExp` in the census's population check interpolates a page label unescaped**, and its
+  `[^(]*` will cross tag boundaries. Neither bites today: no metric label contains a regex
+  metacharacter. Filed because that case's own comment now argues that a check which is right by
+  coincidence is not a check, having just fixed one — `apogee` matching inside `time to apogee`.
+
 **Filed 2026-08-08, third increment — what the phone cold walk and the samples work turned up.**
 
 - **`demo-multi-config.ork` is still a duplicate airframe, and P12 increment 1 did not change that.**

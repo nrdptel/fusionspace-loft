@@ -15,9 +15,9 @@ still read as one long scrolling page with twelve different card treatments on i
 never the bottleneck. **What a flyer can do** and **what the tool feels like to use** are different
 work, and a queue containing only the first can only ever ship the first.
 
-- **R-track — capability.** What a flyer can DO that they could not before. R1–R9 shipped; **R10 is
-  IN PROGRESS** (only `maxAcceleration` remains of its Size item 5); **R11 shipped 2026-08-08**; R12
-  is next and unstarted. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
+- **R-track — capability.** What a flyer can DO that they could not before. **R1–R11 shipped**
+  (R10 closed 2026-08-09 on its last item, `maxAcceleration`); **R12 is IN PROGRESS** — the first of
+  its members is met as of 2026-08-08. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
   shipped; R4 is IN PROGRESS" until 2026-08-08, six milestones after it stopped being true — and it
   then went stale again inside the very commit that added this warning, caught by review rather than
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
@@ -2211,9 +2211,16 @@ that would still meet the *done when*.
 
 ## R10 — The corpus comparison Loft can actually defend
 
-**Status: IN PROGRESS** — Size items (1)–(4) shipped 2026-08-04 and three of item (5)'s four parts
-shipped 2026-08-05 (`optimumDelay`, `deploymentVelocity`, and the published per-metric populations).
-**Only `maxAcceleration` remains**, and it is measured and scoped below. Original note follows.
+**Status: SHIPPED 2026-08-09** — every clause of the *done when* is met. Size items (1)–(4) shipped
+2026-08-04, three of item (5)'s four parts on 2026-08-05 (`optimumDelay`, `deploymentVelocity`, and
+the published per-metric populations), and `maxAcceleration` on 2026-08-09 — where the defect turned
+out to be the census counting one comparison fifteen times rather than the oracle's resolution, and
+the entry below records both the prediction and the measurement that replaced it. Pinned by the
+corpus census's own `PUBLISHED_MEDIAN_PCT` gate, now failing in **both** directions, plus
+`counts a stored comparison once, however many times a file repeats it`, `counts a plugged descent
+separately from a canopy one, and neither population vanishes`, `names every file whose own tool
+stores two answers for one flight`, and `scores every stored optimum delay against the flight its own
+file describes`. Original note follows.
 
 **Size items (1) through (4) shipped 2026-08-04**, each publishing as it
 landed; only (5) remains. Pinned by `lib/ork/adapt.test.ts` (`the OpenRocket ground-hit frame`, both
@@ -2338,13 +2345,79 @@ docs page argues.**
    though its stored values span 0.601 to 225.35 m/s. **Loft's own reported figure must not change**
    — it is deliberately the worst-case opening shock and feeds the `early-deployment` warning; it is
    the COMPARISON that has to be made like-for-like, the same way `optimumDelayBasis` just was.
-3. **`maxAcceleration` — NOT STARTED.** All of the 3.2% lives in the 17 `.rkt` rows (median 8.8%,
-   every one HIGH), and `FullScaleModelTH.rkt` stores a byte-identical `<MaxAcceleration>` of 125.291
-   across all fifteen runs with different winds and two rail lengths. A stored value that never
-   varies is a sampled or rounded peak rather than a per-run measurement, so part of that 8.8% is the
-   oracle's own resolution and should be said rather than carried. Loft's own window is already right
+3. **`maxAcceleration` — SHIPPED 2026-08-09, and the fix is not the one this entry predicted.**
+   The measurement below is right and its diagnosis was wrong, which is the whole value of having
+   reproduced it before scoping it.
+
+   *What this entry said:* all of the 3.2% lives in the 17 `.rkt` rows (median 8.8%, every one HIGH),
+   and `FullScaleModelTH.rkt` stores a byte-identical `<MaxAcceleration>` of 125.291 across all
+   fifteen runs with different winds and two rail lengths — so a stored value that never varies is a
+   sampled or rounded peak rather than a per-run measurement, and part of that 8.8% is the oracle's
+   own resolution.
+
+   *What is actually true:* **Loft returns 136.345 for all fifteen of those runs too.** What those
+   runs vary is the **rail length** (`<LaunchGuideLen>` 914.4 mm on eleven, 1422.4 on four) and the
+   **ejection delay** (`[L1940X-0]` against the plugged `[L1940X-P]`, apogee ~323 m against
+   ~2,101 m); `<LaunchWindSpeed>` is `0.` on all fifteen. Peak axial acceleration comes from the
+   thrust spike, which is over before the rocket clears even the short rail and long before any
+   ejection charge, so neither varied input can reach it and both tools agree it does not move. The
+   stored figure is not coarse either — `<MaxHorzAcceleration>` in the same blocks reads fifteen
+   distinct values at six significant figures, so RockSim is not quantising this field. What was
+   wrong was the arithmetic over it: **one disagreement, at +8.8%, counted fifteen times in a
+   population of 94**, carrying fifteen times the weight of any other design's. The same shape sat
+   under `launchRodVelocity` — 13 repeats, not 14, because rail length **does** reach that one
+   (14.6479 off the short rail, 18.1014 off the long) so its fifteen rows collapse to two — and,
+   smaller, under `maxMach`, `optimumDelay`, `timeToApogee`, `maxVelocity` and `groundHitVelocity`:
+   **54 of the census's 910 comparison rows were exact repeats.**
+
+   *And the first version of this paragraph was wrong in the same way the entry it corrects was.* It
+   said the runs "differ only in wind or rail length" and that boost-phase figures respond to
+   neither — a plausible story, written from the shape of the finding rather than from the file, and
+   caught by the pre-push review opening `FullScaleModelTH.rkt`. It was in the test docblock, in
+   `HANDOFF.md`, and on `/docs/validation`. **Reproducing a finding is not the same as reproducing
+   its explanation**, and this milestone has now been bitten by that twice in one item.
+
+   The census now counts a comparison once, keyed on the file, the metric, the stored value **and**
+   Loft's value — so a disagreement that genuinely varies per run still counts every time, and the
+   rule cannot reach an inconvenient case, which differs from its neighbours by definition.
+   `maxAcceleration` **3.2% → 1.8%** over 80 rows, `launchRodVelocity` **1.9% → 1.6%** over 73,
+   `optimumDelay` 2.5 → 2.4; four metrics did not move at all. Loft's own window was already right
    for `.ork` — stored `maxacceleration` equals the max before the first deployment on 77/77, which
-   is exactly Loft's `!anyDeployed` freeze.
+   is exactly Loft's `!anyDeployed` freeze — and no solver code changed.
+
+   **Every figure it moved, it moved downward, and R10's notes forbid dropping a case to make a
+   median look better.** Three things answer that rather than one: the rule is mechanical and
+   metric-blind — `pctError` is a pure function of the two values the key is built from, so every
+   member of a duplicate group carries the same error and the rule cannot see a row's magnitude at
+   all; the repeats are published on `/docs/validation` with each metric's population rather than
+   netted away; and `counts a stored comparison once, however many times a file repeats it` holds it
+   from both ends — it fails if the de-duplication stops finding repeats, if it starts finding rows
+   that are not repeats, or if any metric's population falls below ten.
+
+   **Two limits are stated rather than left to be found, and one of them cost something.**
+   De-duplicating identical VALUES is not the same as de-duplicating identical RUNS: nine of that
+   file's fifteen are byte-identical in every stated input and differ only in RockSim's turbulence
+   draw, so on `maxAltitude` they survive as nine rows and one design still casts fifteen votes there
+   while casting one on `maxAcceleration`. The principled form is a median of per-design medians;
+   it is filed in `BACKLOG.md` rather than smuggled into this item. And **weight is how a median sees
+   a single design** — fifteen rows moving to the top used to drag it past the slack and one row
+   cannot, so the change cost real gate strength on exactly the metric it was made for. That is
+   replaced rather than accepted: the same case now counts how many designs' max acceleration sits
+   past 25% and fails when that number grows. A worst-ROW bound would not have done it — it has to
+   sit above today's worst (59.9%) to be green, so the +8.8% → +40% excursion it exists for would
+   pass underneath.
+
+   **And the census gate is now two-sided.** It only ever failed on a page claiming to be BETTER than
+   the measurement, on the stated principle that improving is always allowed — but a page claiming
+   3.2% while the suite measures 1.8% is just as wrong about Loft, and it is the direction that rots
+   silently. Improving is still allowed; it now has to be published in the commit that earned it,
+   which is what this item's own *done when* asks for.
+
+   **One latent defect fell out of it.** The population check builds a regex from each metric's page
+   label, and `apogee` is a substring of `time to apogee` — so `maxAltitude` had been reading
+   time-to-apogee's population since the check was written, and passed anyway because both were 97.
+   De-duplication moved time-to-apogee to 94 and the collision surfaced. Anchored to the start of a
+   list entry; a check that is right by coincidence is not a check.
 
 **And one thing the page itself gets wrong, which belongs to this item's *done when*.**
 `/docs/validation` publishes "**97 stored simulations**" once and then lists ten medians under it,
@@ -4210,6 +4283,29 @@ evidence, and three of these would have cost the run that built it.
    depth budget to buy here** — the milestone should stop reserving one and spend the increment on the
    grips instead.
 
+5. **Clause 4 of the *done when* is not impossible — it is mis-stated, and the last handoff was wrong
+   to park the milestone on it.** That handoff read correction 4's arithmetic (56 of 150 corpus body
+   parts under 44 px along their length, the narrowest 0.8 px) as proof that a rotated drawing cannot
+   satisfy the touch contract, and left P8 as a product question for the owner. Opened and measured
+   2026-08-09, it is neither. **A tap column today is `y={0} height={H}` — the FULL diagram height —
+   and `x0..x1` wide, where the width is the part's length** (`components/RocketDiagram.tsx:608-614`
+   for the body parts, `:668-690` for the fin and mass columns). The `e2e/touch.spec.ts` assert is on
+   **height only**, and its own docblock already says why width is not asserted: it is bounded by the
+   part's length, and those 56 rows are exactly that bound. So the 44 px passes today because the
+   CROSS-AXIS dimension is the whole drawing — not because of anything about the parts.
+
+   Rotate, and that is still true: the band becomes `x={0} width={W}` (324 px at a 390 px viewport)
+   by part-length tall. **The contract does not change; only the screen axis it lands on rotates.**
+   The work is to make the assert follow the MODEL axis instead of the screen axis — which is
+   **correction 3's defect in a second place**: `FinHandle`'s `axis` prop means screen axis and needs
+   the same re-basing. Two instances of one mistake is the finding, and it is the thing to write into
+   `DESIGN.md` §8 alongside the orientation rule.
+
+   So P8 opens on the grips and the height budget, not on a question for the owner, and clause 4
+   should read *"the tap columns are rebuilt on the cross axis and the 44 px assert follows the model
+   axis rather than the screen axis"*. Corrected here rather than in the handoff, because the handoff
+   is not the queue.
+
 Two further measurements the milestone does not carry and the implementation needs: `e2e/touch.spec.ts:238`
 hard-codes `toHaveCount(3)` on `g[role="slider"]` for a coarse pointer, so any change to which grips
 a phone shows fails there by design; and there are **two separate tap-column builders**, not one —
@@ -4250,7 +4346,8 @@ obvious wrong turn:
 
 **Done when** a phone in portrait draws the airframe vertically with the nose at top, at a scale set
 by a named height budget; every grip is re-based on the model axis so no control inverts; the tap
-columns are rebuilt on the cross axis and the 44 px assert still passes for a real reason; landscape
+columns are rebuilt on the cross axis and the 44 px assert follows the model axis rather than the
+screen axis (see correction 5 — it is not a new bound to satisfy, it is the same one, rotated); landscape
 is unchanged and has a case saying so; and `DESIGN.md` §8 — which today says nothing whatever about
 orientation — carries the rule, in both repos.
 
@@ -4615,6 +4712,29 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-09 — the census de-duplicates comparison rows, and every published figure it moved went
+  down.** The rejected option was to leave it and only say so in prose, because R10's own notes
+  forbid dropping a case to make a median look better and this improves four figures at once. Taken
+  anyway, because the alternative is publishing a number that is arithmetically wrong: fifteen copies
+  of one comparison are not fifteen measurements, and a median that says they are is not describing
+  the corpus. Three things are what make it safe rather than convenient, and if any of them is ever
+  weakened this decision should be reversed: the rule is mechanical and metric-blind (it never asks
+  what a row's error is); it drops a row only when the stored value **and** Loft's value both repeat,
+  so a genuinely varying disagreement is never touched; and the repeats are published on
+  `/docs/validation` with each metric's population rather than netted away. The reversal is one line
+  — delete the `counted` guard in the census loop — and the published figures then fail the gate,
+  which is exactly how it should behave.
+
+- **2026-08-09 — P8 is un-parked without asking, on a measurement rather than a judgement.** The
+  previous run left P8 as a product question for the owner (*does the drawing stay the touch path in
+  portrait?*), on the reading that clause 4 of its *done when* was geometrically impossible. Opened
+  and measured: it is not impossible, it is mis-stated — the 44 px assert holds on the CROSS-axis
+  dimension, which is the full drawing in either orientation, and rotating changes which screen axis
+  that is rather than whether it clears. See correction 5 in P8. There was no product decision to
+  take, so none was taken; the clause is corrected and the milestone opens on the grips. The option
+  rejected was leaving it parked for the owner, which would have cost a run on a question with a
+  measurable answer.
 
 - **2026-08-08 — P12 is taken before P8, and the reason is a question P8's own *done when* hides.**
   Strict alternation puts P8 next on the P-track. Its first coherent slice is not small: you cannot

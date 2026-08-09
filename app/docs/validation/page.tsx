@@ -185,18 +185,46 @@ export default async function Validation() {
       </p>
       <p>
         <strong>Each figure names the population it is measured over, and they are not the same.</strong>{" "}
-        Only four of the ten reach all 97: a metric is compared where a file stores it, and the
-        formats do not store the same set. Max Mach is{" "}
+        Only apogee reaches all 97: a metric is compared where a file stores it, the formats do not
+        store the same set, and a figure a file repeats unchanged across its runs is counted once
+        rather than once per run. Max Mach is{" "}
         <em>OpenRocket-only</em>{" "}— neither RockSim nor RASAero writes it — so reading it as a
         corpus-wide figure would credit Loft with an agreement two of the three tools were never
         asked about. This page used to print one &ldquo;97&rdquo; above the whole list.
       </p>
       <ul>
-        <li>time to apogee <strong>1.5%</strong>{" "}(97), rail-exit velocity <strong>1.9%</strong>{" "}(94)</li>
-        <li>max Mach <strong>2.0%</strong>{" "}(77, OpenRocket only), max velocity <strong>2.2%</strong>{" "}(97), optimum delay <strong>2.5%</strong>{" "}(84)</li>
-        <li>apogee <strong>3.1%</strong>{" "}(97), max acceleration <strong>3.2%</strong>{" "}(94), flight time <strong>3.1%</strong>{" "}(82)</li>
-        <li>ground-hit velocity <strong>1.3%</strong>{" "}(82), deployment velocity <strong>6.2%</strong>{" "}(81)</li>
+        <li>time to apogee <strong>1.5%</strong>{" "}(94), rail-exit velocity <strong>1.6%</strong>{" "}(73)</li>
+        <li>max Mach <strong>2.0%</strong>{" "}(68, OpenRocket only), max velocity <strong>2.2%</strong>{" "}(96), optimum delay <strong>2.4%</strong>{" "}(80)</li>
+        <li>apogee <strong>3.1%</strong>{" "}(97), max acceleration <strong>1.8%</strong>{" "}(80), flight time <strong>3.1%</strong>{" "}(82)</li>
+        <li>ground-hit velocity <strong>1.3%</strong>{" "}(80), deployment velocity <strong>6.2%</strong>{" "}(81)</li>
       </ul>
+      <p>
+        <strong>A comparison is counted once, however many times a file repeats it.</strong>{" "}
+        A design&apos;s stored runs vary whatever their author was interested in, and a quantity none
+        of those inputs reaches comes out the same every time — from the file, and from Loft. One
+        RockSim design in the corpus stores fifteen runs that differ in rail length and ejection
+        delay, and whose apogee accordingly ranges from 323 m to 2,101 m. Its stored max acceleration
+        is <strong>125.291 m/s² on all fifteen</strong>, and Loft returns 136.345 on all fifteen:
+        peak acceleration comes from the thrust spike, which is over before the rocket clears even
+        the short rail and long before any ejection charge, so neither input can reach it and both
+        tools agree it doesn&apos;t move. That is one disagreement of +8.8%, not fifteen — and it was
+        carrying fifteen times the weight of any other design&apos;s. Counting each comparison once
+        — and only where the stored value{" "}
+        <em>and</em>{" "}Loft&apos;s value both repeat, so a disagreement that genuinely varies per run
+        still counts every time — moved max acceleration from 3.2% to <strong>1.8%</strong>{" "}and
+        rail-exit velocity from 1.9% to <strong>1.6%</strong>. It is the second reason a population
+        above can be smaller than 97, alongside a format simply not storing the metric:{" "}
+        <strong>54</strong>{" "}of the 910 comparisons were repeats.
+      </p>
+      <p>
+        <strong>Two things that rule does not do</strong>, said here rather than left for a reader to
+        find. It de-duplicates identical <em>values</em>, not identical <em>runs</em> — nine of that
+        design&apos;s fifteen runs are identical in every stated input and differ only in
+        RockSim&apos;s own turbulence draw, so on apogee they still count nine times. And a median
+        over one row per design is less sensitive to a single design going wrong than a median that
+        counted it fifteen times, so the corpus suite separately counts how many designs&apos; max
+        acceleration sits far out, and fails when that number grows.
+      </p>
       <p>
         <strong>Two of those are over flights that came down under a canopy.</strong>{" "}
         Ground-hit velocity and flight time are reported over the <strong>82</strong>{" "}
@@ -213,7 +241,8 @@ export default async function Validation() {
           The ballistic figure is the weakest number on this page
         </strong>, which is the point of separating it: Loft&apos;s no-recovery descent is where its
         drag model is furthest from a tool that has one, and pooling it with canopy descents hid
-        that in both directions.
+        that in both directions. Ground-hit velocity lists <strong>80</strong>{" "}of those 82 rather
+        than all of them, two being repeats of a run already counted.
       </p>
       <p>
         <strong>
@@ -295,8 +324,8 @@ export default async function Validation() {
         <strong>
           The published median did not move, and that is worth saying rather than hiding.
         </strong>{" "}
-        Four of optimum delay&apos;s 84 rows changed by a factor of eighteen and the median stayed at
-        2.5% &mdash;
+        Four of optimum delay&apos;s rows changed by a factor of eighteen and the median stayed where
+        it was &mdash; 2.5% over 84 rows as it was measured then, 2.4% over 80 today &mdash;
         which is what a median is for, and why it was the wrong instrument to catch this. The suite
         now asserts the <em>worst</em> optimum-delay row as well as the median, because a row
         comparing two different flights is a different defect from a metric that is simply off.
@@ -321,9 +350,13 @@ export default async function Validation() {
       </p>
       <p>
         These figures are asserted, not just written down: the corpus suite recomputes the census on
-        every run and fails if any metric drifts past what this page claims, so a change to the
-        engine either keeps the numbers true or forces them to be updated. It is one-directional —
-        getting better is always allowed, and the run prints the current figures.
+        every run and fails if any metric drifts from what this page claims, so a change to the
+        engine either keeps the numbers true or forces them to be updated.{" "}
+        <strong>It fails in both directions.</strong>{" "}It used to fail only when this page was too
+        generous to Loft, on the reasoning that getting better is always allowed — but a page
+        claiming 3.2% when the measurement is 1.8% is just as wrong about Loft, and it is the
+        direction nothing goes red on. Getting better is still always allowed; it has to be published
+        in the change that earns it. The run prints the current figures so that is one edit.
       </p>
 
       <h2 id="rocketpy">Against RocketPy (an independent engine)</h2>
