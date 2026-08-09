@@ -70,6 +70,8 @@ import {
   primaryNoseShape,
   primaryBodyTube,
   primaryBodyDiameter,
+  fittingMaxOuterDiameter,
+  fittingUnitMass,
   aftmostBodyDiameter,
   primaryFinish,
   primaryAirframeMaterial,
@@ -1732,10 +1734,29 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             // clamps with, so the promise and the enforcement cannot drift.
             internalMaxLength: internalPartBounds(designBase, edits.internalId).maxLength,
             internalMaxOuterDiameter: internalPartBounds(designBase, edits.internalId).maxOuterDiameter,
+            // **Two bound INPUTS that must survive the property-surface mask, which is why they are
+            // metadata rather than values.** `DesignEditor` blanks every AIMED field belonging to
+            // another component, and `bodyDiameter` is one — so inside a fitting's or an internal
+            // part's own popover it read `undefined`, which forced `calibreScale` to 1 and left the
+            // fitting ceiling with no number at all. The field then advertised no bound while
+            // `applyGeometryEdits` clamped anyway: the promise and the enforcement drifting apart,
+            // which is the defect the boattail shipped once and the internal bounds shipped again.
+            // These two keys are in no aim's target list, so the mask leaves them alone.
+            calibreBase: primaryBodyDiameter(designBase, edits.bodyTubeId),
+            // Only the two fields the bound actually reads, rather than the whole edit bag: passing
+            // `edits` makes this memo depend on every keystroke in the panel and go stale on the two
+            // that matter, which is the opposite of what it needs.
+            fittingMaxDiameter: fittingMaxOuterDiameter(designBase, {
+              bodyDiameter: edits.bodyDiameter,
+              bodyTubeId: edits.bodyTubeId,
+            }),
             // The external fittings — shock cords, launch lugs, rail buttons. 54 parts across the 35
             // corpus designs and the last kinds with no field; two of the three reach the flight
             // through protuberance DRAG as well as through mass.
-            fittingMass: primaryFitting(designBase, edits.fittingId)?.mass,
+            // PER INSTANCE, from the same function the applier multiplies back up. The stored figure
+            // is the total across the instances, so reading it raw left this field advertising a
+            // pristine total while the parts table one click away showed the scaled one.
+            fittingMass: fittingUnitMass(designBase, edits.fittingId),
             fittingLength: primaryFitting(designBase, edits.fittingId)?.length,
             fittingDiameter: (() => {
               const f = primaryFitting(designBase, edits.fittingId);
@@ -1802,6 +1823,8 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             unreachableInternals: 0,
             internalMaxLength: undefined,
             internalMaxOuterDiameter: undefined,
+            calibreBase: undefined,
+            fittingMaxDiameter: undefined,
             fittingMass: undefined,
             fittingLength: undefined,
             fittingDiameter: undefined,
@@ -1826,7 +1849,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     // The fin and body readbacks take their selected part, so both selections are real dependencies:
     // without them the panel keeps showing the primary part's numbers while the edit writes to the
     // picked one.
-    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId, edits.fittingId],
+    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.bodyDiameter, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId, edits.fittingId],
   );
 
   return (
@@ -2486,6 +2509,8 @@ function DesignEditor({
     unreachableInternals: number;
     internalMaxLength?: number;
     internalMaxOuterDiameter?: number;
+    calibreBase?: number;
+    fittingMaxDiameter?: number;
     fittingMass?: number;
     fittingLength?: number;
     fittingDiameter?: number;
@@ -2563,9 +2588,12 @@ function DesignEditor({
   // with it, and the internal edit is written after that scale, so `internalGeometryEdit` multiplies
   // the host bound by exactly this. The panel has to advertise the same number or it promises a
   // ceiling the model does not use — the boattail defect, in a second place.
+  // The denominator is `calibreBase`, NOT `bodyDiameter`: they hold the same number, but the second is
+  // an aimed field and a property surface blanks it, which silently forced this to 1 in exactly the
+  // popovers whose bounds depend on it.
   const calibreScale =
-    edits.bodyDiameter !== undefined && edits.bodyDiameter > 0 && designDims.bodyDiameter
-      ? edits.bodyDiameter / designDims.bodyDiameter
+    edits.bodyDiameter !== undefined && edits.bodyDiameter > 0 && designDims.calibreBase
+      ? edits.bodyDiameter / designDims.calibreBase
       : 1;
   // The bounds the internal fields advertise, in the flyer's own span unit. `undefined` is a real
   // answer — a design that states no host length has no ceiling to promise — and `NumberField` treats
@@ -2591,8 +2619,10 @@ function DesignEditor({
   // The airframe's own maximum diameter, in the flyer's span unit — the ceiling a fitting's frontal
   // size is held to, from the same number the applier clamps with. Placed after `calibreScale`
   // because it consumes it.
-  const fittingMaxDia = designDims.bodyDiameter !== undefined
-    ? Number(toDispSpan(designDims.bodyDiameter * calibreScale))
+  // Straight from `fittingMaxOuterDiameter`, the one function the applier clamps with — no second
+  // expression of the rule here, and no caliber factor to forget, because the bound already carries it.
+  const fittingMaxDia = designDims.fittingMaxDiameter !== undefined
+    ? Number(toDispSpan(designDims.fittingMaxDiameter))
     : undefined;
   // Blank means "use the design's own value". A zero is a different statement, and these fields want
   // three different answers to it — so every call site says which of the three it is, and
@@ -3227,7 +3257,7 @@ function DesignEditor({
                 )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <NumberField
-                    label={`Fitting mass (${massU})`}
+                    label={`Fitting mass each (${massU})`}
                     value={toDispMass(edits.fittingMass)}
                     placeholder={toDispMass(designDims.fittingMass)}
                     onChange={(v) => onEdit({ fittingMass: fromMass(v) })}

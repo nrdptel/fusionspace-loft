@@ -148,7 +148,10 @@ export default function Methods() {
         and areal density, a shock cord from its line density times cord length, and a launch lug or
         rail button from its bulk material over its tube wall. On a small model rocket these are
         grams; on a high-power rocket a long tubular-nylon harness is a real, CG-shifting mass that
-        would otherwise be silently dropped. An explicit
+        would otherwise be silently dropped. A fitting&apos;s mass is counted once per
+        instance, so a pair of rail buttons weighs twice what one does and changing that count in the
+        editor moves the mass and the parasitic drag together; the editor states the mass of one of
+        them, and a mass stated in the design file scales the same way. An explicit
         <code>&lt;overridemass&gt;</code>{" "}or <code>&lt;overridecg&gt;</code> in the design always
         wins; when it is flagged to override <em>all subcomponents</em> — a section weighed as a
         whole — that one figure stands in for the section and everything inside it, rather than

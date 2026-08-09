@@ -2153,6 +2153,64 @@ function withTransitionExit(c: RocketComponent, id: string, aftRadius: number): 
  *  aft-most tube's, so a value inside the advertised range was a silent no-op). Both read this. */
 export const INTERNAL_MAX_BORE_FRACTION = 0.99;
 
+/** The ceiling on a fitting's outer diameter — the widest thing it could physically be bolted to, on
+ *  the airframe BEING FLOWN.
+ *
+ *  **Exported for the same reason `internalPartBounds` is, and after the same defect in a third
+ *  place.** A launch lug or rail button is a protuberance the drag model squares, so this bound moves
+ *  a flight number; the panel advertises it and `applyGeometryEdits` enforces it, and until both read
+ *  it from here they disagreed twice over. The airframe scale is part of the bound, not a correction
+ *  applied to it: this is measured on the pristine tree while the clamp lands after
+ *  `scaleAirframeRadii`, so a caliber what-if that widened the airframe 54 → 108 mm advertised 108,
+ *  accepted a typed 81, displayed 81 and flew 54.
+ *
+ *  Takes the whole edit bag rather than a factor so a caller cannot forget the factor — which is
+ *  precisely how the panel came to compute this from a field the property surface had blanked. */
+export function fittingMaxOuterDiameter(rocket: Rocket, edits: GeometryEdits): number {
+  return 2 * maxBodyRadius(rocket) * airframeRadiusScale(rocket, edits);
+}
+
+/** What ONE of a fitting weighs — its stored total divided by however many of it the design carries.
+ *
+ *  **Exported because the panel advertises this number and the applier multiplies it back up**, and a
+ *  readback taken from one expression while the flight is computed from another is the defect this
+ *  whole family keeps producing. Returns both the computed mass and any stated override, because
+ *  `componentPointMass` prefers the override and a `.rkt` import synthesises one on every structural
+ *  part — so on those designs the override is the only figure that moves at all.
+ *
+ *  Either may be `undefined`: a fitting whose mass the design never states has no unit mass to show,
+ *  and the panel leaves the field empty rather than inventing one. */
+export function fittingUnitMasses(part: MinorComponent): { mass?: number; overrideMass?: number } {
+  const n = Math.max(1, part.instanceCount ?? 1);
+  return {
+    mass: part.mass !== undefined ? part.mass / n : undefined,
+    overrideMass: part.overrideMass !== undefined ? part.overrideMass / n : undefined,
+  };
+}
+
+/** What ONE of the fitting `selectedId` names weighs, as the panel shows it — the override where the
+ *  design states one, since that is the figure the solver actually flies. */
+export function fittingUnitMass(rocket: Rocket, selectedId?: string): number | undefined {
+  const part = primaryFitting(rocket, selectedId);
+  if (!part) return undefined;
+  const u = fittingUnitMasses(part);
+  return u.overrideMass ?? u.mass;
+}
+
+/** The factor a caliber what-if applies to the whole outer airframe: what takes the PICKED tube from
+ *  its pristine diameter to the requested one. 1 when unset or degenerate.
+ *
+ *  **One function because it had already been written twice**, and every bound measured on the
+ *  pristine tree has to consume it or it promises a ceiling the model does not use. The factor comes
+ *  from the picked tube, like the field's own readback: seeding it from the longest tube while the
+ *  field displayed the picked one turned "make this 54 mm" into a scale computed off another part's
+ *  caliber, so the tube the flyer was looking at landed anywhere but 54 mm. */
+export function airframeRadiusScale(rocket: Rocket, edits: GeometryEdits): number {
+  if (edits.bodyDiameter === undefined || !(edits.bodyDiameter > 0)) return 1;
+  const tube = primaryBodyTube(rocket, edits.bodyTubeId);
+  return tube && tube.outerRadius > 0 ? edits.bodyDiameter / 2 / tube.outerRadius : 1;
+}
+
 /** The physical ceilings on the internal part `selectedId` names, read off the part HOLDING it.
  *
  *  **Exported because the panel advertises these numbers and the applier enforces them, and a bound
@@ -2311,13 +2369,22 @@ function withInternalGeometry(
  *  the pristine tree. */
 function withFitting(
   c: RocketComponent,
-  e: { id: string; mass?: number; length?: number; radius?: number; instanceCount?: number },
+  e: {
+    id: string;
+    mass?: number;
+    /** `null` CLEARS a stated override — distinct from `undefined`, which leaves it standing. */
+    overrideMass?: number | null;
+    length?: number;
+    radius?: number;
+    instanceCount?: number;
+  },
 ): RocketComponent {
   if (c.id === e.id && FITTING_KINDS.has(c.kind)) {
     const part = c as MinorComponent;
     return {
       ...part,
       ...(e.mass !== undefined ? { mass: e.mass } : {}),
+      ...(e.overrideMass !== undefined ? { overrideMass: e.overrideMass ?? undefined } : {}),
       ...(e.length !== undefined ? { length: e.length } : {}),
       ...(e.radius !== undefined ? { radius: e.radius } : {}),
       ...(e.instanceCount !== undefined ? { instanceCount: e.instanceCount } : {}),
@@ -3810,15 +3877,10 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     ? { name: matOpt.name, density: matOpt.density, type: "bulk" }
     : undefined;
   // Diameter what-if: the factor that takes the pristine primary tube to the target diameter, then
-  // applied to the whole outer airframe so it stays faired. 1 (no scaling) when unset or degenerate.
-  // The factor comes from the PICKED tube, like the field's own readback: seeding it from the longest
-  // tube while the field displayed the picked one turned "make this 54 mm" into a scale computed off
-  // another part's caliber, so the tube the flyer was looking at landed anywhere but 54 mm.
-  let radiusScale = 1;
-  if (edits.bodyDiameter !== undefined && edits.bodyDiameter > 0) {
-    const tube = primaryBodyTube(rocket, edits.bodyTubeId);
-    if (tube && tube.outerRadius > 0) radiusScale = edits.bodyDiameter / 2 / tube.outerRadius;
-  }
+  // applied to the whole outer airframe so it stays faired. From `airframeRadiusScale`, which every
+  // bound measured on the pristine tree also reads — the applier computing its own copy is how the
+  // fitting ceiling came to disagree with the one the panel advertised.
+  const radiusScale = airframeRadiusScale(rocket, edits);
   /** The fitting's four fields, resolved once from the pristine design like every other aim.
    *
    *  **Bounded, and the diameter's bound is the one that matters.** A launch lug or a rail button is a
@@ -3826,23 +3888,71 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
    *  to would put more frontal area on the outside of the rocket than the rocket has — held to the
    *  airframe's own maximum diameter, which is the widest thing it could physically be a fitting on.
    *  The count is floored at 1 and rounded: half a rail button is not a thing, and a count of zero is
-   *  a removal, which the editor already has a verb for. */
+   *  a removal, which the editor already has a verb for.
+   *
+   *  **The ceiling carries the caliber factor, because it is measured on the PRISTINE tree and
+   *  applied after `scaleAirframeRadii`** — the same correction `internalGeometryEdit` already makes,
+   *  in a second place. Without it a caliber what-if that widened the airframe left the panel
+   *  advertising the new diameter while this clamped to the old one: measured on the starter design,
+   *  an airframe widened 54 → 108 mm advertised a 108 mm ceiling, accepted a typed 81 mm, displayed
+   *  81 mm, and flew 54 — a protuberance area, and therefore an apogee, computed from a number the
+   *  flyer never saw. */
   const fittingTarget = primaryFitting(rocket, edits.fittingId);
-  const fittingMaxDiameter = 2 * maxBodyRadius(rocket);
+  const fittingMaxDiameter = fittingMaxOuterDiameter(rocket, edits);
+  /** **A fitting's stored `mass` is the TOTAL across its instances, and the field is PER INSTANCE.**
+   *  The stored figure is a total everywhere already — `lib/ork/adapt.ts` multiplies the computed
+   *  per-instance mass by the count on the way in, `lib/ork/export.ts` divides by it to write
+   *  OpenRocket's per-instance `<mass>` on the way out, and `lib/sim/aero.ts` multiplies the frontal
+   *  area by it. The applier was the one place that did not, so changing a pair of rail buttons to
+   *  eight moved the drag and left the mass standing: a design imported at count 4 and the same
+   *  design edited to count 4 were two different rockets.
+   *
+   *  **Total in the model, per-instance at the field, because the alternative does not survive its own
+   *  readback.** Scaling the stored total on a count change is arithmetically right and leaves the
+   *  panel advertising the pristine total as "the design's own" while the parts table one click away
+   *  shows the scaled one — and a flyer typing back the number the field showed them would then have
+   *  silently divided their rocket's fitting mass by the count. One of one is the same number either
+   *  way, which is every design in the corpus but four, and beyond that "how much does one weigh"
+   *  is the question a flyer with a scale can actually answer. So both paths are `unit x count`, the
+   *  readback is a unit mass that a count change cannot move, and a typed mass scales with the count
+   *  exactly as the design's own does. */
+  const fittingCount =
+    edits.fittingCount !== undefined && edits.fittingCount >= 1
+      ? Math.round(edits.fittingCount)
+      : Math.max(1, fittingTarget?.instanceCount ?? 1);
+  const fittingTypedUnitMass =
+    edits.fittingMass !== undefined && edits.fittingMass >= 0 ? edits.fittingMass : undefined;
+  const fittingUnit = fittingTarget ? fittingUnitMasses(fittingTarget) : undefined;
+  /** Whether anything here moves the mass at all: a typed unit mass, or a count that has changed. */
+  const fittingMassMoved =
+    fittingTypedUnitMass !== undefined ||
+    (fittingTarget !== undefined && fittingCount !== Math.max(1, fittingTarget.instanceCount ?? 1));
   const fittingEdit = fittingTarget
     ? {
         id: fittingTarget.id,
-        mass: edits.fittingMass !== undefined && edits.fittingMass >= 0 ? edits.fittingMass : undefined,
+        mass:
+          fittingMassMoved && (fittingTypedUnitMass ?? fittingUnit?.mass) !== undefined
+            ? (fittingTypedUnitMass ?? fittingUnit!.mass!) * fittingCount
+            : undefined,
+        /** **The override has to follow the count too, and on a `.rkt` design it is the ONLY thing
+         *  that would.** `componentPointMass` reads `overrideMass` in preference to `mass`, and
+         *  `lib/rkt/adapt.ts` synthesises one on every structural part from the file's own stated
+         *  figure — so on the two launch lugs of `FullScaleModelTH.rkt` the count moved the drag while
+         *  the mass edit above landed on a field nothing read. A typed mass CLEARS it, because a
+         *  figure the flyer just weighed must not be shadowed by one the importer synthesised. */
+        overrideMass:
+          fittingTypedUnitMass !== undefined
+            ? null
+            : fittingMassMoved && fittingUnit?.overrideMass !== undefined
+              ? fittingUnit.overrideMass * fittingCount
+              : undefined,
         length:
           edits.fittingLength !== undefined && edits.fittingLength > 0 ? edits.fittingLength : undefined,
         radius:
           edits.fittingDiameter !== undefined && edits.fittingDiameter > 0
             ? Math.min(edits.fittingDiameter, fittingMaxDiameter) / 2
             : undefined,
-        instanceCount:
-          edits.fittingCount !== undefined && edits.fittingCount >= 1
-            ? Math.round(edits.fittingCount)
-            : undefined,
+        instanceCount: edits.fittingCount !== undefined && edits.fittingCount >= 1 ? fittingCount : undefined,
       }
     : undefined;
 
@@ -3882,8 +3992,9 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     // number typed here is the one flown even when `bodyDiameter` is also set. A coupler is inside the
     // airframe, so the scale reaches it — and a flyer who has typed its diameter has already answered.
     if (internalEdit) geo = withInternalGeometry(geo, internalEdit);
-    if (fittingEdit && (fittingEdit.mass !== undefined || fittingEdit.length !== undefined ||
-        fittingEdit.radius !== undefined || fittingEdit.instanceCount !== undefined)) {
+    if (fittingEdit && (fittingEdit.mass !== undefined || fittingEdit.overrideMass !== undefined ||
+        fittingEdit.length !== undefined || fittingEdit.radius !== undefined ||
+        fittingEdit.instanceCount !== undefined)) {
       geo = withFitting(geo, fittingEdit);
     }
     if (massTarget && edits.massObjectMass !== undefined && edits.massObjectMass >= 0) {
