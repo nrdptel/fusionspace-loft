@@ -30,6 +30,12 @@ import {
   primaryTransition,
   primaryTransitionPart,
   unreachableTransitionCount,
+  primaryInternalPart,
+  primaryInternalPartAim,
+  internalPartBounds,
+  unreachableInternalCount,
+  internalSpanLabel,
+  INTERNAL_MAX_BORE_FRACTION,
   primaryMassObject,
   primaryMassObjectPart,
   primaryMassObjectStation,
@@ -188,6 +194,9 @@ interface Edits {
   massObjectId?: string;
   /** Which canopy the recovery fields describe and edit. A selection, not an edit — as above. */
   parachuteId?: string;
+  /** Which piece of internal structure the internal fields describe and edit — a coupler, a centring
+   *  ring, a bulkhead, an engine block or an inner tube. A selection, not an edit — as above. */
+  internalId?: string;
   /** Components removed from the design, oldest first. An ordered list, so undo is dropping the last. */
   removedIds?: string[];
   /** Parts the flyer authored, oldest first — see `AddedPart` in the edit model. */
@@ -228,6 +237,9 @@ interface Edits {
   catalogParachute?: PickedParachute; // builder edit: the published canopy the recovery fields came from
   transitionLength?: number; // builder edit: the picked transition's length (m)
   transitionAftDiameter?: number; // builder edit: the picked transition's exit diameter (m)
+  internalLength?: number; // builder edit: the picked internal part's length / plate thickness (m)
+  internalOuterDiameter?: number; // builder edit: the picked internal part's outer diameter (m)
+  internalInnerDiameter?: number; // builder edit: the picked internal part's bore (m)
   massObjectMass?: number; // builder edit: the picked mass object's weight (kg)
   massObjectStation?: number; // builder edit: where it sits (m from the nose tip)
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
@@ -1690,6 +1702,25 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             })(),
             transitionPart: primaryTransitionPart(designBase, edits.transitionId),
             unreachableTransitions: unreachableTransitionCount(designBase),
+            // The internal structure: couplers, centring rings, bulkheads, engine blocks and inner
+            // tubes. 194 parts across 25/17/11/13/25 of the 35 corpus designs, and until now not one
+            // of them had a field. They are 194 of the 249 parts (of 569) that no field described.
+            internalLength: primaryInternalPart(designBase, edits.internalId)?.length,
+            internalOuterDiameter: (() => {
+              const p = primaryInternalPart(designBase, edits.internalId);
+              return p ? p.outerRadius * 2 : undefined;
+            })(),
+            internalInnerDiameter: (() => {
+              const p = primaryInternalPart(designBase, edits.internalId);
+              return p ? p.innerRadius * 2 : undefined;
+            })(),
+            internalKind: primaryInternalPart(designBase, edits.internalId)?.kind,
+            internalPart: primaryInternalPartAim(designBase, edits.internalId),
+            unreachableInternals: unreachableInternalCount(designBase),
+            // The ceilings the two dimension fields advertise, from the same function the applier
+            // clamps with, so the promise and the enforcement cannot drift.
+            internalMaxLength: internalPartBounds(designBase, edits.internalId).maxLength,
+            internalMaxOuterDiameter: internalPartBounds(designBase, edits.internalId).maxOuterDiameter,
             // 26 of the 35 corpus designs carry a mass object, 56 in all, and until now not one could
             // be reached: the only mass a flyer could state was a payload the editor adds.
             massObjectMass: primaryMassObject(designBase, edits.massObjectId)?.mass,
@@ -1739,6 +1770,14 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             transitionAftDiameter: undefined,
             transitionPart: undefined,
             unreachableTransitions: 0,
+            internalLength: undefined,
+            internalOuterDiameter: undefined,
+            internalInnerDiameter: undefined,
+            internalKind: undefined,
+            internalPart: undefined,
+            unreachableInternals: 0,
+            internalMaxLength: undefined,
+            internalMaxOuterDiameter: undefined,
             massObjectMass: undefined,
             massObjectStation: undefined,
             massObjectPart: undefined,
@@ -1756,7 +1795,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     // The fin and body readbacks take their selected part, so both selections are real dependencies:
     // without them the panel keeps showing the primary part's numbers while the edit writes to the
     // picked one.
-    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.transitionId, edits.massObjectId, edits.parachuteId],
+    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId],
   );
 
   return (
@@ -2316,6 +2355,21 @@ function EditorFrame({ bare, children }: { bare?: boolean; children: React.React
   );
 }
 
+/** The fieldset legend and the inline field label inside `DesignEditor`, spelled ONCE.
+ *
+ *  **They were six and six identical string literals, and that is why this is a constant rather than
+ *  taste.** `lib/design-system.test.ts` ratchets `text-[11px]` — a token §3 scopes to axis ticks and
+ *  diagram annotations — and its own docblock says how the number comes down: *"a label that moves
+ *  into a primitive stops being spelled at the call site."* Twelve call sites spelling it made this
+ *  file eleven of the app's forty-one uses, and adding a thirteenth for a new fieldset would have
+ *  grown a count that is only allowed to shrink. Collapsed, the same twelve labels cost two.
+ *
+ *  Not lifted into `components/ui.tsx`: §5 is the binding component vocabulary and both repos carry
+ *  an identical copy, so a new primitive is a `DESIGN.md` change in both — the right move when a
+ *  second surface needs the same treatment, and premature while one does. */
+const FIELDSET_LEGEND = "mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400";
+const FIELD_LABEL = "block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400";
+
 /** Which component's fields a property surface is showing — an `AIM_SLOTS` key, or `"nose"`.
  *
  *  The nose is the one kind the aim registry deliberately has no slot for, because a design has
@@ -2391,6 +2445,16 @@ function DesignEditor({
     transitionAftDiameter?: number;
     transitionPart?: AimedPart;
     unreachableTransitions: number;
+    internalLength?: number;
+    internalOuterDiameter?: number;
+    internalInnerDiameter?: number;
+    /** Which of the five kinds the aim landed on — the panel labels the axial field `Thickness` on a
+     *  plate and `Length` on a tube, which is one model field and two flyers' words. */
+    internalKind?: string;
+    internalPart?: AimedPart;
+    unreachableInternals: number;
+    internalMaxLength?: number;
+    internalMaxOuterDiameter?: number;
     massObjectMass?: number;
     massObjectStation?: number;
     massObjectPart?: AimedPart;
@@ -2452,6 +2516,37 @@ function DesignEditor({
   const chutePhrase = partPhrase(designDims.parachutePart, "canopy");
   const transPhrase = partPhrase(designDims.transitionPart, "transition");
   const massPhrase = partPhrase(designDims.massObjectPart, "mass object");
+  const internalPhrase = partPhrase(designDims.internalPart, "internal part");
+  // **The caliber factor, because the internal bounds are measured on the pristine design and the
+  // applier scales them.** `Body diameter` scales the whole outer airframe and every internal part
+  // with it, and the internal edit is written after that scale, so `internalGeometryEdit` multiplies
+  // the host bound by exactly this. The panel has to advertise the same number or it promises a
+  // ceiling the model does not use — the boattail defect, in a second place.
+  const calibreScale =
+    edits.bodyDiameter !== undefined && edits.bodyDiameter > 0 && designDims.bodyDiameter
+      ? edits.bodyDiameter / designDims.bodyDiameter
+      : 1;
+  // The bounds the internal fields advertise, in the flyer's own span unit. `undefined` is a real
+  // answer — a design that states no host length has no ceiling to promise — and `NumberField` treats
+  // it as unbounded, which is the honest reading rather than a fabricated limit.
+  const internalMaxSpan = designDims.internalMaxLength !== undefined
+    ? Number(toDispSpan(designDims.internalMaxLength))
+    : undefined;
+  const internalMaxOuter = designDims.internalMaxOuterDiameter !== undefined
+    ? Number(toDispSpan(designDims.internalMaxOuterDiameter * calibreScale))
+    : undefined;
+  // The bore is bounded by the outer diameter BEING FLOWN — the edited one where the flyer has typed
+  // one, the design's own otherwise — times the one shared cap, which is exactly what
+  // `internalGeometryEdit` clamps to. Bounding it at the design's stale outer diameter would
+  // advertise a ceiling the model stops using the moment the flyer narrows the part.
+  const internalOuterFlown =
+    edits.internalOuterDiameter ??
+    (designDims.internalOuterDiameter !== undefined
+      ? designDims.internalOuterDiameter * calibreScale
+      : undefined);
+  const internalMaxBore = internalOuterFlown !== undefined
+    ? Number(toDispSpan(internalOuterFlown * INTERNAL_MAX_BORE_FRACTION))
+    : undefined;
   // Blank means "use the design's own value". A zero is a different statement, and these fields want
   // three different answers to it — so every call site says which of the three it is, and
   // `lib/model/edit.ts` is the authority, because it is the code that decides what the solver sees:
@@ -2482,14 +2577,14 @@ function DesignEditor({
             {!only && ((swap && swap.options.length > 1) || designDims.motorClusterCount !== undefined) && (
               <fieldset className="min-w-0 border-0 p-0">
                 {!only && (
-                <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                <legend className={FIELDSET_LEGEND}>
                   Motor
                 </legend>
                 )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {swap && swap.options.length > 1 && (
                     <label className="col-span-2 block">
-                      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      <span className={FIELD_LABEL}>
                         Swap motor
                       </span>
                       <Select
@@ -2566,7 +2661,7 @@ function DesignEditor({
             {designDims.finSpan !== undefined && (
               <fieldset className="min-w-0 border-0 p-0">
                 {!only && (
-                <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                <legend className={FIELDSET_LEGEND}>
                   {designDims.unreachableFinSets > 0 ? `Fins — ${finPhrase}` : "Fins"}
                 </legend>
                 )}
@@ -2656,7 +2751,7 @@ function DesignEditor({
                   )}
                   {designDims.finCrossSection !== undefined && (
                     <label className="block">
-                      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      <span className={FIELD_LABEL}>
                         Fin edge
                       </span>
                       <Select
@@ -2678,7 +2773,7 @@ function DesignEditor({
                   )}
                   {designDims.finCrossSection !== undefined && (
                     <label className="block">
-                      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      <span className={FIELD_LABEL}>
                         Fin material
                       </span>
                       <Select
@@ -2712,7 +2807,7 @@ function DesignEditor({
               designDims.transitionAftDiameter !== undefined) && (
               <fieldset className="min-w-0 border-0 p-0">
                 {!only && (
-                <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                <legend className={FIELDSET_LEGEND}>
                   Nose &amp; body
                 </legend>
                 )}
@@ -2754,7 +2849,7 @@ function DesignEditor({
                   )}
                   {designDims.noseShape !== undefined && (
                     <label className="block">
-                      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      <span className={FIELD_LABEL}>
                         Nose shape
                       </span>
                       <Select
@@ -2986,12 +3081,79 @@ function DesignEditor({
               </fieldset>
             )}
 
+            {/* The internal structure — a coupler, a centring ring, a bulkhead, an engine block, an
+                inner tube. Its own group rather than a corner of "Nose & body": the parts in that
+                group are the outer mould line, and every part in this one is inside it and
+                contributes mass alone. Shown only when the design carries one to hold. */}
+            {designDims.internalLength !== undefined && (
+              <fieldset className="min-w-0 border-0 p-0">
+                {!only && (
+                  <legend className={FIELDSET_LEGEND}>
+                    {designDims.unreachableInternals > 0
+                      ? `Internal structure — ${internalPhrase}`
+                      : "Internal structure"}
+                  </legend>
+                )}
+                {!only && designDims.unreachableInternals > 0 && (
+                  // The corpus median design carries five of these and the worst carries far more, so
+                  // the aim matters here more than on any other slot: the fields hold exactly one part
+                  // and there is no group-broadcast rule that could make them mean more.
+                  <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    This design has {designDims.unreachableInternals} other internal{" "}
+                    {designDims.unreachableInternals === 1 ? "part" : "parts"} — couplers, centring{" "}
+                    rings, bulkheads and motor-mount tubes. These fields describe and change{" "}
+                    {internalPhrase}; to edit another, pick it on the diagram or in the parts table{" "}
+                    above.
+                  </p>
+                )}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <NumberField
+                    label={`${internalSpanLabel(designDims.internalKind ?? "")} (${spanU})`}
+                    value={toDispSpan(edits.internalLength)}
+                    placeholder={toDispSpan(designDims.internalLength)}
+                    onChange={(v) => onEdit({ internalLength: fromSpan(v) })}
+                    min={0}
+                    // The part cannot be longer than the one holding it — the model clamps to exactly
+                    // this and the field advertises the same number, so the bound is visible before it
+                    // is hit rather than after.
+                    max={internalMaxSpan}
+                    positive
+                  />
+                  {designDims.internalOuterDiameter !== undefined && (
+                    <NumberField
+                      label={`Outer Ø (${spanU})`}
+                      value={toDispSpan(edits.internalOuterDiameter)}
+                      placeholder={toDispSpan(designDims.internalOuterDiameter)}
+                      onChange={(v) => onEdit({ internalOuterDiameter: fromSpan(v) })}
+                      min={0}
+                      max={internalMaxOuter}
+                      positive
+                    />
+                  )}
+                  {designDims.internalInnerDiameter !== undefined && (
+                    <NumberField
+                      label={`Bore Ø (${spanU})`}
+                      value={toDispSpan(edits.internalInnerDiameter)}
+                      placeholder={toDispSpan(designDims.internalInnerDiameter)}
+                      onChange={(v) => onEdit({ internalInnerDiameter: fromSpan(v) })}
+                      min={0}
+                      // Bounded BELOW the outer diameter being flown, not at it: a bore equal to the
+                      // wall is a part made of nothing. No `positive` — a bore of zero is the one
+                      // real answer here, and it is what a solid bulkhead is.
+                      max={internalMaxBore}
+                      hint="0 is a solid disc"
+                    />
+                  )}
+                </div>
+              </fieldset>
+            )}
+
             {(!only || only === "parachuteId") && (
             <fieldset className="min-w-0 border-0 p-0">
               {/* No legend inside a property surface: the surface's own heading already names the
                   part, and a legend under it would be a heading about a heading. */}
               {!only && (
-              <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              <legend className={FIELDSET_LEGEND}>
                 {designDims.unreachableParachutes > 0 ? `Recovery — ${chutePhrase}` : "Recovery"}
               </legend>
               )}
@@ -3210,7 +3372,7 @@ function DesignEditor({
             {(!only || only === "massObjectId") && (
             <fieldset className="min-w-0 border-0 p-0">
               {!only && (
-              <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              <legend className={FIELDSET_LEGEND}>
                 Mass &amp; finish
               </legend>
               )}
@@ -3272,7 +3434,7 @@ function DesignEditor({
                 )}
                 {!only && designDims.finish !== undefined && (
                   <label className="block">
-                    <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <span className={FIELD_LABEL}>
                       Surface finish
                     </span>
                     <Select
@@ -3292,7 +3454,7 @@ function DesignEditor({
                 )}
                 {!only && designDims.bodyDiameter !== undefined && (
                   <label className="block">
-                    <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <span className={FIELD_LABEL}>
                       Airframe material
                     </span>
                     <Select

@@ -5,7 +5,7 @@ import type { Material, Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
-import { mouldLineStep, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
+import { mouldLineStep, internalSpanLabel, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -224,13 +224,20 @@ function describeDims(c: RocketComponent, units: UnitSystem): string {
     case "ellipticalfinset":
     case "freeformfinset":
       return `${c.finCount} fins · root ${L(c.rootChord)}, span ${L(c.height)}`;
+    // The five internal kinds carry the same three numbers, and the row shows all three: the BORE is
+    // the hole a motor tube passes through, it is now editable, and a dimension a flyer can change
+    // that appears on no list is a change they can only find by re-opening the panel. The axial one
+    // takes its word from `internalSpanLabel` rather than a hard-coded `L`, so the row a flyer clicks
+    // and the panel it opens cannot call one part two things — which is what that function is
+    // exported for. A solid disc has no bore and says nothing rather than "⌀0".
     case "innertube":
-      return `L ${L(c.length)}, ${dia(c.outerRadius)}`;
     case "tubecoupler":
     case "centeringring":
     case "bulkhead":
     case "engineblock":
-      return `L ${L(c.length)}, ${dia(c.outerRadius)}`;
+      return `${internalSpanLabel(c.kind) === "Thickness" ? "T" : "L"} ${L(c.length)}, ${dia(c.outerRadius)}${
+        c.innerRadius > 0 ? `, bore ${dia(c.innerRadius)}` : ""
+      }`;
     default:
       return "length" in c && typeof c.length === "number" && c.length > 0 ? `L ${L(c.length)}` : "—";
   }
@@ -435,30 +442,12 @@ export default function GeometryInspector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aimSig]);
 
-  // **The same rule as the effect above, for the two kinds no aim can speak for.** A coupler and a
-  // centring ring have no `AIM_SLOTS` entry — deliberately, because the editor has no field that
-  // describes one — so `aimEditsAt` returns an empty patch for them and the aim-following effect
-  // cannot show a newly authored one as the pick the way it does for a tube, a fin set, a transition
-  // or a mass object. Without this, authoring a coupler leaves the panel still pointing at its HOST,
-  // and the catalogue picker below is one unexplained click away on a row the flyer has no reason to
-  // think is now interactive: "a feature reachable only by knowing it is there".
-  //
-  // Keyed on the id LIST rather than the count, so an undo followed by a re-add is a change; and the
-  // first run adopts the list without selecting, so a restored session comes back where the flyer
-  // left it rather than jumping to a coupler they authored days ago.
-  const addedSig = (added ?? []).map((a) => a.id).join(",");
-  const lastAdded = useRef<string | null>(null);
-  useEffect(() => {
-    const before = lastAdded.current;
-    lastAdded.current = addedSig;
-    if (before === null) return;
-    const had = new Set(before ? before.split(",") : []);
-    const fresh = (added ?? []).find(
-      (a) => !had.has(a.id) && (a.kind === "tubecoupler" || a.kind === "centeringring"),
-    );
-    if (fresh) setSelectedId(fresh.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addedSig]);
+  // **This used to carry a second, parallel effect for couplers and centring rings**, because those
+  // two kinds had no `AIM_SLOTS` entry at all: `aimEditsAt` returned an empty patch for them, no aim
+  // moved when one was authored, and the effect above could not show the new part as the pick the way
+  // it does for a tube or a fin set. The `internalId` slot removed the special case — a coupler now
+  // moves an aim exactly as every other kind does, and the one effect above handles it. Two code
+  // paths selecting the same part on the same commit is how they drift.
 
   // The diagram, a table row click and a row's Enter/Space all pick the same way, so they go through
   // one toggle — three copies could not stay in step once picking gained a second effect.

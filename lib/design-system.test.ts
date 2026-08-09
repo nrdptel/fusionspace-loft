@@ -123,8 +123,17 @@ const BUDGET = {
    *  when `ResultsView`'s local `Field` was deleted onto `Readout`'s `row` variant**: its `<dt>` was
    *  the last label in the design-summary strip at this size, and 14 call sites went with it.
    *  Adoption is how this number comes down — a label that moves into a primitive stops being
-   *  spelled at the call site. */
-  axisTickSize: 41,
+   *  spelled at the call site.
+   *
+   *  **41 → 33 on 2026-08-09, and it is the same lesson a third time.** `DesignEditor` spelled its
+   *  fieldset legend six times and its inline field label six times, character-identical, which made
+   *  `LoftApp` eleven of the forty-one on its own. A new fieldset for the internal-structure fields
+   *  would have made it a thirteenth spelling and grown a count that is only allowed to shrink — so
+   *  the two treatments became two constants in that file and the twelve call sites became two.
+   *  `LoftApp` 11 → 3. Deliberately NOT lifted into `components/ui.tsx`: §5 is binding vocabulary
+   *  carried identically by both repos, so a primitive there is a `DESIGN.md` change in both, which
+   *  is right when a second surface needs the treatment and premature while one does. */
+  axisTickSize: 33,
   /** `<button>` elements that hand-roll their own geometry instead of taking it from `buttonClass`.
    *
    *  **This is the count P1's *done when* is about, and until 2026-08-01 nothing asserted it.** The

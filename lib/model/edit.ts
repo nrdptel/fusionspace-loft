@@ -576,6 +576,24 @@ export interface GeometryEdits {
    *  who picked the drogue and resized it resized the MAIN instead, which moves landing speed and
    *  landing energy, the two numbers recovery sizing exists to get right. */
   parachuteId?: string;
+  /** Which piece of INTERNAL STRUCTURE the three internal fields describe and edit — a tube coupler, a
+   *  centring ring, a bulkhead, an engine block or an inner (motor-mount) tube. Undefined means the
+   *  design's frontmost one. A SELECTION, not an edit, exactly like the other aims.
+   *
+   *  **One slot for five kinds, because they are one shape.** `types.ts` gives `RingComponent` and
+   *  `InnerTube` the identical three geometry fields — `length`, `outerRadius`, `innerRadius` — and
+   *  models both as annular cylinders with no aerodynamic contribution. A second slot per kind would
+   *  be five copies of one registry entry, and `AIM_SLOTS`' own docblock records what happened the
+   *  last time this file held the same fact in more than one place.
+   *
+   *  It matters because this is the largest unreachable population left in the model. Measured over
+   *  the 35-design corpus: **249 of 569 parts (43.8%) have no field that describes them, and 194 of
+   *  those 249 are these five kinds** — 83 centring rings on 25 designs, 37 inner tubes on 25, 31
+   *  couplers on 17, 29 bulkheads on 11, 14 engine blocks on 13. A flyer could already AUTHOR a
+   *  coupler and a centring ring and then not resize either, which is worse than not offering them:
+   *  the part arrives at Loft's own corpus-median default and the flyer's real one is 1/8 inch of ply
+   *  they cannot type in. */
+  internalId?: string;
   /** Components the flyer has removed, oldest first — the design's structural deletions.
    *
    *  An ordered LIST rather than a set, because the order is what makes it undoable: dropping the last
@@ -732,6 +750,28 @@ export interface GeometryEdits {
    *  from a single field. Where that leaves the mould line stepping at the joint behind it, the panel
    *  says so and by how much — see `mouldLineStep`. Undefined leaves it. */
   transitionAftDiameter?: number;
+  /** Absolute length (m) of the internal part `internalId` names — its axial extent along the
+   *  airframe. On a centring ring, a bulkhead or an engine block this is the PLATE THICKNESS and the
+   *  panel labels it so; on a coupler or an inner tube it is a tube's length. The number is the same
+   *  field of the same model type either way, and the two vocabularies are a fact about what flyers
+   *  call the part, not about the model.
+   *
+   *  It changes mass, and mass alone: `types.ts` gives these kinds no aerodynamic contribution, so a
+   *  longer coupler is heavier and further nothing. That is still a flight change — mass moves the CG,
+   *  the CG moves the static margin, and both move apogee — which is exactly why a part a flyer cannot
+   *  size is a part whose mass they cannot correct. Undefined leaves it. */
+  internalLength?: number;
+  /** Absolute OUTER diameter (m) of the internal part `internalId` names. Undefined leaves it. */
+  internalOuterDiameter?: number;
+  /** Absolute INNER diameter (m) — the bore — of the internal part `internalId` names.
+   *
+   *  A bore at or above the outer diameter is a part made of nothing, so it is refused rather than
+   *  flown: `applyDimensionEdits` drops it and the design keeps its own. The panel bounds the field at
+   *  the outer diameter it is being flown against, so the refusal is normally unreachable from the UI —
+   *  but the bag is persisted and replayed (`lib/session.ts`), and a bore typed before the outer
+   *  diameter shrank underneath it reaches the model on the next visit. The model decides what the
+   *  solver sees; it does not rely on the caller having been careful. Undefined leaves it. */
+  internalInnerDiameter?: number;
   /** Absolute mass (kg) of the mass object `massObjectId` names. The dominant non-structural weight on
    *  most designs — electronics, tracker, ballast, nose weight — so it moves loaded mass, the CG and
    *  therefore the static margin, and the apogee with them. Undefined leaves it. */
@@ -912,6 +952,13 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     usableCatalogParachute(e.catalogParachute) ||
     (e.transitionLength !== undefined && e.transitionLength > 0) ||
     (e.transitionAftDiameter !== undefined && e.transitionAftDiameter > 0) ||
+    (e.internalLength !== undefined && e.internalLength > 0) ||
+    (e.internalOuterDiameter !== undefined && e.internalOuterDiameter > 0) ||
+    // A bore of zero is a real answer here and the only field in this file for which it is: a solid
+    // disc is what a bulkhead IS, and `>= 0` rather than `> 0` is what lets a flyer say so. The
+    // impossible entry is a bore at or above the outer diameter, and that is refused in the applier
+    // rather than here — this predicate answers "did anything change", not "is it buildable".
+    (e.internalInnerDiameter !== undefined && e.internalInnerDiameter >= 0) ||
     (e.massObjectMass !== undefined && e.massObjectMass >= 0) ||
     (e.massObjectStation !== undefined && e.massObjectStation >= 0) ||
     e.finish !== undefined ||
@@ -991,6 +1038,50 @@ export function primaryTransition(rocket: Rocket, selectedId?: string): Transiti
  *  for the only one the design has. */
 export function unreachableTransitionCount(rocket: Rocket): number {
   return Math.max(0, flattenRocket(rocket).filter((p) => p.component.kind === "transition").length - 1);
+}
+
+/** The five kinds that mount INSIDE the airframe as annular or solid cylinders and share one geometry:
+ *  `length`, `outerRadius`, `innerRadius` (`types.ts`). `RING_KINDS` below is the subset that the
+ *  fitting rule and the authoring defaults treat alike; this is that set plus `innertube`, which is the
+ *  same three fields with a `motorMount` marker hanging off it.
+ *
+ *  Deliberately NOT re-derived from `RING_KINDS`: these two sets answer different questions and have
+ *  drifted apart before. "Can I be longer than my host?" is the ring rule. "Do I have three numbers a
+ *  flyer can type?" is this one. */
+const INTERNAL_KINDS: ReadonlySet<string> = new Set([
+  "tubecoupler",
+  "centeringring",
+  "bulkhead",
+  "engineblock",
+  "innertube",
+]);
+
+/** The internal part the three internal fields are about: the one picked, or the design's frontmost
+ *  when nothing is — the same fallback rule `primaryTransition` uses, and for the same reason. A
+ *  design carries several (the corpus median is 5), so the fallback is a starting point rather than an
+ *  answer, which is what the unreachable count below exists to say. */
+export function primaryInternalPart(
+  rocket: Rocket,
+  selectedId?: string,
+): (RingComponent | InnerTube) | undefined {
+  const parts = flattenRocket(rocket)
+    .map((p) => p.component)
+    .filter((c): c is RingComponent | InnerTube => INTERNAL_KINDS.has(c.kind));
+  if (!parts.length) return undefined;
+  const picked = selectedId ? parts.find((c) => c.id === selectedId) : undefined;
+  return picked ?? parts[0];
+}
+
+/** How many internal parts sit OUTSIDE the one the internal fields describe. */
+export function unreachableInternalCount(rocket: Rocket): number {
+  return Math.max(0, flattenRocket(rocket).filter((p) => INTERNAL_KINDS.has(p.component.kind)).length - 1);
+}
+
+/** What a flyer calls this part's axial dimension. A plate has a THICKNESS and a tube has a LENGTH;
+ *  they are one model field and two words, and OpenRocket's own dialogs make the same split. Exported
+ *  so the panel and the parts table cannot label one part two ways. */
+export function internalSpanLabel(kind: string): "Thickness" | "Length" {
+  return kind === "centeringring" || kind === "bulkhead" || kind === "engineblock" ? "Thickness" : "Length";
 }
 
 /** The mass object the mass fields are about: the one picked, or the design's heaviest REMOVABLE one
@@ -1130,6 +1221,14 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
       "catalogParachute",
       "parachuteCd",
     ],
+  },
+  // Five kinds, one slot, because they are one shape in `types.ts` — see `internalId`'s own docblock
+  // for the measurement that decided the scope. `innertube` sits here beside the four ring kinds and
+  // not in a slot of its own: a motor-mount tube a flyer wants to lengthen is asking the same question
+  // of the same three fields as a coupler is.
+  internalId: {
+    kinds: ["tubecoupler", "centeringring", "bulkhead", "engineblock", "innertube"],
+    targets: ["internalLength", "internalOuterDiameter", "internalInnerDiameter"],
   },
 };
 
@@ -1307,6 +1406,18 @@ export function primaryTransitionPart(rocket: Rocket, selectedId?: string): Aime
   const picked = primaryTransition(rocket, selectedId);
   const seed = trans.find((p) => p.component.id === picked?.id) ?? trans[0];
   return aimedPart(seed, trans, 1);
+}
+
+/** The internal part the three internal fields are holding, named the way the panel names every other
+ *  aim. Told apart from every OTHER internal part rather than from its own kind: a design with one
+ *  coupler and three centring rings has four parts on this one aim, and naming the coupler as if the
+ *  rings were not there would put the same caption on four different pieces of structure. */
+export function primaryInternalPartAim(rocket: Rocket, selectedId?: string): AimedPart | undefined {
+  const parts = flattenRocket(rocket).filter((p) => INTERNAL_KINDS.has(p.component.kind));
+  if (!parts.length) return undefined;
+  const picked = primaryInternalPart(rocket, selectedId);
+  const seed = parts.find((p) => p.component.id === picked?.id) ?? parts[0];
+  return aimedPart(seed, parts, 1);
 }
 
 /** The design's primary fin set's semi-span (m), for showing the flyer the current value to edit
@@ -1953,6 +2064,171 @@ function withTransitionExit(c: RocketComponent, id: string, aftRadius: number): 
   if (c.id === id && c.kind === "transition") return { ...c, aftRadius };
   if (!c.children.length) return c;
   return { ...c, children: c.children.map((k) => withTransitionExit(k, id, aftRadius)) };
+}
+
+/** How much of an internal part's outer diameter its bore may take. A part has to be made of
+ *  something: at 1.0 the wall is zero, the mass is zero, and the CG the flight reports comes from a
+ *  component nobody could build.
+ *
+ *  **The exact fraction is a choice; holding it in ONE place is not.** The panel advertises this cap
+ *  on the Bore field and `internalGeometryEdit` enforces it, and a bound quoted from one place and
+ *  applied from another is a promise the validator never made — a defect this file has shipped once
+ *  already (the boattail's exit advertised the picked tube's caliber while the validator used the
+ *  aft-most tube's, so a value inside the advertised range was a silent no-op). Both read this. */
+export const INTERNAL_MAX_BORE_FRACTION = 0.99;
+
+/** The physical ceilings on the internal part `selectedId` names, read off the part HOLDING it.
+ *
+ *  **Exported because the panel advertises these numbers and the applier enforces them, and a bound
+ *  quoted from one place and applied from another is a promise the validator never made.** That exact
+ *  defect has shipped here once: the boattail field advertised the picked tube's caliber while the
+ *  validator used the aft-most tube's, so a value inside the advertised range was a silent no-op. One
+ *  function, two callers.
+ *
+ *  Either may be `undefined`, which means "no bound this design can state" — a part with no host in
+ *  the tree, or a host with no length. The applier then takes the flyer's number as given: inventing a
+ *  ceiling out of nothing would be a fabricated constraint, which is the opposite failure. */
+export function internalPartBounds(
+  rocket: Rocket,
+  selectedId?: string,
+): { maxLength?: number; maxOuterDiameter?: number } {
+  const target = primaryInternalPart(rocket, selectedId);
+  if (!target) return {};
+  const flat = flattenRocket(rocket);
+  const host = flat.find((p) => p.component.children.some((c) => c.id === target.id));
+  if (!host) return {};
+  // **The host's BORE, and it is stated two different ways depending on what the host IS.**
+  //
+  // An airframe part (a body tube, a nose, a transition) states an outer radius and a wall, and the
+  // bore is the difference — which is what `internalPartDefaults` measures when it authors a part
+  // into one. An INTERNAL part states its bore outright, in `innerRadius` (`types.ts`), and
+  // `aftOuterRadius` does not answer for those kinds at all: it returns undefined for anything that
+  // is not a body part, so a host that is itself a coupler or a motor-mount tube produced NO bound.
+  //
+  // That is not a corner. Across the 27 OpenRocket files in the corpus, **36 internal parts on 14
+  // designs sit inside another internal part** — ten bulkheads inside couplers on
+  // `Two stage high power rocket.ork` alone, engine blocks inside motor-mount tubes on eight designs.
+  // Every one of them had a panel that advertised no ceiling and an applier that took whatever was
+  // typed, on the field whose whole docblock is "nothing fits in a tube wider than its host's bore".
+  const hostInner = (host.component as { innerRadius?: number }).innerRadius;
+  const bore = INTERNAL_KINDS.has(host.component.kind)
+    ? hostInner !== undefined && hostInner > 0
+      ? hostInner
+      : undefined
+    : (() => {
+        const r = aftOuterRadius(host.component) ?? 0;
+        const w =
+          "thickness" in host.component &&
+          host.component.thickness !== undefined &&
+          host.component.thickness > 0
+            ? host.component.thickness
+            : 0;
+        return r > 0 ? Math.max(1e-6, r - w) : undefined;
+      })();
+  return {
+    maxLength: host.length > 0 ? host.length : undefined,
+    maxOuterDiameter: bore !== undefined ? bore * 2 : undefined,
+  };
+}
+
+/** Resolve what the three internal fields actually mean on this design, ONCE, against the pristine
+ *  tree — the same discipline `massTarget`, `nosePickId` and `chuteTargetId` already follow, and for
+ *  the same reason: every one of these numbers is bounded by a part OTHER than the one being edited,
+ *  so reading the bound off a tree a previous step has already mutated gives a different answer.
+ *
+ *  **The bounds are physical, not stylistic, and this is a SAFETY-posture surface.** These parts have
+ *  no aerodynamic contribution, so every one of these fields reaches the flight through MASS — which
+ *  moves the CG, the static margin and the apogee. A value that cannot be built therefore does not
+ *  produce a visibly silly rocket; it produces a confident number computed from one. Three bounds:
+ *
+ *  - **Nothing fits in a tube wider than its host's bore.** A coupler joins two tubes from the inside;
+ *    a centring ring centres a mount inside one. `internalPartDefaults` already sizes a new one to
+ *    `hostOuterRadius − hostWall`, and an edit is held to the same ceiling.
+ *  - **Nothing is longer than the part holding it** — `RING_KINDS`' own stated constraint, and the one
+ *    the authoring path already enforces by cutting a coupler down (see `addInternalPart`).
+ *  - **A bore is capped a hair BELOW the outer diameter being flown** — `INTERNAL_MAX_BORE_FRACTION`.
+ *    A bore equal to the outer diameter is a part made of nothing: zero wall, zero mass, and a
+ *    confident CG computed from a component that cannot exist. The cap is a clamp rather than a
+ *    refusal because "as thin as it goes" is legible intent and a bound is a real answer — the same
+ *    rule `NumberField` states for every other bounded field in the app.
+ *
+ *  Returns `undefined` when nothing is aimed or nothing is set, so the applier can skip the walk. */
+function internalGeometryEdit(
+  rocket: Rocket,
+  edits: GeometryEdits,
+  radiusScale: number,
+): { id: string; length?: number; outerRadius?: number; innerRadius?: number } | undefined {
+  const target = primaryInternalPart(rocket, edits.internalId);
+  if (!target) return undefined;
+  const { maxLength: hostLength, maxOuterDiameter } = internalPartBounds(rocket, edits.internalId);
+  // **The host bound is measured on the PRISTINE tree and applied AFTER the caliber scale**, so it
+  // has to be scaled too. `bodyDiameter` scales the whole outer airframe and every internal part with
+  // it (`scaleAirframeRadii`), and this edit is written last so an absolute number typed here is the
+  // one flown — the same precedence the transition's exit has. Without the factor, typing a coupler's
+  // outer diameter and then narrowing the airframe left the coupler WIDER than the tube holding it,
+  // and `outerRadius()` reads the widest part, so the reference area went with it.
+  const hostBore =
+    maxOuterDiameter !== undefined ? (maxOuterDiameter / 2) * radiusScale : undefined;
+
+  const length =
+    edits.internalLength !== undefined && edits.internalLength > 0
+      ? hostLength !== undefined
+        ? Math.min(edits.internalLength, hostLength)
+        : edits.internalLength
+      : undefined;
+  const outerRadius =
+    edits.internalOuterDiameter !== undefined && edits.internalOuterDiameter > 0
+      ? hostBore !== undefined
+        ? Math.min(edits.internalOuterDiameter / 2, hostBore)
+        : edits.internalOuterDiameter / 2
+      : undefined;
+  // What the bore is measured against: the outer radius actually being FLOWN — the edited one where
+  // there is an edit, the design's own otherwise. Measuring it against the design's stale outer radius
+  // is how "58 mm of bore into a part I just narrowed to 54" gets through.
+  const outerFlown = outerRadius ?? target.outerRadius;
+  const innerRadius =
+    edits.internalInnerDiameter !== undefined && edits.internalInnerDiameter >= 0
+      ? Math.min(edits.internalInnerDiameter / 2, outerFlown * INTERNAL_MAX_BORE_FRACTION)
+      : undefined;
+  if (length === undefined && outerRadius === undefined && innerRadius === undefined) return undefined;
+  return { id: target.id, length, outerRadius, innerRadius };
+}
+
+/** Apply that resolved edit to the one component it names. A bare setter — every bound was already
+ *  taken in `internalGeometryEdit`, against the pristine tree. */
+function withInternalGeometry(
+  c: RocketComponent,
+  e: { id: string; length?: number; outerRadius?: number; innerRadius?: number },
+): RocketComponent {
+  if (c.id === e.id && (INTERNAL_KINDS.has(c.kind))) {
+    const part = c as RingComponent | InnerTube;
+    const outerRadius = e.outerRadius ?? part.outerRadius;
+    // **The bore is clamped against the radius actually being WRITTEN, here, unconditionally.** It is
+    // already capped in `internalGeometryEdit` — but against the pristine tree, and this runs after
+    // the caliber scale has moved `part.outerRadius` underneath it. Re-asserting it at the point of
+    // writing makes "a part is never inside out" true by construction rather than by an argument
+    // about the order of five transforms, which is the kind of argument that stops being true the
+    // next time one is inserted.
+    const bore = Math.min(
+      e.innerRadius ??
+        (part.innerRadius < outerRadius
+          ? part.innerRadius
+          : Math.max(0, outerRadius - (part.outerRadius - part.innerRadius))),
+      outerRadius * INTERNAL_MAX_BORE_FRACTION,
+    );
+    return {
+      ...part,
+      length: e.length ?? part.length,
+      outerRadius,
+      // A bore the outer edit has just overtaken is pulled back under it rather than left crossing:
+      // the flyer narrowed the part and said nothing about the hole, so the hole follows the wall it
+      // is cut in and the part KEEPS THE WALL THE DESIGN DREW. Leaving it would fly a part inside
+      // out; taking the bore cap instead would silently turn a 2 mm-walled coupler into foil.
+      innerRadius: bore,
+    } as RocketComponent;
+  }
+  if (!c.children.length) return c;
+  return { ...c, children: c.children.map((k) => withInternalGeometry(k, e)) };
 }
 
 /** Put one mass object at an absolute station (m from the nose tip), clamped to stay inside the part
@@ -3447,6 +3723,10 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     const tube = primaryBodyTube(rocket, edits.bodyTubeId);
     if (tube && tube.outerRadius > 0) radiusScale = edits.bodyDiameter / 2 / tube.outerRadius;
   }
+  // The internal part's three dimensions and every bound they are held to, resolved once from the
+  // pristine design — see `internalGeometryEdit` for why the bounds cannot be read later, and why it
+  // needs the caliber factor. Placed after `radiusScale` because it consumes it.
+  const internalEdit = internalGeometryEdit(rocket, edits, radiusScale);
   // Fin-position what-if: how far to shift the fin group so the SELECTED set's fore edge lands on
   // the requested station, applied as an offset delta to every fin set so the design keeps its
   // spacing. The base must come from the same set the field showed: seeding it from the frontmost
@@ -3475,6 +3755,10 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
       geo = withCatalogTube(geo, pickedTubeId, pickedWall, pickedMaterial, picked?.mass);
     if (nosePickId && nosePick) geo = withCatalogNose(geo, nosePickId, nosePick, nosePickMaterial);
     if (transExit) geo = withTransitionExit(geo, transExit.id, transExit.aftRadius);
+    // After the airframe caliber scale, for the same reason the transition's exit is: an absolute
+    // number typed here is the one flown even when `bodyDiameter` is also set. A coupler is inside the
+    // airframe, so the scale reaches it — and a flyer who has typed its diameter has already answered.
+    if (internalEdit) geo = withInternalGeometry(geo, internalEdit);
     if (massTarget && edits.massObjectMass !== undefined && edits.massObjectMass >= 0) {
       geo = withMassObject(geo, massTarget.id, edits.massObjectMass, undefined);
     }

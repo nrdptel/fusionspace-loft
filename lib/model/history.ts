@@ -166,6 +166,13 @@ export const EDIT_ACTIONS: Readonly<Record<string, string>> = {
   boattailAftDiameter: "the boattail diameter",
   transitionLength: "the transition length",
   transitionAftDiameter: "the transition exit",
+  // The internal structure. The axial one is deliberately NOT "the length": the aim covers a plate
+  // (a centring ring, a bulkhead, an engine block) as well as a tube, and the panel labels it
+  // `Thickness` on the one and `Length` on the other. An undo control cannot know which part is in
+  // hand, so it names the part rather than the dimension's two words.
+  internalLength: "the internal part's size",
+  internalOuterDiameter: "the internal part's outer diameter",
+  internalInnerDiameter: "the internal part's bore",
   massObjectMass: "the mass",
   massObjectStation: "the mass position",
   // Mass and motor

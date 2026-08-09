@@ -55,6 +55,7 @@ import {
   primaryMotorClusterCount,
   primaryMountGroupIds,
   unreachableMountCount,
+  internalPartBounds,
 } from "../model/edit";
 import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
 
@@ -1119,6 +1120,102 @@ suite("real-design corpus", () => {
     // 1/8 inch bored plate is single-digit grams, and the solid 50 mm slug this replaced was 134.
     expect(med(addedG.centeringring), "the median centring ring is heavier than a plate of ply").toBeLessThan(20);
     expect(med(addedG.centeringring), "the median centring ring weighs nothing at all").toBeGreaterThan(0);
+  }, 300_000);
+
+  it("sizes every real design's internal structure, and never builds one out of nothing", async () => {
+    // **The population this milestone exists for.** Measured across these files before the
+    // `internalId` slot existed: 249 of 569 parts had no field describing them, and 194 of those 249
+    // are these five kinds. The unit tests drive a design built by hand; this one drives every real
+    // one, because a bound read off a HOST is only as good as the hosts real files actually have —
+    // an assembly, a coupler inside a coupler, a mount two levels down, a part with no stated wall.
+    const insideOut: string[] = [];
+    const unbounded: string[] = [];
+    const inert: string[] = [];
+    const unnamed: string[] = [];
+    let driven = 0;
+    let withHost = 0;
+    let subsumed = 0;
+    const KINDS = ["tubecoupler", "centeringring", "bulkhead", "engineblock", "innertube"];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const rocket = doc.rocket;
+      const parts = flattenRocket(rocket).filter((p) => KINDS.includes(p.component.kind));
+      const before = dryMassProperties(rocket).mass;
+      for (const p of parts) {
+        const id = p.component.id;
+        const name = `${shortName(f.name)}/${p.component.kind}`;
+        driven++;
+        // 1. Every one of them is now aimable, which is the whole capability.
+        if (JSON.stringify(aimEditsAt(rocket, id)) !== JSON.stringify({ internalId: id })) {
+          unnamed.push(`${name}: no aim`);
+          continue;
+        }
+        // 2. The bounds the panel advertises are the ones the applier enforces — one function, driven
+        //    here over every real host rather than over the one a unit test builds.
+        const b = internalPartBounds(rocket, id);
+        if (b.maxLength !== undefined) withHost++;
+        // **A missing bound is a FINDING, not a skip, and reading it as a skip is how this check
+        // reported green over 36 real parts.** The asserts below were written `if (bound !== undefined
+        // && over > bound)`, so a part whose host stated no bore was driven at nine metres of outer
+        // diameter and then not looked at. Every internal part in a real design has a host that states
+        // one — an airframe part through its wall, another internal part through its own bore — so an
+        // absent bound means the bound is not being read, which is exactly the defect.
+        if (b.maxOuterDiameter === undefined) {
+          unbounded.push(`${name}: no outer bound from its host, so any diameter is accepted`);
+        }
+        const over = applyGeometryEdits(rocket, {
+          internalId: id, internalLength: 99, internalOuterDiameter: 9, internalInnerDiameter: 9,
+        });
+        const made = flattenRocket(over).find((q) => q.component.id === id)?.component as
+          | { length: number; outerRadius: number; innerRadius: number }
+          | undefined;
+        if (!made) { unnamed.push(`${name}: the edit lost the part`); continue; }
+        if (b.maxLength !== undefined && made.length > b.maxLength + 1e-9) {
+          unbounded.push(`${name}: ${made.length.toFixed(4)} m past the host's ${b.maxLength.toFixed(4)} m`);
+        }
+        if (b.maxOuterDiameter !== undefined && made.outerRadius * 2 > b.maxOuterDiameter + 1e-9) {
+          unbounded.push(`${name}: OD ${(made.outerRadius * 2).toFixed(4)} past the host's bore ${b.maxOuterDiameter.toFixed(4)}`);
+        }
+        // 3. **A part made of nothing is the failure this is really guarding.** These kinds carry no
+        //    aerodynamic term, so every one of these fields reaches the flight through MASS — and a
+        //    bore that has swallowed the wall produces a confident CG from a component nobody could
+        //    build. Asserted on the geometry of every real part, under the most hostile entry the
+        //    panel's own bounds would ever let through.
+        if (!(made.innerRadius < made.outerRadius)) {
+          insideOut.push(`${name}: bore ${made.innerRadius.toFixed(5)} >= wall ${made.outerRadius.toFixed(5)}`);
+        }
+        // 4. And the edit has to CHANGE something — a field that moves no number is the "controls
+        //    that forget" tell. Four exemptions are real and every one of them is COUNTED rather than
+        //    waved through, because an exemption nobody can see is indistinguishable from a bug:
+        //    an enclosing assembly that states its own weight subsumes the part (the same exemption
+        //    the authoring sweep above counts); a file that states no stock gives the mass model no
+        //    density to work from; a part whose own mass the file OVERRIDES outright is not computed
+        //    from geometry at all, and honouring that is the point of an override; and a part already
+        //    as long as the host that bounds it has nowhere to grow.
+        const grown = applyGeometryEdits(rocket, { internalId: id, internalLength: (p.length || 0.01) * 2 });
+        const grownLen = (flattenRocket(grown).find((q) => q.component.id === id)?.component as { length: number } | undefined)?.length;
+        if (Math.abs(dryMassProperties(grown).mass - before) <= 1e-12) {
+          const c = p.component as { material?: unknown; overrideMass?: number };
+          const explained =
+            statedMassHolder(grown, id) !== null ||
+            c.material === undefined ||
+            c.overrideMass !== undefined ||
+            Math.abs((grownLen ?? 0) - p.length) <= 1e-12;
+          if (explained) subsumed++;
+          else inert.push(`${name}: doubled and moved no mass`);
+        }
+      }
+    }
+    console.log(
+      `internal structure driven across ${files.length} design files: ${driven} parts, ${withHost} bounded by a host, ` +
+        `${subsumed} whose mass the file states outright, or that a bound leaves nowhere to grow`,
+    );
+    expect(files.length, "no design was read — that branch proves nothing").toBeGreaterThan(20);
+    expect(driven, "no internal part was driven at all").toBeGreaterThan(150);
+    expect(unnamed, "a real internal part that the aim registry cannot speak for").toEqual([]);
+    expect(unbounded, "an internal part flown past the bound its own panel advertises").toEqual([]);
+    expect(insideOut, "an internal part flown with a bore at or past its own wall").toEqual([]);
+    expect(inert, "an internal part whose size edit moved no mass, with nothing to explain it").toEqual([]);
   }, 300_000);
 
   it("finds no real design that leads with anything but a nose cone", async () => {
