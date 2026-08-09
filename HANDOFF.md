@@ -79,7 +79,7 @@ milestone's favour and one against; both corrections are now in `ROADMAP.md` P8.
   trusting: a JSX text run that spans a line break loses its leading whitespace, so `<em>loaded</em>`
   followed by a newline shipped as `loadedcentre`. Baseline is 0; anything above that is yours.
 
-## This run — four increments, three milestones moved, two Sev-1 surfaces, five merged PRs
+## This run — five increments, three milestones moved (two SHIPPED), two Sev-1 surfaces, six PRs
 
 **Everything below is MERGED to `main` and live** except the last, which is open and green
 (`66be2b9`, `e01f4cc`, `cdbcd12`, PR #144). Three more merged in the sibling repo (#147, #148, #150).
@@ -89,11 +89,11 @@ milestone's favour and one against; both corrections are now in `ROADMAP.md` P8.
 | 1 | **SEV-1 — two surfaces published a static margin the flight card was withholding**: the parameter sweep and the what-if comparison card | `66be2b9` | reproduced before scoping (1.098 / 1.290 / 1.487 cal); three checks, four negative controls |
 | 2 | **P9 SHIPPED** (`ON-B1`) — the Tip control converges on the suite's glyph and accessible name; the amber does not | `66be2b9` | four §10 checks; the amber was built, checked, then **reverted** after reading the sibling |
 | 3 | **R12's first *done when* MET** — selecting a component is how you edit it, through a `Popover` the design system was missing | `e01f4cc` | an e2e case that edits a nested canopy and asserts its sibling did not move; driven across five part kinds |
-| 4 | **P12 increments 1 and 2** — two capabilities that had no example, and a first flight that no longer opens with a caution | `cdbcd12`, PR #144 | four checks; the stable design's geometry searched against the solver, not guessed |
+| 4 | **P12 SHIPPED** — two capabilities that had no example, a first flight that no longer opens with a caution, and an example of the format Loft only claimed to read | `cdbcd12`, PR #144 | five checks, three with negative controls; both new designs' fins searched against the solver, not guessed |
 | 5 | **`DESIGN.md` mirrored into Debrief three times, in the same run** — §2, §5 and §10 | Debrief #147/#148/#150 | all green, all merged; the changed sections diff byte-identical |
 | 6 | **The first design-system audit this repo has run**, filed; P8's own measurements corrected; `COMPETITION.md` row 40 | `66be2b9` | each P8 correction re-verified by hand, and one of them was wrong |
 
-**Counts: unit 1,116 → 1,130; e2e 243 → 245; corpus 29 cases green over 35 design files. `DESIGN.md`
+**Counts: unit 1,116 → 1,131; e2e 243 → 245; corpus 29 cases green over 35 design files. `DESIGN.md`
 §9's counts are unmoved and at target throughout. Shipped stylesheet 63,476 → 64,129 bytes, all of it
 the popover.**
 
@@ -107,7 +107,10 @@ the popover.**
    twenty-odd fields at the bottom of the page that addressed components by ROLE.
 2. **Open two designs whose capabilities Loft had never demonstrated** — a boattail with elliptical
    fins, and a payload separation — from the import screen, without having a file of their own.
-3. **Fly a bundled example that does not warn them.** Every sample was over-stable; one is 2.07 cal now.
+3. **Fly a bundled example that does not warn them.** Every sample was over-stable; two are in the
+   band now (2.07 and 1.92 cal).
+4. **Open a RASAero file knowing Loft reads it.** `.CDX1` was advertised with no example anywhere in
+   the repo, so the only way to find out was to try.
 
 **What is measurably better about using the tool? (P-track)**
 
@@ -115,7 +118,8 @@ the popover.**
 - **A static margin computed from a CG missing a motor's mass is no longer published anywhere.** Two
   surfaces were; the worst case was 46% out, in the reassuring direction.
 - Picking a part no longer drops its own row below WCAG AA (4.32:1 → 6.90:1).
-- Bundled examples: 4 files / 3 airframes → 7 files / 6 airframes, and 0 → 1 inside the stable band.
+- Bundled examples: 4 files / 3 airframes → **8 / 7**; formats with an example **2 → 3**; designs
+  inside the stable band **0 → 2**.
 
 **What is NOT better, stated rather than implied.** Roughly two in five components still have no field
 that describes them, so they select and offer no Properties control. The parts list is still collapsed
@@ -177,7 +181,7 @@ opening the file, not by trusting the report.
 | **P9** (from `ON-B1`) | **SHIPPED 2026-08-08** |
 | P10 (from `ON-B2`) | IN PROGRESS — increment 2 is repository SETTINGS, which only the owner can do |
 | P11 (from `ON-8`) | NOT STARTED |
-| **P12** (from `ON-9`) | **IN PROGRESS** — increments 1 and 2 shipped; increment 3 is the `.CDX1` example |
+| **P12** (from `ON-9`) | **SHIPPED 2026-08-09** — all three increments; bundled examples 4 → 8, airframes 3 → 7, formats with an example 2 → 3 |
 
 ## Pick up first
 
@@ -195,9 +199,10 @@ opening the file, not by trusting the report.
    "what can I add here?" with silence), and **opening the parts list by default** — which R12
    increment 1 deliberately deferred because it moves everything below it by roughly a screen and
    touches 36 e2e call sites that open it by clicking.
-3. **P12 increment 3** — a `.CDX1` example. An advertised import format with a 640-line adapter and no
-   example anywhere in the repo, not even as a fixture.
-4. **R10's last item, `maxAcceleration`**, still open and still scoped.
+3. **R10's last item, `maxAcceleration`**, still open and still scoped.
+4. **P11 — docs a flyer can navigate.** Untouched this run and fully scoped, including the part that
+   makes it a milestone rather than a tidy-up: `DESIGN.md` §11 currently puts the methods and
+   limitations pages OUT of scope, so that file changes first, in both repos.
 
 ## What is waiting on the owner
 
