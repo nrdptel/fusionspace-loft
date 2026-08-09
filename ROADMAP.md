@@ -4663,15 +4663,45 @@ a file, and no tool available to a session can edit it. It is parked in `OWNER-N
 
 ## P11 (from ON-8) — Docs a flyer can navigate, not just read
 
-**Status: IN PROGRESS — increment 1 shipped 2026-08-09: every heading is linkable and every route
-offers a contents list.** Measured on the built export: **32 of 32 headings carry an anchor, against
-1 of 89 before** (the eighty-nine counted `h3`s and higher that the routes do not have; the thirty-two
-are every `h2` the six routes render, which is every section break they have). Pinned by
-`lib/docs-nav.test.ts` — four cases counting the export, including one asserting no two headings on a
-route answer to the same anchor and one holding `/docs/validation#rocketpy`, a URL that was already
-published and is therefore a promise — and by `e2e/contrast.spec.ts`'s *every docs route offers a
-contents list, and it says where the reader is*, which asserts the RELATIONSHIP (every chip points at
-a heading that exists on the page) rather than a hard-coded list that could stop matching.
+**Status: SHIPPED 2026-08-09** — both clauses of the *done when* are met and counted on the built
+export by `lib/docs-nav.test.ts`. Increment 2 also had to repair increment 1, twice over.
+
+**Increment 2, 2026-08-09 — the prose has a budget, and the check that holds it now runs.**
+`DESIGN.md` §3 gained the sibling's measure clause verbatim (45–75 rendered characters, capped in
+`rem`, with the `ch` trap named) plus this repo's own chunk: no run between two headings over **800
+rendered words**, at least **2.5 headings per thousand**. §11 stopped exempting the methods and
+limitations pages, which had put 19,083 of 29,204 words out of reach of the two rules written for
+exactly that text. Measured on the export, before → after:
+
+| route | worst run | headings / 1,000 words |
+|---|---|---|
+| `/docs/limitations` | 3,744w → **732w** | 2.4 → **3.2** |
+| `/docs/methods` | 1,784w → **747w** | 1.8 → **3.4** |
+| `/docs/validation` | 2,252w → **651w** | 2.8 → **3.8** |
+
+**Two corrections to increment 1, both of which it reported as successes.**
+
+1. **Its pin had never executed.** `lib/docs-nav.test.ts` counts the built export, `/out` is
+   gitignored, and `.github/workflows/test.yml` ran `npm test` before `npm run build` — so
+   `existsSync(out)` was false on every pull request, all five checks returned early, and the job went
+   green having asserted nothing. The workflow builds first now and `docsPages()` throws rather than
+   skipping when `CI` is set. Verified both ways.
+2. **"32 of 32 headings carry an anchor" counted the wrong denominator.** Measured on the export at
+   the commit before this increment: **93 headings, 32 linkable** — 57 `h3` and 4 `h4` carried no id,
+   and the claim that the routes have no `h3` was simply false. Chunking with bare `<h3>` would have
+   made each route LESS linkable while the run got shorter. `DocsH3` anchors them; the count is
+   **120 of 120** now.
+
+`/docs/faq` — 4,712 words under a single `h2` — rendered no contents list at all, because the strip
+read `h2` only. It falls back to `h3` where the top level does not divide the page.
+
+**Increment 1 shipped 2026-08-09: every heading is linkable and every route offers a contents list.**
+Pinned by `lib/docs-nav.test.ts` — now five cases counting the export, including one asserting no two
+headings on a route answer to the same anchor (it caught a real `#tube-fins` collision the moment it
+was widened to `h3`) and one holding `/docs/validation#rocketpy`, a URL that was already published and
+is therefore a promise — and by `e2e/contrast.spec.ts`'s *every docs route offers a contents list, and
+it says where the reader is*, which asserts the RELATIONSHIP (every chip points at a heading that
+exists on the page) rather than a hard-coded list that could stop matching.
 
 **The primitive was adopted, not invented, and that is the increment's most useful half.** The
 sibling repo shipped `SectionNav` — a pinned strip of in-page links with a you-are-here marker — out

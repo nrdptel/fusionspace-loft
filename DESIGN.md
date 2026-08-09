@@ -142,6 +142,47 @@ inversion is the bug this rule fixes: a whole app of decision-grade numbers rend
 **Numerals:** any number a flyer compares against another number — a table column, a cross-check row,
 a readout — is `font-mono tabular-nums`. Digits must line up vertically. Prose numbers stay sans.
 
+**Long-form reading has a MEASURE, and it is a count of characters rather than a width.** Running
+prose — the methods page, the validation notes, anything a flyer reads a paragraph of rather than
+scans — renders at `text-base` (the table above already says so) and its line is held to **45–75
+rendered characters**, the range every typographic reference agrees on, with the middle of it the
+target. Below 45 the eye returns too often; above 75 it loses the line on the way back.
+
+**Do NOT express that cap in `ch`, and this is the trap it exists to name.** The CSS `ch` unit is the
+advance width of `0`, and in Geist Sans a `0` is far wider than the average prose character — measured
+2026-08-08 on the built methods page, **1ch = 11.0 px at 16 px while the average prose character is
+7.10 px**. So Tailwind's `max-w-prose` (65ch) renders about **101** characters per line, half again the
+upper bound, while reading like a rule was applied. Cap in `rem`, pick the number by measuring
+rendered characters, and say in the class comment which measurement it came from.
+
+**A multi-column layout owns this too, and it is where the rule is actually broken.** Columns divide
+the width, so a two-column grid can make a wide screen read *narrower than a phone*. Measured on the
+methods page before this rule existed: **58 characters at 390 px in one column, 46 at 640 px in two,
+55 at 768 px, 76 at 1024 px** — non-monotonic in viewport width, with the 640 px band the worst on the
+page. Choose the breakpoint at which a second column appears from the measure it leaves each column,
+never from the breakpoint that happens to be next in the scale.
+
+**And long-form reading has a CHUNK, which is the measure's vertical twin.** A line nobody loses their
+place on is worth nothing inside a section nobody can find their way back into. **No run of prose
+between two headings exceeds 800 rendered words**, and a route of running prose carries **at least 2.5
+headings per thousand words**. Both are counted on the built export by §9, not judged by eye.
+
+The numbers come from what the docs already do rather than from a style guide, and they are the
+BUILT EXPORT's own — measured 2026-08-09 with the block in §9 below, so the justification and the
+ratchet cannot quote different figures. `/docs/faq` is 4,712 words at **5.9** headings per thousand
+with a worst run of **431**, and it is the one route nobody has ever complained about; `/docs/methods`
+was 7,850 at **1.8** with five sections over 700 words; `/docs/limitations` was 11,247 at **2.4** with
+a single **3,744-word** run under one `h3` covering six unrelated subjects. 800 words is roughly two
+screens of `text-base` prose on a laptop and the point at which the contents list stops being able to
+tell a reader where they are; 2.5 per thousand is comfortably under what the good route already
+manages, so it is a floor rather than a target.
+
+**Chunking is heading work, not rewriting.** The prose is good; what is missing is the structure over
+it. A section break that needed a paragraph written to justify it is a section break in the wrong
+place — find the one already there. And **every heading a chunk introduces carries an anchor**, via the
+heading primitives, or the run has been split at the cost of the route's anchor coverage, which is the
+other half of the same milestone.
+
 ---
 
 ## 4. Spacing
@@ -462,6 +503,26 @@ grep -rn '<select' components app --include='*.tsx' | grep -v 'components/ui.tsx
                                                                    # (matches inside prose comments
                                                                    # do not count — strip them first)
 
+# long-form chunking — §3's two prose counts, on the BUILT export rather than the source, because
+# what a reader meets is the rendered page. Asserted by `lib/docs-nav.test.ts`, which is the copy to
+# trust: this block is the readable statement of the rule, that file is the ratchet.
+node -e '
+  const {readFileSync,readdirSync}=require("fs"),{join}=require("path");
+  for (const f of readdirSync("out/docs").filter(f=>f.endsWith(".html"))) {
+    const h=readFileSync(join("out/docs",f),"utf8").replace(/<script[\s\S]*?<\/script>/g,"");
+    const body=(h.match(/<article[\s\S]*?<\/article>/)||[h])[0];
+    const words=s=>(s.replace(/<[^>]*>/g," ").match(/[A-Za-z0-9][^\s]*/g)||[]).length;
+    const heads=[...body.matchAll(/<h[234]\b/g)].map(m=>m.index);
+    const total=words(body); if (total<400) continue;   // the index is a link list, not long-form
+    const runs=heads.map((s,i)=>words(body.slice(s,heads[i+1]??body.length)));
+    console.log(`${f} ${total}w  heads/1kw ${(heads.length/total*1000).toFixed(1)}  worst ${Math.max(...runs)}w`);
+  }'
+                                                                   # target: every worst run <= 800,
+                                                                   # every heads/1kw >= 2.5
+                                                                   # (needs a build; `out/` is not
+                                                                   # cleaned between runs, so
+                                                                   # `rm -rf out .next` first)
+
 # primitives actually adopted
 grep -rlE "from ['\"](\./ui|@/components/ui)['\"]" components | wc -l   # target: most components
 ```
@@ -665,6 +726,14 @@ anything this section governs.
 
 ## 11. What this file does not cover
 
-Copy and tone (`MAINTAINING.md`), physics and method presentation (the methods and limitations
-pages), and the roadmap. If a design decision has a product consequence — a route split, a new
-workspace — it belongs in `ROADMAP.md` as a milestone, not decided inline here.
+Copy and tone (`MAINTAINING.md`), the SUBSTANCE of physics and method presentation — which method is
+used, how it is derived, what it is compared against — and the roadmap. If a design decision has a
+product consequence — a route split, a new workspace — it belongs in `ROADMAP.md` as a milestone, not
+decided inline here.
+
+**The methods and limitations pages used to be out of scope entirely, and that was too wide a cut.**
+It exempted 19,083 of the docs' 29,204 words from every rule in this file, including the two that
+exist for exactly that kind of text — the measure and the chunk in §3. What those pages SAY is theirs;
+how they are set — line length, section size, heading rhythm, anchors, the primitives they are built
+from — is this file's, the same as any other surface. Amended 2026-08-09 for `P11`, whose *done when*
+could not be met while the clause it needed was scoped out of the pages it was written for.

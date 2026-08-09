@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DocsH2 } from "@/components/DocsHeading";
+import { DocsH2, DocsH3 } from "@/components/DocsHeading";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 function QA({ q, children }: { q: string; children: React.ReactNode }) {
   return (
     <>
-      <h3>{q}</h3>
+      <DocsH3>{q}</DocsH3>
       {children}
     </>
   );

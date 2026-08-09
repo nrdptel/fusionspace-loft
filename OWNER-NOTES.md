@@ -749,6 +749,26 @@ note argues for, and it belongs in `COMPETITION.md` beside the format-support ro
 Owner-level decisions that are NOT blocking anything. Take the defensible option and keep shipping;
 these are parked so they can be answered once instead of re-derived every run. Newest first.
 
+- **2026-08-09 — this session could not write to `nrdptel/fusionspace-debrief`, so the
+  DESIGN-IS-BINDING invariant went unhonoured for one change.** `DESIGN.md` §3 gained a
+  prose-chunking clause and §11 was amended this run, in **Loft only**. That file's own rule is that
+  both repos carry an identical copy and a change to one is a change to both in the same run. Read
+  access to the sibling worked (it was cloned and diffed); `add_repo` with `access: "push"` was
+  refused by the harness's permission classifier, and `MAINTAINING.md` says the harness wins and the
+  session says which instruction it could not honour. This is that.
+  **The wider finding is that the two copies had already drifted badly before this run touched
+  either — 10 diff hunks, 260 lines added and 96 removed, the sibling 164 lines ahead** — and the
+  drift runs in BOTH directions, so neither copy can simply be copied over the other. Loft is the
+  stricter copy on the inverted-file loop, `Panel`/`Section`, `Readout` and the rendered-contrast
+  check; the sibling is stricter on the radius, spacing and type-size greps (it subtracts the
+  sanctioned set and catches arbitrary values, where Loft's greps match one literal each), and it
+  carries a `Button variant="link"` entry, a `Notice` primitive and a `cls()` helper that Loft has
+  nothing equivalent to. One direct contradiction needs a decision rather than a merge: the sibling
+  defines `Chip` and `ChipButton`, and Loft's copy states **"`Chip` was deleted on 2026-08-04"**.
+  *What is needed:* a session with both repos writable, spending one increment reconciling the two
+  copies clause by clause — this is a milestone, not a chore, and it should go on the P-track. Until
+  then every design-system change is at risk of being made twice, differently.
+
 - **2026-08-09 — turn on auto-merge, and put the Playwright browser in the environment's setup
   script.** Two repository settings, both one click, both costing every run real time.
   - *Settings → General → Pull Requests → Allow auto-merge.* A run gates a pull request locally in

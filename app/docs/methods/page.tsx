@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DocsH2 } from "@/components/DocsHeading";
+import { DocsH2, DocsH3 } from "@/components/DocsHeading";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -159,6 +159,7 @@ export default function Methods() {
         pitch inertia is the sum of each part&apos;s own inertia plus a parallel-axis term.
         Propellant burns off over the flight, so mass and CG are time-varying.
       </p>
+      <DocsH3>Stated masses, and where they win</DocsH3>
       <p>
         A RockSim <code>.rkt</code>{" "}is the exception to the &ldquo;compute from geometry&rdquo; rule:
         it stores RockSim&apos;s own per-part mass — the calculated value, or the measured
@@ -168,6 +169,7 @@ export default function Methods() {
         and integration rather than a mass-model difference. (An <code>.ork</code>{" "}stores no per-part
         mass, so there Loft computes it as above.)
       </p>
+      <DocsH3>Auto radii and auto bores</DocsH3>
       <p>
         Nose-cone contours use the standard published profile equations (conical, tangent ogive,
         ellipsoid, power, parabolic, and the Haack series).
@@ -222,6 +224,7 @@ export default function Methods() {
         interference: K_fb = 1 + r_body/(s + r_body){"\n"}
         static margin (cal) = (X_cp − X_cg) / d_ref
       </p>
+      <DocsH3>Fin planforms beyond the trapezoid</DocsH3>
       <p>
         Elliptical and freeform fin sets use their area- and span-equivalent trapezoid for the
         normal-force slope. An elliptical fin&apos;s <em>centre of pressure</em>, though, is taken
@@ -242,6 +245,7 @@ export default function Methods() {
         part can&apos;t leave the centre of pressure and static margin undefined (which would also
         silently suppress the low-stability warning).
       </p>
+      <DocsH3>Tube fins</DocsH3>
       <p>
         <strong>Tube fins</strong> are not plates, so the Barrowman fin equations do not apply to
         them. A tube fin is a short open duct: at a small angle of attack the streamtube it captures
@@ -280,6 +284,7 @@ export default function Methods() {
         <em>Missile Aerodynamics</em> (McGraw-Hill, 1960), slender-body treatment of flow-through
         inlets.
       </p>
+      <DocsH3>Stability trim by nose ballast</DocsH3>
       <p>
         <strong>Stability trim (nose-ballast goal-seek).</strong> When a design&apos;s margin is thin,
         Loft solves the nose ballast that would bring it to a healthy value directly, rather than making
@@ -296,6 +301,7 @@ export default function Methods() {
         ever-growing lump of lead. It is the inverse of the ballast parameter sweep, sharing the same
         mass and CG model the flight uses.
       </p>
+      <DocsH3>Stability trim by fin position</DocsH3>
       <p>
         <strong>Stability trim (fin-position goal-seek).</strong> The weight-free companion: instead
         of adding nose weight, it solves how far to slide the fin group to reach a target margin. The
@@ -315,6 +321,7 @@ export default function Methods() {
         Zero-lift drag is a <strong>component buildup</strong> referenced to the reference area
         (<code>lib/sim/aero.ts</code>):
       </p>
+      <DocsH3>Body friction and base drag</DocsH3>
       <ul>
         <li>
           <strong>Skin friction</strong> — a <em>fully turbulent</em> flat-plate coefficient
@@ -349,6 +356,9 @@ export default function Methods() {
           the subsonic form supersonically, as a naive model does,
           makes base drag grow without bound, which is wrong.)
         </li>
+      </ul>
+      <DocsH3>Fin terms</DocsH3>
+      <ul>
         <li>
           <strong>Fin pressure drag</strong> — set by the fin&apos;s edge <em>cross-section</em>. A
           square edge stagnates the flow head-on (stagnation-pressure coefficient ≈ 0.85 subsonic,
@@ -402,6 +412,9 @@ export default function Methods() {
           reach the drag at all. A design whose only fin set is elliptical — which is what the
           measurement above was made on — gets it in full.
         </li>
+      </ul>
+      <DocsH3>Tube fins as a drag term</DocsH3>
+      <ul>
         <li>
           <strong>Tube-fin drag</strong> — a tube fin is aerodynamically a rolled-up flat plate with
           two bluff ends, so it is built up from exactly that. <em>Friction</em>{" "}on both the outer
@@ -417,6 +430,9 @@ export default function Methods() {
           frontal area in bare wall edges. Omitting them flew OpenRocket&apos;s and RockSim&apos;s
           tube-fin examples <strong>~88% high</strong>; with them, −8% and −2% respectively.
         </li>
+      </ul>
+      <DocsH3>Body-shape pressure terms</DocsH3>
+      <ul>
         <li>
           <strong>Shoulder pressure drag</strong> — a diameter-<em>increasing</em>{" "}transition
           (a shoulder) forces the flow outward, adding a stagnation-like pressure drag
@@ -451,6 +467,9 @@ export default function Methods() {
           pressure drag. After the OpenRocket technical documentation (Niskanen, eq. 3.86); not
           compressibility-corrected.
         </li>
+      </ul>
+      <DocsH3>Parasitic and wave drag</DocsH3>
+      <ul>
         <li>
           <strong>Parasitic</strong> — the drag of external fittings (launch lugs, rail buttons)
           computed from each fitting&apos;s own frontal area and count rather than a blind allowance,
@@ -728,6 +747,7 @@ export default function Methods() {
         entirely in the inputs, which are your own stated assumptions, so the result is an honest
         propagation of that spread — not a claim of new precision.
       </p>
+      <DocsH3>How each input is drawn</DocsH3>
       <p>
         Each input is drawn from a normal distribution about its nominal value at the one-sigma spread
         you set: the motor impulse scales the thrust curve (a motor&apos;s propellant mass is
@@ -758,6 +778,7 @@ export default function Methods() {
         apogee and max speed, and of the flights that reached the ground for the four landing
         figures.
       </p>
+      <DocsH3>Waiver-ceiling reporting</DocsH3>
       <p>
         If you enter a <strong>waiver ceiling</strong>, Loft reports the fraction of the dispersed
         flights whose apogee topped it — the &ldquo;chance of busting the ceiling&rdquo; a high-power

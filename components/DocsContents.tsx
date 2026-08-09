@@ -22,10 +22,18 @@ import { SectionNav } from "./ui";
 export default function DocsContents({ label = "Jump to a section of this page" }: { label?: string }) {
   const [items, setItems] = useState<{ id: string; label: string }[]>([]);
   useEffect(() => {
-    const found = Array.from(document.querySelectorAll<HTMLHeadingElement>("article h2[id]")).map((h) => ({
-      id: h.id,
-      label: (h.textContent ?? "").trim(),
-    }));
+    const read = (sel: string) =>
+      Array.from(document.querySelectorAll<HTMLHeadingElement>(sel)).map((h) => ({
+        id: h.id,
+        label: (h.textContent ?? "").trim(),
+      }));
+    // **`h2` normally, but a route whose sections ARE its `h3`s falls back to those.** `/docs/faq` is
+    // 4,712 words under a single `h2` and twenty-eight questions, so the h2-only rule left the route
+    // with the most subsections in the docs showing no contents list at all — while `DocsH3`'s own
+    // reasoning for keeping `h3` out of the strip is that the strip is where discovery happens. It
+    // cannot be both. The fallback fires only where the top level does not divide the page.
+    const h2 = read("article h2[id]");
+    const found = h2.length > 1 ? h2 : read("article h3[id]");
     // One heading is a route with no sections to jump between, and a contents list naming the page
     // you are already on is furniture. `SectionNav` returns null for an empty list; this decides the
     // threshold, because "has sections" starts at two.

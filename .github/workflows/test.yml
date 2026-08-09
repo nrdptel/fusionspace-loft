@@ -36,10 +36,16 @@ jobs:
           FIXTURES_TOKEN: ${{ secrets.FIXTURES_TOKEN }}
       - name: Lint
         run: npm run lint
-      - name: Test
-        run: npm test
+      # **Build BEFORE test, and the order is load-bearing.** `lib/docs-nav.test.ts` counts anchors and
+      # prose budgets on the built export, because what a reader can link into is what shipped rather
+      # than what a `.tsx` file intended — and `/out` is gitignored, so with `npm test` first that file
+      # found no export and returned early. Five checks, green on every pull request since they landed,
+      # having asserted nothing. The suite still skips gracefully for a local `npm test` with no build;
+      # what it will not do is skip in CI, which `docsPages()` now refuses outright.
       - name: Build
         run: npm run build
+      - name: Test
+        run: npm test
 
   e2e:
     runs-on: ubuntu-latest
