@@ -79,23 +79,54 @@ milestone's favour and one against; both corrections are now in `ROADMAP.md` P8.
   trusting: a JSX text run that spans a line break loses its leading whitespace, so `<em>loaded</em>`
   followed by a newline shipped as `loadedcentre`. Baseline is 0; anything above that is yours.
 
-## This run — two milestones, a Sev-1 across two surfaces, and three merges to `main`
+## This run — four increments, three milestones moved, two Sev-1 surfaces, five merged PRs
 
-**Everything below is MERGED and live** (`66be2b9`, `e01f4cc`), plus three merged pull requests in
-the sibling repo (#147, #148, #150).
+**Everything below is MERGED to `main` and live** except the last, which is open and green
+(`66be2b9`, `e01f4cc`, `cdbcd12`, PR #144). Three more merged in the sibling repo (#147, #148, #150).
 
-| # | what | SHA | how it was verified |
+| # | what | where | how it was verified |
 |---|---|---|---|
-| 1 | **P9 SHIPPED** (from `ON-B1`) — the Tip control converges on the suite's coffee-cup glyph and accessible name; the colour deliberately does not | `66be2b9` | four `DESIGN.md` §10 checks, three with negative controls |
-| 2 | **SEV-1: two surfaces published a static margin the flight card was withholding** — the parameter sweep and the what-if comparison card | `66be2b9` | reproduced before scoping (1.098 / 1.290 / 1.487 cal); three checks, four negative controls |
-| 3 | **The first design-system audit this repo has run**, filed; P8's own measurements corrected; `COMPETITION.md` row 40 | `66be2b9` | each P8 correction re-verified by hand, and one of them was wrong |
-| 4 | **R12's first *done when* MET** — selecting a component is how you edit it | `e01f4cc` | an e2e case that edits a nested canopy and asserts its sibling did not move; negative control |
-| 5 | **The `Popover` §5 was missing**, adopted from the sibling rather than invented | `e01f4cc` | driven on the built export across five part kinds; contrast case in both themes |
-| 6 | **`DESIGN.md` mirrored into Debrief three times, in the same run** — §2, §10 and §5 | — | PRs #147, #148, #150, all green, all merged; the changed sections diff byte-identical |
+| 1 | **SEV-1 — two surfaces published a static margin the flight card was withholding**: the parameter sweep and the what-if comparison card | `66be2b9` | reproduced before scoping (1.098 / 1.290 / 1.487 cal); three checks, four negative controls |
+| 2 | **P9 SHIPPED** (`ON-B1`) — the Tip control converges on the suite's glyph and accessible name; the amber does not | `66be2b9` | four §10 checks; the amber was built, checked, then **reverted** after reading the sibling |
+| 3 | **R12's first *done when* MET** — selecting a component is how you edit it, through a `Popover` the design system was missing | `e01f4cc` | an e2e case that edits a nested canopy and asserts its sibling did not move; driven across five part kinds |
+| 4 | **P12 increments 1 and 2** — two capabilities that had no example, and a first flight that no longer opens with a caution | `cdbcd12`, PR #144 | four checks; the stable design's geometry searched against the solver, not guessed |
+| 5 | **`DESIGN.md` mirrored into Debrief three times, in the same run** — §2, §5 and §10 | Debrief #147/#148/#150 | all green, all merged; the changed sections diff byte-identical |
+| 6 | **The first design-system audit this repo has run**, filed; P8's own measurements corrected; `COMPETITION.md` row 40 | `66be2b9` | each P8 correction re-verified by hand, and one of them was wrong |
 
-**Counts: unit 1,116 → 1,126; e2e 243 → 245; corpus 29 cases green over 35 design files. §9's counts
-are unmoved and at target. The shipped stylesheet is 63,476 → 64,129 bytes, all of it the popover.**
+**Counts: unit 1,116 → 1,130; e2e 243 → 245; corpus 29 cases green over 35 design files. `DESIGN.md`
+§9's counts are unmoved and at target throughout. Shipped stylesheet 63,476 → 64,129 bytes, all of it
+the popover.**
 
+## The done-check, answered out loud
+
+**What can a flyer DO after this run that they could not before? (R-track)**
+
+1. **Edit a component by selecting it.** Picking a part on the diagram or in the tree opens a surface
+   holding exactly that part's fields — a nose cone's two, a body tube's two, a mass object's two, a
+   canopy's three, a fin set's nine. Before this, editing anything meant scrolling to a wall of
+   twenty-odd fields at the bottom of the page that addressed components by ROLE.
+2. **Open two designs whose capabilities Loft had never demonstrated** — a boattail with elliptical
+   fins, and a payload separation — from the import screen, without having a file of their own.
+3. **Fly a bundled example that does not warn them.** Every sample was over-stable; one is 2.07 cal now.
+
+**What is measurably better about using the tool? (P-track)**
+
+- The Tip control matches the suite a flyer arrives from: same coffee cup, same sentence.
+- **A static margin computed from a CG missing a motor's mass is no longer published anywhere.** Two
+  surfaces were; the worst case was 46% out, in the reassuring direction.
+- Picking a part no longer drops its own row below WCAG AA (4.32:1 → 6.90:1).
+- Bundled examples: 4 files / 3 airframes → 7 files / 6 airframes, and 0 → 1 inside the stable band.
+
+**What is NOT better, stated rather than implied.** Roughly two in five components still have no field
+that describes them, so they select and offer no Properties control. The parts list is still collapsed
+by default. There is still no verb band beside the tree. P8 has not started, and the reason is
+recorded as a decision rather than a slip.
+
+## The corpus, stated plainly
+
+**35 design files, 29 corpus cases, 0 findings** — and the suite named its own fixture count
+(`imports every design file (35 present)`), so that zero came from a sweep that examined something.
+The fixtures repo was attached; `corpus/` was linked per tool directory at session start.
 
 ## What the pre-push reviews caught that the whole gate could not
 
@@ -130,6 +161,60 @@ the markdown, not only at the code.
 **And the review's own findings needed verifying.** One lens reported the docs claim and the code
 defect as separate items; one reported a formatting break that was real; the blocker was confirmed by
 opening the file, not by trusting the report.
+## The arc so far
+
+| milestone | state |
+|---|---|
+| R1–R8 | SHIPPED 2026-07-30 → 2026-08-03 |
+| R9 | SHIPPED 2026-08-04 |
+| R10 | IN PROGRESS — only `maxAcceleration` remains of Size item (5) |
+| R11 (from `ON-2`) | SHIPPED 2026-08-08 |
+| **R12** (from `ON-6`/`ON-7`/`ON-5`/`ON-4`) | **IN PROGRESS — the first *done when* is MET.** Increment 1 made the tree visible; increment 2 made selection drive the property surface |
+| P1–P5 | SHIPPED 2026-08-02 → 2026-08-03 |
+| P6 | SHIPPED 2026-08-05 |
+| P7 (from `ON-1`) | SHIPPED 2026-08-08 |
+| **P8** (from `ON-3`) | **NOT STARTED**, and deliberately so — see *Pick up first* |
+| **P9** (from `ON-B1`) | **SHIPPED 2026-08-08** |
+| P10 (from `ON-B2`) | IN PROGRESS — increment 2 is repository SETTINGS, which only the owner can do |
+| P11 (from `ON-8`) | NOT STARTED |
+| **P12** (from `ON-9`) | **IN PROGRESS** — increments 1 and 2 shipped; increment 3 is the `.CDX1` example |
+
+## Pick up first
+
+1. **P8 — the phone stands the rocket up — and OPEN IT ON THE QUESTION, not on the code.** It was
+   deferred this run with the reason recorded in `ROADMAP.md` under decisions taken without the owner,
+   and the reason is not size: **clause 4 of its own *done when* asks for something the geometry may
+   not permit.** It requires the 44 px tap assert to still pass once the columns are rebuilt on the
+   cross axis, where a column's height becomes the part's LENGTH — and `e2e/touch.spec.ts` already
+   records 56 of 150 corpus body parts under 44 px along it, the narrowest at 0.8 px. No arrangement
+   gives twenty stacked parts a 44 px band inside a 500 px height budget. **Decide first whether the
+   drawing stays the touch path in portrait** (the parts tree already is, for reorder), then build.
+   Its four other measurements were corrected this run and are hand-verified.
+2. **R12 increment 3.** Two obvious candidates, both named in `COMPETITION.md` row 40: a **verb band
+   beside the tree** (add is still behind one `kind === "bodytube"` guard, so ~85% of parts answer
+   "what can I add here?" with silence), and **opening the parts list by default** — which R12
+   increment 1 deliberately deferred because it moves everything below it by roughly a screen and
+   touches 36 e2e call sites that open it by clicking.
+3. **P12 increment 3** — a `.CDX1` example. An advertised import format with a 640-line adapter and no
+   example anywhere in the repo, not even as a fixture.
+4. **R10's last item, `maxAcceleration`**, still open and still scoped.
+
+## What is waiting on the owner
+
+**Two**, both in `OWNER-NOTES.md` under *Awaiting the owner*, neither blocking:
+
+- the repo's GitHub **description, website link and topics** are still empty and no tool a session has
+  can set them — paste-ready values are in that file, and it is one minute of work;
+- whether Loft's header should adopt the motor finder's **two-row shape** (`ON-B1`'s last open half).
+
+**The third one this file carried is GONE, and how it went is the lesson.** It said the shared
+`DESIGN.md` divergence needed the owner. It did not: `nrdptel/fusionspace-debrief` is attachable from
+a Loft session in one `add_repo` and one shallow clone, this file has said so since earlier the same
+day, and this run read that sentence late. Three sections were mirrored and merged in the same run.
+**Attach it before touching anything `DESIGN.md` governs** — it is now written into
+`CONTRIBUTING.md`'s setup section, because a design document is not what a session reads before it
+starts.
+
 ## The previous run (2026-08-08, earlier the same day)
 
 ### The environment, as the previous run measured it
