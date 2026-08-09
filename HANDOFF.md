@@ -4,220 +4,156 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Everything this run is MERGED AND LIVE. Nothing is left open, in either repo.** Five pull requests:
-Loft #147, #148, #149, #150 and Debrief #159, the last of them merged on green at 08:15 by a check-in
-this run scheduled for itself, because auto-merge is off here and the alternative was ending the run
-holding verified work where no flyer could reach it.
+**Everything this run is MERGED AND LIVE except the second pull request, which was open and green at
+the time of writing.** Two pull requests: Loft #152 (merged) and the docs one that follows it.
 
-**Auto-merge being off is why that was necessary**, and it is parked under *Awaiting the owner* in
-`OWNER-NOTES.md` along with the Playwright browser, which six consecutive runs have now installed by
-hand. Both are one click and both cost every run real time.
-
-1. **`COMPETITION.md` row 41 names the cheapest next R12 member**: a mass override and a per-part
-   comment, which OpenRocket gives EVERY component free from its base dialog. Loft honours
-   `overrideMass` on import and offers no way to set one, which is how a flyer reconciles a design
-   with a scale. After that: a motor mount's overhang and cluster count, and the verb band.
-2. **Then P8's remaining members.** The rotation is done; what is left is the depth it costs — the
-   drawing starts 412 px down a 664 px phone and `/design` measures 8.39 screens.
-3. **P11 increment 2 — the PROSE.** `/docs/limitations` is 11,157 words under three `h2`, including a
-   single 2,800-word unbroken run; `/docs/methods` is 7,926 under 14 with no `h3` at all. It needs
-   `DESIGN.md` to change first — §11 puts the physics pages out of scope. **Read the sibling first: it
-   already has the clause.** `fusionspace-debrief`'s `DESIGN.md` carries a long-form measure clause
-   (45–75 rendered characters, and an explicit warning that `ch` is the wrong unit — 1ch is 11.0 px
-   against a 7.10 px average prose character, so `max-w-prose` renders about 101) and a `SectionNav`
-   primitive with a you-are-here marker, lifted out of its flight report on 2026-08-08. P11 says
-   `DESIGN.md` has "no measure, line-length or prose-chunking clause anywhere" — that is true of
-   Loft's copy and false of the sibling's. Adopt, do not invent.
+1. **R12's next member is a mass override and a per-part comment, and the scouting is done.**
+   `COMPETITION.md` row 41 named the override; **row 42, added this run, names the comment and it is
+   the more urgent half.** Measured over the corpus: **40 non-empty `<comment>` elements across 18 of
+   the 27 `.ork` files**, and `grep -rn '"comment"' lib/ork/ lib/rkt/` returns nothing — so an
+   import → edit → export round trip through Loft silently strips every note the flyer wrote. That is
+   data loss, not a missing feature. The override is the cheap half: `lib/model/types.ts:90` already
+   has the field, `lib/sim/mass.ts:211` already honours it, and both halves of the `.ork` file I/O
+   already carry it — only the control is missing. The comment needs a model field, an importer, an
+   exporter and session persistence first.
+   **The structural obstacle is real and is filed in `BACKLOG.md`:** `AIM_SLOTS` cannot express a
+   target that applies to every kind, and both of these are universal.
+2. **P-track: the next unstarted milestone.** P11 shipped this run; take whatever is next on that
+   track and read its *done when* against what P11 actually left behind.
+3. **The sibling repo's `DESIGN.md` did not get this run's change, and could not.** §3 gained a
+   prose-chunking clause and §11 was amended, in Loft only — the harness denied push access to
+   `nrdptel/fusionspace-debrief` (read access worked; `add_repo` with `access: "push"` was refused by
+   the permission classifier). The DESIGN-IS-BINDING invariant says a change to one copy is a change
+   to both in the same run, and this run could not honour it. **It is parked under
+   *Awaiting the owner* in `OWNER-NOTES.md`.** The two copies had already drifted by 10 hunks and 164
+   lines before this run touched either — see below.
 
 ## Read this first
 
-**The pre-push agent review is worth more than the gate, and this run is the third in a row to say
-so.** Two reviews, twenty-one findings, four of them blockers, and the full gate — lint, 1,149 unit
-tests, build, 248 e2e, the corpus sweep — was green over every one:
+**A check can exist, be cited as a milestone's pin, and never have run once.** `lib/docs-nav.test.ts`
+counts the built export; `/out` is gitignored; `.github/workflows/test.yml` ran `npm test` BEFORE
+`npm run build`. So `existsSync(out)` was false on every pull request since those checks landed, all
+five returned early, and the job went green having asserted nothing. Nothing in the test output
+distinguishes that from a pass. The workflow builds first now and `docsPages()` throws rather than
+skipping when `CI` is set — but the transferable lesson is the shape: **a graceful skip inside a
+gating check is a false all-clear waiting to happen**, and this repo has now been bitten by the same
+shape twice (the corpus suite skipping itself is the other). When you add a check that depends on an
+artifact, make it fail loudly where it is supposed to run.
 
-- **A parser fix that was right and incomplete.** The bore rule shipped correct for a flat tree and
-  silently wrong for a nested one; a stated wall was thrown away whenever the outer radius was
-  `auto`, which is how OpenRocket serialises every auto-radius coupler; bores resolved in document
-  order, so the same file imported at two different masses depending on which sibling came first.
-- **A hole in this run's OWN corpus check.** The new sweep asserted `if (bound !== undefined && …)`,
-  so 36 real parts whose host is itself internal were driven at nine metres of outer diameter and
-  then not looked at. It reported green. A missing bound is a finding now.
-- **Six stale published figures on two docs routes**, under a gate whose own prose says it fails when
-  a metric drifts from what the page claims. It never read the page — it compared against a
-  hand-kept constant. **It reads the printed percentages now.**
-- **Two ordering defects in the R12 increment**: a bound measured on the pristine tree and applied
-  after the caliber scale, which could fly a coupler inside out or wider than its own tube.
+**The pre-push agent review is worth more than the gate, and this is the fourth run in a row to say
+so.** Five reviews across two increments, all over a fully green gate — lint, 1,165 unit tests, 250
+e2e, the corpus sweep:
 
-**And the reviews are not oracles either.** One blocker was reported against code an amend had
-already replaced, and its premise — that Loft should search more widely than OpenRocket for a ring's
-mount — was wrong: OpenRocket searches siblings only, and matching it IS reading the file. Reproduce
-before you scope, including when the reviewer sounds certain.
+- **A Sev-1 fix that would have introduced a second Sev-1.** Scaling a fitting's stored total by its
+  instance count is arithmetically right, and it leaves the panel advertising the pristine total as
+  "the design's own" while the parts table one click away shows the scaled one — so a flyer typing
+  back the number the field showed them would have silently divided their fitting's mass by the
+  count. Three independent lenses found it; the fix was to make the field per-instance.
+- **The vacuous-check finding above**, from a lens asked only "is this check real".
+- **Nine headings that named the wrong thing**, including one called "Undo, redo, and where a design
+  is stored" sitting above a paragraph about stated assembly mass.
+- **Four quoted measurements that were wrong**, in the files whose whole argument is that the
+  previous count used the wrong denominator.
 
-**A subagent wrote three files into the working tree despite an explicit read-only instruction in
-every prompt.** They surfaced as lint errors and an unexplained test-file count. `MAINTAINING.md`
-already says subagents are read-only; what it does not say is that they may ignore it. **Run
-`git status --porcelain --untracked-files=all` before every gate run**, not only before a commit.
+**And a review's own claim is a claim.** One of its findings — that a new e2e assertion pinned the
+per-instance mass — was wrong in my favour, and I only found out by reverting the code and watching
+the test stay green. The assertion is vacuous on that sample (the lug's design count is 1, so the
+unit mass and the stored total are the same number) and **the e2e case now says so in its own
+comment**. Check a new assertion against a revert of the code it pins, every time; it took ninety
+seconds and it is the only reason that comment is honest.
 
-**Do not run a fan-out and a sharded e2e run at the same time.** Three different specs failed once
-each mid-shard this run and passed in isolation immediately afterwards, every one of them measuring
-pixel geometry while a workflow held the other cores. It is not the documented `EMFILE` shape and it
-is not any one spec.
+**Two Sev-1s this run were the same defect in a third and fourth place: a bound measured on the
+pristine tree and enforced after the airframe scale.** The boattail shipped it once, the internal
+bounds shipped it again, and the fitting ceiling had it twice over — the caliber factor missing, and
+the whole bound invisible inside a property surface because it derived from a field the surface's
+mask blanks. Both the bound and the scale are single exported functions now
+(`fittingMaxOuterDiameter`, `airframeRadiusScale`). **If you add a bound, export it and have the
+panel read it; do not write the rule twice.**
 
-
-## The environment, measured 2026-08-09 (run 7)
+## The environment, measured 2026-08-09 (run 8)
 
 - `node_modules` was ABSENT at session start; `npm install` took about a minute.
 - **The managed Playwright browser chromium-1228 was absent again** — `/opt/pw-browsers` had 1194 —
-  and `npx playwright install chromium` fixed it in about a minute (114 MB). **Sixth consecutive run
-  to report this.** It is paid for again every session until it is in the environment's setup script,
-  which is the owner's fix and nobody else's.
+  and `npx playwright install chromium` fixed it in about a minute (114 MB). **Seventh consecutive
+  run to report this.** It is the owner's fix, in the environment's setup script, and nobody else's.
 - The fixtures repo WAS attached. The corpus suite names `imports every design file (35 present)` and
-  31 corpus cases are green, so every "0 findings" below came from a sweep that examined something.
+  32 corpus cases are green, so every "0 findings" below came from a sweep that examined something.
   `corpus/` was linked per tool directory at session start; `manifest.csv` too.
-- `nrdptel/fusionspace-debrief` attached mid-run in one `add_repo` plus a shallow clone, about
-  twenty seconds. Done because `DESIGN.md` §8 changed and the invariant requires both repos.
+- `nrdptel/fusionspace-debrief` cloned read-only in about twenty seconds. **`add_repo` with
+  `access: "push"` was DENIED by the permission classifier**, so this run could not gate the sibling.
 - The clone is **shallow**, so any commit count here is a window, not the record.
 - Commits are signed and the identity is `Neer Patel <135655563+nrdptel@users.noreply.github.com>`,
-  set per-repo before the first commit **in both repos**. It arrives as the harness vendor's default.
-- **The harness appended an attribution footer to all three pull request bodies**, again. Read every
-  PR body back after posting and strip it.
-- **CI fires on `pull_request:` and on a push to `main`, and NOT on a branch push** — so a branch
-  push is gated only by the local run, and the pull request is what makes CI run at all.
-- **4 cores, and the orchestration layer competes with the gate.** Measured again this run and worse
-  than last: three separate e2e specs failed once each mid-shard while a workflow held the other
-  cores, every one passing in isolation immediately afterwards. Dispatch the fan-out, then do
-  LOW-CPU work until it lands — reading, scoping, writing — not gate cycles.
+  set per-repo before the first commit. It arrives as the harness vendor's default.
+- **The harness appended an attribution footer to the pull request body**, again — and it also ATE
+  every angle-bracketed tag inside backticks (`<comment>` rendered as nothing). Read the body back
+  after posting: strip the footer, and write element names without angle brackets.
+- **CI fires on `pull_request:` and on a push to `main`, and NOT on a branch push.** The `frontend`
+  job now runs Lint → Build → Test; it ran Lint → Test → Build until this run, which is what made the
+  docs checks vacuous. Both jobs took about 7 minutes.
+- **4 cores, and the orchestration layer competes with the gate.** Dispatch the fan-out, then do
+  LOW-CPU work until it lands — reading, scoping, writing — not gate cycles. One pixel-geometry spec
+  failed once mid-shard this run with NO fan-out running, and passed in isolation and on a full shard
+  re-run; filed rather than diagnosed.
 
-## The environment, measured 2026-08-08 (second run of the day)
+## This run — two Sev-1s, two milestones' worth of work, two pull requests
 
-- `node_modules` was present at session start. **The managed Playwright browser chromium-1228 was
-  absent again** — `/opt/pw-browsers` had 1194 — and `npx playwright install chromium` fixed it in
-  about a minute. **Fifth consecutive run to report this.** It is paid for again every session until
-  it is in the environment's setup script, which is the owner's fix and nobody else's.
-- The fixtures repo WAS attached. The corpus suite names `imports every design file (35 present)` and
-  29 corpus cases are green, so every "0 findings" below came from a sweep that examined something.
-- **`nrdptel/fusionspace-debrief` is attachable mid-run and it is not expensive**: `add_repo`, then
-  one `git clone --depth 1` into `/workspace/fusionspace-debrief`, about twenty seconds. Do it on any
-  run that touches `DESIGN.md`.
-- The clone is **shallow**, so any commit count here is a window, not the record.
-- Commits are signed and the identity is `Neer Patel <135655563+nrdptel@users.noreply.github.com>`,
-  set per-repo before the first commit **in both repos**. It arrives as the harness vendor's default.
-- **The harness appended an attribution footer to the pull request body, again.** Read every PR body
-  back after posting and strip it. It happened on Debrief PR #147 this run and was stripped.
-- **`cd`-ing into the sibling checkout resets the shell's working directory afterwards.** Several
-  commands then ran from `/home/user` and `vitest` failed with `ENOENT: scandir '/home/user/components'`,
-  which looks exactly like a broken test and is not. Prefix repo commands with their own `cd`.
-- **4 cores, and the orchestration layer competes with the gate.** A 7-agent fan-out took ~36 minutes
-  wall-clock; while it ran, a `npm test` that takes 185 s alone took **346 s**. Dispatch the fan-out,
-  then do LOW-CPU work until it lands — not gate cycles.
-- **The build's own `check-text-gaps` caught two real defects in this run's prose** and is worth
-  trusting: a JSX text run that spans a line break loses its leading whitespace, so `<em>loaded</em>`
-  followed by a newline shipped as `loadedcentre`. Baseline is 0; anything above that is yours.
+**Increment 1 — the fitting ceiling and the fitting count (PR #152, merged, LIVE).** Two Sev-1s from
+one root, both reproduced by hand before scoping. The diameter ceiling ignored the caliber what-if:
+an airframe widened 54 → 108 mm advertised 108, accepted a typed 81, displayed 81 and flew 54. The
+count moved the drag and not the mass, so a design imported at count 4 and the same design edited to
+count 4 were two different rockets. The mass field is per instance now. A shock cord is counted once
+per harness on import, in its own commit, verified a no-op on all 35 real designs first.
+Pinned by four unit cases, one corpus case (60 advertised ceilings driven in both caliber directions,
+16 masses re-counted, 2 correctly inert under an ancestor's stated assembly mass) and one e2e case.
 
-## This run — one Sev-1, four milestone increments, five pull requests
-
-| # | what | where | how it was verified |
-|---|---|---|---|
-| 1 | **SEV-1 — an OpenRocket centring ring whose file says `auto` imported with no wall and therefore NO MASS.** Four aluminium rings at 0 g against ~210 g each on one corpus design: 840 g of a 12,620 g dry mass, 6.7%, at four fixed stations, so the CG and the stability margin went with it | `8026ec0`, PR #147 | reproduced on the corpus before scoping; resolution taken from OpenRocket's own published source; three negative controls naming the numbers they caught |
-| 2 | **Seven accuracy medians improved with no solver change**, one moved the other way, and two designs got worse per-design — all published | same | the two-sided census gate, which is what caught the improvement and required it |
-| 3 | **The census gate now reads the percentages the pages PRINT.** It compared against a hand-kept constant and never opened the page it claimed to guard; six figures across two docs routes were stale under it | same | negative control: `groundHitVelocity: /docs/validation prints 1.3% while PUBLISHED_MEDIAN_PCT says 0.8%` |
-| 4 | **R12 increment 3 — the internal structure has a property surface.** 249 of 569 corpus parts had no field describing them; 194 of those were five kinds that are one shape in the model. Now 55 | `22ae04c`, PR #148 | 194 parts driven across all 35 design files; ten unit cases, five negative controls; an e2e case whose negative control reports *"a centring ring offered no way to edit it"* |
-| 5 | **P8 increment 1 — a phone held upright draws the rocket upright.** 296 x 11.8 px becomes 124 x 508, nose at top, against a named 500 px height budget | PR #149, **open** | measured on the built export; four e2e cases re-based on the model axis; a landscape case saying it does not happen there |
-| 6 | **`DESIGN.md` §8 gains the orientation rule and the model-axis rule**, byte-identical in both repos | PR #149 + Debrief #159, both **open** | `diff` of the §8 section across the two checkouts |
-| 7 | **R12 increment 4 — the external fittings.** 54 more parts across the corpus, leaving exactly ONE with no field (a streamer). Two of the three kinds reach the flight through protuberance drag | `bbc1445`, PR #150 | 54 parts driven across all 35 files; five unit cases with two negative controls; an e2e case whose negative control reports *"a launch lug offered no way to edit it"* |
-| 8 | **P11 increment 1 — every docs heading is linkable and every route has a contents list.** 32 of 32 anchors against 1 before, over 29,204 words. The primitive was ADOPTED from the sibling, not invented — and §9 caught that its chips are a caption size where §3 says a label | `bbc1445`, PR #150 | counted on the built export; an e2e case asserting every chip points at a heading that exists |
-| 9 | **`text-[11px]` 41 → 33.** `DesignEditor` spelled its legend six times and its field label six times, character-identical | PR #148 | `lib/design-system.test.ts`, which is the §9 block |
-
-**Counts: unit 1,132 → 1,149; e2e 245 → 248; corpus 30 → 31 cases green over 35 design files.
-`DESIGN.md` §9 is green throughout and one count moved the right way.**
-
-**The finding worth carrying out of the Sev-1, because it is a class and not one parser arm.** `auto`
-in a design file is not a missing value — it is a value the file expects its reader to COMPUTE, and
-the tool that wrote it has published how. Loft treated it as absence and substituted a plausible
-default, which is the difference between reading a file and guessing at one. The same shape is
-already in this repo twice more: an auto OUTER radius (handled correctly, and the rule it follows is
-the same tooltip's sibling clause) and an auto tube-fin radius (handled correctly, from geometry).
-**Look for it wherever a format has a sentinel.**
-
-## The arc so far
-
-| milestone | state |
-|---|---|
-| R1–R8 | SHIPPED 2026-07-30 → 2026-08-03 |
-| R9 | SHIPPED 2026-08-04 |
-| R10 | IN PROGRESS — only `maxAcceleration` remains of Size item (5) |
-| R11 (from `ON-2`) | SHIPPED 2026-08-08 |
-| R10 | SHIPPED 2026-08-09 |
-| **R12** (from `ON-6`/`ON-7`/`ON-5`/`ON-4`) | **IN PROGRESS — the first *done when* is MET.** Increment 1 made the tree visible; increment 2 made selection drive the property surface; increments 3 and 4 (2026-08-09) took the parts no field describes from 249 of 569 corpus parts to ONE |
-| P1–P5 | SHIPPED 2026-08-02 → 2026-08-03 |
-| P6 | SHIPPED 2026-08-05 |
-| P7 (from `ON-1`) | SHIPPED 2026-08-08 |
-| **P8** (from `ON-3`) | **SHIPPED 2026-08-09** — in one increment rather than four. A portrait phone draws the airframe upright, nose at top: 296x11.8 px becomes 124x508 |
-| **P9** (from `ON-B1`) | **SHIPPED 2026-08-08** |
-| P10 (from `ON-B2`) | IN PROGRESS — increment 2 is repository SETTINGS, which only the owner can do |
-| P11 (from `ON-8`) | NOT STARTED |
-| **P12** (from `ON-9`) | **SHIPPED 2026-08-09** — all three increments; bundled examples 4 → 8, airframes 3 → 7, formats with an example 2 → 3 |
-
+**Increment 2 — P11's prose chunk, and the check that never ran.** Covered above and in `ROADMAP.md`.
+`DESIGN.md` §3 gained the sibling's measure clause verbatim plus this repo's chunk budget; §11 stopped
+exempting the pages the clause was written for.
 
 ## The done-check, answered out loud
 
-**What can a flyer DO after this run that they could not before? (R-track)**
-
-1. **Size every component but one.** 249 of 569 parts across the 35 real design files had no field
-   describing them; one does now — a single streamer.
-2. **Size the internal structure.** A coupler, a centring ring, a bulkhead, an engine block and a
-   motor-mount tube each open a property surface holding their own length-or-thickness, outer
-   diameter and bore. Before this, 249 of 569 parts across the 35 real design files had no field
-   describing them at all and those five kinds were 194 of them; a flyer could already AUTHOR a
-   coupler and then not resize it.
-3. **Send someone a link to a section of the docs.** One heading in the whole of `/docs` was linkable.
-4. **Correct a launch lug's or a rail button's frontal size and how many there are**, which the drag
-   model squares into the airframe's protuberance area — so a pair of buttons entered as one was drag
-   the flight was not carrying, and no field could fix it.
-5. **Fly an OpenRocket design with the mass it actually has.** Seven real parts on three corpus
-   designs imported weighing nothing, one of them 840 g on a 12.6 kg airframe.
-
-**What is measurably better about using the tool? (P-track)**
-
-- **A phone held upright draws the rocket upright**: 296 x 11.8 px becomes 124 x 508, and the
-  airframe's own width goes 11.8 px to about 26. Merged and live.
-- **Every docs heading is linkable — 32 of 32, against 1 — and every route offers a contents list**
-  over 29,204 words that had no in-page navigation of any kind.
-- **Seven accuracy medians improved** against the same 35 files with no change to the solver —
-  deployment velocity 6.2 → 5.1%, ground-hit 1.3 → 0.8%, max acceleration 1.8 → 1.3%, max velocity
-  2.2 → 1.9%, max Mach 2.0 → 1.7%, apogee 3.1 → 2.9%, flight time 3.1 → 2.8%.
-- **Six figures a flyer reads on the docs routes stopped being wrong**, and the check that claimed to
-  guard them now actually reads them.
-- The parts row shows a bore it never showed, and calls a plate's dimension a thickness.
-- `DESIGN.md` §9: `text-[11px]` 41 → **33**; every other count unmoved and at target.
-
-**What is NOT better, stated rather than implied.** 55 parts across the corpus still have no field.
-The parts list is still collapsed by default and there is still no verb band beside the tree. And
-`/design` is now **8.39 screens** deep on a phone — the rotation added about 0.68 of that and the
-other 7.7 predate it.
+1. **Corpus sweep: 35 design files, 32 cases green, 0 findings I did not fix.** The suite named its
+   fixture count, so the sweep examined something. The new fitting case drove 60 advertised ceilings
+   and 16 masses across every real design carrying a lug or a button.
+2. **Re-walked the built export of the SHA shipped.** Covered in the report.
+3. **`COMPETITION.md` row 42 added** — the per-component comment, with the measurement that makes it
+   real: 40 across 18 of 27 files, discarded on import and never written on export.
+4. **`DESIGN.md` §9:** rounded-lg 0, hand-rolled card treatments 3 (unchanged — one is `Card`, two are
+   named non-card primitives), off-scale spacing 0, off-scale type 0, inverted files 0, raw `select`
+   0 outside prose comments, primitives adopted 19. The new prose block reports every route inside
+   both budgets. No count moved the wrong way.
+5. **`BACKLOG.md` read and filed into** — twelve entries this run, each with the measurement that
+   makes it actionable.
+6. **What a flyer can DO that they could not (R-track):** set a rail-button or launch-lug count and
+   have the mass follow it, and type a fitting diameter on a re-calibered airframe and get the number
+   they typed. Both were previously wrong rather than absent, which makes this a correctness answer
+   to an R-track question — **no new capability shipped this run**, and the reason is that two Sev-1s
+   preempted R12's next member. The scouting for it is done and is in *Pick up first*.
+   **What is measurably better (P-track):** the docs' worst unbroken run went from 3,744 words to 732,
+   heading density from 2.4/1.8/2.8 to 3.2/3.4/3.8 per thousand, and linkable headings from 32 of 93
+   to 120 of 120.
+7. **`ROADMAP.md` updated** — P11 marked SHIPPED with both corrections to increment 1 recorded.
+8. **`OWNER-NOTES.md`: zero notes are open without a verdict.** All twelve open notes carry verdicts
+   dated 2026-08-08, from the run that first read them; this run added none and needed to add none.
+   One new item is parked under *Awaiting the owner*.
 
 ## The corpus, stated plainly
 
-**35 design files, 32 corpus cases, 0 findings at the end of the run** — and the suite named its own
-fixture count (`imports every design file (35 present)`), so that zero came from a sweep that
-examined something. It did not start at zero: the new internal-structure sweep found seven parts
-importing at no mass, which became the run's Sev-1.
+Attached and real: 35 design files, 27 `.ork`, 4 `.rkt`, 4 `.CDX1`, 3 RocketPy, linked into `corpus/`
+per tool directory at session start. The suite names the count, so a "0 findings" here is a result.
 
 ## What is waiting on the owner
 
-**Two**, both in `OWNER-NOTES.md` under *Awaiting the owner*, neither blocking:
+Four, and three are one click each:
 
-- the repo's GitHub **description, website link and topics** are still empty and no tool a session has
-  can set them — paste-ready values are in that file, and it is one minute of work;
-- whether Loft's header should adopt the motor finder's **two-row shape** (`ON-B1`'s last open half).
-
-**The third one this file carried is GONE, and how it went is the lesson.** It said the shared
-`DESIGN.md` divergence needed the owner. It did not: `nrdptel/fusionspace-debrief` is attachable from
-a Loft session in one `add_repo` and one shallow clone, this file has said so since earlier the same
-day, and this run read that sentence late. Three sections were mirrored and merged in the same run.
-**Attach it before touching anything `DESIGN.md` governs** — it is now written into
-`CONTRIBUTING.md`'s setup section, because a design document is not what a session reads before it
-starts.
+1. **Auto-merge is off**, so every pull request needs a session alive to merge it.
+2. **The Playwright browser is not in the environment's setup script** — seven consecutive runs have
+   installed chromium-1228 by hand, about a minute each.
+3. **Push access to `nrdptel/fusionspace-debrief` is denied to this session**, so the
+   DESIGN-IS-BINDING invariant cannot be honoured from here. The two copies have drifted by 10 hunks
+   and 164 lines; a run with both repos writable is needed to reconcile them, and the divergence list
+   is in this run's report.
+4. **`node_modules` is absent every session** — about a minute of `npm install` per run.
 
 ## The previous run (2026-08-08, earlier the same day)
 
