@@ -1154,6 +1154,15 @@ suite("real-design corpus", () => {
         //    here over every real host rather than over the one a unit test builds.
         const b = internalPartBounds(rocket, id);
         if (b.maxLength !== undefined) withHost++;
+        // **A missing bound is a FINDING, not a skip, and reading it as a skip is how this check
+        // reported green over 36 real parts.** The asserts below were written `if (bound !== undefined
+        // && over > bound)`, so a part whose host stated no bore was driven at nine metres of outer
+        // diameter and then not looked at. Every internal part in a real design has a host that states
+        // one — an airframe part through its wall, another internal part through its own bore — so an
+        // absent bound means the bound is not being read, which is exactly the defect.
+        if (b.maxOuterDiameter === undefined) {
+          unbounded.push(`${name}: no outer bound from its host, so any diameter is accepted`);
+        }
         const over = applyGeometryEdits(rocket, {
           internalId: id, internalLength: 99, internalOuterDiameter: 9, internalInnerDiameter: 9,
         });

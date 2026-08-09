@@ -2097,19 +2097,37 @@ export function internalPartBounds(
   const flat = flattenRocket(rocket);
   const host = flat.find((p) => p.component.children.some((c) => c.id === target.id));
   if (!host) return {};
-  // The host's BORE, not its outer radius: a coupler sits inside the wall, which is what
-  // `internalPartDefaults` measures when it authors one. A host that states no wall bounds on its
-  // outer radius, which is the same fallback that function takes.
-  const r = aftOuterRadius(host.component) ?? 0;
-  const w =
-    "thickness" in host.component &&
-    host.component.thickness !== undefined &&
-    host.component.thickness > 0
-      ? host.component.thickness
-      : 0;
+  // **The host's BORE, and it is stated two different ways depending on what the host IS.**
+  //
+  // An airframe part (a body tube, a nose, a transition) states an outer radius and a wall, and the
+  // bore is the difference — which is what `internalPartDefaults` measures when it authors a part
+  // into one. An INTERNAL part states its bore outright, in `innerRadius` (`types.ts`), and
+  // `aftOuterRadius` does not answer for those kinds at all: it returns undefined for anything that
+  // is not a body part, so a host that is itself a coupler or a motor-mount tube produced NO bound.
+  //
+  // That is not a corner. Across the 27 OpenRocket files in the corpus, **36 internal parts on 14
+  // designs sit inside another internal part** — ten bulkheads inside couplers on
+  // `Two stage high power rocket.ork` alone, engine blocks inside motor-mount tubes on eight designs.
+  // Every one of them had a panel that advertised no ceiling and an applier that took whatever was
+  // typed, on the field whose whole docblock is "nothing fits in a tube wider than its host's bore".
+  const hostInner = (host.component as { innerRadius?: number }).innerRadius;
+  const bore = INTERNAL_KINDS.has(host.component.kind)
+    ? hostInner !== undefined && hostInner > 0
+      ? hostInner
+      : undefined
+    : (() => {
+        const r = aftOuterRadius(host.component) ?? 0;
+        const w =
+          "thickness" in host.component &&
+          host.component.thickness !== undefined &&
+          host.component.thickness > 0
+            ? host.component.thickness
+            : 0;
+        return r > 0 ? Math.max(1e-6, r - w) : undefined;
+      })();
   return {
     maxLength: host.length > 0 ? host.length : undefined,
-    maxOuterDiameter: r > 0 ? Math.max(1e-6, r - w) * 2 : undefined,
+    maxOuterDiameter: bore !== undefined ? bore * 2 : undefined,
   };
 }
 

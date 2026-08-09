@@ -2622,6 +2622,18 @@ host bound now carries the caliber factor, on both the applier and the panel tha
 the bore is re-clamped at the point it is WRITTEN — which makes "a part is never inside out" true by
 construction rather than by an argument about the order of five transforms.
 
+**Two more the review found, and one of them was a hole in this increment's OWN corpus check.**
+`internalPartBounds` read a host's bore through `aftOuterRadius`, which answers only for body parts —
+so an internal part whose host is ITSELF internal (a bulkhead in a coupler, an engine block in a
+motor-mount tube: **36 parts on 14 of the 27 OpenRocket corpus designs**, ten of them on
+`Two stage high power rocket.ork` alone) got no bound at all, and the sweep's asserts were written
+`if (bound !== undefined && …)`, so those 36 were driven at nine metres of outer diameter and then not
+looked at. The bound reads the host's own `innerRadius` for those kinds now, and **a missing bound is
+a finding rather than a skip** — the negative control names 43 rows. The second: `describeDims`
+showed neither the bore nor the plate/tube distinction, so the parts row, the parts CSV and the print
+page called a centring ring `L 3 mm` while the panel one click away called the same number
+`Thickness`.
+
 **And the increment's own corpus sweep found a Sev-1 in the importer** — five real parts on three
 designs whose `auto` bore had resolved to a zero wall, so they weighed nothing. Fixed first and
 separately (`373024e`, PR #147), because a parser change gets its own commit.

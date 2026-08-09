@@ -5,7 +5,7 @@ import type { Material, Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
-import { mouldLineStep, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
+import { mouldLineStep, internalSpanLabel, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -224,13 +224,20 @@ function describeDims(c: RocketComponent, units: UnitSystem): string {
     case "ellipticalfinset":
     case "freeformfinset":
       return `${c.finCount} fins · root ${L(c.rootChord)}, span ${L(c.height)}`;
+    // The five internal kinds carry the same three numbers, and the row shows all three: the BORE is
+    // the hole a motor tube passes through, it is now editable, and a dimension a flyer can change
+    // that appears on no list is a change they can only find by re-opening the panel. The axial one
+    // takes its word from `internalSpanLabel` rather than a hard-coded `L`, so the row a flyer clicks
+    // and the panel it opens cannot call one part two things — which is what that function is
+    // exported for. A solid disc has no bore and says nothing rather than "⌀0".
     case "innertube":
-      return `L ${L(c.length)}, ${dia(c.outerRadius)}`;
     case "tubecoupler":
     case "centeringring":
     case "bulkhead":
     case "engineblock":
-      return `L ${L(c.length)}, ${dia(c.outerRadius)}`;
+      return `${internalSpanLabel(c.kind) === "Thickness" ? "T" : "L"} ${L(c.length)}, ${dia(c.outerRadius)}${
+        c.innerRadius > 0 ? `, bore ${dia(c.innerRadius)}` : ""
+      }`;
     default:
       return "length" in c && typeof c.length === "number" && c.length > 0 ? `L ${L(c.length)}` : "—";
   }

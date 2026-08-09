@@ -4459,7 +4459,11 @@ test.describe("Loft", () => {
       const cells = partsTable.locator("tr").filter({ hasText: rowText }).first().locator("th, td");
       const at = parseFloat((await cells.nth(stationCol).innerText()).replace(/[^\d.-]/g, ""));
       const dims = await cells.nth(dimsCol).innerText();
-      const len = parseFloat(/L\s*([\d.]+)/.exec(dims)?.[1] ?? "NaN");
+      // `L` or `T`: the row names a plate's axial dimension a THICKNESS and a tube's a LENGTH, the
+      // same split the property panel uses and OpenRocket's own dialogs make. A centring ring reads
+      // "T 3 mm, ⌀51 mm, bore ⌀31 mm", so an `L`-only parse reads NaN off exactly the part this test
+      // is about.
+      const len = parseFloat(/[LT]\s*([\d.]+)/.exec(dims)?.[1] ?? "NaN");
       expect(Number.isFinite(at) && Number.isFinite(len), `unreadable row ${rowText}: "${dims}"`).toBe(true);
       return { at, len };
     };
@@ -7343,6 +7347,17 @@ test.describe("choosing a real commercial part", () => {
 
     const rings = partsTable.locator("tr").filter({ hasText: /Centering ring/ });
     await expect(rings, "this sample must carry two centring rings for the test to mean anything").toHaveCount(2);
+
+    // **The row shows all three of the numbers the panel now edits, and calls the axial one what the
+    // panel calls it.** A dimension a flyer can change that appears on no list is a change they can
+    // only find by re-opening the popover, and a row headed `L` over a panel headed `Thickness` is
+    // the same part named two ways on two surfaces a click apart.
+    const ringRow = ((await rings.nth(0).textContent()) ?? "").replace(/\s+/g, " ");
+    expect(ringRow, `the ring's row shows no bore: ${ringRow}`).toMatch(/bore/i);
+    // `T`, not `L`, and matched without a leading word boundary: `textContent` concatenates the
+    // cells, so the dimensions run straight on from the mass ("0.001 kgT 4 mm") and `\b` never fires.
+    expect(ringRow, `a plate's row calls its thickness a length: ${ringRow}`).toMatch(/T \d/);
+    expect(ringRow, `a plate's row calls its thickness a length: ${ringRow}`).not.toMatch(/L \d/);
 
     const openProps = async (row: import("@playwright/test").Locator) => {
       await row.click();
