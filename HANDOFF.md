@@ -4,8 +4,11 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Everything this run is MERGED AND LIVE except the second pull request, which was open and green at
-the time of writing.** Two pull requests: Loft #152 (merged) and the docs one that follows it.
+**Everything this run is MERGED AND LIVE. Nothing is left open.** Two pull requests, Loft #152 and
+#153, both merged on green, both deployed — #152's docs sentence was confirmed serving on
+loft.fusionspace.co before the run ended, which is how the deploy was verified rather than assumed.
+**#153's CI run is the first time `lib/docs-nav.test.ts` has ever actually executed in the gate**;
+every earlier green was the vacuous skip described below.
 
 1. **R12's next member is a mass override and a per-part comment, and the scouting is done.**
    `COMPETITION.md` row 41 named the override; **row 42, added this run, names the comment and it is
