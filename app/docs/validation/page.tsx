@@ -150,7 +150,7 @@ export default async function Validation() {
         are built in <code>lib/validation/crosscheck.ts</code>.
       </p>
       <blockquote>
-        The honest oracle is <strong>your own design</strong>. The two bundled samples below ship
+        The honest oracle is <strong>your own design</strong>. The bundled samples below ship
         with author-estimated stored figures (Loft can&apos;t run OpenRocket here), so their
         comparison is a <em>demonstration of the mechanism</em>, not an accuracy claim. Import a real
         file for a real check.

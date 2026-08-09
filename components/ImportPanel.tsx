@@ -17,6 +17,14 @@ const SAMPLES: { path: string; name: string; label: string }[] = [
   { path: "/samples/demo-dual-deploy.ork", name: "54 mm dual-deploy (K550W)", label: "54 mm dual-deploy · K550W" },
   { path: "/samples/demo-multi-config.ork", name: "Motor comparison (H128W / G40W)", label: "Motor comparison · H128W / G40W" },
   { path: "/samples/demo-rocksim.rkt", name: "RockSim 54 mm sport (J420R)", label: "RockSim · 54 mm sport · J420R" },
+  // **Two capabilities that had no example at all until 2026-08-08.** The bundled set showed four
+  // files but only three airframes, and between them not one transition, boattail or non-trapezoidal
+  // fin — so a flyer arriving without a design of their own could not see that Loft handles either.
+  // Both of these were already generated from committed source and already loaded; they were simply
+  // absent from the samples set. The labels name the CAPABILITY rather than the motor, because that
+  // is what distinguishes them from the three above.
+  { path: "/samples/demo-boattail.ork", name: "Boattail + elliptical fins (H128W)", label: "Boattail · elliptical fins · H128W" },
+  { path: "/samples/demo-payload-separation.ork", name: "Payload separation (F32T)", label: "Payload separation · F32T" },
 ];
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim
