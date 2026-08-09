@@ -145,8 +145,13 @@ export default function Methods() {
         the CG the way the real part does; on a small model rocket the nose shoulder alone can be
         several grams that would otherwise be dropped. Recovery and fitting parts are stored the same way — as a material plus geometry, not an
         explicit mass — so their mass is computed too: a parachute or streamer from its canopy area
-        and areal density, a shock cord from its line density times cord length, and a launch lug or
-        rail button from its bulk material over its tube wall. On a small model rocket these are
+        and areal density, a shock cord from its line density times cord length, and a launch lug
+        from its bulk material over its tube wall. A <strong>rail button</strong>{" "}is stored
+        differently again — an outer and an inner diameter, a total height and the two flange
+        heights, and no wall thickness at all — so it is massed as the spool those describe: a base
+        flange, a shank standing it off the airframe, and an outer flange. That is the moulded body
+        only; the steel screw a button is mounted with is not part of the geometry the file states,
+        so where a design gives the part&apos;s own mass instead, that figure wins. On a small model rocket these are
         grams; on a high-power rocket a long tubular-nylon harness is a real, CG-shifting mass that
         would otherwise be silently dropped. A fitting&apos;s mass is counted once per
         instance, so a pair of rail buttons weighs twice what one does and changing that count in the

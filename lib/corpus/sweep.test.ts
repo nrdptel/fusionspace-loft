@@ -59,6 +59,7 @@ import {
   unreachableMountCount,
   internalPartBounds,
   fittingMaxOuterDiameter,
+  fittingUnitMass,
 } from "../model/edit";
 import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
 
@@ -419,6 +420,63 @@ suite("real-design corpus", () => {
     );
     expect(stated, "no design stated an id of its own, so this asserted nothing").toBeGreaterThan(0);
     expect(lost, "parts that did not come back under their own id").toEqual([]);
+  }, 300_000);
+
+  /** **No real design flies a fitting Loft could not weigh.**
+   *
+   *  A rail button is not a short launch lug, and reading it as one gave four real designs a part
+   *  with no mass at all — see `railButtonMass` in `lib/ork/adapt.ts` for the element-by-element
+   *  reason. A part with no mass gets no row in `massByComponent`, so the parts table printed a dash
+   *  where every other part carries a figure, and the fittings fieldset that reads the same value
+   *  disappeared, leaving that part's Properties popover empty.
+   *
+   *  Asserted on the whole population rather than on the four, so the next fitting kind whose
+   *  geometry Loft reads under the wrong element names fails here rather than shipping. The census
+   *  is printed and both counts are asserted non-zero, so a corpus re-cut that dropped every design
+   *  with a fitting on it could not leave this passing on nothing.
+   *
+   *  **The RASAero designs are the one exemption, and it is a positive assertion rather than a
+   *  carve-out.** `.CDX1` declares a launch lug by DIAMETER and a rail guide by diameter alone — no
+   *  material, no wall, no height — because that format wants them for parasitic drag and nothing
+   *  else (`lib/rasaero/adapt.ts`'s `externals`). There is nothing there to weigh, and inventing a
+   *  figure would be the false precision the safety posture forbids. What makes that safe rather
+   *  than a silent hole is that the same format states the design's LAUNCH WEIGHT, which the adapter
+   *  mints as a `standsForAirframe` point mass — so every gram is already in the total, including
+   *  these. That is what is asserted for them, part by part, rather than skipped. */
+  it("weighs every external fitting on every real design, and none of them at nothing", async () => {
+    const FITTINGS = ["shockcord", "launchlug", "railbutton"] as const;
+    const byKind: Record<string, number> = {};
+    const massless: string[] = [];
+    const dragOnly: string[] = [];
+    let stated = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      // Does this design state its weight as a whole, rather than part by part? Only RASAero does.
+      const lumped = flattenRocket(doc.rocket).some(
+        (p) => p.component.kind === "masscomponent" && p.component.standsForAirframe,
+      );
+      for (const p of flattenRocket(doc.rocket)) {
+        const c = p.component as { kind: string; name: string; mass?: number; overrideMass?: number };
+        if (!(FITTINGS as readonly string[]).includes(c.kind)) continue;
+        byKind[c.kind] = (byKind[c.kind] ?? 0) + 1;
+        if (c.overrideMass !== undefined) stated++;
+        // The figure the flight and the parts table actually use: a stated mass wins over a computed
+        // one, so a part is only massless when NEITHER is there.
+        const flown = c.overrideMass ?? c.mass;
+        if (flown !== undefined && flown > 0) continue;
+        if (lumped) dragOnly.push(`${shortName(f.name)}: ${c.kind}`);
+        else massless.push(`${shortName(f.name)}: ${c.kind} "${c.name}" has no mass at all`);
+      }
+    }
+    const total = Object.values(byKind).reduce((a, n) => a + n, 0);
+    console.log(
+      `external fittings weighed across ${files.length} design files: ${total} parts ` +
+        `(${FITTINGS.map((k) => `${byKind[k] ?? 0} ${k}`).join(", ")}), ${stated} stating their own mass, ` +
+        `${dragOnly.length} declared for drag alone by a format that states the design's weight as a whole`,
+    );
+    expect(total, "no design carried a fitting, so this asserted nothing").toBeGreaterThan(0);
+    expect(byKind.railbutton ?? 0, "no design carried a rail button — the kind this pins").toBeGreaterThan(0);
+    expect(massless, "fittings a real design flies with no mass at all").toEqual([]);
   }, 300_000);
 
   /** **Every note a real design file carries, read in and written back out unchanged.**
@@ -1424,8 +1482,15 @@ suite("real-design corpus", () => {
         }
         // And the count has to carry the mass. Asserted through the whole design's dry mass, because a
         // field that writes a number the mass model never reads is exactly what this found.
-        const own = p.component as { mass?: number };
-        if (own.mass === undefined || !(own.mass > 0)) continue;
+        // **The figure the solver actually flies, not the one the geometry computes.** A design that
+        // STATES a fitting's mass wins over the computed one, and the applier scales that stated
+        // figure with the count — so expecting the computed unit here reports every overridden
+        // fitting as inert. It did not surface until rail buttons started carrying a computed mass
+        // too (before that they had only the override, and the `mass === undefined` guard below
+        // skipped all five). `fittingUnitMass` is the panel's own readback, so this asserts the
+        // count against the number the flyer is shown.
+        const unit = fittingUnitMass(rocket, id);
+        if (unit === undefined || !(unit > 0)) continue;
         // A part under an ancestor that overrides its whole subtree's mass contributes nothing to the
         // dry total, by design — `structurePointMasses` drops it so the stated assembly figure is not
         // double-counted. Its count moving no mass is correct, not inert, and four real lugs on two
@@ -1435,9 +1500,8 @@ suite("real-design corpus", () => {
         weighed++;
         const one = dryMassProperties(applyGeometryEdits(rocket, { fittingId: id, fittingCount: 1 })).mass;
         const four = dryMassProperties(applyGeometryEdits(rocket, { fittingId: id, fittingCount: 4 })).mass;
-        const per = own.mass / Math.max(1, (p.component as { instanceCount?: number }).instanceCount ?? 1);
-        if (Math.abs(four - one - per * 3) > 1e-9) {
-          inertMass.push(`${name}: 1→4 moved ${(four - one).toFixed(6)} kg, expected ${(per * 3).toFixed(6)}`);
+        if (Math.abs(four - one - unit * 3) > 1e-9) {
+          inertMass.push(`${name}: 1→4 moved ${(four - one).toFixed(6)} kg, expected ${(unit * 3).toFixed(6)}`);
         }
       }
     }
