@@ -24,9 +24,10 @@ work, and a queue containing only the first can only ever ship the first.
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
   line it summarises, or it becomes the most misleading sentence in the file.)*
 - **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
-  shape, design system, first run, form factor, documentation, discoverability. **P1–P7, P9 and P12
-  shipped; P8 is IN PROGRESS** — its rotation shipped 2026-08-09 — **P10 is IN PROGRESS** with its
-  remaining half blocked on a repository SETTING no session can edit, and P11 is NOT STARTED.
+  shape, design system, first run, form factor, documentation, discoverability. **P1–P9 and P12
+  shipped** (P8 on 2026-08-09, in one increment rather than four); **P10 is IN PROGRESS** with its
+  remaining half blocked on a repository SETTING no session can edit; **P11 is the next unstarted
+  one.**
 
 **A run takes the next unstarted milestone from EACH track, and ships both.** Not one or the other.
 Start with whichever is smaller so something lands early, then take the other. If a run has time for
@@ -4352,7 +4353,11 @@ stylesheet carries the same class-only defect is measured in that repo, not infe
 
 ## P8 (from ON-3) — The phone stands the rocket up
 
-**Status: IN PROGRESS — increment 1 shipped 2026-08-09, and it is the whole rotation.** A phone held
+**Status: SHIPPED 2026-08-09** — in ONE increment rather than the three or four estimated, because
+the rotation turned out to be one transform rather than a second drawing. Every clause of the
+*done when* is met and pinned by `e2e/touch.spec.ts`'s *a phone held upright draws the rocket upright,
+nose at top, and no grip inverts* and `e2e/touch-landscape.spec.ts`'s *a phone turned sideways keeps
+the rocket lying down*. A phone held
 upright draws the airframe upright, nose at top, at a scale set by a named height budget; every grip
 is re-based on the model axis; the tap columns' 44 px follows the model axis too; and landscape is
 unchanged with a case saying so. Pinned by `e2e/touch.spec.ts`'s *a phone held upright draws the
@@ -4658,7 +4663,37 @@ a file, and no tool available to a session can edit it. It is parked in `OWNER-N
 
 ## P11 (from ON-8) — Docs a flyer can navigate, not just read
 
-**Status: NOT STARTED.**
+**Status: IN PROGRESS — increment 1 shipped 2026-08-09: every heading is linkable and every route
+offers a contents list.** Measured on the built export: **32 of 32 headings carry an anchor, against
+1 of 89 before** (the eighty-nine counted `h3`s and higher that the routes do not have; the thirty-two
+are every `h2` the six routes render, which is every section break they have). Pinned by
+`lib/docs-nav.test.ts` — four cases counting the export, including one asserting no two headings on a
+route answer to the same anchor and one holding `/docs/validation#rocketpy`, a URL that was already
+published and is therefore a promise — and by `e2e/contrast.spec.ts`'s *every docs route offers a
+contents list, and it says where the reader is*, which asserts the RELATIONSHIP (every chip points at
+a heading that exists on the page) rather than a hard-coded list that could stop matching.
+
+**The primitive was adopted, not invented, and that is the increment's most useful half.** The
+sibling repo shipped `SectionNav` — a pinned strip of in-page links with a you-are-here marker — out
+of its own flight report on 2026-08-08, together with `useCurrentSection`, whose docblock records two
+bugs already found and fixed in it (measuring against the strip's bottom edge is off by one section,
+because the jump margin deliberately parks a heading BELOW the strip; and a short final section can
+never reach the reading line, so the bottom of the document has to count as the last section). Loft
+was one commit from writing a third copy of that. `DESIGN.md` §5's entry is that repo's, byte-identical.
+
+**The contents list is built from the DOM rather than authored per route**, so a page that gains a
+section cannot disagree with its own list — which is the failure `P10` exists to clean up on
+`README.md`. It is a client component in a static export: a reader with no JavaScript sees the page
+complete and every heading still carries its id, so a link INTO a section keeps working. That is the
+right failure for an enhancement.
+
+**Remaining: the prose itself.** `/docs/limitations` is still 11,157 words under three `h2` — one
+section break per ~3,700 — including a single 2,800-word unbroken run, and `/docs/methods` is 7,926
+under 14 with no `h3` at all. That is increment 2 and it needs `DESIGN.md` to change first: §11 puts
+the physics pages out of scope. **Read the sibling's copy before writing that clause — it already has
+one**, with the measurement behind it (45–75 rendered characters, and an explicit warning that `ch`
+is the wrong unit: 1ch is 11.0 px against a 7.10 px average prose character, so `max-w-prose` renders
+about 101 characters per line).
 
 **Outcome.** The six docs routes can be scanned, linked into, and returned to — instead of read
 start-to-finish or not at all.

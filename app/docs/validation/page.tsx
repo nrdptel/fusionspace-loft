@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DocsH2 } from "@/components/DocsHeading";
 import Link from "next/link";
 import { loadRocketpyReference, flyReferenceDesign, flyReferenceRecovery } from "@/lib/validation/rocketpy-reference";
 import { fmt } from "@/lib/display";
@@ -63,7 +64,7 @@ export default async function Validation() {
   const { ref: rpRef, runs: rpRuns } = await rocketpyRuns();
   return (
     <>
-      <h2>Validation</h2>
+      <DocsH2>Validation</DocsH2>
       <p>
         Trust in a simulator comes from checkable outputs, not from who wrote it. Loft is validated
         three ways: against <strong>first-principles physics</strong>, against{" "}
@@ -71,7 +72,7 @@ export default async function Validation() {
         <strong>independent flight simulator</strong> (RocketPy).
       </p>
 
-      <h2>Against physics (the test suite)</h2>
+      <DocsH2>Against physics (the test suite)</DocsH2>
       <p>
         The engine&apos;s core is checked in the test suite (<code>lib/**/*.test.ts</code>, run in
         CI on every change):
@@ -98,7 +99,7 @@ export default async function Validation() {
         </li>
       </ul>
 
-      <h2>Against the file&apos;s own tool</h2>
+      <DocsH2>Against the file&apos;s own tool</DocsH2>
       <p>
         A design file you already simulated carries that tool&apos;s own stored flight results — an{" "}
         <code>.ork</code>{" "}carries OpenRocket&apos;s, a <code>.rkt</code> RockSim&apos;s, a{" "}
@@ -156,7 +157,7 @@ export default async function Validation() {
         file for a real check.
       </blockquote>
 
-      <h2>What the bundled samples do and don&apos;t tell you</h2>
+      <DocsH2>What the bundled samples do and don&apos;t tell you</DocsH2>
       <p>
         The designs Loft ships as one-tap examples are <em>its own</em>. No OpenRocket run ever
         produced flight numbers for them, so they carry none: their files state the simulation and
@@ -403,7 +404,7 @@ export default async function Validation() {
         in the change that earns it. The run prints the current figures so that is one edit.
       </p>
 
-      <h2 id="rocketpy">Against RocketPy (an independent engine)</h2>
+      <DocsH2 id="rocketpy">Against RocketPy (an independent engine)</DocsH2>
       <p>
         Loft is also cross-checked against{" "}
         <a href="https://github.com/RocketPy-Team/RocketPy" target="_blank" rel="noopener noreferrer">
@@ -501,7 +502,7 @@ export default async function Validation() {
         </div>
       ))}
 
-      <h2>Cross-checks against real OpenRocket files</h2>
+      <DocsH2>Cross-checks against real OpenRocket files</DocsH2>
       <p>
         Beyond the bundled samples, Loft has been run against genuine OpenRocket files (which
         carry real stored results, including OpenRocket&apos;s own per-step drag coefficient). One
@@ -562,7 +563,7 @@ export default async function Validation() {
         (they ship with OpenRocket, which is GPL).
       </p>
 
-      <h2>Motor curves vs certification</h2>
+      <DocsH2>Motor curves vs certification</DocsH2>
       <p>
         Every bundled thrust curve is authentic ThrustCurve.org data. As a standing check, each
         curve&apos;s integrated total impulse is compared against the motor&apos;s ThrustCurve
@@ -574,7 +575,7 @@ export default async function Validation() {
         data-provenance check, not a tuning knob.
       </p>
 
-      <h2>Staged flights</h2>
+      <DocsH2>Staged flights</DocsH2>
       <p>
         Serial staging is checked the same way — against OpenRocket&apos;s own stored results for
         its bundled multi-stage examples. On the <em>&ldquo;Two stage high power rocket&rdquo;</em>
@@ -594,7 +595,7 @@ export default async function Validation() {
         aren&apos;t bundled here).
       </p>
 
-      <h2>Community validation cases</h2>
+      <DocsH2>Community validation cases</DocsH2>
       <p>
         The most valuable record is predicted-vs-<em>actual</em>: Loft&apos;s prediction against a
         real recorded flight (an altimeter apogee, a tracked descent). If you&apos;ve flown a design

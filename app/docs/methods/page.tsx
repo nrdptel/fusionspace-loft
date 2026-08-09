@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DocsH2 } from "@/components/DocsHeading";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default function Methods() {
   return (
     <>
-      <h2>Methods</h2>
+      <DocsH2>Methods</DocsH2>
       <p>
         Loft is implemented clean-room from published methods (OpenRocket is GPL; none of its code
         is used). Everything runs in SI internally. Where a method is an approximation, it is
@@ -18,7 +19,7 @@ export default function Methods() {
         is in the open repository, file paths noted below.
       </p>
 
-      <h2>Importing designs</h2>
+      <DocsH2>Importing designs</DocsH2>
       <p>
         Loft reads three design formats: OpenRocket <code>.ork</code> (a ZIP, gzip, or raw XML with
         an <code>&lt;openrocket&gt;</code> root; <code>lib/ork/</code>), RockSim <code>.rkt</code>{" "}
@@ -55,7 +56,7 @@ export default function Methods() {
         bundled data, the whole stated weight is placed at the stated CG and the import says so.
       </p>
 
-      <h2>Coordinate model &amp; integrator</h2>
+      <DocsH2>Coordinate model &amp; integrator</DocsH2>
       <p>
         The flight is integrated with a fixed-step 4th-order Runge–Kutta scheme
         (<code>lib/sim/simulate.ts</code>). The state is carried as full 3-D position and velocity
@@ -85,7 +86,7 @@ export default function Methods() {
         without paying for a fine step over the whole descent.
       </p>
 
-      <h2>Launch rail &amp; thrust-to-weight</h2>
+      <DocsH2>Launch rail &amp; thrust-to-weight</DocsH2>
       <p>
         While the rocket is still on the launch rail (position along the rail ≤ the guide length)
         its motion is constrained to the rail axis: thrust and gravity act along the rail and any
@@ -115,7 +116,7 @@ export default function Methods() {
         thrust-to-weight formulation follows Niskanen&apos;s OpenRocket technical documentation.
       </p>
 
-      <h2>Atmosphere</h2>
+      <DocsH2>Atmosphere</DocsH2>
       <p>
         Temperature, pressure, and density follow the{" "}
         <strong>U.S. Standard Atmosphere (1976)</strong> layer model
@@ -131,7 +132,7 @@ export default function Methods() {
         tabulated in standard fluid-dynamics references.
       </p>
 
-      <h2>Mass, CG &amp; inertia</h2>
+      <DocsH2>Mass, CG &amp; inertia</DocsH2>
       <p>
         Mass properties (<code>lib/sim/mass.ts</code>) are built from the component tree. Where
         geometry defines mass unambiguously — tubes, rings, fins — it is computed from the
@@ -203,7 +204,7 @@ export default function Methods() {
         margin.
       </p>
 
-      <h2>Aerodynamic stability — Barrowman</h2>
+      <DocsH2>Aerodynamic stability — Barrowman</DocsH2>
       <p>
         The centre of pressure and normal-force-coefficient slope come from the{" "}
         <strong>Barrowman equations</strong> (<code>lib/sim/aero.ts</code>), the standard subsonic,
@@ -306,7 +307,7 @@ export default function Methods() {
         real flight in the tests).
       </p>
 
-      <h2>Drag</h2>
+      <DocsH2>Drag</DocsH2>
       <p>
         Zero-lift drag is a <strong>component buildup</strong> referenced to the reference area
         (<code>lib/sim/aero.ts</code>):
@@ -484,7 +485,7 @@ export default function Methods() {
         see <Link href="/docs/limitations">limitations</Link>.
       </p>
 
-      <h2>Motors</h2>
+      <DocsH2>Motors</DocsH2>
       <p>
         A design references a motor by manufacturer and designation but does not embed its
         thrust curve, so Loft resolves the motor against a bundled database of real RASP{" "}
@@ -523,7 +524,7 @@ export default function Methods() {
         warning reports the under-counted thrust.
       </p>
 
-      <h2>Staging</h2>
+      <DocsH2>Staging</DocsH2>
       <p>
         In-line (serial) stages fly in sequence. By default the bottom stage lights at launch and
         each stage above air-starts when the stage below burns out, plus any ignition delay it
@@ -570,7 +571,7 @@ export default function Methods() {
         speed and apogee shift with the timing, exactly as a staged air-start does.
       </p>
 
-      <h2>Recovery &amp; drift</h2>
+      <DocsH2>Recovery &amp; drift</DocsH2>
       <p>
         Each recovery device deploys on its event — apogee, a set altitude, the motor&apos;s
         ejection charge, or the separation of the stage below it (the payload/dual-section charge
@@ -636,7 +637,7 @@ export default function Methods() {
         an even shorter one that would compound the mistake.
       </p>
 
-      <h2>Fin flutter</h2>
+      <DocsH2>Fin flutter</DocsH2>
       <p>
         Fins have their own elasticity, and above a critical airspeed — the <em>flutter
         boundary</em> — a bending-and-twisting oscillation stops damping out and diverges, shredding
@@ -690,7 +691,7 @@ export default function Methods() {
         popularised for rocketry by Apogee Components&apos; <em>Peak of Flight</em> newsletter #291.
       </p>
 
-      <h2>Monte-Carlo dispersion</h2>
+      <DocsH2>Monte-Carlo dispersion</DocsH2>
       <p>
         A single flight is one draw from an uncertain reality: a rail is never perfectly plumb, wind
         gusts and shifts, a motor&apos;s total impulse varies from one unit to the next, and a built
@@ -762,7 +763,7 @@ export default function Methods() {
         planning cue to keep real margin against — never a guarantee.
       </p>
 
-      <h2>Live weather (optional)</h2>
+      <DocsH2>Live weather (optional)</DocsH2>
       <p>
         The &ldquo;re-fly for today&rdquo; feature fetches current surface conditions and a
         pressure-level winds-aloft profile from{" "}

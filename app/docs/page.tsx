@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DocsH2 } from "@/components/DocsHeading";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default function DocsOverview() {
   return (
     <>
-      <h2>What Loft is</h2>
+      <DocsH2>What Loft is</DocsH2>
       <p>
         Loft imports an OpenRocket <code>.ork</code> design and simulates its flight in your
         browser: apogee, velocity and Mach, stability margin, rail-exit speed, liftoff
@@ -25,7 +26,7 @@ export default function DocsOverview() {
         OpenRocket&apos;s.
       </p>
 
-      <h2>The three pages that matter</h2>
+      <DocsH2>The three pages that matter</DocsH2>
       <ul>
         <li>
           <Link href="/docs/methods">Methods</Link> — every calculation linked to its published
@@ -47,7 +48,7 @@ export default function DocsOverview() {
         version in the footer of every page.
       </p>
 
-      <h2>Safety posture</h2>
+      <DocsH2>Safety posture</DocsH2>
       <p>
         Loft follows the same rule as the rest of Fusion Space: surface the numbers honestly and
         let the flyer and the RSO decide. It shows stability margin, rail-exit velocity, apogee,
@@ -58,7 +59,7 @@ export default function DocsOverview() {
         to fly. The motor&apos;s printed data and the range safety officer are always authoritative.
       </p>
 
-      <h2>Keeping these docs current</h2>
+      <DocsH2>Keeping these docs current</DocsH2>
       <p>
         These are living, author-maintained docs, versioned with the code. The project&apos;s rule:
         any change that adds or alters a calculation updates the Methods page and the Limitations

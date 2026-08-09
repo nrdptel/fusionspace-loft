@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DocsH2 } from "@/components/DocsHeading";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ function QA({ q, children }: { q: string; children: React.ReactNode }) {
 export default function Faq() {
   return (
     <>
-      <h2>FAQ</h2>
+      <DocsH2>FAQ</DocsH2>
 
       <QA q="What does Loft do?">
         <p>

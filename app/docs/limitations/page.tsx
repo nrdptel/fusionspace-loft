@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DocsH2 } from "@/components/DocsHeading";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default function Limitations() {
   return (
     <>
-      <h2>Limitations log</h2>
+      <DocsH2>Limitations log</DocsH2>
       <p>
         A candid record of where the model is weak. Admitting this earns more trust than claiming
         precision — and it&apos;s the honest thing to do for a tool people fly on. Entries are dated;
@@ -22,7 +23,7 @@ export default function Limitations() {
         .
       </p>
 
-      <h2>Known limitations (2026-07)</h2>
+      <DocsH2>Known limitations (2026-07)</DocsH2>
 
       <h3>Flight dynamics are 3-DOF, not 6-DOF</h3>
       <p>
@@ -1025,7 +1026,7 @@ export default function Limitations() {
         <Link href="/docs/validation">Validation</Link>.
       </p>
 
-      <h2>Changing this list</h2>
+      <DocsH2>Changing this list</DocsH2>
       <p>
         Project rule: any change that adds or alters a calculation updates this log in the same
         change. When a limitation is fixed, its entry moves to a &ldquo;resolved&rdquo; note rather

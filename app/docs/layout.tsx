@@ -1,6 +1,7 @@
 import SiteHeader from "@/components/SiteHeader";
 import DocsNav from "@/components/DocsNav";
 import Footer from "@/components/Footer";
+import DocsContents from "@/components/DocsContents";
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,7 +19,14 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
           <DocsNav />
         </div>
       </div>
-      <article className="prose-loft mt-8">{children}</article>
+      {/* One contents list for all six routes, in the layout rather than repeated per page: it is
+          built from whatever headings the route rendered, so there is nothing per-page to keep in
+          step. It sits inside the article so its sticky offset is measured against the same column
+          the prose is in. */}
+      <article className="prose-loft mt-8">
+        <DocsContents />
+        {children}
+      </article>
       <Footer />
     </main>
   );

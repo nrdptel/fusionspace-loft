@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DocsH2 } from "@/components/DocsHeading";
 import Link from "next/link";
 
 import { RELEASES } from "@/lib/version";
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
 export default function Changelog() {
   return (
     <>
-      <h2>Changelog</h2>
+      <DocsH2>Changelog</DocsH2>
       <p>
         What changed in Loft, newest first. The version in the footer of every page is the one this
         list describes — the build asserts it rather than trusting anyone to keep them in step. The
