@@ -4,8 +4,14 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Everything this run is merged and live except the last increment, which is on the branch with a
-green local gate.**
+**Everything this run is merged and live except PR #150, which is open with a green LOCAL gate and CI
+in flight at the moment the run ended.** A self check-in is scheduled to merge it on green; if that
+did not fire, merge it — or fix forward on the same branch if CI went red. Two increments are in it:
+R12's fourth (the external fittings) and P11's first (docs anchors and contents lists).
+
+**Auto-merge is not enabled on this repository, and that is why a run ends holding a pull request.**
+Parked under *Awaiting the owner* in `OWNER-NOTES.md` along with the Playwright browser, which six
+consecutive runs have now installed by hand.
 
 1. **`COMPETITION.md` row 41 names the cheapest next R12 member**: a mass override and a per-part
    comment, which OpenRocket gives EVERY component free from its base dialog. Loft honours
