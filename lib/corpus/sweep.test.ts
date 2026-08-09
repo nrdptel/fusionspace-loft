@@ -28,6 +28,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
+import { exportOrk } from "../ork/export";
 import { resolveMotor, sameCasing } from "../motors/db";
 import { runFlight, runFromDocument, overridesFromStored } from "../sim/run";
 import { monteCarlo, summarizeSamples } from "../sim/montecarlo";
@@ -373,6 +374,103 @@ suite("real-design corpus", () => {
       }
     }
     expect(failures, "design files that failed to import").toEqual([]);
+  }, 300_000);
+
+  /** **Every part of every real design comes back as itself across a round trip.**
+   *
+   *  `lib/model/id.test.ts` has pinned this on synthesized designs since R1; over the real corpus it
+   *  was false, and had been for as long as the exporter has had two fin-set cases. `componentId`
+   *  RESERVES an id rather than reading one — ask twice for the same component and the second answer
+   *  is a fabricated `uuidFrom("<id>#1")` — and the two `*finset` cases built their own opening tag
+   *  after the shared one had already been built eagerly. So a freeform fin set, and only a freeform
+   *  fin set, went out under a hash: **7 sets across 6 of the 27 `.ork` designs, and the other 325
+   *  stated ids intact.** A design authored here is persisted as its own exported bytes, so after
+   *  a reload an aim, a removal or a move naming that set resolved to nothing.
+   *
+   *  **Scoped to the parts whose id the FILE stated, which is the only promise there is to keep.**
+   *  `.rkt` and `.CDX1` carry no component id at all and neither do some hand-written `.ork` files,
+   *  so those adapters mint one per part on every import and `componentId` hashes a minted id into a
+   *  UUID on the way out — 237 of the corpus's 569 parts, none of which the design ever named. A
+   *  stated id is UUID-shaped and `uniqueUuidFrom` returns it untouched, so "the file said `X`, Loft
+   *  gave back `X`" is exactly the assertion, and it is made by set difference rather than by count
+   *  so a part returning under someone ELSE's id fails as loudly as one that vanishes. */
+  const STATED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  it("gives back every part whose id its own design file stated", async () => {
+    const lost: string[] = [];
+    let parts = 0;
+    let stated = 0;
+    let checked = 0;
+    for (const f of files.filter((f) => /\.ork(\.gz)?$/i.test(f.name))) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const before = flattenRocket(doc.rocket).map((p) => p.component);
+      const after = new Set(flattenRocket((await importDesign(exportOrk(doc))).rocket).map((p) => p.component.id));
+      checked++;
+      parts += before.length;
+      for (const c of before) {
+        // A minted id was never the design's to keep; only an id the file stated is a promise.
+        if (!STATED_ID.test(c.id)) continue;
+        stated++;
+        if (!after.has(c.id)) lost.push(`${shortName(f.name)}: ${c.kind} "${c.name}" came back under another id`);
+      }
+    }
+    console.log(
+      `round-tripped ids across ${checked} OpenRocket design files: ${parts} parts, ${stated} of them ` +
+        `carrying an id the file itself stated`,
+    );
+    expect(stated, "no design stated an id of its own, so this asserted nothing").toBeGreaterThan(0);
+    expect(lost, "parts that did not come back under their own id").toEqual([]);
+  }, 300_000);
+
+  /** **Every note a real design file carries, read in and written back out unchanged.**
+   *
+   *  Loft read none of them and wrote none of them, so import → download deleted the lot. Measured
+   *  over this corpus at the commit before the fix: 40 non-empty `<comment>` elements across 18 of
+   *  the 27 `.ork` designs — 16 on the rocket itself, 1 on a stage, 23 on components (12 centring
+   *  rings, 6 shock cords, 2 fin sets, and one each of transition, inner tube and nose cone) — plus
+   *  40 non-empty `<PartDesc>` across all 4 `.rkt` designs and one design-level `<Comments>`. Eighty
+   *  one notes on 22 of the 35 designs, and Loft destroyed every one of them. That is prose the flyer typed, and it is
+   *  the one thing a round trip cannot recompute: a dropped mass comes back slightly wrong from the
+   *  material and the geometry, a dropped sentence is gone.
+   *
+   *  Asserted as a MULTISET rather than per-part, because the round trip does not promise to keep a
+   *  component id (`.rkt` parts are minted fresh on every import) and this is a question about the
+   *  prose, not about identity. The census is printed and the count is asserted non-zero, so a
+   *  corpus re-cut that dropped every annotated file could not leave this passing on nothing. */
+  it("carries every note a real design wrote, and loses none of them on the way back out", async () => {
+    const notes = (r: Rocket): string[] => {
+      const out: string[] = [];
+      if (r.comment) out.push(r.comment);
+      for (const s of r.stages) if (s.comment) out.push(s.comment);
+      for (const p of flattenRocket(r)) if (p.component.comment) out.push(p.component.comment);
+      return out.sort();
+    };
+    let total = 0;
+    let annotated = 0;
+    const onRocket: string[] = [];
+    const lost: string[] = [];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const before = notes(doc.rocket);
+      if (!before.length) continue;
+      annotated++;
+      total += before.length;
+      if (doc.rocket.comment) onRocket.push(shortName(f.name));
+      const back = await importDesign(exportOrk(doc));
+      const after = notes(back.rocket);
+      if (JSON.stringify(after) !== JSON.stringify(before)) {
+        const missing = before.filter((n) => !after.includes(n));
+        lost.push(
+          `${shortName(f.name)}: ${before.length} note(s) in, ${after.length} out` +
+            (missing.length ? ` — first lost: ${JSON.stringify(missing[0].slice(0, 60))}` : ""),
+        );
+      }
+    }
+    console.log(
+      `author notes across ${files.length} design files: ${total} on ${annotated} annotated design(s), ` +
+        `${onRocket.length} of them a design-level note`,
+    );
+    expect(total, "no design file carried a note, so this asserted nothing").toBeGreaterThan(0);
+    expect(lost, "notes a design carried that did not survive the round trip").toEqual([]);
   }, 300_000);
 
   it("carries every real design's tree structure through the flatten, not just its order", async () => {

@@ -83,6 +83,15 @@ interface ComponentBase {
   id: string;
   name: string;
   kind: ComponentKind;
+  /** The note the design's author wrote about this part, verbatim, or undefined where they wrote
+   *  none. OpenRocket stores it as `<comment>` and shows it on every component dialog; RockSim
+   *  stores it as `<PartDesc>` and shows it in the parts list, where it usually carries the vendor's
+   *  part number. Prose the flyer typed — never parsed, never a source for a number.
+   *
+   *  Carried because dropping it is data loss on a round trip, not a missing feature: measured over
+   *  the corpus, 40 non-empty `<comment>` elements across 18 of the 27 `.ork` designs (16 on the
+   *  rocket, 1 on a stage, 23 on components) and 40 non-empty `<PartDesc>` across all 4 `.rkt` ones. */
+  comment?: string;
   placement: Placement;
   material?: Material;
   finish?: SurfaceFinish;
@@ -423,6 +432,9 @@ export interface SeparationSetting {
 
 export interface Stage {
   name: string;
+  /** The note the design's author wrote about this stage — OpenRocket's `<comment>` on a stage,
+   *  which is a component assembly and carries one exactly as a component does. */
+  comment?: string;
   components: RocketComponent[];
   /** How this stage separates from the stack above it. Undefined ⇒ the serial-staging default
    *  (separate when the stage finishes burning). */
@@ -449,6 +461,10 @@ export type ReferenceType = "maximum" | "nose" | "custom";
 export interface Rocket {
   name: string;
   designer?: string;
+  /** The note the design's author wrote about the whole rocket — OpenRocket's `<comment>` under
+   *  `<rocket>`, RockSim's `<Comments>` under `<RocketDesign>`. The single largest bucket of prose
+   *  a design file carries: 16 of the corpus's 40 `.ork` notes are this one field. */
+  comment?: string;
   /** Ordered nose→tail. The wedge simulates a single active stage. */
   stages: Stage[];
   configurations: MotorConfiguration[];

@@ -258,6 +258,10 @@ function baseOf(node: XmlNode, topLevel: boolean) {
   return {
     id: nextId(),
     name: childText(node, "Name") || node.name,
+    // RockSim's word for the author's note on a part. It reads as a description more often than as
+    // a remark — 40 non-empty across all four corpus designs, most of them a vendor's part number
+    // like "PNC-70A" — which is exactly the kind of thing a flyer loses by opening the file here.
+    comment: childText(node, "PartDesc")?.trim() || undefined,
     placement: placement(node, topLevel),
     material: material(node),
     finish: finish(Math.round(n(node, "FinishCode", 2))),
@@ -835,6 +839,9 @@ export function adaptRktXml(xml: string): OrkDocument {
 
   const rocket: Rocket = {
     name: childText(design, "Name") || "Imported rocket",
+    // RockSim keeps the design-level note under a different name again — `<Comments>` on
+    // `<RocketDesign>`, where OpenRocket writes `<comment>` on `<rocket>`.
+    comment: childText(design, "Comments")?.trim() || undefined,
     stages,
     configurations: configs,
     defaultConfigId: configs[0]?.id,

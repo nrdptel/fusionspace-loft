@@ -1067,3 +1067,45 @@ describe("whether an .ork says a recovery device came out", () => {
     ).toBeUndefined();
   });
 });
+
+describe("adaptOrkXml — the note the author wrote", () => {
+  const src = readXml("demo-single-deploy.ork.xml");
+
+  /** Injected into the fixture rather than committed into it: the fixture is a bundled sample a
+   *  flyer loads, and a note invented for a test is not the sample's author speaking. */
+  const withComments = (xml: string) =>
+    xml
+      .replace(
+        "<name>Loft Demo 38mm — single deploy</name>",
+        "<name>Loft Demo 38mm — single deploy</name>\n    <comment>  Built for a club launch.  </comment>",
+      )
+      .replace(
+        "<name>Sustainer</name>",
+        "<name>Sustainer</name>\n        <comment>One stage, nothing clever.</comment>",
+      )
+      .replace(
+        "<name>Nose cone</name>",
+        "<name>Nose cone</name>\n            <comment>3D printed, 40% infill — weigh before flying.</comment>",
+      );
+
+  it("reads it on the rocket, on the stage and on a component, trimmed", () => {
+    const doc = adaptOrkXml(withComments(src));
+    expect(doc.rocket.comment).toBe("Built for a club launch.");
+    expect(doc.rocket.stages[0].comment).toBe("One stage, nothing clever.");
+    const nose = flattenRocket(doc.rocket).find((p) => p.component.kind === "nosecone")!.component;
+    expect(nose.comment).toBe("3D printed, 40% infill — weigh before flying.");
+  });
+
+  it("reads OpenRocket's own empty comment as no note at all", () => {
+    // OpenRocket writes `<comment></comment>` on every component whether or not there is anything
+    // in it, so treating the element's presence as a note would put an empty string on almost every
+    // part of almost every real file — and a surface showing notes would then show hundreds of
+    // blank ones.
+    const doc = adaptOrkXml(
+      src.replace("<name>Nose cone</name>", "<name>Nose cone</name>\n            <comment>   </comment>"),
+    );
+    const nose = flattenRocket(doc.rocket).find((p) => p.component.kind === "nosecone")!.component;
+    expect(nose.comment).toBeUndefined();
+    expect(doc.rocket.comment).toBeUndefined();
+  });
+});

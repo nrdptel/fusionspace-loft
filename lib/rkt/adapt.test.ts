@@ -733,3 +733,30 @@ describe("adaptRktXml — which flight the stored optimum delay describes", () =
     expect(doc.simulations[0].results.optimumDelay).toBeCloseTo(apogee - burnout, dp);
   });
 });
+
+describe("adaptRktXml — RockSim's word for the note", () => {
+  const src = readRkt("demo-rocksim.rkt");
+
+  it("reads <PartDesc> onto the part and <Comments> onto the design", () => {
+    // RockSim spells both differently from OpenRocket, and its per-part field usually carries a
+    // vendor's part number rather than a remark — 40 non-empty across all four corpus designs, e.g.
+    // "PNC-70A". Either way it is what the author typed, and Loft dropped it.
+    const doc = adaptRktXml(
+      src
+        .replace(
+          "<Name>Loft demo — 54 mm sport (J420R)</Name>",
+          "<Name>Loft demo — 54 mm sport (J420R)</Name><Comments>Flown twice, both nominal.</Comments>",
+        )
+        .replace("<Name>Nose cone</Name>", "<Name>Nose cone</Name><PartDesc>  PNC-54A  </PartDesc>"),
+    );
+    expect(doc.rocket.comment).toBe("Flown twice, both nominal.");
+    const nose = flattenRocket(doc.rocket).find((p) => p.component.kind === "nosecone")!.component;
+    expect(nose.comment).toBe("PNC-54A");
+  });
+
+  it("leaves a part with an empty <PartDesc> holding no note", () => {
+    const doc = adaptRktXml(src.replace("<Name>Nose cone</Name>", "<Name>Nose cone</Name><PartDesc></PartDesc>"));
+    const nose = flattenRocket(doc.rocket).find((p) => p.component.kind === "nosecone")!.component;
+    expect(nose.comment).toBeUndefined();
+  });
+});

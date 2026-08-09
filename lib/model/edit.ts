@@ -3153,6 +3153,13 @@ function buildStage(rocket: Rocket, entry: AddedStage): { stage: Stage; mountId:
         ? entry.mountId
         : uniqueUuidFrom(`${entry.seedId}:child:${i}`, new Set([entry.seedId, entry.mountId])),
       name: c.name,
+      // The author's note is NOT cloned, for the same reason the id is not: it belongs to the part
+      // the flyer's file describes, not to one Loft invented from it. `structuredClone` carries it
+      // otherwise, and `lib/ork/export.ts` then writes it into the downloaded design — so a booster
+      // authored from `Dual parachute deployment.ork` would come out with its fin set annotated
+      // "PML FIN-C-05 modified by cutting down the height", prose about a component that has never
+      // existed, over the flyer's name.
+      comment: undefined,
       children: [] as RocketComponent[],
     };
   });
@@ -3160,6 +3167,7 @@ function buildStage(rocket: Rocket, entry: AddedStage): { stage: Stage; mountId:
     ...structuredClone(src),
     id: entry.seedId,
     name: `${entry.name} airframe`,
+    comment: undefined,
     children,
   };
   // Which component a motor sits in: the inner tube if one came across, else the seed tube itself.

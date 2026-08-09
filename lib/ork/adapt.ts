@@ -386,6 +386,11 @@ function base(node: XmlNode) {
   return {
     id: childText(node, "id") || nextId(),
     name: childText(node, "name") || node.name,
+    // The author's own note, read here so all eighteen kinds get it from one line — the same reason
+    // `overrides` is spread in below rather than repeated per case. An empty `<comment>` is the
+    // element OpenRocket writes when there is nothing to say, so it reads as absent rather than as
+    // a note that happens to be blank.
+    comment: childText(node, "comment")?.trim() || undefined,
     placement: parsePlacement(node),
     material: parseMaterial(node),
     finish: parseFinish(node),
@@ -846,6 +851,7 @@ function parseStages(rocketNode: XmlNode, ctx: WalkContext): Stage[] {
     const ov = overrides(st) as { overrideMass?: number; overrideCGx?: number; overrideSubcomponents?: boolean };
     stages.push({
       name: childText(st, "name") || "Stage",
+      comment: childText(st, "comment")?.trim() || undefined,
       components: parseSubcomponents(st, ctx),
       separationEvent: mapSeparationEvent(childText(st, "separationevent")),
       separationDelay: Number.isFinite(sepDelay) ? sepDelay : undefined,
@@ -1416,6 +1422,7 @@ export function adaptOrkXml(xml: string): OrkDocument {
   const rocket: Rocket = {
     name: childText(rocketNode, "name") || "Imported rocket",
     designer: childText(rocketNode, "designer"),
+    comment: childText(rocketNode, "comment")?.trim() || undefined,
     stages,
     configurations: configs,
     defaultConfigId: defaultId,
