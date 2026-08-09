@@ -303,6 +303,10 @@ the part's length and 56 of 150 corpus body parts are under 44 px along it.
 Nose at TOP, settled by existing convention rather than taste: *CG from nose*, the station sort, the
 "at X from the nose" readout and the parts table's design order all read nose-first.
 
+
+**SHIPPED 2026-08-09** as P8, in one increment rather than the three or four it was scoped at —
+`76e2bf5`, PR #149. Moved to `## Resolved` below; the note's own text stays here as the record of
+what was asked for.
 ---
 
 **ON-4 · nobody designs a rocket by dragging parts · SOURCE: owner, 2026-08-08 · CLUSTER: editor shape**
@@ -782,4 +786,9 @@ these are parked so they can be answered once instead of re-derived every run. N
 
 ## Resolved
 
-*Nothing yet — this file was created 2026-08-08.*
+- **`ON-3` · the phone should be vertical** → shipped as **P8**, 2026-08-09, `76e2bf5` (PR #149).
+  A phone held upright draws the airframe upright, nose at top, at a scale set by a named 500 px
+  height budget: the bundled 38 mm sample went from 296 x 11.8 px to **124 x 508**, and the airframe
+  itself from 11.8 px across to about 26. Keyed on portrait AND coarse, so a phone turned sideways
+  keeps the rocket lying down and has a case saying so. Reachable by a flyer on the live site.
+  `DESIGN.md` §8 carries the rule that came out of it, in both repos.

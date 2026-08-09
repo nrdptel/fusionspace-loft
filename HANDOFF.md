@@ -13,8 +13,10 @@ green local gate.**
    with a scale. After that: a motor mount's overhang and cluster count, and the verb band.
 2. **Then P8's remaining members.** The rotation is done; what is left is the depth it costs — the
    drawing starts 412 px down a 664 px phone and `/design` measures 8.39 screens.
-3. **P11 is the next unstarted P milestone after P8** — docs navigation. **Read the sibling first: it
-   already has both halves.** `fusionspace-debrief`'s `DESIGN.md` carries a long-form measure clause
+3. **P11 increment 2 — the PROSE.** `/docs/limitations` is 11,157 words under three `h2`, including a
+   single 2,800-word unbroken run; `/docs/methods` is 7,926 under 14 with no `h3` at all. It needs
+   `DESIGN.md` to change first — §11 puts the physics pages out of scope. **Read the sibling first: it
+   already has the clause.** `fusionspace-debrief`'s `DESIGN.md` carries a long-form measure clause
    (45–75 rendered characters, and an explicit warning that `ch` is the wrong unit — 1ch is 11.0 px
    against a 7.10 px average prose character, so `max-w-prose` renders about 101) and a `SectionNav`
    primitive with a you-are-here marker, lifted out of its flight report on 2026-08-08. P11 says
@@ -106,7 +108,7 @@ is not any one spec.
   trusting: a JSX text run that spans a line break loses its leading whitespace, so `<em>loaded</em>`
   followed by a newline shipped as `loadedcentre`. Baseline is 0; anything above that is yours.
 
-## This run — one Sev-1, two milestone increments, three pull requests
+## This run — one Sev-1, four milestone increments, five pull requests
 
 | # | what | where | how it was verified |
 |---|---|---|---|
@@ -117,7 +119,8 @@ is not any one spec.
 | 5 | **P8 increment 1 — a phone held upright draws the rocket upright.** 296 x 11.8 px becomes 124 x 508, nose at top, against a named 500 px height budget | PR #149, **open** | measured on the built export; four e2e cases re-based on the model axis; a landscape case saying it does not happen there |
 | 6 | **`DESIGN.md` §8 gains the orientation rule and the model-axis rule**, byte-identical in both repos | PR #149 + Debrief #159, both **open** | `diff` of the §8 section across the two checkouts |
 | 7 | **R12 increment 4 — the external fittings.** 54 more parts across the corpus, leaving exactly ONE with no field (a streamer). Two of the three kinds reach the flight through protuberance drag | branch, **open** | 54 parts driven across all 35 files; five unit cases with two negative controls; an e2e case whose negative control reports *"a launch lug offered no way to edit it"* |
-| 8 | **`text-[11px]` 41 → 33.** `DesignEditor` spelled its legend six times and its field label six times, character-identical | PR #148 | `lib/design-system.test.ts`, which is the §9 block |
+| 8 | **P11 increment 1 — every docs heading is linkable and every route has a contents list.** 32 of 32 anchors against 1 before, over 29,204 words. The primitive was ADOPTED from the sibling, not invented — and §9 caught that its chips are a caption size where §3 says a label | branch, **open** | counted on the built export; an e2e case asserting every chip points at a heading that exists |
+| 9 | **`text-[11px]` 41 → 33.** `DesignEditor` spelled its legend six times and its field label six times, character-identical | PR #148 | `lib/design-system.test.ts`, which is the §9 block |
 
 **Counts: unit 1,132 → 1,149; e2e 245 → 248; corpus 30 → 31 cases green over 35 design files.
 `DESIGN.md` §9 is green throughout and one count moved the right way.**
@@ -143,7 +146,7 @@ the same tooltip's sibling clause) and an auto tube-fin radius (handled correctl
 | P1–P5 | SHIPPED 2026-08-02 → 2026-08-03 |
 | P6 | SHIPPED 2026-08-05 |
 | P7 (from `ON-1`) | SHIPPED 2026-08-08 |
-| **P8** (from `ON-3`) | **IN PROGRESS — increment 1 shipped 2026-08-09 and it is the whole rotation.** A portrait phone draws the airframe upright, nose at top, 296x11.8 px becoming 124x508. PR #149, green locally, not yet merged |
+| **P8** (from `ON-3`) | **SHIPPED 2026-08-09** — in one increment rather than four. A portrait phone draws the airframe upright, nose at top: 296x11.8 px becomes 124x508 |
 | **P9** (from `ON-B1`) | **SHIPPED 2026-08-08** |
 | P10 (from `ON-B2`) | IN PROGRESS — increment 2 is repository SETTINGS, which only the owner can do |
 | P11 (from `ON-8`) | NOT STARTED |
@@ -161,16 +164,19 @@ the same tooltip's sibling clause) and an auto tube-fin radius (handled correctl
    diameter and bore. Before this, 249 of 569 parts across the 35 real design files had no field
    describing them at all and those five kinds were 194 of them; a flyer could already AUTHOR a
    coupler and then not resize it.
-3. **Correct a launch lug's or a rail button's frontal size and how many there are**, which the drag
+3. **Send someone a link to a section of the docs.** One heading in the whole of `/docs` was linkable.
+4. **Correct a launch lug's or a rail button's frontal size and how many there are**, which the drag
    model squares into the airframe's protuberance area — so a pair of buttons entered as one was drag
    the flight was not carrying, and no field could fix it.
-4. **Fly an OpenRocket design with the mass it actually has.** Seven real parts on three corpus
+5. **Fly an OpenRocket design with the mass it actually has.** Seven real parts on three corpus
    designs imported weighing nothing, one of them 840 g on a 12.6 kg airframe.
 
 **What is measurably better about using the tool? (P-track)**
 
 - **A phone held upright draws the rocket upright**: 296 x 11.8 px becomes 124 x 508, and the
-  airframe's own width goes 11.8 px to about 26. (On PR #149, not yet merged.)
+  airframe's own width goes 11.8 px to about 26. Merged and live.
+- **Every docs heading is linkable — 32 of 32, against 1 — and every route offers a contents list**
+  over 29,204 words that had no in-page navigation of any kind.
 - **Seven accuracy medians improved** against the same 35 files with no change to the solver —
   deployment velocity 6.2 → 5.1%, ground-hit 1.3 → 0.8%, max acceleration 1.8 → 1.3%, max velocity
   2.2 → 1.9%, max Mach 2.0 → 1.7%, apogee 3.1 → 2.9%, flight time 3.1 → 2.8%.
@@ -186,7 +192,7 @@ other 7.7 predate it.
 
 ## The corpus, stated plainly
 
-**35 design files, 31 corpus cases, 0 findings at the end of the run** — and the suite named its own
+**35 design files, 32 corpus cases, 0 findings at the end of the run** — and the suite named its own
 fixture count (`imports every design file (35 present)`), so that zero came from a sweep that
 examined something. It did not start at zero: the new internal-structure sweep found seven parts
 importing at no mass, which became the run's Sev-1.
