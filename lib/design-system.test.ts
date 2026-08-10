@@ -68,6 +68,56 @@ function countMatches(
   return { total, byFile: byFile.sort() };
 }
 
+/** Source with its comments removed — `/* … *\/` anywhere, and `//` only where it starts a line, so
+ *  a `https://` inside a string survives.
+ *
+ *  **Every class-token check below should read this rather than the raw file, and until 2026-08-09
+ *  none of them did.** `roundedLg`'s own docblock recorded the consequence as a rule to obey — *"the
+ *  name cannot be written even in a comment there, the grep cannot tell a mention from a use"* — which
+ *  put the burden on every future author of a comment, forever, and was duly forgotten by the very
+ *  commit that widened the radius check: naming the drifted values in the new check's own explanation
+ *  made the tree read as 28 violations. A tool that cannot be described in prose beside itself is the
+ *  wrong tool. This is the same class error §9 keeps recording — an instrument reading something that
+ *  is not the thing it is measuring — and the fix belongs in the instrument.
+ *
+ *  It is deliberately NOT applied to the card-treatment or adoption checks: those match a whole class
+ *  string or an import, neither of which appears in prose. */
+function stripComments(text: string): string {
+  return (
+    text
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      // A `//` comment anywhere on the line, not just at its start — a TRAILING one survived the
+      // first version of this, which is the same failure it was written to fix: quoting a class name
+      // in a note beside the code turned the gate red on a comment-only edit. The preceding
+      // character is kept and must not be a colon, which is what leaves `https://` alone.
+      .replace(/(^|[^:])\/\/.*$/gm, "$1")
+  );
+}
+
+/** Just the STRING LITERALS of a source — which is where a class token can actually be.
+ *
+ *  **A class-token pattern run over whole source text reads English prose as CSS.** Measured
+ *  2026-08-09: a radius check matching every `rounded-*` token found 18 hits in JSX copy across five
+ *  docs routes and three components, every one of them the English word in a sentence like "rounded
+ *  to the nearest". `roundedLg` never hit this because it names a hyphenated literal no sentence
+ *  contains — which is precisely the narrowness that made it blind.
+ *
+ *  The sibling's §9 solves this by reading `class="…"` attributes only. That is one step too narrow
+ *  here: this app composes most of its class strings through `cx(…)` and template literals, so an
+ *  attribute-only scan cannot see the primitives' own classes at all — the very files a design system
+ *  most needs to check. Every string literal is the wider net that still excludes prose.
+ *
+ *  Template literals contribute their literal spans, with `${…}` treated as a break, since an
+ *  interpolated value is not a token this can judge. */
+function classText(text: string): string {
+  const out: string[] = [];
+  for (const m of text.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)) {
+    const body = m[1] ?? m[2] ?? m[3] ?? "";
+    out.push(m[3] !== undefined ? body.replace(/\$\{[^}]*\}/g, " ") : body);
+  }
+  return out.join(" ");
+}
+
 /** The counts as they stand. Each is a ratchet toward the target named beside it; lower it in the same
  *  commit as the conversion that earns it, and never raise one. */
 const BUDGET = {
@@ -78,6 +128,31 @@ const BUDGET = {
    *  Note this reads `app/globals.css` too, so the name cannot be written even in a comment there —
    *  the grep cannot tell a mention from a use. */
   roundedLg: 0,
+  /** Radii that are not in the system at ALL — every `rounded-*` token, minus the three §2 sanctions:
+   *  `md` for controls, `xl` for containers, `full` for pills.
+   *
+   *  **`roundedLg` above named a single literal, and this is the whole class it could not see.**
+   *  Measured 2026-08-09 while reconciling this file's §9 with the sibling's: with `roundedLg` at 0
+   *  and reading as compliant, the tree held **seven** off-system radii — four `rounded-sm`, one
+   *  `rounded-[2px]` and two bare `rounded` — and five of the seven were ONE treatment, a 12x8 px
+   *  legend swatch hand-rolled across four files at two different radii. That is the twelve card
+   *  treatments in miniature, in the part of the tree the instrument was blind to. `Swatch` is the
+   *  primitive it became.
+   *
+   *  **At 0, and it took a round to get there.** The first version of this budget was 1, sanctioning
+   *  the small radius inside `Swatch` and asserting the ownership to hold it there. The exception was
+   *  unnecessary: CSS scales a corner radius to what its edge can hold, so on a 12x8 px chip every
+   *  radius at or above 4 px renders as exactly 4 px, and `rounded-md` — already sanctioned — is
+   *  pixel-identical. A budget of 1 with owner machinery behind it, for zero pixels. */
+  offSystemRadius: 0,
+  /** Spacing written as an arbitrary value — `p-[13px]`, `gap-[18px]` — which §4 forbids outright and
+   *  which `offScaleSpacing`'s named-step pattern cannot express at all.
+   *
+   *  At 1, and the one is `ServiceWorker`'s `pb-[calc(1rem+env(safe-area-inset-bottom))]`. That is not
+   *  a spacing choice: it is `1rem` from the scale plus a DEVICE inset whose value only the browser
+   *  knows, and writing it any other way means a toast under a phone's home indicator. Exempted by
+   *  the expression naming `env(safe-area-inset-`, so an ordinary arbitrary value still fails. */
+  arbitrarySpacing: 1,
   /** Distinct card treatments. One of these is now `<Card>`'s own string, which is the target state;
    *  the other two are a floating toast (`shadow-lg`) and the import drop zone (`border-2 border-dashed`,
    *  an interactive target rather than a container). Both want their own named primitive rather than
@@ -379,6 +454,24 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
 
 describe("DESIGN.md §9 — the design system is binding, and this is what checks it", () => {
   const ui = uiSources(["components", "app"]);
+  const tokenSource = () => [
+    { path: "lib/ui-tokens.ts", text: readFileSync(join(ROOT, "lib/ui-tokens.ts"), "utf8") },
+  ];
+  /** The same sources with comments removed — see `stripComments`. Every check that matches a CLASS
+   *  TOKEN reads this, so the rule can be explained in prose beside the check that enforces it. */
+  /** **`lib/ui-tokens.ts` is scanned too, and leaving it out was a hole big enough to drive the whole
+   *  app through.** `buttonClass` spells the control radius for every `<Button>`, every link-button
+   *  and the header's external anchor, and it lives in neither `components/` nor `app/` — so with the
+   *  radius check reading those two directories, that one line could be set to the radius §2 forbids
+   *  by name with the suite green. Found by the pre-push review, by simulation rather than by
+   *  reading. `MAINTAINING.md` already says `lib/` holds real class strings that components
+   *  interpolate; this is the file it means. */
+  const uiCode = [...ui, ...tokenSource()].map((f) => ({
+    path: f.path,
+    // CSS has no string literals to speak of, and its whole body is class position, so it passes
+    // through: `app/globals.css` is where an `@apply`-style rule would hide a radius.
+    text: f.path.endsWith(".css") ? stripComments(f.text) : classText(stripComments(f.text)),
+  }));
   const components = uiSources(["components"], [".tsx"]);
 
   it("has sources to read at all", () => {
@@ -392,8 +485,62 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     // `rounded-lg` is the middle radius, and it is the single value that caused most of the measured
     // drift: it reads as "a bit rounder", so it lands on containers and controls alike and blurs the
     // one distinction the radius scale exists to make.
-    const { total, byFile } = countMatches(ui, /rounded-lg/g);
+    const { total, byFile } = countMatches(uiCode, /rounded-lg/g);
     expect(total, `rounded-lg, by file:\n${byFile.join("\n")}`).toBe(BUDGET.roundedLg);
+  });
+
+  it(`uses exactly ${BUDGET.offSystemRadius} radii outside the system`, () => {
+    // **The check above names ONE literal, so it is blind to every other off-system radius**, which
+    // is the identical mistake it was written to catch elsewhere: `offScaleType`'s own docblock says
+    // a check that enumerates known-bad tokens passes the size nobody has thought of yet. Measured
+    // 2026-08-09 with `roundedLg` sitting at 0: seven live violations, five of them one treatment.
+    //
+    // Enumerate every radius token and SUBTRACT §2's three, so a value nobody has thought of fails by
+    // default. The bare `rounded` counts: Tailwind gives it its own value, so it is a fourth radius
+    // written as if it were the default.
+    // Side and corner utilities are part of the token, and judging the whole string would read
+    // `rounded-r-none` — which SQUARES the edge two adjacent controls meet at, a documented pattern
+    // in `ImportPanel` — as a fourth radius. Split it: the value is what §2 governs, the side is
+    // where it applies.
+    const SIDE = "t|r|b|l|tl|tr|br|bl|s|e|ss|se|es|ee";
+    const VALUE = "none|sm|md|lg|xl|2xl|3xl|full|\\[[^\\]]+\\]";
+    const RADII = new RegExp(`\\brounded(?:-(?:${SIDE}))?(?:-(?:${VALUE}))?\\b`, "g");
+    const offSystem = (m: string) => {
+      const value = new RegExp(`-(${VALUE})$`).exec(m)?.[1];
+      // A bare `rounded` — or a bare `rounded-b` — is Tailwind's own default value, which is a
+      // radius the system never chose, written as if it were not a choice.
+      if (value === undefined) return true;
+      if (value === "md" || value === "xl" || value === "full") return false;
+      // `none` removes a radius rather than picking one, and only makes sense per side.
+      return !(value === "none" && new RegExp(`^rounded-(${SIDE})-none$`).test(m));
+    };
+    const { total, byFile } = countMatches(uiCode, RADII, offSystem);
+    expect(total, `off-system radii, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offSystemRadius);
+    // No exemption, by owner or by value — which is the whole point of the round this took to reach.
+    // An exception written into the binding document is a permanent cost; this one bought nothing.
+  });
+
+  it(`writes exactly ${BUDGET.arbitrarySpacing} arbitrary spacing value, and it is a device inset`, () => {
+    // §4 states a scale and forbids arbitrary values, and `offScaleSpacing`'s pattern ends in
+    // `[0-9]+\b` — so `p-[13px]` is not off-scale to it, it is invisible. The sibling's §9 carries a
+    // fixture proof of exactly this: seven live violations, three of them arbitrary, reported as
+    // zero. Loft's copy of that block was the stale one.
+    //
+    // `env(safe-area-inset-*)` is the one legitimate arbitrary expression — a length only the browser
+    // knows — and it is exempted by naming the function rather than by naming the file, so a second
+    // device inset needs no change here and an ordinary `p-[13px]` still fails.
+    const ARBITRARY = /\b((?:p|m)[xytblr]?|(?:gap|space)(?:-[xy])?)-\[[^\]]+\]/g;
+    const { total, byFile } = countMatches(uiCode, ARBITRARY, (m) => !m.includes("env(safe-area-inset-"));
+    expect(total, `arbitrary spacing values, by file:\n${byFile.join("\n")}`).toBe(
+      BUDGET.arbitrarySpacing - 1,
+    );
+    // The exemption is asserted rather than assumed: a check that only ever counts the failures
+    // cannot tell "the inset is still there" from "somebody deleted the safe-area padding". A FLOOR
+    // rather than an exact count, because the exemption is by expression and not by file — a notch
+    // clearance on the header is the same legitimate thing, and an exact count would fail it with a
+    // message saying the toast had lost its padding, which is the opposite of what happened.
+    const insets = countMatches(uiCode, ARBITRARY, (m) => m.includes("env(safe-area-inset-"));
+    expect(insets.total, "the phone toast lost its safe-area inset").toBeGreaterThanOrEqual(1);
   });
 
   it(`hand-rolls exactly ${BUDGET.cardTreatments} distinct card treatments, on the way to one`, () => {
@@ -684,8 +831,6 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
   it(`hand-rolls exactly ${BUDGET.handRolledButtons} <button> elements — the three primitives, and nothing else`, () => {
     // Comments first: several of these files explain in prose why a `<button>` that navigates is a
     // keyboard and screen-reader defect, and prose about the rule is not a breach of it.
-    const stripComments = (t: string) =>
-      t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
     // A `<button>` is exempt exactly when its OWN opening tag takes its class from `buttonClass` —
     // that is what "on the primitive" means, and it is the only thing that should be uncountable.
     // Matching the opening tag rather than the file is what stops a hand-rolled treatment hiding by
@@ -706,6 +851,42 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     expect(total, `hand-rolled <button>, by file:\n${byFile.sort().join("\n")}`).toBe(
       BUDGET.handRolledButtons,
     );
+  });
+
+  it("declares no radius in the stylesheet that is off the system", () => {
+    // **The same blind spot the font-size check below exists to close, on the other half of §2.**
+    // The radius checks above match class NAMES and a stylesheet declares VALUES, so everything in
+    // `app/globals.css` was invisible to them — which is how `.eqn` shipped 8 px corners on all six
+    // docs routes at an off-system-radius count of zero. That one was fixed by hand and the hole it
+    // came through was not; the pre-push review found `.prose-loft code` still sitting at 4 px, a
+    // fifth radius nothing could see. It is 6 px now, and this is what holds it there.
+    //
+    // §2's three, in px: 6 (control), 12 (container), and a pill, which CSS spells as a huge value.
+    const css = readFileSync(join(ROOT, "app/globals.css"), "utf8");
+    const ALLOWED_PX = new Set([6, 12, 9999]);
+    const off: string[] = [];
+    // Blocks, so a declaration can be judged by the rule it sits in. The focus ring is the one
+    // exemption and it is by SELECTOR: an outline drawn around a control is not the control's own
+    // corner, and §2 governs the component, not the ring the browser paints outside it.
+    for (const block of css.split("}")) {
+      const [selector, body] = block.split("{");
+      if (!body) continue;
+      if (/focus-visible/.test(selector)) continue;
+      for (const m of body.matchAll(/border-radius:\s*([^;]+);/g)) {
+        const raw = m[1].trim();
+        if (/^(inherit|initial|unset|revert)$/.test(raw)) continue;
+        const rem = /^([\d.]+)rem$/.exec(raw);
+        const px = /^([\d.]+)px$/.exec(raw);
+        const asPx = rem ? Number(rem[1]) * 16 : px ? Number(px[1]) : NaN;
+        if (!ALLOWED_PX.has(asPx)) off.push(`${selector.trim().slice(0, 40)} → ${raw}`);
+      }
+    }
+    expect(off, "radii declared in app/globals.css that are not §2's").toEqual([]);
+    // The control: a stylesheet with no radius at all would pass the line above having read nothing.
+    expect(
+      [...css.matchAll(/border-radius:/g)].length,
+      "no radius is declared in the stylesheet at all — this asserted nothing",
+    ).toBeGreaterThan(1);
   });
 
   it("declares no font size in the stylesheet that is off the six-size scale", () => {
@@ -844,7 +1025,7 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     // The file everything else is converted ONTO cannot itself be off-system, and it was: three
     // `rounded-lg` in `Segmented`, `ClosePanel` and `NumberField`. A primitive that breaks the rule
     // teaches the rule is optional.
-    const uiFile = readFileSync(join(ROOT, "components/ui.tsx"), "utf8");
+    const uiFile = stripComments(readFileSync(join(ROOT, "components/ui.tsx"), "utf8"));
     expect(uiFile.match(/rounded-lg/g) ?? [], "components/ui.tsx must not use rounded-lg").toHaveLength(0);
   });
 });

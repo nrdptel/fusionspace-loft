@@ -7,7 +7,7 @@ import { fmt } from "@/lib/display";
 import type { FlightResult } from "@/lib/sim/simulate";
 import type { StoredFlightData } from "@/lib/ork/import";
 import type { UnitSystem } from "@/lib/display";
-import { Extrapolated, Figure, Panel } from "./ui";
+import { Extrapolated, Figure, Panel, Swatch } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
 
 const LOFT_COLOR = "#6366f1"; // indigo — Loft's own solver
@@ -95,10 +95,10 @@ export default function DragCrossCheck({
 
       <div className="mt-2 flex flex-wrap gap-4 text-xs text-zinc-600 dark:text-zinc-300">
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2 w-3 rounded-sm" style={{ background: LOFT_COLOR }} /> Loft
+          <Swatch color={LOFT_COLOR} /> Loft
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2 w-3 rounded-sm" style={{ background: STORED_COLOR }} /> {toolName} (stored)
+          <Swatch color={STORED_COLOR} /> {toolName} (stored)
         </span>
       </div>
 

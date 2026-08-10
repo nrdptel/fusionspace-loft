@@ -321,7 +321,7 @@ const COLUMNS: Column<MotorSweepRow>[] = [
         <span className="font-medium text-zinc-800 dark:text-zinc-100">{r.designation}</span>{" "}
         <span className="text-zinc-500 dark:text-zinc-400">· {r.manufacturer}</span>
         {r.isDesign && (
-          <span className="ml-1.5 rounded bg-indigo-600 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-white">
+          <span className="ml-1.5 rounded-md bg-indigo-600 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-white">
             Design
           </span>
         )}

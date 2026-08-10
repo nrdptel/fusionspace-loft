@@ -844,6 +844,59 @@ export function ErrorState({
   );
 }
 
+/** `DESIGN.md` §5's `Swatch` — the colour sample that says which series or marker a legend row is
+ *  about.
+ *
+ *  **Eight sites across five files, one treatment, hand-rolled at TWO radii — and §9's radius check
+ *  could not see any of it.** Measured 2026-08-09: five bar swatches (`inline-block h-2 w-3`) wrote
+ *  `rounded-sm` four times and `rounded-[2px]` once, for the same 12x8 px chip; three marker dots
+ *  wrote `h-2 w-2 rounded-full`, one of them with a border instead of a fill. The old radius grep
+ *  named the single literal `rounded-lg`, so every one of them read as compliant. This is the twelve
+ *  card treatments in miniature, in the part of the tree the instrument was blind to.
+ *
+ *  **`bar` for a series, `dot` for a marker**, because that is the distinction the legends already
+ *  drew: a line on a chart is a length of colour, and a CG or CP annotation is a point. Anything
+ *  else is a third shape, which is a change to `DESIGN.md` rather than a prop.
+ *
+ *  `color` is for a colour that comes from DATA — a chart series picks its own, so it cannot be a
+ *  class — and `className` is for one the palette names. A site passing both is describing two
+ *  colours for one chip, so the style wins and the class should not be there.
+ *
+ *  **The motor chip on the rocket diagram converged and its corners moved**, from a hand-written 2 px
+ *  to the 4 px every `bar` renders. It had been tracking the drawn mark's own `rx`, which is a real
+ *  argument and not enough of one: a legend chip is a colour SAMPLE beside a label, not a scale
+ *  drawing of the part, and the four chart-series bars beside it are the same kind of thing. A third
+ *  shape for one adopter is what §5 declines to do elsewhere. */
+export function Swatch({
+  shape = "bar",
+  color,
+  className,
+}: {
+  shape?: "bar" | "dot";
+  /** A CSS colour a series carries as data. Rendered as a background, since Tailwind cannot. */
+  color?: string;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      // **§2's control radius, and on this box it is free.** CSS scales a corner radius to what its
+      // edge can hold (Backgrounds 3, §5.5: every radius scales by the smallest of edge-length over
+      // the sum of its two radii), so on a 12x8 px chip every radius at or above 4 px renders as
+      // exactly 4 px — the control, container and pill radii are pixel-identical here. A first
+      // version wrote the small radius and bought the binding document a permanent exception, §9 a
+      // budget of one and this suite an owner-exemption assertion, for zero pixels. The pre-push
+      // review measured that; the arithmetic is why it was worth undoing rather than defending.
+      className={cx(
+        "inline-block",
+        shape === "dot" ? "h-2 w-2 rounded-full" : "h-2 w-3 rounded-md",
+        className,
+      )}
+      style={color ? { background: color } : undefined}
+    />
+  );
+}
+
 /** `DESIGN.md` §5's `Figure` — "a chart with its title, legend, axis units, and its own empty and
  *  extrapolated states."
  *

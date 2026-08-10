@@ -4897,7 +4897,49 @@ result a Loft-authored file carries names Loft as its source.
 
 ## P13 (from `OWNER-NOTES.md` *Awaiting the owner*, 2026-08-09) — One design system, one copy, and a check that reads it
 
-**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-09. **`DESIGN.md` is read by the gate.**
+**Status: IN PROGRESS** — increments 1–3 of 3 shipped 2026-08-09, and the milestone's *done when*
+is met in Loft. **`DESIGN.md` is read by the gate, in three ways.** What is left is widening the
+shared span, which the mechanism now makes a routine change rather than a milestone.
+
+**Increment 3, 2026-08-09 — the shared span, held by a digest committed in BOTH repos.**
+`add_repo` with `access: "push"` for `nrdptel/fusionspace-debrief` SUCCEEDED this run, which the
+previous run recorded as refused and parked on the owner — so the reconciliation was never blocked on
+them. With both copies in one session: **12 diff hunks apart, 753 lines against 834, drift in BOTH
+directions.** Measured section by section, §4, §6, §7, §8 and §10 were already **byte-identical** —
+9,944 bytes — and §5 and §9 are app-specific by nature, because the two apps genuinely ship different
+primitives (this repo deleted `Chip`; the sibling defines it). So the span is those five sections,
+`lib/design-shared.test.ts` hashes them, and the digest constant is committed in both repos: neither
+can read the other at test time, so the constant is the channel. §1, §2, §3 and §11 differ only in
+clauses one copy has taken and the other has not, and they are the next to join. **Widening the span
+IS what reconciliation means from here** — a routine change, in both repos, in one commit.
+
+**Increment 2, 2026-08-09 — a primitive the vocabulary was missing, found by a check that could
+finally see it.** §9's radius grep named ONE literal — the middle radius — so with it reporting 0 the
+tree held **seven** off-system radii, and five of the seven were one treatment: a 12x8 px legend
+swatch hand-rolled across four files at two different radii, plus three marker dots. `Swatch` is what
+it became, at eight call sites across five files, and the off-system radius count is **0** — §2 keeps
+its three sanctions and gains no exception. The check enumerates every radius token and subtracts §2's three, and it reads
+string literals with comments stripped: run over raw source it read the English word in prose (18 hits
+across the docs routes), and run over `class="…"` attributes only — the sibling's approach — it cannot
+see a class composed through `cx(…)`, which is how every primitive here writes its own. A second
+check catches arbitrary spacing values, which §4 forbids and which the named-step pattern could not
+express; the one legitimate case, a device inset, is exempted by naming `env(safe-area-inset-` and is
+then asserted to still be there.
+
+**The pre-push review then found five holes in the new checks themselves, and all five are fixed and
+pinned.** The scan read `components/` and `app/` only, so `lib/ui-tokens.ts` — which spells the
+control radius for every button in the app — could take the forbidden radius with the suite green. The
+stylesheet declares radii as VALUES where these match NAMES, so `app/globals.css` contributed nothing
+and `.prose-loft code` was sitting at a fifth radius (6 px now, with a value scan holding it).
+**And the exception itself was unnecessary**: CSS scales a corner radius to what its edge can hold, so
+on a 12x8 px chip every radius at or above 4 px renders as exactly 4 px — the control radius is
+pixel-identical there, so the binding document had gained a permanent carve-out, and this suite an
+owner-exemption assertion, for zero pixels. Both are gone and the count is 0. An exact count on the
+safe-area exemption would have failed a
+second legitimate device inset with a message saying the first had been deleted. And `stripComments`
+missed a TRAILING `//`, so quoting a class name in a note beside the code turned the gate red — the
+very failure that helper was added to end. Nine negative controls across the increment, each firing on
+the right assertion.
 
 **Increment 1, 2026-08-09 — the file's own contradictions, and the check that stops the next one.**
 Three things this document said about itself were false and nothing could notice, because nothing in

@@ -17,7 +17,7 @@ import {
 import { flattenRocket } from "@/lib/model/geometry";
 import type { MotorMark } from "@/lib/sim/setup";
 import { useMeasuredWidth } from "./LineChart";
-import { Button, Segmented } from "./ui";
+import { Button, Segmented, Swatch } from "./ui";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -1106,22 +1106,22 @@ export default function RocketDiagram({
         <span>To scale · {lengthLabel} long · ⌀ {d.q(d.lengthMm(2 * o.maxRadius, units))} max</span>
         {motorLabel && (
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-3 rounded-[2px] bg-zinc-500 dark:bg-zinc-400" /> {motorLabel}
+            <Swatch className="bg-zinc-500 dark:bg-zinc-400" /> {motorLabel}
           </span>
         )}
         {showCg && (
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-indigo-500" /> CG
+            <Swatch shape="dot" className="bg-indigo-500" /> CG
           </span>
         )}
         {showCp && (
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> CP
+            <Swatch shape="dot" className="bg-amber-500" /> CP
           </span>
         )}
         {o.masses.length > 0 && (
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full border border-fuchsia-500" /> mass
+            <Swatch shape="dot" className="border border-fuchsia-500" /> mass
           </span>
         )}
         {marginLabel && <span>· {marginLabel}</span>}
