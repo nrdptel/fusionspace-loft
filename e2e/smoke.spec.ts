@@ -982,6 +982,49 @@ test.describe("Loft", () => {
     await expect(plots.getByLabel("Flight log speed unit")).toHaveCount(0);
   });
 
+  /** A log whose header names no unit is read in the flyer's CURRENT display system, and until
+   *  2026-08-10 nothing on screen said so. `lib/flightlog.ts` returns `unitHint: null` deliberately
+   *  to mean *the file does not say*, and a bare `Altitude` column parses perfectly well — so a
+   *  flyer whose altimeter exports feet while they read metric got the curve, both peaks and the
+   *  percentage beneath them 3.28x out, in the same voice as a stated unit. The picker showed the
+   *  guess exactly as it shows a fact. */
+  test("says when a flight log's unit is Loft's guess rather than the file's", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const plots = page.getByRole("region", { name: "Plots" });
+    await plots
+      .getByLabel("Flight log CSV")
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/flight-log-no-units.csv"));
+    await expect(plots.getByText("flight log", { exact: true })).toHaveCount(2);
+
+    // Both units are marked as assumed — the altitude one and the speed one, which guesses between
+    // four possibilities rather than two.
+    await expect(plots.getByText(/assumed — the file's header does not name a unit/)).toBeVisible();
+    await expect(plots.getByText(/assumed, from four possibilities/)).toBeVisible();
+    // And the caution rides with the NUMBER, naming what it would cost — not only at the control.
+    await expect(plots.getByText(/every figure on this line is out by 3\.3×/)).toBeVisible();
+
+    // Stated explicitly, because the step below depends on it: the guess is the app's current
+    // display system, and selecting the SAME value fires no change event. If the default ever flips
+    // to imperial this fails here, naming the reason, instead of failing mysteriously two lines on.
+    await expect(plots.getByLabel("Flight log altitude unit")).toHaveValue("m");
+    // Answering the question clears it: the unit is now the flyer's, not Loft's.
+    await plots.getByLabel("Flight log altitude unit").selectOption("ft");
+    await expect(plots.getByText(/assumed — the file's header does not name a unit/)).toHaveCount(0);
+    await expect(plots.getByText(/every figure on this line is out by 3\.3×/)).toHaveCount(0);
+    // The speed unit is a separate question and is still unanswered.
+    await expect(plots.getByText(/assumed, from four possibilities/)).toBeVisible();
+
+    // **The negative control.** The fixture that DOES name its units must show none of this, or the
+    // marker would just be "a log was uploaded".
+    await plots.getByRole("button", { name: "Remove" }).click();
+    await plots.getByLabel("Flight log CSV").setInputFiles(resolve(process.cwd(), "e2e/fixtures/flight-log.csv"));
+    await expect(plots.getByLabel("Flight log altitude unit")).toHaveValue("ft");
+    await expect(plots.getByText(/assumed/)).toHaveCount(0);
+  });
+
   test("rejects an unreadable flight log with a helpful message", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

@@ -5115,6 +5115,18 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-08-10 — an assumed flight-log unit is MARKED, not withheld.** A log whose header names no
+  unit is read in the flyer's display system, and the comparison built on it can be 3.28x out.
+  **Taken: state the assumption at the picker and put a caution on the number naming what it would
+  cost.** The flyer may well have the right unit — most flyers read the system their altimeter
+  exports — so blanking the figure would withhold a correct number from the majority to protect the
+  minority, and the house precedent for a value resting on a default is `descentWhy`'s caution
+  beside the descent figures rather than a blanked readout. **Rejected: withhold the delta until
+  confirmed** — it is the safer-looking option and it makes the overlay useless on first upload,
+  which is the moment it is worth most. **Rejected: refuse the file and demand a unit in the header**
+  — Loft does not get to dictate an altimeter's export format. Touching either picker clears its own
+  marker, because answering the question is what makes the unit the flyer's rather than Loft's.
+
 - **2026-08-10 — a metric whose event never happened is withheld PER METRIC, not by skipping the
   whole validation report.** `lib/sim/run.ts` already handles two versions of this question by
   skipping the report entirely (no propulsion, ballistic what-if), so matching that would have been

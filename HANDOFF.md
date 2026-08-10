@@ -20,15 +20,17 @@ IT IS THE FIRST JOB.**
    *worse* than it is, on the accuracy page. **The lesson: the screen read the code correctly every
    time and never asked whether a user could get there.** Reachability is the first question, not the
    last one.
-2. **STILL A CLAIM — reproduce it before scoping.** `components/ResultsView.tsx:340` reads an
-   altimeter log with no unit header in the flyer's CURRENT display system, where
-   `lib/flightlog.ts:33` returns `unitHint: null` deliberately to mean *the file does not say*. A
-   feet log on a metric display is a 3.28x error presented as a comparison, with nothing saying the
-   unit was assumed. **Reachability is the open question and it looks answerable in minutes**: unlike
-   the one above there is no upstream gate in the way — any flyer can upload any CSV — so the work is
-   to confirm a real altimeter export with a bare `Altitude` header, then decide between marking the
-   assumption and withholding the delta until the unit is confirmed. `lib/flightlog.test.ts:42`
-   already pins the null case.
+2. **ALSO RESOLVED — and it took one reading, because there was no gate in front of it.** A bare
+   `Altitude` header matches `isAltitudeHeader` and yields `unitHint: null`, and the path from there
+   is "a flyer uploads a CSV" with no `edited` flag or propulsion guard anywhere in it. Both pickers
+   showed Loft's guess exactly as they show a stated unit, and the altitude guess is between two
+   while the SPEED guess is between four. Fixed by marking the assumption at each picker and putting
+   a caution on the number that names what it would cost, rather than withholding — the flyer may
+   well have the right unit, and the house precedent for a value resting on a default is
+   `descentWhy`'s caution, not a blank. **Contrast the two candidates deliberately when you next read
+   a Sev-1 filing:** one was unreachable behind two unrelated rules and took an hour to disprove; the
+   other was reachable by construction and took a minute to confirm. Reachability is cheap to ask and
+   it is the question that separates them.
 
 
 **PR #155 AND #156 ARE BOTH MERGED.** #155 is live (`23659a5`, deploy confirmed by fetching
@@ -90,9 +92,20 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
   commit. Commits sign correctly once it is.
 - `test.yml` fires on `pull_request` and on a push to `main`, not on a working-branch push — and see
   point 1 above: it did not fire for PR #156 at all.
-- The e2e suite still needs two shards on this sandbox (126 + 126). Nothing flaked this run.
+- The e2e suite still needs two shards on this sandbox (127 + 126). **One flake this run**, recorded
+  rather than waved through: `depth.spec.ts`'s *"desktop: the workspace spine stays within 820px of
+  the top"* failed once inside a full shard-1 run and then passed three times — alone, as a whole
+  file, and in a repeat of the same full shard. Filed in `BACKLOG.md`; the failure message names the
+  route and the pixel figure, so the next occurrence is worth capturing rather than re-running.
+- **Playwright serves the BUILT `out/`, not the sources — so the gate's order is load-bearing and
+  editing between `npm run build` and `npm run test:e2e` silently tests the previous build.**
+  `playwright.config.ts:38` runs `npx serve` over `out/`. Cost me one confused debugging round on a
+  new e2e case that failed with the element genuinely absent from the page while the source rendering
+  it was correct. It fails in the safe direction here (a stale pass is a stale FAIL for new
+  assertions) but the reverse — editing a fix and re-running e2e without rebuilding — would report
+  green on code that was never served. Rebuild before every e2e run you intend to believe.
 
-## This run — seven increments, all merged
+## This run — eight increments, six merged, two on PR #157
 
 | # | what | where |
 |---|---|---|
@@ -103,6 +116,7 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
 | 5 | P13/2+3 — a `Swatch` primitive, a radius rule the gate can see, one digest over both repos | merged `4d1512f` |
 | 6 | R12/7 — the parts table says which masses the design stated | merged `4d1512f` |
 | 7 | The validation table stops scoring a sentinel — one live row, and the headline error it moved | PR #157 |
+| 8 | A flight log's unit says whether the file named it or Loft guessed | PR #157 |
 
 **Increment 7 is the one to read if you read one.** It is the only one that came from *reproducing* a
 filed claim rather than from the queue, it overturned two of this repo's own prior conclusions (run
