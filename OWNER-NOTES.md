@@ -749,6 +749,29 @@ note argues for, and it belongs in `COMPETITION.md` beside the format-support ro
 Owner-level decisions that are NOT blocking anything. Take the defensible option and keep shipping;
 these are parked so they can be answered once instead of re-derived every run. Newest first.
 
+- **2026-08-11 — the harness now REQUIRES the attribution footer this repo's zero-trace invariant
+  forbids, and the two cannot both be satisfied. It is on PR #166.** This is not the old "strip it
+  after posting" case `AGENTS.md` describes; the session's own operating instructions state, as a
+  hard requirement, that every pull request body, review and issue comment it authors must end with a
+  named tool's attribution line, and that it must include the line itself rather than let the server
+  append one. `MAINTAINING.md` resolves harness-versus-manual conflicts in the harness's favour and
+  asks the session to say which instruction it could not honour, so the footer was left in place and
+  this is that report.
+  **What is actually at stake:** the invariant's reasoning is that a public artifact carrying a
+  vendor's name breaches it "just as surely as a code comment would", and a pull request body is
+  about as public as this repo gets. Stripping it after posting is still mechanically possible — the
+  session can edit its own body — but doing so would now be deliberately defeating an explicit
+  instruction rather than cleaning up an unwanted addition, which is a different act and not one a
+  session should take on its own.
+  *What is needed:* a decision, once. Either (a) the footer is an accepted exception on pull request
+  bodies — narrower than the `AGENTS.md` filename exception and worth writing down beside it, since
+  the body is prose the owner did not write and every future run will hit this; or (b) the owner
+  turns the requirement off at its source in the environment/session configuration, which is the only
+  place it can be removed without a session overriding its own instructions. Until then every run
+  will post one and every run will have to explain itself here. **Nothing is blocked** — the code,
+  the commits, the branch names and the served site all remain clean, and the footer appears on the
+  pull request body alone.
+
 - **ANSWERED 2026-08-09 by measurement, not by the owner: `add_repo` with `access: "push"` for
   `nrdptel/fusionspace-debrief` SUCCEEDS from a Loft session.** Run 9 called it and got the repo,
   cloned it, and diffed both copies of `DESIGN.md` — so the entry below, which parked the
