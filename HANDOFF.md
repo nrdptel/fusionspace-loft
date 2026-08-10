@@ -4,6 +4,24 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
+**TWO SEV-1-SHAPED FINDINGS ARE OPEN AND UNREPRODUCED, and that is this run's real gap.** Both came
+from the opening fan-out, both are wrong numbers on a surface a flyer would act on, and neither was
+reproduced by this session — so under `MAINTAINING.md`'s own rule they are claims, not findings, and
+the first job is to reproduce them:
+
+1. **`lib/validation/compare.ts:43` has no `landed` gate.** A flight that never reaches the ground has
+   its ground-hit figures hard-zeroed by `lib/sim/simulate.ts:959`, and the Cross-check workspace then
+   publishes *"Loft 0.0 m/s, Δ −100%"* and folds it into that panel's headline mean absolute error —
+   while the Flight card correctly WITHHOLDS the same four figures. Two surfaces of one flight
+   disagreeing about whether it landed.
+2. **`components/ResultsView.tsx:340` reads an altimeter log with no unit header in the flyer's
+   CURRENT display system**, and `lib/flightlog.ts:33` returns `unitHint: null` deliberately to mean
+   *the file does not say*. A feet log on a metric display is a 3.28x error presented as a comparison,
+   with nothing saying the unit was assumed.
+
+Both are in `BACKLOG.md` with their file:line. Reproduce, then fix — ahead of any milestone.
+
+
 **PR #155 is MERGED AND LIVE** (`23659a5`, CI green, deploy confirmed by fetching
 `/docs/methods` on loft.fusionspace.co). **PR #156 is OPEN with three more commits, gated in full
 locally.** Its sibling, `nrdptel/fusionspace-debrief#170`, is merged.
