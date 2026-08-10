@@ -111,7 +111,7 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
   assertions) but the reverse — editing a fix and re-running e2e without rebuilding — would report
   green on code that was never served. Rebuild before every e2e run you intend to believe.
 
-## This run — nine increments, eight merged, one on PR #159
+## This run — ten increments, nine merged, one on PR #160
 
 | # | what | where |
 |---|---|---|
@@ -123,7 +123,8 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
 | 6 | R12/7 — the parts table says which masses the design stated | merged `4d1512f` |
 | 7 | The validation table stops scoring a sentinel — one live row, and the headline error it moved | merged `d0c81cd` |
 | 8 | A flight log's unit says whether the file named it or Loft guessed | merged `a8e5df7` |
-| 9 | R12/8 — a canopy can be given the mass it was weighed at | PR #159 |
+| 9 | R12/8 — a canopy can be given the mass it was weighed at | merged `2d66012` |
+| 10 | The linter runs the 61 rules everyone assumed it was running | PR #160 |
 
 **Increment 7 is the one to read if you read one.** It is the only one that came from *reproducing* a
 filed claim rather than from the queue, it overturned two of this repo's own prior conclusions (run
