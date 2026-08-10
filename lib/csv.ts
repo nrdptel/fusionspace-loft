@@ -12,6 +12,28 @@ function escapeCell(cell: CsvCell): string {
 
 /** Serialise a grid of rows (the first row is normally the header) to a CSV string with CRLF line
  *  endings, as spreadsheets expect. */
+/** A grid with its caveats above the header, which is where a spreadsheet can live with them.
+ *
+ *  **An export is a grid of cells and nothing else, so a note rendered beside a table does not
+ *  travel with it** — and a file of confident numbers with the caveat stripped is the same wrong
+ *  claim one step further from the flyer. This ledger lists that shape repeatedly; the validation
+ *  panel is the most recent, naming the metrics it withheld on screen while exporting rows that said
+ *  nothing about them.
+ *
+ *  **Above the header, not below the last row**, and that is the whole reason this is a named
+ *  function rather than a spread at each call site. A spreadsheet's own tooling — sort, filter, a
+ *  chart range — takes the first row as the header and everything under it as data, so a footnote
+ *  appended at the bottom becomes a data row that sorts into the middle of the numbers it is trying
+ *  to qualify. Each line is its own single-cell row for the same reason: a caveat packed into the
+ *  header row would shift every column.
+ *
+ *  No preamble returns the grid exactly as it was, so a table that has nothing extra to say exports
+ *  byte-for-byte what it always did. */
+export function withPreamble(preamble: string[] | undefined, grid: CsvCell[][]): CsvCell[][] {
+  if (!preamble?.length) return grid;
+  return [...preamble.map((line): CsvCell[] => [line]), ...grid];
+}
+
 export function toCsv(rows: CsvCell[][]): string {
   return rows.map((row) => row.map(escapeCell).join(",")).join("\r\n");
 }

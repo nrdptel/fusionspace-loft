@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import { TOUCH_TARGET_SQUARE, cx } from "@/lib/ui-tokens";
 import { compareCells } from "@/lib/table-sort";
-import type { CsvCell } from "@/lib/csv";
+import { withPreamble, type CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { EmptyState } from "./ui";
 
@@ -84,6 +84,7 @@ export default function DataTable<R>({
    *  table whose rows are already exported by the surface around it. */
   exportName,
   exportSuffix,
+  csvPreamble,
   /** Minimum table width before the wrapper starts scrolling. `ValidationPanel` is the one table that
    *  needs it: its four columns compress into unreadability before the viewport does. */
   minWidth,
@@ -123,6 +124,13 @@ export default function DataTable<R>({
   caption?: React.ReactNode;
   exportName?: string;
   exportSuffix?: string;
+  /** Lines placed above the header in the CSV and the copied grid — what the table said that a grid
+   *  of cells cannot say for itself.
+   *
+   *  Each becomes its own single-cell row. For a caveat that changes how the numbers should be read:
+   *  a withheld metric and why, the conditions a flown figure assumed. NOT for a title or a
+   *  timestamp — the filename carries the first and nobody asked for the second. */
+  csvPreamble?: string[];
   minWidth?: string;
   initialSort?: { key: string; dir: 1 | -1 };
   sort?: { key: string; dir: 1 | -1 } | null;
@@ -154,8 +162,14 @@ export default function DataTable<R>({
   // `csv` are left out of both the header and the body, so the two cannot fall out of step.
   const csvCols = columns.filter((c) => c.csv);
   const csvRows: CsvCell[][] = useMemo(
-    () => [csvCols.map((c) => c.csvLabel ?? c.label), ...sorted.map((r) => csvCols.map((c) => c.csv!(r)))],
-    [sorted, csvCols],
+    // The preamble carries what the TABLE said and a grid of cells cannot — see `withPreamble` for
+    // why it goes above the header rather than under the last row.
+    () =>
+      withPreamble(csvPreamble, [
+        csvCols.map((c) => c.csvLabel ?? c.label),
+        ...sorted.map((r) => csvCols.map((c) => c.csv!(r))),
+      ]),
+    [sorted, csvCols, csvPreamble],
   );
 
   if (rows.length === 0) {

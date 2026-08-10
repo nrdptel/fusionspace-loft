@@ -117,6 +117,13 @@ export default function ValidationPanel({
         minWidth="30rem"
         exportName={toolName}
         exportSuffix="validation"
+        // **The withheld metrics travel with the file.** The card below names them on screen; the
+        // export used to come back with eight rows and nothing saying a ninth was withheld or why,
+        // which reads as "the file stored less" rather than "we did not measure it" — the same
+        // caveat-on-one-surface shape the withholding was built to end.
+        csvPreamble={report.withheld.map(
+          (w) => `Not compared — ${w.label.toLowerCase()}: ${w.reason}`,
+        )}
         caption={`Loft against ${toolName}'s stored results, metric by metric`}
         empty="No metric in this design's stored run can be compared yet — import a design whose tool saved a simulation, and every figure it stored appears here beside Loft's."
         columns={[

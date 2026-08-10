@@ -84,16 +84,16 @@ big for one pass. Newest first.
   sample separates "not settled" from "genuinely 821". Waiting on the layout to be stable before
   measuring is the likely fix, not widening the cap.
 
-- **The validation CSV now omits a withheld metric without saying it did — found reviewing my own
-  diff, and it is the export half of the defect I had just fixed.** `components/ValidationPanel.tsx`
-  names the withheld metrics on screen; `DataTable` exports `report.comparisons`, which no longer
-  contains them, so the downloaded file for `rocksimTestRocket1.rkt [E6-2]` is eight rows with
-  nothing saying a ninth was withheld or why. Strictly better than before — the row it used to carry
-  was the wrong −100% — but it is the *"caveat on one surface, confident number in an export"* shape
-  this ledger already lists three times. **Deliberately not fixed in the same change**: neither
-  `DataTable` nor `DownloadCsv` has a preamble or footnote hook, and the entry above proposing *"a
-  conditions preamble on every CSV that carries a flown number"* is the increment that builds one.
-  Do them together; a second bespoke mechanism here is what makes the third one expensive.
+- **RESOLVED 2026-08-10, and the mechanism is now there for the other two entries of this shape.**
+  `DataTable` takes a `csvPreamble`, and `lib/csv.ts`'s `withPreamble` puts each line above the
+  header as its own single-cell row. **Above, not below, and that is the load-bearing bit**: a
+  spreadsheet takes the first row as the header and everything under it as data, so a footnote
+  appended at the end becomes a data row that sorts into the middle of the numbers it qualifies. The
+  validation table now exports the metrics it withheld and why. A table with nothing extra to say
+  exports byte-for-byte what it always did. **The conditions preamble filed above is now a one-line
+  change per call site** rather than a mechanism to build — that is the remaining half.
+
+- ~~**The validation CSV now omits a withheld metric without saying it did.**~~ *(resolved above.)*
 
 - **`BALLISTIC_SPLIT_METRICS`'s justification for `deploymentVelocity` cites figures the comparison
   never sees.** `lib/corpus/sweep.test.ts:230` explains the split with *"RockSim writes ~234 m/s for
