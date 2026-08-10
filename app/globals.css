@@ -217,7 +217,10 @@ input[type="number"] {
   background: #f4f4f5;
   background: light-dark(#f4f4f5, #27272a); /* zinc-100 / zinc-800 */
   padding: 0.1em 0.35em;
-  border-radius: 4px;
+  /* §2's CONTROL radius, 6px. It was 4px — a fifth radius, written as a raw declaration where the
+     class-name greps could never see it, exactly as `.eqn`'s 8px was. Corrected 2026-08-09 with the
+     check below it that reads VALUES. */
+  border-radius: 6px;
 }
 :where(.dark) .prose-loft code {
   background: #27272a;

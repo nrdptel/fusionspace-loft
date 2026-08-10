@@ -35,6 +35,7 @@ import type {
   MotorInstance,
   MotorSpec,
   MotorMount,
+  MassProvenance,
 } from "../model/types";
 import { planformFromPoints, type FinPoint } from "../model/planform";
 import { radToDeg, cToK } from "../units";
@@ -188,10 +189,36 @@ function material(node: XmlNode): Material | undefined {
  *  design is in known-mass mode, otherwise RockSim's calculated mass, falling back across the
  *  two so a populated value always wins. Returns undefined when neither is positive. */
 function fileMassKg(node: XmlNode, useKnownMass: boolean): number | undefined {
+  return fileMass(node, useKnownMass)?.kg;
+}
+
+/** The same figure, WITH which of RockSim's two numbers it is.
+ *
+ *  **`.rkt` carries both, on every part, always** — `<CalcMass>` beside `<KnownMass>` on 67 of 67
+ *  parts across all four corpus designs — and they are different claims: one is RockSim's own
+ *  computation and the other is what the designer weighed. The spreads are not cosmetic;
+ *  `FullScaleModelTH.rkt`'s tube coupler states 984.0 g against a computed 70.6 g.
+ *
+ *  Both land in `overrideMass`, which is why that field cannot carry the distinction: on a `.ork`
+ *  import it means "the designer stated this" and here it means whichever of the two the design
+ *  selected. Every corpus `.rkt` has `<UseKnownMass>` at 0, so all of them fly RockSim's computed
+ *  figure — which is a number from another tool, not a measurement, and the surface should say so. */
+function fileMass(node: XmlNode, useKnownMass: boolean): { kg: number; from: MassProvenance } | undefined {
   const known = n(node, "KnownMass", 0);
   const calc = n(node, "CalcMass", 0);
-  const grams = useKnownMass && known > 0 ? known : calc > 0 ? calc : known;
-  return grams > 0 ? grams * G : undefined;
+  const stated = useKnownMass && known > 0;
+  const grams = stated ? known : calc > 0 ? calc : known;
+  if (!(grams > 0)) return undefined;
+  // The last branch is the known figure again — reached only when RockSim computed nothing — so it
+  // is stated too, whatever the design-level flag says.
+  return { kg: grams * G, from: stated || calc <= 0 ? "stated" : "tool" };
+}
+
+/** The provenance of a mass taken verbatim from the file, as a spreadable patch — empty when the file
+ *  offers no figure at all, so a component keeps whatever it had. */
+function massOf(node: XmlNode, useKnownMass: boolean): { massFrom?: MassProvenance } {
+  const own = fileMass(node, useKnownMass);
+  return own ? { massFrom: own.from } : {};
 }
 
 /** A `<CustomFinSet>`'s outline: "x,y|x,y|…" in millimetres, with a trailing separator and often a
@@ -452,10 +479,19 @@ function parseComponent(
       break;
     }
     case "MassObject": {
-      const mass = fileMassKg(node, useKnownMass) ?? 0;
+      // **`fileMass` answers which of RockSim's two fields this came from, and that answer is used.**
+      // A first version hardcoded `"stated"` here on the argument that a mass object has no geometry
+      // to derive a weight from — true of the PART, and not of the FILE: two corpus shock cords carry
+      // `KnownMass` 0 with a non-round `CalcMass` (0.483998 g, 37.9598 g), which is RockSim
+      // calculating from a material and a length. Marking those as the designer's own measurement is
+      // the wrong claim, and it disagreed with what the structural path says about the identical
+      // input. Found by the pre-push review.
+      const own = fileMass(node, useKnownMass);
+      const mass = own?.kg ?? 0;
       comp = {
         ...b,
         kind: "masscomponent",
+        ...(own ? { massFrom: own.from } : {}),
         mass,
         length: n(node, "Len", 0) * MM || undefined,
         massType: childText(node, "Name"),
@@ -473,6 +509,11 @@ function parseComponent(
         cd: n(node, "DragCoefficient", RKT_PARACHUTE_CD.cd) || RKT_PARACHUTE_CD.cd,
         cdFrom: n(node, "DragCoefficient", 0) > 0 ? ("file" as const) : ("default" as const),
         diameter: n(node, "Dia", 0) * MM,
+        // Taken verbatim from the file, so it carries the file's own provenance. These three kinds
+        // sit OUTSIDE `STRUCTURAL`, so the marking block below never reaches them — and unmarked
+        // means "Loft derived this from geometry and material", which is not true of a number read
+        // straight out of a `.rkt`. Found by the pre-push review.
+        ...massOf(node, useKnownMass),
         mass: fileMassKg(node, useKnownMass) ?? 0,
         // The design tree doesn't pin a deploy event/altitude (that lives in the sim setup), but a
         // RockSim single-deploy design ejects on the motor's charge — that is what the delay in an
@@ -496,6 +537,7 @@ function parseComponent(
         cdFrom: n(node, "DragCoefficient", 0) > 0 ? ("file" as const) : ("default" as const),
         stripLength: n(node, "Len", 0) * MM,
         stripWidth: n(node, "Width", 0) * MM,
+        ...massOf(node, useKnownMass),
         mass: fileMassKg(node, useKnownMass) ?? 0,
         // As for a parachute above: RockSim ejects on the motor's charge, not at apogee.
         deployEvent: "ejection",
@@ -510,6 +552,7 @@ function parseComponent(
       comp = {
         ...b,
         kind: "launchlug",
+        ...massOf(node, useKnownMass),
         mass: fileMassKg(node, useKnownMass),
         length: n(node, "Len", 0) * MM || undefined,
         radius: od > 0 ? od : undefined,
@@ -526,8 +569,11 @@ function parseComponent(
   // parts already carry their mass directly; this covers the structural parts Loft would
   // otherwise compute from geometry.
   if (comp && STRUCTURAL.has(comp.kind)) {
-    const om = fileMassKg(node, useKnownMass);
-    if (om !== undefined) (comp as { overrideMass?: number }).overrideMass = om;
+    const om = fileMass(node, useKnownMass);
+    if (om !== undefined) {
+      (comp as { overrideMass?: number }).overrideMass = om.kg;
+      (comp as { massFrom?: MassProvenance }).massFrom = om.from;
+    }
   }
   // Honour a genuine per-part CG override (the RockSim analogue of OpenRocket's <overridecg>), so a
   // nose or section trimmed to a measured CG flies with that CG — and thus the right stability

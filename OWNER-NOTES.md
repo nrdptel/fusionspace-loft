@@ -749,6 +749,18 @@ note argues for, and it belongs in `COMPETITION.md` beside the format-support ro
 Owner-level decisions that are NOT blocking anything. Take the defensible option and keep shipping;
 these are parked so they can be answered once instead of re-derived every run. Newest first.
 
+- **ANSWERED 2026-08-09 by measurement, not by the owner: `add_repo` with `access: "push"` for
+  `nrdptel/fusionspace-debrief` SUCCEEDS from a Loft session.** Run 9 called it and got the repo,
+  cloned it, and diffed both copies of `DESIGN.md` — so the entry below, which parked the
+  reconciliation on the owner, was wrong about the permission and nothing here needs them. **The
+  reconciliation is P13 on the P-track and is being built.** What run 9 found that the entry did not
+  say: the two copies **cannot** become byte-identical, because the two apps genuinely ship different
+  primitives — Loft deleted `Chip` and the sibling defines it, Loft ships `Select`, `ClosePanel` and
+  `Swatch` and the sibling ships `Button variant="link"` and `Notice`. So the shape is a SHARED SPAN
+  with per-app entries marked, and a digest over the shared span only. Left below in full because a
+  refused permission that later succeeds is worth recording as a fact about the harness rather than
+  deleted as if it never happened.
+
 - **2026-08-09 — this session could not write to `nrdptel/fusionspace-debrief`, so the
   DESIGN-IS-BINDING invariant went unhonoured for one change.** `DESIGN.md` §3 gained a
   prose-chunking clause and §11 was amended this run, in **Loft only**. That file's own rule is that

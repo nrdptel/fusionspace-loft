@@ -566,6 +566,15 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
       // This IS the design's weight, not a part inside it — see `standsForAirframe`. Removing it in
       // the editor took `Show-off.CDX1` from 453.6 g dry to 0.0 g with its CG at the nose tip, and the
       // solver flew it.
+      // **Marked as the file's own figure ONLY when it IS the file's own figure.** A `.CDX1` states a
+      // LAUNCH weight; `airframeMass` subtracts the motor's loaded mass — a number from Loft's
+      // bundled data, absent from the design — so the figure on this row is usually derived here and
+      // saying the design stated it would be a wrong claim on the one mass a RASAero import has.
+      // Measured 2026-08-10: `OR vs RAS Test 1.CDX1` states 37.8 lb and the row reads 4,368.8 g,
+      // which is that weight minus a 12,777.0 g N1000W. Only the branch where no motor could be
+      // weighed places the stated weight unchanged, and only that one is marked. Found by the
+      // pre-push review, which read the arithmetic rather than the label.
+      ...(mass === launchMass ? { massFrom: "stated" as const } : {}),
       standsForAirframe: true,
       children: [],
     };
@@ -595,6 +604,9 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
       kind: "masscomponent",
       placement: { method: "absolute", offset: Math.min(Math.max(total, station), boosterEnd) },
       mass,
+      // NOT marked as the file's own: this figure is the difference between two stated launch
+      // weights, less a motor mass from Loft's bundled data. The file states no booster weight at
+      // all, so there is nothing here for the design to have stated.
       standsForAirframe: true,
       children: [],
     };

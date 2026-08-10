@@ -5,6 +5,7 @@ import type { FlightResult } from "@/lib/sim/simulate";
 import { mToFt } from "@/lib/units";
 import type { UnitSystem } from "@/lib/display";
 import { useMeasuredWidth } from "./LineChart";
+import { Swatch } from "./ui";
 
 /** Flight-path visualization: altitude vs down-range distance, coloured by phase (boost →
  *  coast → descent), with the key events marked. It's the "where does it go" picture that a
@@ -189,7 +190,7 @@ function placeLabels<T extends { x: number; y: number; text: string }>(dots: T[]
 function Legend({ color, label }: { color: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="inline-block h-2 w-3 rounded-sm" style={{ background: color }} />
+      <Swatch color={color} />
       {label}
     </span>
   );

@@ -160,7 +160,15 @@ export default function Methods() {
         <code>&lt;overridemass&gt;</code>{" "}or <code>&lt;overridecg&gt;</code> in the design always
         wins; when it is flagged to override <em>all subcomponents</em> — a section weighed as a
         whole — that one figure stands in for the section and everything inside it, rather than
-        being added to the parts&apos; own computed masses. The centre of gravity is mass-weighted;
+        being added to the parts&apos; own computed masses.{" "}<strong>The parts table says which is which.</strong> A
+        mass the design file states outright — an OpenRocket override, a RockSim{" "}
+        <code>KnownMass</code> — is marked, and so is one carried through from the source tool&apos;s
+        own calculation rather than recomputed here; an unmarked mass is Loft&apos;s, derived from the
+        part&apos;s geometry and its material. Measured across the 35-design corpus: 108 masses stated
+        by the design, 60 carried from the source tool, 401 computed here. They are different claims
+        and a bare number cannot tell them apart. The mark says what the FILE states, not that
+        somebody weighed it — a design exported from Loft and reopened comes back with the masses
+        Loft computed written into it, and marked accordingly. The centre of gravity is mass-weighted;
         pitch inertia is the sum of each part&apos;s own inertia plus a parallel-axis term.
         Propellant burns off over the flight, so mass and CG are time-varying.
       </p>

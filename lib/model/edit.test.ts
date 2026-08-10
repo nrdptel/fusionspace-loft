@@ -2812,6 +2812,51 @@ describe("reordering a top-level part", () => {
   });
 });
 
+describe("where a mass came from, after an edit replaces it", () => {
+  /** **The provenance has to move with the number, and in a first version it did not.** The field is
+   *  set by the three importers, and every path that REPLACES a mass afterwards has to say so or the
+   *  old claim stands over the new figure: a canopy the design stated 100 g for went on reading
+   *  "stated by the design" at the catalogue's weight, and a lug the flyer weighed themselves went on
+   *  being credited to the source tool. Both were found by the pre-push review, by rendering the row
+   *  rather than by reading the caller — the fitting one because `withFitting`'s parameter list
+   *  omitted the field while its caller computed it, so it was dropped in silence. */
+  it("credits a typed fitting mass to the flyer, not to the importer", () => {
+    const doc = newDesign();
+    const aft = doc.rocket.stages[0].components.filter((c) => c.kind === "bodytube").at(-1)!;
+    const lug: RocketComponent = {
+      id: "lug-1", name: "Rail guide", kind: "launchlug",
+      placement: { method: "bottom", offset: -0.05 },
+      mass: 0.006, massFrom: "tool", radius: 0.005, length: 0.02, instanceCount: 1, children: [],
+    } as RocketComponent;
+    aft.children.push(lug);
+    const after = applyGeometryEdits(doc.rocket, { fittingId: "lug-1", fittingMass: 0.004 });
+    const out = flattenRocket(after).find((p) => p.component.id === "lug-1")!.component as {
+      mass?: number; massFrom?: string;
+    };
+    expect(out.mass).toBeCloseTo(0.004, 9);
+    expect(out.massFrom, "the source tool was credited with a figure the flyer typed").toBe("flyer");
+  });
+
+  it("credits a catalogued canopy's published weight to the pick, not to the design", () => {
+    const doc = newDesign();
+    const chute = flattenRocket(doc.rocket).find((p) => p.component.kind === "parachute")!.component as {
+      id: string; mass: number; massFrom?: string;
+    };
+    chute.massFrom = "stated";
+    const after = applyGeometryEdits(doc.rocket, {
+      parachuteId: chute.id,
+      catalogParachute: {
+        manufacturer: "Fruity Chutes", partNumber: "IFC-36", diameter: 0.914, mass: 0.1,
+      } as never,
+    });
+    const out = flattenRocket(after).find((p) => p.component.id === chute.id)!.component as {
+      mass: number; massFrom?: string;
+    };
+    expect(out.mass, "the vendor's published weight must land").toBeCloseTo(0.1, 9);
+    expect(out.massFrom, "the design was credited with the catalogue's figure").toBe("flyer");
+  });
+});
+
 describe("authoring a booster stage", () => {
   /** The starter plus one authored booster, and the ids the app would mint for it. */
   const withBooster = (name = "Booster") => {

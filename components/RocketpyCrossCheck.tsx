@@ -332,7 +332,7 @@ function Failure({ message, offline }: { message: string; offline: boolean }) {
             <span className="underline underline-offset-2">What RocketPy reported</span>
             <span className="transition group-open:rotate-180">▾</span>
           </summary>
-          <pre className="mt-1 max-h-64 overflow-auto rounded border border-red-500/20 bg-red-500/5 p-2 text-[11px] leading-snug">
+          <pre className="mt-1 max-h-64 overflow-auto rounded-md border border-red-500/20 bg-red-500/5 p-2 text-[11px] leading-snug">
             {detail}
           </pre>
         </details>

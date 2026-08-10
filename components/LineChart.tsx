@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { Swatch } from "./ui";
 
 export interface Series {
   points: { x: number; y: number }[];
@@ -266,7 +267,7 @@ export default function LineChart({
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
           {series.map((s, i) => (
             <span key={`l${uid}${i}`} className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-2 w-3 rounded-sm" style={{ background: s.color }} />
+              <Swatch color={s.color} />
               {s.label}
             </span>
           ))}

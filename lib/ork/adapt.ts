@@ -285,11 +285,34 @@ function defaultShapeParam(s: NoseShape): number {
   return 0;
 }
 
+/** Whether the file being read was written by Loft itself.
+ *
+ *  **Loft's exporter writes a mass it COMPUTED as an explicit `<overridemass>`** — that is how a
+ *  canopy's mass survives a round trip at all — so reading every override back as "the design states
+ *  this" launders Loft's own arithmetic into the designer's claim. Measured 2026-08-10 by
+ *  round-tripping the corpus: 51 parts across the 27 `.ork` designs flipped from unmarked to stated,
+ *  and 15 parts of `FullScaleModelTH.rkt` flipped from the SOURCE TOOL's figure to stated — the exact
+ *  case `lib/ork/export.test.ts` names as forbidden. It reaches a flyer with no download at all,
+ *  because a design authored here is persisted as its own exported bytes and re-imported on reload.
+ *
+ *  So a file Loft wrote gets no mass provenance from its overrides. That is a deliberate LOSS on the
+ *  minority of such files whose masses really were stated: the alternative is a confident wrong
+ *  claim, and this field exists to stop one. The fix that recovers it is on the export side and is
+ *  filed in `BACKLOG.md`. */
+let fileWrittenByLoft = false;
+
 function overrides(node: XmlNode): Partial<RocketComponent> {
   const out: Partial<RocketComponent> = {};
   const om = childText(node, "overridemass");
   const oc = childText(node, "overridecg");
-  if (om !== undefined) (out as { overrideMass?: number }).overrideMass = parseNum(om);
+  if (om !== undefined) {
+    (out as { overrideMass?: number }).overrideMass = parseNum(om);
+    // A ticked box in OpenRocket's own Override tab: the design states this weight rather than
+    // letting the tool derive it. Recorded here, at the only place that reads the element, so the
+    // marker cannot come adrift from the number it describes — and not at all when Loft wrote the
+    // file, because then the override may be Loft's own arithmetic. See `fileWrittenByLoft`.
+    if (!fileWrittenByLoft) (out as { massFrom?: "stated" }).massFrom = "stated";
+  }
   if (oc !== undefined) (out as { overrideCGx?: number }).overrideCGx = parseNum(oc);
   const subMass = childText(node, "overridesubcomponentsmass") ?? childText(node, "overridesubcomponents");
   if (subMass === "true") (out as { overrideSubcomponents?: boolean }).overrideSubcomponents = true;
@@ -652,6 +675,9 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         ...b,
         kind: "masscomponent",
         mass: childNum(node, "mass", 0),
+        // A mass component IS a stated weight — somebody typed a number for a thing with no
+        // geometry to derive one from. Except in a file Loft wrote, where it may be Loft's own.
+        ...(fileWrittenByLoft ? {} : { massFrom: "stated" as const }),
         length: childNum(node, "packedlength", 0) || undefined,
         radius: childNum(node, "packedradius", 0) || undefined,
         massType: childText(node, "masscomponenttype"),
@@ -736,9 +762,14 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         node.name === "shockcord"
           ? childNum(node, "packedlength", 0) || undefined
           : childNum(node, "length", 0) || undefined;
+      // An explicit `<mass>` on a fitting is the designer's figure, and each of the three mass
+      // functions above returns it in preference to computing one — so the marker follows the same
+      // rule rather than a second reading of the element.
+      const statedMass = childText(node, "mass") !== undefined && !fileWrittenByLoft;
       return {
         ...b,
         kind: node.name,
+        ...(statedMass ? { massFrom: "stated" as const } : {}),
         mass: mass > 0 ? mass : childNum(node, "mass", 0) || undefined,
         length,
         radius: radius && radius > 0 ? radius : undefined,
@@ -1451,6 +1482,11 @@ export function adaptOrkXml(xml: string): OrkDocument {
   }
   const formatVersion = root.attrs.version || "unknown";
   const creator = root.attrs.creator;
+  // Set before the tree is walked, because `overrides()` reads it on every component.
+  // EXACTLY the string Loft's own exporter writes, not a prefix: the bundled fixtures declare
+  // `creator="Loft fixture (hand-authored, …)"`, which is a hand-written OpenRocket file whose
+  // stated masses ARE stated — and a prefix match silently stripped the marks from every one of them.
+  fileWrittenByLoft = (creator ?? "").trim().toLowerCase() === "loft";
   const rocketNode = child(root, "rocket");
   if (!rocketNode) throw new Error("OpenRocket file has no <rocket> element");
 

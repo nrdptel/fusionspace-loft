@@ -422,6 +422,110 @@ suite("real-design corpus", () => {
     expect(lost, "parts that did not come back under their own id").toEqual([]);
   }, 300_000);
 
+  /** **Which masses the design STATED, counted over every real file.**
+   *
+   *  Measured 2026-08-09 before the field existed: **91 per-part masses across the corpus came from
+   *  the design rather than from Loft** — 64 `<overridemass>` across 15 of the 27 `.ork` files,
+   *  spanning fifteen kinds from a stage to a rail button, plus 27 `KnownMass` figures across all 4
+   *  `.rkt` files — and every one of them rendered in the parts table as a bare number,
+   *  indistinguishable from a mass Loft derived from a density. `DESIGN.md` §6 asks a reference value
+   *  to name its source, and none of them could.
+   *
+   *  With the field in place the census reads **108 stated, 60 carried from the source tool, 401
+   *  computed here**. More than 91 stated because an override is not the only way a file gives a
+   *  weight outright — an OpenRocket mass component and a RockSim `KnownMass` both do. More than 27
+   *  from the tool because everything a `.rkt` hands over verbatim carries RockSim's own figure,
+   *  including its parachutes, streamers and lugs, which sit outside the structural set and were the
+   *  three the first version of this left unmarked and therefore claiming to be Loft's own.
+   *
+   *  **The distinction cannot be read off `overrideMass`, which is the whole reason `massFrom`
+   *  exists.** `lib/ork/adapt.ts` sets that field only from a genuine `<overridemass>`; `lib/rkt/
+   *  adapt.ts` synthesises one on every structural part from whichever of RockSim's two figures the
+   *  design selects — and every corpus `.rkt` has `<UseKnownMass>` at 0, so all four fly RockSim's
+   *  own COMPUTED number. A marker hung off `overrideMass` would have called those measurements.
+   *
+   *  Asserted as a relationship rather than as golden counts, so it survives a re-cut: every part
+   *  whose mass the design states carries the marker, no part Loft computed carries one, and both
+   *  populations are non-empty. */
+  it("says which of every real design's masses the design itself stated", async () => {
+    let stated = 0;
+    let tool = 0;
+    let computed = 0;
+    const wrong: string[] = [];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const rkt = /\.rkt$/i.test(f.name);
+      for (const p of flattenRocket(doc.rocket)) {
+        const c = p.component as {
+          kind: string;
+          name: string;
+          massFrom?: "stated" | "tool";
+          overrideMass?: number;
+        };
+        if (c.massFrom === "stated") stated++;
+        else if (c.massFrom === "tool") tool++;
+        else computed++;
+        // An `.ork` states a mass exactly when it carries an override, so the two must agree there.
+        // A `.rkt` synthesises an override from a figure RockSim computed, which is precisely the
+        // case the marker exists to keep apart — so the same rule would be wrong for it.
+        if (!rkt && c.overrideMass !== undefined && c.massFrom !== "stated") {
+          wrong.push(`${shortName(f.name)}: ${c.kind} "${c.name}" states a mass and is not marked`);
+        }
+        // Nothing may claim the source tool computed it unless a tool did: only the RockSim adapter
+        // has another tool's figure to carry.
+        if (!rkt && c.massFrom === "tool") {
+          wrong.push(`${shortName(f.name)}: ${c.kind} "${c.name}" claims a tool figure on a non-RockSim design`);
+        }
+      }
+    }
+    console.log(
+      `mass provenance across ${files.length} design files: ${stated} stated by the design, ` +
+        `${tool} carried from the source tool, ${computed} computed here`,
+    );
+    expect(stated, "no design stated a mass — this asserted nothing").toBeGreaterThan(0);
+    expect(tool, "no design carried another tool's figure — the second value asserted nothing").toBeGreaterThan(0);
+    expect(computed, "every mass was attributed — the unmarked case asserted nothing").toBeGreaterThan(0);
+    expect(wrong, "masses whose stated marker disagrees with the file").toEqual([]);
+  }, 300_000);
+
+  /** **A round trip through Loft must not turn Loft's own arithmetic into the design's claim.**
+   *
+   *  The exporter writes a mass Loft COMPUTED as an explicit figure — that is what keeps a canopy's
+   *  mass across an export at all — so a naive re-import reads every one of them as "the design
+   *  states this". Measured 2026-08-10 before the fix: **51 parts across the 27 `.ork` designs went
+   *  unmarked → stated, and 15 parts of `FullScaleModelTH.rkt` went from the SOURCE TOOL's figure to
+   *  stated**, which `lib/ork/export.test.ts` names in its own words as the thing that must not
+   *  happen. It reaches a flyer with no download: a design authored here is persisted as its own
+   *  exported bytes and re-imported on reload.
+   *
+   *  `lib/ork/adapt.ts` takes no mass provenance from a file whose `creator` is Loft. This asserts
+   *  the consequence over every design rather than the mechanism, so a future exporter that learns to
+   *  carry provenance properly can satisfy it a better way. */
+  it("never turns its own arithmetic into the design's claim across a round trip", async () => {
+    const laundered: string[] = [];
+    let compared = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const before = new Map(
+        flattenRocket(doc.rocket).map((p) => [p.component.id, (p.component as { massFrom?: string }).massFrom]),
+      );
+      for (const p of flattenRocket((await importDesign(exportOrk(doc))).rocket)) {
+        if (!before.has(p.component.id)) continue; // a minted id — a different question, asserted above
+        compared++;
+        const was = before.get(p.component.id);
+        const now = (p.component as { massFrom?: string }).massFrom;
+        // Only a mark GAINED or CHANGED is laundering. Losing one is the conservative direction and
+        // is what a Loft-written file does deliberately.
+        if (now !== undefined && now !== was) {
+          laundered.push(`${shortName(f.name)}: ${p.component.kind} "${p.component.name}" ${was ?? "unmarked"} → ${now}`);
+        }
+      }
+    }
+    console.log(`mass provenance across a round trip: ${compared} parts compared by id`);
+    expect(compared, "no part survived a round trip by id — this asserted nothing").toBeGreaterThan(100);
+    expect(laundered, "masses whose provenance a round trip through Loft invented or changed").toEqual([]);
+  }, 300_000);
+
   /** **No real design flies a fitting Loft could not weigh.**
    *
    *  A rail button is not a short launch lug, and reading it as one gave four real designs a part

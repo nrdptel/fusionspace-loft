@@ -105,6 +105,19 @@ the control is its GLYPH, and a glyph costs the colour system nothing.
 dialogs). `rounded-full` only for pills and spinners. **`rounded-lg` is not in the system** — it is
 the middle value that caused most of the measured drift; convert on sight.
 
+**Three, and no exceptions — which took one round to get right.** Written 2026-08-09, after the check
+that could see this was built. The rule above named a single literal, the middle radius, so it was
+blind to every other off-system value: the tree held **seven** — four small, one arbitrary `[2px]`,
+two bare — and five of the seven were one treatment, a legend swatch hand-rolled across four files at
+two different radii. `Swatch` is what it became.
+
+*The first version of this paragraph sanctioned the small radius inside that primitive, with an
+owner-exemption check to hold it there. It was unnecessary, and the reason is arithmetic rather than
+taste: CSS scales a corner radius to what its edge can hold, so on a 12x8 px chip every radius at or
+above 4 px renders as exactly 4 px. `rounded-md` is pixel-identical there. The binding document had
+gained a permanent carve-out for zero pixels, on a stated reason that was false — caught by the
+pre-push review, which measured it rather than reading it.*
+
 ---
 
 ## 3. Type scale
@@ -376,6 +389,13 @@ removal that looks like every other button is the tell §2 is written against.*
   to extract, and the entry should be written from both.
 - **`Figure`** — a chart with its title, legend, axis units, and its own empty and extrapolated
   states.
+- **`Swatch`** — the colour sample that says which series or marker a legend row is about. Two
+  shapes, because that is the distinction the legends already drew: a `bar` for a series (a line on a
+  chart is a length of colour) and a `dot` for a marker (a CG or CP annotation is a point). A third
+  shape is a change to this file, not a prop. It takes a `color` for a colour that comes from DATA —
+  a chart series picks its own, so it cannot be a class — and a `className` for one the palette
+  names. It exists as a primitive rather than as a rule because eight sites across five files had
+  hand-rolled it at two different radii and two shapes, and §9's radius grep could not see any of it.
 
 **`Chip` was deleted on 2026-08-04, and the reason is worth keeping so it is not re-added by
 memory.** It declared "a compact key/value or filter token" and had zero call sites for its whole
@@ -498,9 +518,37 @@ started.
 Run these before calling a surface done, and put the counts in the commit message. Numbers, not
 adjectives.
 
+**Two of these were provably blind until 2026-08-09, and the correction found real drift rather than
+hypothetical drift.** The radius grep named one literal, so it reported 0 while seven off-system radii
+stood in the tree; the spacing grep matched named steps only, so an arbitrary value was not off-scale
+to it but invisible. Both are corrected below and both are asserted, and the class error is the one
+this section keeps recording about itself: an instrument that enumerates what it already knows about
+reads green over the class it was never told to look for. The sibling repo corrected the same two on
+2026-08-04 from a fixture rather than from live drift, and its version reads `class="…"` attributes;
+this one reads every string literal, because an attribute-only scan cannot see a class composed
+through `cx(…)` — which is how the primitives' own are written.
+
+**Three more holes the pre-push review found in the corrected greps, all fixed the same day and all
+worth stating because each is a different SHAPE of blindness.** *Wrong scope:* the checks read
+`components/` and `app/`, and `lib/ui-tokens.ts` — which spells the control radius for every button in
+the app — is in neither, so that one line could have been set to the forbidden radius with the suite
+green. *Wrong text:* a stylesheet declares radii as VALUES, and these match class NAMES, so
+`app/globals.css` contributed nothing; `.prose-loft code` was sitting at a fifth radius, exactly as
+`.eqn` sat at 8 px while the class-name count read zero. *Wrong granularity:* the one sanctioned
+radius was asserted to be in `components/ui.tsx` rather than in the primitive that owns it, so moving
+it onto another primitive in the same file read as the exception. A grep can be right about the
+pattern and wrong about what it reads, where it reads it, and how precisely it says so.
+
 ```bash
-# radius drift — rounded-lg is out of the system; containers are xl, controls md
-grep -roh 'rounded-lg' components app | wc -l                      # target: 0
+# radius drift — every radius token, MINUS the three §2 sanctions. Reads string literals rather
+# than raw text: this app composes most classes through `cx(…)`, so an attribute-only scan cannot
+# see the primitives' own; and a raw scan reads the English word in prose (18 such hits across the
+# docs routes). `lib/design-system.test.ts` is the exact form, including the side/corner split and
+# the one owner exemption — this is the readable statement of it.
+strs() { grep -rohE '"[^"]*"' components app --include='*.tsx' \
+  | sed 's/^"//; s/"$//' | tr ' ' '\n' | grep -v '^$'; }
+strs | grep -xE 'rounded(-(sm|md|lg|xl|2xl|3xl|full|none|\[[^]]+\]))?' \
+     | grep -vxE 'rounded-(md|xl|full)' | wc -l                     # target: 0
 
 # card treatments hand-rolled instead of <Card>
 grep -roh 'rounded-xl border[a-z0-9:/ -]*' components \
@@ -510,6 +558,11 @@ grep -roh 'rounded-xl border[a-z0-9:/ -]*' components \
 # off-scale spacing — every spacing utility, minus the scale
 grep -rohE '\b((p|m)[xytblr]?|(gap|space)(-[xy])?)-[0-9]+\b' components app \
   | grep -vE -- '-(0|1|2|3|4|6|8|12)$' | wc -l                      # target: 0
+
+# spacing written as an ARBITRARY value, which §4 forbids and which the named-step pattern above
+# cannot express at all. The one legitimate case is a device inset, exempted by naming the function.
+strs | grep -xE '((p|m)[xytblr]?|(gap|space)(-[xy])?)-\[[^]]+\]' \
+     | grep -v 'env(safe-area-inset-' | wc -l                       # target: 0
 
 # a size that is not on the scale at all — anything but the six in §3
 grep -rohE '\btext-(xs|sm|base|lg|xl|[0-9]xl)\b' components app \
@@ -697,6 +750,21 @@ offline posture, the MIT licence.
 **Divergence is a bug in whichever app diverged**, and the fix lands in both repos in the same run.
 Where the apps genuinely need different components — a rocket diagram, a flight chart — they still
 share tokens, scale, states and vocabulary.
+
+**A digest holds the shared span, in both repos, as of 2026-08-09.** *"The fix lands in both repos in
+the same run"* was a rule with nothing behind it, and the two copies of this file had drifted 12 hunks
+apart while both apps called it binding. `lib/design-shared.test.ts` computes a SHA-256 over
+**§4, §6, §7, §8 and §10** — the sections that are shared by nature and were already byte-identical,
+9,944 bytes of them — and compares it against a constant committed in both repos. A change to one
+copy that is not made to the other fails that repo's gate rather than drifting silently.
+
+**The span is deliberately narrow, and it can only grow.** §5 and §9 are excluded because the two
+apps genuinely ship different primitives and count different treatments — this repo deleted `Chip`
+and the sibling defines it — so demanding identity there would demand a lie. §1, §2, §3 and §11
+differ only in clauses one copy has and the other has not yet taken, so they are the next to join.
+**Widening the span is what "reconciled" means here**: move a section into the list, make both copies
+identical, and update the digest in both, in one change.
+
 
 ### The suite is THREE tools, and the reference is whichever one meets this file
 

@@ -596,6 +596,13 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
         // `"default"` coming back as `"file"`, would be Loft laundering its own fallback into the
         // designer's figure through an export — which is the whole reason this field exists.
         if (f === "cdFrom" && (x === undefined || x === "loft") && y === "file") continue;
+        // **`massFrom` does NOT move, and the allowance that used to sit here was the laundering it
+        // forbids in its own words.** The export writes a mass Loft computed as an explicit figure —
+        // that is what keeps the mass at all, see the `overrideMass` allowance above — so a naive
+        // re-import read every one of them as the design's own claim: 51 parts across the 27 corpus
+        // designs went unmarked → stated, and 15 parts of a RockSim design went from the SOURCE
+        // TOOL's figure to stated. `lib/ork/adapt.ts` takes no mass provenance from a file Loft
+        // wrote, so nothing flips in either direction and this case has nothing to allow.
         // Six-decimal rounding again, one level down: a placement is a method plus an offset.
         if (
           f === "placement" &&

@@ -4,159 +4,108 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Everything this run is MERGED AND LIVE. Nothing is left open.** Two pull requests, Loft #152 and
-#153, both merged on green, both deployed — #152's docs sentence was confirmed serving on
-loft.fusionspace.co before the run ended, which is how the deploy was verified rather than assumed.
-**#153's CI run is the first time `lib/docs-nav.test.ts` has ever actually executed in the gate**;
-every earlier green was the vacuous skip described below.
+**TWO SEV-1-SHAPED FINDINGS ARE OPEN AND UNREPRODUCED, and that is this run's real gap.** Both came
+from the opening fan-out, both are wrong numbers on a surface a flyer would act on, and neither was
+reproduced by this session — so under `MAINTAINING.md`'s own rule they are claims, not findings, and
+the first job is to reproduce them:
 
-1. **R12's next member is a mass override and a per-part comment, and the scouting is done.**
-   `COMPETITION.md` row 41 named the override; **row 42, added this run, names the comment and it is
-   the more urgent half.** Measured over the corpus: **40 non-empty `<comment>` elements across 18 of
-   the 27 `.ork` files**, and `grep -rn '"comment"' lib/ork/ lib/rkt/` returns nothing — so an
-   import → edit → export round trip through Loft silently strips every note the flyer wrote. That is
-   data loss, not a missing feature. The override is the cheap half: `lib/model/types.ts:90` already
-   has the field, `lib/sim/mass.ts:211` already honours it, and both halves of the `.ork` file I/O
-   already carry it — only the control is missing. The comment needs a model field, an importer, an
-   exporter and session persistence first.
-   **The structural obstacle is real and is filed in `BACKLOG.md`:** `AIM_SLOTS` cannot express a
-   target that applies to every kind, and both of these are universal.
-2. **P-track: the next unstarted milestone.** P11 shipped this run; take whatever is next on that
-   track and read its *done when* against what P11 actually left behind.
-3. **The sibling repo's `DESIGN.md` did not get this run's change, and could not.** §3 gained a
-   prose-chunking clause and §11 was amended, in Loft only — the harness denied push access to
-   `nrdptel/fusionspace-debrief` (read access worked; `add_repo` with `access: "push"` was refused by
-   the permission classifier). The DESIGN-IS-BINDING invariant says a change to one copy is a change
-   to both in the same run, and this run could not honour it. **It is parked under
-   *Awaiting the owner* in `OWNER-NOTES.md`.** The two copies had already drifted by 10 hunks and 164
-   lines before this run touched either — see below.
+1. **`lib/validation/compare.ts:43` has no `landed` gate.** A flight that never reaches the ground has
+   its ground-hit figures hard-zeroed by `lib/sim/simulate.ts:959`, and the Cross-check workspace then
+   publishes *"Loft 0.0 m/s, Δ −100%"* and folds it into that panel's headline mean absolute error —
+   while the Flight card correctly WITHHOLDS the same four figures. Two surfaces of one flight
+   disagreeing about whether it landed.
+2. **`components/ResultsView.tsx:340` reads an altimeter log with no unit header in the flyer's
+   CURRENT display system**, and `lib/flightlog.ts:33` returns `unitHint: null` deliberately to mean
+   *the file does not say*. A feet log on a metric display is a 3.28x error presented as a comparison,
+   with nothing saying the unit was assumed.
+
+Both are in `BACKLOG.md` with their file:line. Reproduce, then fix — ahead of any milestone.
+
+
+**PR #155 is MERGED AND LIVE** (`23659a5`, CI green, deploy confirmed by fetching
+`/docs/methods` on loft.fusionspace.co). **PR #156 is OPEN with three more commits, gated in full
+locally.** Its sibling, `nrdptel/fusionspace-debrief#170`, is merged.
+
+1. **CI produced no run for #156's head, and that is the first thing to check.** Runs 619–621 exist
+   for the same branch and for `main`; nothing fired for `0ba149d`, `7346ff1` or `9d55c8b` despite two
+   pushes and a close/reopen. **Do not describe that PR as CI-green — it never ran.** The local gate
+   on the tip was full and green: lint (0 errors), **1,192 unit tests including the real corpus at its
+   full 35 fixtures**, build, and Playwright 126 + 126 in two shards.
+2. **P13 is 3 of 3 in Loft and its `done when` is met**; what remains is widening the shared span,
+   which the mechanism now makes a routine change. `lib/design-shared.test.ts` holds §4, §6, §7, §8 and
+   §10 to one digest in BOTH repos. §1, §2, §3 and §11 are next: they differ only in clauses one copy
+   has taken and the other has not.
+3. **R12's next member is the mass override CONTROL.** The model, the solver, both halves of the `.ork`
+   I/O and now the PROVENANCE are all in place; what is missing is a bag key, an applier that walks to
+   an arbitrary id, a readback, a control and an undo label. **Scope it per-slot, not universally** —
+   `aimEditsAt` returns the FIRST matching slot and a green test forbids one kind routing to two.
+   `parachuteId` is where the corpus overrides are: 22 of the 64 `<overridemass>` elements sit on
+   parachutes and that slot has no mass field at all.
 
 ## Read this first
 
-**A check can exist, be cited as a milestone's pin, and never have run once.** `lib/docs-nav.test.ts`
-counts the built export; `/out` is gitignored; `.github/workflows/test.yml` ran `npm test` BEFORE
-`npm run build`. So `existsSync(out)` was false on every pull request since those checks landed, all
-five returned early, and the job went green having asserted nothing. Nothing in the test output
-distinguishes that from a pass. The workflow builds first now and `docsPages()` throws rather than
-skipping when `CI` is set — but the transferable lesson is the shape: **a graceful skip inside a
-gating check is a false all-clear waiting to happen**, and this repo has now been bitten by the same
-shape twice (the corpus suite skipping itself is the other). When you add a check that depends on an
-artifact, make it fail loudly where it is supposed to run.
+**The pre-push agent review is worth more than the gate, and this run is the strongest evidence yet.**
+Over three fully green gates it found: an exporter minting a component id TWICE (7 freeform fin sets
+on 6 corpus designs went out under a fabricated hash); a new model field riding `structuredClone` onto
+parts Loft invents and then into the flyer's file; a `DESIGN.md` exception that bought a permanent
+carve-out for **zero pixels** (CSS clamps a corner radius to what its edge can hold, so on a 12x8 px
+chip every radius at or above 4 px renders as 4 px); a design-system check that could not see the one
+file holding the control radius for every button in the app; and **seven wrong provenance marks** on
+the mass work, three of them claims the design file does not support. Not one is visible in a passing
+suite. Give it the diff and nothing else, and ask it to refute.
 
-**The pre-push agent review is worth more than the gate, and this is the fourth run in a row to say
-so.** Five reviews across two increments, all over a fully green gate — lint, 1,165 unit tests, 250
-e2e, the corpus sweep:
+**`add_repo` with `access: "push"` for `nrdptel/fusionspace-debrief` SUCCEEDS.** The previous run
+recorded it as refused and parked the whole design-system reconciliation on the owner; it was never
+blocked. Attach the sibling FIRST whenever `DESIGN.md` moves.
 
-- **A Sev-1 fix that would have introduced a second Sev-1.** Scaling a fitting's stored total by its
-  instance count is arithmetically right, and it leaves the panel advertising the pristine total as
-  "the design's own" while the parts table one click away shows the scaled one — so a flyer typing
-  back the number the field showed them would have silently divided their fitting's mass by the
-  count. Three independent lenses found it; the fix was to make the field per-instance.
-- **The vacuous-check finding above**, from a lens asked only "is this check real".
-- **Nine headings that named the wrong thing**, including one called "Undo, redo, and where a design
-  is stored" sitting above a paragraph about stated assembly mass.
-- **Four quoted measurements that were wrong**, in the files whose whole argument is that the
-  previous count used the wrong denominator.
+**A check can name one literal and read green over the whole class it was written to catch.** §9's
+radius grep named the middle radius; with it at 0, the tree held seven off-system radii, five of them
+one hand-rolled treatment. Enumerate the class and SUBTRACT what is allowed. And read the right text:
+over raw source a class pattern reads English prose (18 hits across the docs routes); over `class="…"`
+attributes only it cannot see a class composed through `cx(…)`, which is how every primitive here
+writes its own. String literals with comments stripped is the answer.
 
-**And a review's own claim is a claim.** One of its findings — that a new e2e assertion pinned the
-per-instance mass — was wrong in my favour, and I only found out by reverting the code and watching
-the test stay green. The assertion is vacuous on that sample (the lug's design count is 1, so the
-unit mass and the stored total are the same number) and **the e2e case now says so in its own
-comment**. Check a new assertion against a revert of the code it pins, every time; it took ninety
-seconds and it is the only reason that comment is honest.
+**Do not trust a quick corpus measurement taken with `execSync`.** A first count of the author notes
+returned 23 across 11 files and was wrong: node's default 1 MB `maxBuffer` silently truncated the
+larger designs. The real figure is 40 across 18, which is what the repo already said.
 
-**Two Sev-1s this run were the same defect in a third and fourth place: a bound measured on the
-pristine tree and enforced after the airframe scale.** The boattail shipped it once, the internal
-bounds shipped it again, and the fitting ceiling had it twice over — the caliber factor missing, and
-the whole bound invisible inside a property surface because it derived from a field the surface's
-mask blanks. Both the bound and the scale are single exported functions now
-(`fittingMaxOuterDiameter`, `airframeRadiusScale`). **If you add a bound, export it and have the
-panel read it; do not write the rule twice.**
+## The environment, measured 2026-08-09/10 (run 9)
 
-## The environment, measured 2026-08-09 (run 8)
+- **Both fixture and sibling repos are reachable.** `loft-fixtures` is on disk at session start;
+  linking its five per-tool directories into `corpus/` gives the suite its full **35 fixtures**, and
+  the sweep names that count in its own test name.
+- `npx playwright install chromium` was needed again — **seventh consecutive run**, one minute and
+  114 MB. It belongs in the environment's setup script. Parked for the owner.
+- The clone is SHALLOW; any commit count is a window, not the record.
+- Git identity arrives as the harness vendor's default and must be set per-repo before the first
+  commit. Commits sign correctly once it is.
+- `test.yml` fires on `pull_request` and on a push to `main`, not on a working-branch push — and see
+  point 1 above: it did not fire for PR #156 at all.
+- The e2e suite still needs two shards on this sandbox (126 + 126). Nothing flaked this run.
 
-- `node_modules` was ABSENT at session start; `npm install` took about a minute.
-- **The managed Playwright browser chromium-1228 was absent again** — `/opt/pw-browsers` had 1194 —
-  and `npx playwright install chromium` fixed it in about a minute (114 MB). **Seventh consecutive
-  run to report this.** It is the owner's fix, in the environment's setup script, and nobody else's.
-- The fixtures repo WAS attached. The corpus suite names `imports every design file (35 present)` and
-  32 corpus cases are green, so every "0 findings" below came from a sweep that examined something.
-  `corpus/` was linked per tool directory at session start; `manifest.csv` too.
-- `nrdptel/fusionspace-debrief` cloned read-only in about twenty seconds. **`add_repo` with
-  `access: "push"` was DENIED by the permission classifier**, so this run could not gate the sibling.
-- The clone is **shallow**, so any commit count here is a window, not the record.
-- Commits are signed and the identity is `Neer Patel <135655563+nrdptel@users.noreply.github.com>`,
-  set per-repo before the first commit. It arrives as the harness vendor's default.
-- **The harness appended an attribution footer to the pull request body**, again — and it also ATE
-  every angle-bracketed tag inside backticks (`<comment>` rendered as nothing). Read the body back
-  after posting: strip the footer, and write element names without angle brackets.
-- **CI fires on `pull_request:` and on a push to `main`, and NOT on a branch push.** The `frontend`
-  job now runs Lint → Build → Test; it ran Lint → Test → Build until this run, which is what made the
-  docs checks vacuous. Both jobs took about 7 minutes.
-- **4 cores, and the orchestration layer competes with the gate.** Dispatch the fan-out, then do
-  LOW-CPU work until it lands — reading, scoping, writing — not gate cycles. One pixel-geometry spec
-  failed once mid-shard this run with NO fan-out running, and passed in isolation and on a full shard
-  re-run; filed rather than diagnosed.
+## This run — six increments, four merged, three pending on the branch
 
-## This run — two Sev-1s, two milestones' worth of work, two pull requests
-
-**Increment 1 — the fitting ceiling and the fitting count (PR #152, merged, LIVE).** Two Sev-1s from
-one root, both reproduced by hand before scoping. The diameter ceiling ignored the caliber what-if:
-an airframe widened 54 → 108 mm advertised 108, accepted a typed 81, displayed 81 and flew 54. The
-count moved the drag and not the mass, so a design imported at count 4 and the same design edited to
-count 4 were two different rockets. The mass field is per instance now. A shock cord is counted once
-per harness on import, in its own commit, verified a no-op on all 35 real designs first.
-Pinned by four unit cases, one corpus case (60 advertised ceilings driven in both caliber directions,
-16 masses re-counted, 2 correctly inert under an ancestor's stated assembly mass) and one e2e case.
-
-**Increment 2 — P11's prose chunk, and the check that never ran.** Covered above and in `ROADMAP.md`.
-`DESIGN.md` §3 gained the sibling's measure clause verbatim plus this repo's chunk budget; §11 stopped
-exempting the pages the clause was written for.
-
-## The done-check, answered out loud
-
-1. **Corpus sweep: 35 design files, 32 cases green, 0 findings I did not fix.** The suite named its
-   fixture count, so the sweep examined something. The new fitting case drove 60 advertised ceilings
-   and 16 masses across every real design carrying a lug or a button.
-2. **Re-walked the built export of the SHA shipped.** Covered in the report.
-3. **`COMPETITION.md` row 42 added** — the per-component comment, with the measurement that makes it
-   real: 40 across 18 of 27 files, discarded on import and never written on export.
-4. **`DESIGN.md` §9:** rounded-lg 0, hand-rolled card treatments 3 (unchanged — one is `Card`, two are
-   named non-card primitives), off-scale spacing 0, off-scale type 0, inverted files 0, raw `select`
-   0 outside prose comments, primitives adopted 19. The new prose block reports every route inside
-   both budgets. No count moved the wrong way.
-5. **`BACKLOG.md` read and filed into** — twelve entries this run, each with the measurement that
-   makes it actionable.
-6. **What a flyer can DO that they could not (R-track):** set a rail-button or launch-lug count and
-   have the mass follow it, and type a fitting diameter on a re-calibered airframe and get the number
-   they typed. Both were previously wrong rather than absent, which makes this a correctness answer
-   to an R-track question — **no new capability shipped this run**, and the reason is that two Sev-1s
-   preempted R12's next member. The scouting for it is done and is in *Pick up first*.
-   **What is measurably better (P-track):** the docs' worst unbroken run went from 3,744 words to 732,
-   heading density from 2.4/1.8/2.8 to 3.2/3.4/3.8 per thousand, and linkable headings from 32 of 93
-   to 120 of 120.
-7. **`ROADMAP.md` updated** — P11 marked SHIPPED with both corrections to increment 1 recorded.
-8. **`OWNER-NOTES.md`: zero notes are open without a verdict.** All twelve open notes carry verdicts
-   dated 2026-08-08, from the run that first read them; this run added none and needed to add none.
-   One new item is parked under *Awaiting the owner*.
+| # | what | where |
+|---|---|---|
+| 1 | The notes a design file carries survive Loft — 81 across 22 of the 35 designs | merged `23659a5` |
+| 2 | Sev-1: a rail button imported at 0 kg on all 9 in the corpus | merged `23659a5` |
+| 3 | The queue's state; P13 opened because the P-track had run dry | merged `23659a5` |
+| 4 | P13/1 — `DESIGN.md` is read by the gate | merged `23659a5` |
+| 5 | P13/2+3 — a `Swatch` primitive, a radius rule the gate can see, one digest over both repos | PR #156 |
+| 6 | R12/7 — the parts table says which masses the design stated | PR #156 |
 
 ## The corpus, stated plainly
 
-Attached and real: 35 design files, 27 `.ork`, 4 `.rkt`, 4 `.CDX1`, 3 RocketPy, linked into `corpus/`
-per tool directory at session start. The suite names the count, so a "0 findings" here is a result.
+**35 design files**, and every check added this run asserts its own denominator so a re-cut cannot
+leave one passing on nothing: 81 author notes, 332 stated component ids, 54 external fittings, 108
+stated masses / 60 from the source tool / 401 Loft's own, and 332 parts compared by id across a round
+trip.
 
 ## What is waiting on the owner
 
-Four, and three are one click each:
-
-1. **Auto-merge is off**, so every pull request needs a session alive to merge it.
-2. **The Playwright browser is not in the environment's setup script** — seven consecutive runs have
-   installed chromium-1228 by hand, about a minute each.
-3. **Push access to `nrdptel/fusionspace-debrief` is denied to this session**, so the
-   DESIGN-IS-BINDING invariant cannot be honoured from here. The two copies have drifted by 10 hunks
-   and 164 lines; a run with both repos writable is needed to reconcile them, and the divergence list
-   is in this run's report.
-4. **`node_modules` is absent every session** — about a minute of `npm install` per run.
+Two entries in `OWNER-NOTES.md`'s *Awaiting the owner*: the Playwright browser in the setup script
+(seven runs), and the repository-page settings. A third was ANSWERED by measurement this run — push
+access to the sibling — and is marked as such rather than deleted.
 
 ## The previous run (2026-08-08, earlier the same day)
 
