@@ -187,6 +187,48 @@ describe("README.md — the landing page is a surface, and it goes stale like on
     ).toEqual([]);
   });
 
+  /** **Every bundled example a flyer can tap must be one the offline worker will have.**
+   *
+   *  Measured 2026-08-11 by a phone cold walk: `public/sw.js` hard-coded FOUR sample paths while
+   *  `public/samples/` held eight and `ImportPanel` offered all eight. The four added on 2026-08-08
+   *  were never added to the worker, so offline, half the "try a bundled example" chips on the front
+   *  door hit the worker's own synthetic 504 — in the pad-with-no-signal case the offline claim is
+   *  sold on. It is fixed by ENUMERATION rather than by adding four strings: the worker carries a
+   *  `__BUILD_SAMPLES__` marker and `scripts/gen-sw-precache.mjs` fills it from `out/samples/`, so
+   *  adding a sample cannot forget the worker.
+   *
+   *  This asserts the two halves that can be checked without a build: the worker delegates rather
+   *  than listing, and the offer the landing page makes matches what actually ships. */
+  it("offers no bundled example the offline worker would not have", () => {
+    const sw = read("public/sw.js");
+    expect(
+      sw,
+      "public/sw.js no longer carries the sample marker — the generator has nothing to fill",
+    ).toContain("__BUILD_SAMPLES__");
+    // A literal sample path in the SOURCE worker is a hand-maintained list coming back.
+    const hardcoded = sw.match(/"\/samples\/[^"]+"/g) ?? [];
+    expect(
+      hardcoded,
+      `public/sw.js lists sample paths by hand again: ${hardcoded.join(", ")}. ` +
+        "That list drifted once already; scripts/gen-sw-precache.mjs enumerates out/samples/ instead.",
+    ).toEqual([]);
+
+    const onDisk = new Set(
+      readdirSync(resolve(root, "public/samples")).filter((f) => /\.(ork|rkt|cdx1)$/i.test(f)),
+    );
+    const offered = (read("components/ImportPanel.tsx").match(/"\/samples\/([^"]+)"/g) ?? []).map((m) =>
+      m.replace(/"/g, "").replace("/samples/", ""),
+    );
+    expect(offered.length, "ImportPanel offers no bundled examples — this check asserts nothing").toBeGreaterThan(0);
+    const ghosts = offered.filter((f) => !onDisk.has(f));
+    expect(ghosts, `ImportPanel offers examples that are not in public/samples/: ${ghosts.join(", ")}`).toEqual([]);
+    const unoffered = [...onDisk].filter((f) => !offered.includes(f));
+    expect(
+      unoffered,
+      `public/samples/ ships designs the landing page never offers: ${unoffered.join(", ")}`,
+    ).toEqual([]);
+  });
+
   it("states the number of bundled examples the repo actually ships", () => {
     const n = readdirSync(resolve(root, "public/samples")).filter((f) => /\.(ork|rkt|cdx1)$/i.test(f)).length;
     const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight"];

@@ -55,7 +55,8 @@ if (assets.length === 0) throw new Error("gen-sw-precache: no assets found under
 // Vendored payloads (the Pyodide runtime) ship HTML of their own that is not a route.
 const ERROR_PAGES = new Set(["/404.html", "/_not-found.html"]);
 const NOT_A_ROUTE = /^\/(?:_next|pyodide)\//;
-const pages = (await walk(out))
+const allFiles = await walk(out);
+const pages = allFiles
   .map(rel)
   .filter((p) => p.endsWith(".html") && !ERROR_PAGES.has(p) && !NOT_A_ROUTE.test(p))
   .sort();
@@ -69,8 +70,22 @@ if (!routes.includes("/")) throw new Error("gen-sw-precache: no index.html found
 const pageHashes = await Promise.all(
   pages.map(async (p) => createHash("sha1").update(await readFile(resolve(out, p.slice(1)))).digest("hex")),
 );
+// The bundled sample designs, enumerated rather than listed by hand in the worker.
+//
+// **This drifted once and nothing caught it.** Their filenames are stable — unlike the hashed
+// chunks above — so a static list in `public/sw.js` looked safe, and then `public/samples/` went
+// from four designs to eight on 2026-08-08 and the worker's array stayed at four. Offline, half the
+// "try a bundled example" chips on the front door hit the worker's own synthetic 504 and the app
+// reported "That file is empty", blaming the flyer for a file they never picked. Reading the
+// directory means adding a sample cannot forget the worker.
+const samples = allFiles
+  .map(rel)
+  .filter((p) => p.startsWith("/samples/"))
+  .sort();
+if (!samples.length) throw new Error("gen-sw-precache: no bundled samples found in out/samples/");
+
 const buildId = createHash("sha1")
-  .update([...assets, ...routes.map((r, i) => `${r} ${pageHashes[i]}`)].join("\n"))
+  .update([...assets, ...samples, ...routes.map((r, i) => `${r} ${pageHashes[i]}`)].join("\n"))
   .digest("hex")
   .slice(0, 12);
 
@@ -88,8 +103,9 @@ sw = sw.replace(idMarker, `const BUILD_ID = "${buildId}"; // __BUILD_ID__`);
 inject("  // __BUILD_ASSETS__", assets);
 // "/" is already in the worker's list as the shell; don't precache it twice.
 inject("  // __BUILD_ROUTES__", routes.filter((r) => r !== "/"));
+inject("  // __BUILD_SAMPLES__", samples);
 
 await writeFile(swPath, sw);
 console.log(
-  `gen-sw-precache: precached ${assets.length} assets and ${routes.length} routes, build ${buildId}`,
+  `gen-sw-precache: precached ${assets.length} assets, ${samples.length} samples and ${routes.length} routes, build ${buildId}`,
 );
