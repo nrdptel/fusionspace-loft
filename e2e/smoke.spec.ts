@@ -7322,6 +7322,78 @@ test.describe("choosing a real commercial part", () => {
     ).toBeCloseTo(beforeOther, 0);
   });
 
+  test("says which masses a RockSim design brought with it, and keys the marks on the page", async ({ page }) => {
+    // **91 stated masses across the 35-design corpus read as bare numbers before this**, on the one
+    // surface whose stated job is "did Loft read my rocket right?" — indistinguishable from a figure
+    // Loft derived from a density. `DESIGN.md` §6 asks a reference value to name its source.
+    //
+    // The RockSim sample exercises BOTH marks and neither is Loft's: a `.rkt` carries a figure for
+    // every part, so its structural parts come back as the source tool's own computation and its mass
+    // objects as figures the design states. **Every mass on this design comes from the file**, which
+    // is the assertion — an earlier version of this case expected a "computed here" row here too, and
+    // it only passed because the parachute was being mislabelled.
+    //
+    // The key is asserted in the page text rather than in a tooltip, because §8 forbids a state
+    // reachable only by hovering — a `title` is a bonus for a mouse, never the way a mark is read.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30000 });
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const summary = page.locator("summary", { hasText: /Parts ·/ });
+    await expect(summary).toBeVisible();
+    if (!(await partsTable.isVisible().catch(() => false))) await summary.click();
+    await expect(partsTable).toBeVisible();
+
+    // The column exists and says the words, rather than only the mark.
+    const headings = await partsTable.locator("th").allInnerTexts();
+    expect(headings.join(" ").toLowerCase(), "the parts table gained no column naming where a mass came from").toContain("mass from");
+    const sources = await partsTable.locator("tbody tr").evaluateAll((rows) =>
+      // The row leads with a header cell, so the Mass-from column is the fourth <td>, not the fifth.
+      rows.map((r) => (r.querySelectorAll("td")[3]?.textContent ?? "").trim()),
+    );
+    expect(sources, "no part said its mass came from the source tool").toContain("computed by the source tool");
+    expect(sources, "no part said the design stated its mass").toContain("stated by the design");
+    expect(
+      sources.filter((t) => t === "Loft's own"),
+      "a RockSim design carries a mass for every part, so nothing here should be Loft's own",
+    ).toEqual([]);
+
+    // And the key is on the page, not in a hover — both halves, because both marks are on screen.
+    await expect(page.getByText(/beside a mass means the design file states that figure/)).toBeVisible();
+    await expect(page.getByText(/carried through rather than recomputed here/)).toBeVisible();
+  });
+
+  test("prints only the half of the mass key a design actually needs", async ({ page }) => {
+    // **The control for the case above, and it is what makes that one mean something.** A key for a
+    // mark that is not on the page is noise on every design that computes all its own masses. The
+    // bundled OpenRocket sample derives every structural mass from geometry and material and states
+    // only its mass objects, so the STATED half of the key belongs there and the source-tool half
+    // does not.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30000 });
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const summary = page.locator("summary", { hasText: /Parts ·/ });
+    await expect(summary).toBeVisible();
+    if (!(await partsTable.isVisible().catch(() => false))) await summary.click();
+    await expect(partsTable).toBeVisible();
+    const sources = await partsTable.locator("tbody tr").evaluateAll((rows) =>
+      rows.map((r) => (r.querySelectorAll("td")[3]?.textContent ?? "").trim()),
+    );
+    expect(sources, "this design must compute some of its own masses for the control to mean anything").toContain(
+      "Loft's own",
+    );
+    await expect(page.getByText(/beside a mass means the design file states that figure/)).toBeVisible();
+    await expect(
+      page.getByText(/carried through rather than recomputed here/),
+      "the source-tool half of the key is printed on a design that carries no such mass",
+    ).toHaveCount(0);
+  });
+
   test("a launch lug is a part too, and its count is drag rather than decoration", async ({ page }) => {
     // **The LAST kinds in the model with no field.** After the internal structure, 54 parts across
     // the 35-design corpus were still unreachable — 24 shock cords, 19 launch lugs, 11 rail buttons —

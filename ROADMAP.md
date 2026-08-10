@@ -18,8 +18,9 @@ work, and a queue containing only the first can only ever ship the first.
 - **R-track — capability.** What a flyer can DO that they could not before. **R1–R11 shipped**
   (R10 closed 2026-08-09 on its last item, `maxAcceleration`); **R12 is IN PROGRESS** — the first of
   its members is met as of 2026-08-08, increments 3 and 4 took the components no field describes
-  from 249 of 569 corpus parts to ONE on 2026-08-09, and increment 5 stopped the file half of the
-  per-part comment being destroyed on 2026-08-09. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
+  from 249 of 569 corpus parts to ONE on 2026-08-09, increment 5 stopped the file half of the per-part
+  comment being destroyed on 2026-08-09, and increment 7 made the parts table say which masses the
+  design stated on 2026-08-10. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
   shipped; R4 is IN PROGRESS" until 2026-08-08, six milestones after it stopped being true — and it
   then went stale again inside the very commit that added this warning, caught by review rather than
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
@@ -2576,6 +2577,58 @@ would put a number on screen that no file asked for.
 
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
+
+**Increment 7 — the parts table says which masses the design STATED, 2026-08-10.** `COMPETITION.md`
+row 43, opened this run and closed by it. Both OpenRocket and RockSim tell a user when a mass was
+entered rather than derived — OpenRocket by storing the fact as its own element beside its own
+Override tab, RockSim by keeping `<CalcMass>` and `<KnownMass>` side by side on **67 of 67 parts in
+all four corpus files**, with spreads that are not cosmetic (a tube coupler stating 984.0 g against a
+computed 70.6 g). Loft flew 91 stated masses and marked none of them, on the surface whose stated job
+is *did Loft read my rocket right?* — and `DESIGN.md` §6 asks a reference value to name its source.
+
+**The distinction could not be read off `overrideMass`, which is why this is a model field rather than
+a formatting change.** `lib/ork/adapt.ts` sets that field only from a genuine `<overridemass>`;
+`lib/rkt/adapt.ts` synthesises one on every structural part from whichever figure RockSim selected —
+and every corpus `.rkt` has `<UseKnownMass>` at 0, so all four fly RockSim's own COMPUTED number. A
+marker hung off `overrideMass` would have called those measurements. `massFrom` carries the three
+cases instead, in the shape `CdProvenance` already takes for a drag coefficient: **108 stated by the
+design, 60 carried from the source tool, 401 computed here**, across the 35-design corpus.
+
+**Four wrong marks the pre-push review found, all fixed and all the same shape — a label put on a
+number nobody checked.** RockSim's parachutes, streamers and lugs take their mass verbatim from the
+file but sit outside the structural set, so they were claiming to be Loft's own; a `.rkt` mass object
+was hardcoded `"stated"` and so presented RockSim's own non-round `CalcMass` as a scale reading; and
+the RASAero airframe mass is the stated LAUNCH weight minus a motor mass from Loft's bundled data —
+4,368.8 g where the file says 37.8 lb — which is not a figure the design states at all. Only the
+branch that places the stated weight unchanged is marked now. The review reproduced each by importing
+all 35 designs through the real adapters. Two more it found in the EDIT path, which the first version
+wired nothing through: a catalogued canopy's published weight kept the design's old claim over the
+vendor's figure, and a typed fitting mass kept the importer's — the latter because `withFitting`'s
+parameter list omitted the field while its caller computed it, so it was dropped in silence. `"flyer"`
+is the third value, for the same reason `CdProvenance` has one, and the unmarked label reads
+*Loft's own* rather than *computed here* because Loft authoring a mass object is not a calculation.
+
+**And Loft's own export was laundering its arithmetic into the design's claim.** The exporter writes a
+mass Loft COMPUTED as an explicit figure — that is what keeps a canopy's mass across an export at all
+— so a re-import read every one as the design's own: **51 parts across the 27 `.ork` designs went
+unmarked → stated, and 15 parts of `FullScaleModelTH.rkt` went from the source tool's figure to
+stated**, which `lib/ork/export.test.ts` names in its own words as forbidden. It needed no download to
+reach a flyer: a design authored here is persisted as its own exported bytes. `lib/ork/adapt.ts` takes
+no mass provenance from a file whose `creator` is exactly Loft's own string — a deliberate loss on
+such files, in preference to a confident wrong claim — and a corpus case asserts that nothing gains or
+changes a mark across a round trip, proved able to fail by restoring the old behaviour.
+
+Pinned by `lib/corpus/sweep.test.ts`'s *says which of every real design's masses the design itself
+stated* — asserted as a relationship rather than as golden counts, with all three populations
+required non-empty — and by two `e2e/smoke.spec.ts` cases, the second of which is the control: a
+design that computes all its own structural masses must print only the half of the key it needs.
+
+**Three things the gate caught that reading would not have.** The mark landed at `text-[11px]`, which
+§3 scopes to axis ticks, and `lib/design-system.test.ts`'s ratchet refused it. At `text-zinc-500` on
+the indigo tint a picked row wears it measured **4.32:1** against WCAG AA's 4.5, which
+`e2e/contrast.spec.ts` refused. And the mark's meaning started life in a `title`, which
+`e2e/touch.spec.ts` counted as two new hover-only states — correctly, because a phone cannot reach a
+tooltip. The key is in the caption and the words are in their own column.
 
 **Increment 5 — the notes a design file carries stop being destroyed, 2026-08-09.** `COMPETITION.md`
 row 42 named the per-part comment as the more urgent of the two next members, and the measurement

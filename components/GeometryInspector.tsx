@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Material, Rocket, RocketComponent } from "@/lib/model/types";
+import type { MassProvenance, Material, Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
-import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
+import { massByComponent, dryMassProperties, statedMassHolder, type ComponentMass } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
 import { mouldLineStep, internalSpanLabel, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
@@ -146,9 +146,26 @@ const PART_COLUMNS = (
     sortValue: ({ p }) => masses.get(p.component.id)?.mass ?? 0,
     cell: ({ p }) => {
       const m = massCell(p.component.id);
+      const from = massSource(p.component);
       return (
         <span className={m.muted ? "font-sans text-zinc-500 dark:text-zinc-400" : undefined}>
           {m.text}
+          {/* **Which masses the design STATED, on the surface that exists to answer "did Loft read my
+              rocket right?".** Measured over the 35-design corpus: 91 of them, and every one read
+              identically to a figure Loft derived from a density. `DESIGN.md` §6 asks a reference
+              value to name its source; a bare number cannot. A dagger rather than a word because the
+              column is numbers and the caption below carries the sentence — and `title` alone would
+              be a hover-only state §8 forbids, so the mark is visible and the key is in the caption. */}
+          {from && !m.muted ? (
+            // **No `title`, and that is §8 rather than an omission.** A first version carried the
+            // sentence as a tooltip; `e2e/touch.spec.ts` counted two new hover-only states, which is
+            // exactly right — a phone cannot reach a tooltip, so a mark's meaning must not live
+            // there. The key is in the caption below the table, and the column beside this one says
+            // it in words for anyone who wants it in the row itself.
+            <span className="ml-1 font-sans text-xs text-zinc-600 dark:text-zinc-400" aria-hidden="true">
+              {from.mark}
+            </span>
+          ) : null}
         </span>
       );
     },
@@ -160,12 +177,64 @@ const PART_COLUMNS = (
     },
   },
   {
+    key: "massFrom",
+    label: "Mass from",
+    // Its own column in the CSV as well as a mark on the screen: a spreadsheet has no room for a
+    // footnote, and a copied table that says 984 g without saying who said so is the same wrong
+    // claim one screen further from the flyer.
+    cell: ({ p }) => (
+      // zinc-600 rather than 500: on the indigo tint a picked row wears, 500 measures 4.32:1 against
+      // WCAG AA's 4.5, which `e2e/contrast.spec.ts` caught over an otherwise green gate.
+      <span className="text-zinc-600 dark:text-zinc-400">{massSourceLabel(p.component, masses)}</span>
+    ),
+    csv: ({ p }) => massSourceLabel(p.component, masses),
+  },
+  {
     key: "dims",
     label: "Dimensions",
     cell: ({ p }) => describeDims(p.component, units),
     csv: ({ p }) => describeDims(p.component, units),
   },
 ];
+
+/** How a part's mass came to be — the words the table and its export use for it.
+ *
+ *  **`undefined` means Loft computed it** from the part's geometry and its material, which is the
+ *  ordinary case and the one that needs no mark. The other two are claims a surface must be able to
+ *  make, and `lib/model/types.ts`'s `MassProvenance` carries the measurement behind them. */
+function massSourceLabel(c: RocketComponent, masses: Map<string, ComponentMass>): string {
+  // **A part with no mass of its own has no provenance either, and saying "computed here" for one
+  // would be a claim about a number that is not on the row.** A subsumed part's mass is counted in an
+  // ancestor's stated assembly figure and its Mass cell says so; a part that carries no structural
+  // mass at all shows a dash there. Either way this column matches rather than contradicts it.
+  const m = masses.get(c.id);
+  if (!m || m.subsumedBy) return "—";
+  // "Loft's own" rather than "computed here", because unmarked covers two things that are both
+  // Loft's and only one of which is a derivation: a mass computed from geometry and material, and one
+  // Loft itself authored (the starter's avionics, a what-if payload). Saying "computed" of the second
+  // would be a claim about a calculation that never happened.
+  return massSource(c)?.label ?? "Loft's own";
+}
+
+function massSource(c: RocketComponent): { mark: string; label: string } | undefined {
+  const from = (c as { massFrom?: MassProvenance }).massFrom;
+  if (from === "stated")
+    return {
+      mark: "†",
+      label: "stated by the design",
+    };
+  if (from === "tool")
+    return {
+      mark: "‡",
+      label: "computed by the source tool",
+    };
+  if (from === "flyer")
+    return {
+      mark: "§",
+      label: "the figure you set",
+    };
+  return undefined;
+}
 
 /** Design geometry: a to-scale side-view of the airframe, above the parsed component tree with each
  *  part's key dimensions and its station — the "did Loft read my rocket right?" view. Pure
@@ -581,6 +650,17 @@ export default function GeometryInspector({
       return ka < kb ? -1 : 1;
     });
   }
+
+  /** Which mass marks this design actually shows, so the caption's key names only those. A legend for
+   *  a mark nobody can see is noise on every design that computes all of its own masses. */
+  const massMarksShown = [
+    ...new Set(
+      parts
+        .filter((p) => !masses.get(p.component.id)?.subsumedBy && masses.has(p.component.id))
+        .map((p) => (p.component as { massFrom?: MassProvenance }).massFrom)
+        .filter((f): f is MassProvenance => f !== undefined),
+    ),
+  ];
 
   /** A part's own dry mass as the table shows it: a figure, or where its mass is counted instead. */
   const massCell = (id: string): { text: string; muted: boolean } => {
@@ -1082,7 +1162,35 @@ export default function GeometryInspector({
           A row and its shape on the diagram light up together, and clicking either keeps that part
           picked out — so you can find a part on the picture and read what it is, or the other way
           round. Diameters are shown as <span className="font-mono">⌀</span>; a fin set lists its
-          per-fin chords and span. Any column heading sorts the table; the design&apos;s own
+          per-fin chords and span.{" "}
+          {/* **The key to the mass marks, in the caption rather than in a hover.** §8 forbids a state
+              a flyer can only reach by hovering, and the `title` on each mark is a bonus for a mouse
+              rather than the way the marks are read. Rendered only when a mark is on screen: a legend
+              for something that is not there is noise on every design that computes all its own
+              masses. */}
+          {massMarksShown.length > 0 && (
+            <>
+              {/* **Each half is guarded on its own mark.** A first version guarded only the ‡ clause,
+                  so a design carrying nothing but ‡ printed a key for a † that appears nowhere — the
+                  exact noise the control case says this conditional exists to prevent, reintroduced
+                  inside it. `rocksimTestRocket1.rkt` is that design: six parts, all ‡. */}
+              {massMarksShown.includes("stated") && (
+                <>
+                  A <strong>†</strong> beside a mass means the design file states that figure rather
+                  than Loft deriving it from the part&apos;s geometry and material
+                  {massMarksShown.includes("tool") ? "" : ". "}
+                </>
+              )}
+              {massMarksShown.includes("tool") && (
+                <>
+                  {massMarksShown.includes("stated") ? ", and a " : "A "}
+                  <strong>‡</strong> means the mass is the source tool&apos;s own computed figure,
+                  carried through rather than recomputed here.{" "}
+                </>
+              )}
+              An unmarked mass is Loft&apos;s own.{" "}
+            </>
+          )} Any column heading sorts the table; the design&apos;s own
           nose-to-tail order is the default. The mass column is dry structure only; this design&apos;s
           dry mass is {d.q(d.mass(dryTotal, units))}; the motor and any what-if ballast are added on
           top of it at launch and are in the flight&apos;s liftoff mass — where a motor was

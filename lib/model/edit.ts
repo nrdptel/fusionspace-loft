@@ -8,7 +8,7 @@
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
 import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent,
-  Stage, InnerTube, RingComponent, MinorComponent,
+  Stage, InnerTube, RingComponent, MinorComponent, MassProvenance,
 } from "./types";
 import { flattenRocket, aftOuterRadius, foreOuterRadius, nextTopLevel, maxBodyRadius } from "./geometry";
 import { uniqueUuidFrom, uuidFrom } from "./id";
@@ -1858,6 +1858,10 @@ function withCatalogTube(
       // flying the mass of the part it replaced. Less reachable than on the nose — 2 of 27 corpus
       // designs carry one on the primary tube against 10 of 41 on the cone — but wrong in exactly
       // the same way, and a mass override is how a real file records a part somebody weighed.
+      // The vendor's published weight is neither the design file's figure nor one Loft derived, so
+      // the mark says the flyer's pick put it there — the column read "Loft's own" for it otherwise,
+      // about a number this code exists BECAUSE Loft's own derivation gets wrong by 3-5x.
+      massFrom: publishedMass !== undefined && publishedMass > 0 ? ("flyer" as const) : undefined,
       overrideMass: publishedMass !== undefined && publishedMass > 0 ? publishedMass : undefined,
       overrideCGx: undefined,
       children,
@@ -1903,6 +1907,11 @@ function withCatalogParachute(c: RocketComponent, id: string, p: PickedParachute
       // vendor's size still lands, so the descent rate moves exactly as it should — it is only the
       // mass that the design has already accounted for elsewhere.
       mass: (c as Parachute).mass > 0 ? p.mass : 0,
+      // The vendor's published weight is the flyer's pick, not the design's claim and not Loft's
+      // derivation — and leaving the importer's mark standing over it kept a canopy that the design
+      // once stated 100.00 g for reading "stated by the design" at the catalogue's figure. A canopy
+      // that stays massless keeps whatever it had, because nothing about its number changed.
+      ...((c as Parachute).mass > 0 ? { massFrom: "flyer" as const } : {}),
       // **The replaced canopy's own weighed figures are CLEARED**, and on this kind it is the common
       // case rather than an edge: 20 of the 37 parachute nodes across the corpus carry an
       // `<overridemass>` (11 of the 27 `.ork` files). `lib/sim/mass.ts` lets `overrideMass` win
@@ -1985,6 +1994,7 @@ function withCatalogNose(
       // have been pinned onto the 233.7 mm one that replaced it. 10 of the 41 corpus designs with a
       // nose carry the mass override and 5 carry the CG one, so this is the common case rather than
       // an edge. The vendor's own published weight still wins where they publish one.
+      massFrom: p.mass !== undefined && p.mass > 0 ? ("flyer" as const) : undefined,
       overrideMass: p.mass !== undefined && p.mass > 0 ? p.mass : undefined,
       overrideCGx: undefined,
       children,
@@ -2374,6 +2384,11 @@ function withFitting(
     mass?: number;
     /** `null` CLEARS a stated override — distinct from `undefined`, which leaves it standing. */
     overrideMass?: number | null;
+    /** Where the mass now comes from. Set when the flyer TYPED one — the parameter list omitted this
+     *  in a first version while the caller computed it, so the importer's mark survived onto the
+     *  flyer's own weighed figure and the applier's own comment about not shadowing it was silently
+     *  a lie. Found by the pre-push review, by rendering the row rather than reading the caller. */
+    massFrom?: MassProvenance;
     length?: number;
     radius?: number;
     instanceCount?: number;
@@ -2383,6 +2398,7 @@ function withFitting(
     const part = c as MinorComponent;
     return {
       ...part,
+      ...(e.massFrom !== undefined ? { massFrom: e.massFrom } : {}),
       ...(e.mass !== undefined ? { mass: e.mass } : {}),
       ...(e.overrideMass !== undefined ? { overrideMass: e.overrideMass ?? undefined } : {}),
       ...(e.length !== undefined ? { length: e.length } : {}),
@@ -3948,6 +3964,10 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
          *  figure — so on the two launch lugs of `FullScaleModelTH.rkt` the count moved the drag while
          *  the mass edit above landed on a field nothing read. A typed mass CLEARS it, because a
          *  figure the flyer just weighed must not be shadowed by one the importer synthesised. */
+        // A typed figure is the FLYER's, so the importer's provenance must not survive on it — the
+        // clear below already says that about the number, and the mark beside it has to agree or a
+        // mass the flyer weighed goes on being credited to the source tool.
+        massFrom: fittingTypedUnitMass !== undefined ? ("flyer" as const) : undefined,
         overrideMass:
           fittingTypedUnitMass !== undefined
             ? null

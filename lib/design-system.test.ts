@@ -162,12 +162,13 @@ const BUDGET = {
   offScaleSpacing: 0,
   /** Components importing the shared primitives. Target: most of the 27. This one only goes UP.
    *
-   *  **18, raised from 17 on 2026-08-04, and it had been a floor below the real number for at least
+   *  **21, raised from 18 on 2026-08-10 when \`Swatch\` brought \`FlightViz\`, \`LineChart\` and
+   *  \`RocketDiagram\` in. Before that: 18, raised from 17 on 2026-08-04, and it had been a floor below the real number for at least
    *  a run.** It is a `toBeGreaterThanOrEqual`, so a stale floor cannot fail — it just quietly stops
    *  ratcheting, which is the one failure mode a one-directional check has. Found by running §9's own
    *  grep beside it and getting a different answer. Worth re-running that grep whenever this file is
    *  touched: `grep -rlE "from ['\"](\./ui|@/components/ui)['\"]" components | wc -l`. */
-  uiAdopters: 18,
+  uiAdopters: 21,
   /** Component files where caption size OUTNUMBERS the body default. **At the target**, so this is a
    *  guard rather than a ratchet from here on: a file that inverts again is a decision-grade value
    *  that has been put back at caption size. */

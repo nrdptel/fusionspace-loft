@@ -79,6 +79,11 @@ export type NoseShape =
   | "parabolic"
   | "haack";
 
+/** Where a component's mass figure came from — see `ComponentBase.massFrom`. Modelled after
+ *  `CdProvenance`, and for the identical reason: two numbers that are equal by value are not the
+ *  same claim, and a surface cannot tell them apart from the number alone. */
+export type MassProvenance = "stated" | "tool" | "flyer";
+
 interface ComponentBase {
   id: string;
   name: string;
@@ -95,6 +100,42 @@ interface ComponentBase {
   placement: Placement;
   material?: Material;
   finish?: SurfaceFinish;
+  /** Where this component's mass figure came from, when it did not come from Loft.
+   *
+   *  **Absence means Loft computed it** from the component's geometry and its material's density,
+   *  which is the ordinary case and needs no marker. The two values are the cases a surface must be
+   *  able to say out loud:
+   *
+   *  - `"stated"` — **the design file Loft read gives this part's mass outright.** OpenRocket writes
+   *    it as `<overridemass>` (a ticked box in its own dialog) or as an explicit `<mass>`; RockSim
+   *    writes `<KnownMass>` and selects it with `<UseKnownMass>`; RASAero states one launch weight
+   *    for the whole airframe, and only the branch that places it unchanged is marked.
+   *
+   *    **It claims what the FILE says, not that a designer weighed it, and the difference is not
+   *    pedantry.** Loft's own `.ork` export writes a mass it computed as an explicit figure — that is
+   *    how a canopy's mass survives a round trip at all — so a design exported from here and reopened
+   *    comes back with 51 of its masses marked, across the 27 corpus designs. The file really does
+   *    state them at that point, and anyone opening it in OpenRocket sees them stated too; what is
+   *    lost is that Loft is the one that said so. Filed in `BACKLOG.md`, with the export change it
+   *    needs.
+   *  - `"tool"` — the number is the SOURCE TOOL's own computation, carried through rather than
+   *    recomputed here. RockSim writes `<CalcMass>` beside `<KnownMass>` on every part and Loft
+   *    takes it when the design does not select the known figure — which is every `.rkt` design in
+   *    the corpus.
+   *  - `"flyer"` — the number came from something the flyer did here: a mass typed into a field, or
+   *    a catalogued part's published weight chosen in the picker. **It exists for the same reason
+   *    `CdProvenance`'s own `"flyer"` does** — without it, a flyer who typed their own weighed figure
+   *    went on being told it was the source tool's, and a vendor's published mass read as one Loft
+   *    derived from a density. Both were true of this field for exactly one review cycle.
+   *
+   *  **It cannot be derived from `overrideMass`, and that is the whole reason it exists.** Measured
+   *  2026-08-09: `lib/ork/adapt.ts` sets that field only from a genuine `<overridemass>`, while
+   *  `lib/rkt/adapt.ts` synthesises one on every structural part from whichever figure RockSim
+   *  selected — so the same field means "the designer weighed this" on one import and "another tool
+   *  computed this" on another, and a marker hung off it would be wrong on all four `.rkt` designs.
+   *  91 stated masses across the 35-design corpus read identically to computed ones before this.
+   *  `DESIGN.md` §6 requires a reference value to name its source; this is what lets it. */
+  massFrom?: MassProvenance;
   /** If set, this mass (kg) replaces the component's computed mass. */
   overrideMass?: number;
   /** If set, this axial CG (m, from the component's own fore end) replaces the computed one. */
