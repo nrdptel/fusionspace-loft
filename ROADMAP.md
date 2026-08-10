@@ -2612,6 +2612,45 @@ this was live. Fixed on all six mass fields at once from one derived `massCarrie
 demonstrably does nothing must not sit there looking as though it does*. The field names the carrier
 in words rather than greying out silently.
 
+**Increment 9 — what the review found in increment 8, and a Sev-1 beside it, 2026-08-11.** The
+pre-push agent read on increment 8's diff returned five findings and all five were real; three were
+on surfaces already pushed. Every one is the same shape — *the control described a quantity that was
+not the one it held*.
+
+- **The control never rendered on 4 of the 35 designs, and they are the ones that need it most.**
+  `massByComponent` has an entry only for a part producing a structural point mass: a SUBSUMED part
+  gets `{mass: 0}`, a part Loft computes no mass for gets no entry at all. Every RASAero `.CDX1`
+  states one lumped launch weight and no per-part masses, so its nose and tube had none, the readback
+  was `undefined` and the field never appeared — on exactly the designs where a flyer's scale is the
+  only possible source. Gated on the PART existing now.
+- **A typed weight could be stranded in a box that could no longer be edited** — a pick re-aims a
+  live value, so typing a weight and then clicking a part whose mass an assembly states left the
+  number in a `disabled` field, still an active what-if, with only Undo as a way out. That is the
+  one-way door the `disabled` prop was added without. It applies only while the field is empty now.
+- **A tube stating its OWN assembly weight was labelled the opposite of what it is.** The docblock
+  written in increment 8 said the case "does not arise on any real design" — measured over the
+  corpus and asserted of everything. `fixtures/demo-quirks.ork`'s "Upper" is the counterexample, one
+  click from the front door, 600 g covering the tube plus a coupler and a streamer, under a hint
+  reading *"the tube on its own"*. This is the measure-don't-remember trap taken while quoting a
+  measurement, and it is worth reading twice.
+- **The case pinning "the flag is never set" pinned nothing** — it passed with `bodyTubeMass`
+  unimplemented. It measures the shift the edit causes now, and its negative control fails by exactly
+  the 0.25 kg stated.
+- **`carrierLabel` is one function** because two had drifted on how to name an unnamed carrier, and
+  the parts table read one while the property panel read the other.
+
+**And the Sev-1 the tenth-use walk found, which preempted the rest of the run: a copied table carried
+the units the numbers were STORED in.** `GeometryInspector`'s parts table rendered
+`lengthMm(xFore, units)` and `mass(m, units)` on screen while exporting `xFore * 1000` — always
+millimetres — and `m.mass` — always kilograms — under bare `Station` and `Mass` headers. In Imperial
+the screen read *12.8 in / 0.06 lb* and the copied row said *323.8 / 0.026086*: a build sheet 25.4x
+and 2.2x off, with no unit anywhere in the file. Flight phases did the same with raw SI altitude and
+speed. **`BACKLOG.md` had held this since 2026-08-05** — diagnosed, with `DataTable`'s `csvLabel`
+named as the mechanism and both call sites named by file — and nothing converted them for six days.
+It took somebody looking at the product to move it. Fixed by deriving every export from the same
+`Quantity` its cell renders (`csvQuantity`/`csvHeader`), so the pair cannot drift again rather than
+being converted once.
+
 Pinned by `lib/corpus/sweep.test.ts`'s *puts the flyer's own weight on every real design's nose cone
 and body tube* — asserted as a relationship over all 35 files rather than as golden counts, with the
 aim taken on the LAST tube so a multi-tube design tests the aim rather than the fallback, and with a

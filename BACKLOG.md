@@ -20,6 +20,52 @@ big for one pass. Newest first.
 
 **Filed 2026-08-11, from run 11 — the airframe mass override and its fan-out.**
 
+*From the desktop TENTH-use cold walk — an experienced flyer editing, sweeping and cross-checking.
+The two CSV findings are recorded above against the entry that already held them; the rest are new.*
+
+- **The parts catalogue is an overlay that traps a keyboard.** `components/PartPicker.tsx:608` is a
+  bare `aria-expanded` toggle rather than the app's `Popover`: no `role="dialog"`, Escape does not
+  close it, an outside click does not close it, focus never enters it. It then renders **all 1,089
+  tubes at once**, each with its own *Use* button — 1,096 focusables inside the panel out of 1,217 on
+  the page — so a keyboard flyer who opens it faces ~1,096 Tab presses and no Escape to bail out.
+  The sibling overlay one file away (`GeometryInspector.tsx:754`, the Properties popover) does all
+  four correctly, so two overlays in one workspace behave oppositely. **This is a one-way door on the
+  keyboard path and it is the strongest single candidate in this batch.**
+- **Every parts row is its own tab stop.** `components/GeometryInspector.tsx:1110` sets `tabIndex: 0`
+  with no roving index, so on the two-stage HPR corpus design (47 parts) it costs **54 Tab presses**
+  to get from the *Parts* summary to the *Swap motor* control below it. The component tree sits
+  between the keyboard flyer and every edit control on the workspace.
+- **There is no reset-to-fit on the diagram.** `components/RocketDiagram.tsx:1247` renders the zoom
+  readout as a non-interactive `<span>` that says *"Fit"* at 1x — so the word reads as the button it
+  is not, and the only way back from 8x is six clicks of the minus control. Every mature diagram
+  charges one click for this.
+- **An import always lands on `/flight`, overriding the workspace the flyer deliberately opened.**
+  `components/LoftApp.tsx:667`. Open `/design` with nothing loaded, click a bundled example, and you
+  are on `/flight`. The address a flyer chose is treated as a suggestion, at a cost of one navigation
+  every session that starts on the editor.
+- **The undo stack is empty after a reload while the edits it would undo survive.**
+  `components/LoftApp.tsx:1425`. Set a fin span, reload: the flight and the field both still carry
+  the edit, and Undo is disabled. The only way back is *Reset to as-designed*, which drops every
+  what-if at once. (Already filed at line ~1205; confirmed live on HEAD.)
+- **Two adjacent tables disagree about whether a view a flyer set up is worth remembering.** The
+  motor sweep persists its sort per browser (`components/MotorSweep.tsx:409`); the parts table drops
+  its sort, its picked part and its disclosure state on reload (`components/GeometryInspector.tsx:1092`).
+- **The parameter sweep has no table of its own points.** `components/ParameterSweep.tsx:552` renders
+  a chart plus `DownloadCsv`/`CopyTable` and nothing else, so the 25 flown values exist only in an
+  export or in pixels — the one result surface in the app whose numbers cannot be read on screen.
+- **The catalogue table is the only `DataTable` with no Copy and no CSV** (`PartPicker.tsx:827`, no
+  `exportName` passed). The table a flyer most wants to hand round — part numbers, OD/ID, stock — is
+  the one they cannot get out.
+- **The Burnout CSV cell always appends the stage name; the screen shows it only when a phase has
+  more than one burnout.** `components/ResultsView.tsx:2268` — a copied table that does not match the
+  table it was copied from, same class as the unit defect above and surviving its fix.
+- **UNVERIFIED — a saved session keeps hand-typed conditions and drops fetched weather.**
+  `lib/session.ts:27` stores design, name, opensOn, units, simIndex and edits, and no weather or
+  scenario — so *"Re-fly for today's weather"* would revert to as-designed on reload while the rail
+  and wind edits that live in `edits` survive, with nothing on screen saying which half was kept.
+  Read from the interface plus `LoftApp.tsx:464`; **not driven**, because Open-Meteo is unreachable
+  from this sandbox. Reproduce before scoping.
+
 *From the desktop first-use cold walk. Every one was measured by the agent against a live build at
 1440x900; the four marked REPRODUCED were re-checked against the code by me before filing. Findings
 the walk reported as page-load failures are discounted — I rebuilt `out/` underneath it mid-walk,
@@ -765,6 +811,18 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   string with units baked in and commas forcing RFC-4180 quoting, and that one DOES flip. So one
   imperial export contains a metric column, an SI column and an imperial column side by side.
   `DataTable`'s new `csvLabel` is the mechanism; these two are the remaining call sites.
+
+  **FIXED 2026-08-11, and the six days it sat here are the more useful half of this entry.** The
+  defect was fully diagnosed on 2026-08-05, the mechanism was built in the same run, the two
+  remaining call sites were named by file — and nothing converted them, on a live site, in the ledger
+  the session-start list says to read. It was re-found from scratch by this run's tenth-use cold walk,
+  which measured it on the screen rather than in the code: *"row 2 is `Payload Bay 323.8 0.026086` while
+  the screen shows 12.8 in / 0.06 lb"*. **A filed entry naming its own fix is not a fix**, and the
+  thing that eventually moved it was somebody looking at the product. Both tables now derive their
+  export from the same `Quantity` their cell renders, via `csvQuantity`/`csvHeader` in `lib/csv.ts`,
+  so the two cannot drift again rather than merely being converted once. Pinned by
+  `e2e/smoke.spec.ts`'s *a copied table carries the units it was read in, not the ones it was stored
+  in*, whose negative control restores the old station export and reports the header with no unit.
 
 - **A crude phone-walk selector counted 8 controls under 44 px on `/flight` at 390 px, where the
   repo's own scoped ratchet is green. UNREPRODUCED, and filed as a question rather than a defect.**
