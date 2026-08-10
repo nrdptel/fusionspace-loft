@@ -583,6 +583,63 @@ suite("real-design corpus", () => {
     expect(massless, "fittings a real design flies with no mass at all").toEqual([]);
   }, 300_000);
 
+  /** **A vehicle that weighs nothing never reaches a flyer with a balance point — and the reason is
+   *  not the one it looks like.**
+   *
+   *  Measured 2026-08-11: `Three-stage rocket.CDX1`, an in-the-wild RASAero design in this corpus,
+   *  imports with `dryMass` and `liftoffMass` of exactly **0 kg** — the format states weights per part
+   *  and that file states none — and `run.result.staticMarginCal` for it is **6.32 cal**. Read off the
+   *  result object that looks like a confident, comfortably-stable figure for a rocket with no mass.
+   *
+   *  **It reaches no surface, and asking that question is the whole point of this case.** That design
+   *  has no motor assigned at all, so `hasPropulsion` is false, so `motorsComplete` is false, and
+   *  every one of the six registered margin surfaces withholds on exactly that flag. A first pass at
+   *  this filed it as a Sev-1 and added `result.liftoffMass > 0` to the predicate; the negative
+   *  control then refused to fail, which is precisely what a guard that changes nothing looks like,
+   *  and the extra condition was reverted. `MAINTAINING.md` is explicit that a speculative guard
+   *  firing on zero real files is worse than nothing, and `HANDOFF.md` records the same trap from the
+   *  other side: the screen can read the code correctly every time and never ask whether a user can
+   *  get there.
+   *
+   *  So this asserts the RELATIONSHIP rather than a guard — massless implies withheld — and it is
+   *  worth keeping because the route to breaking it is one change wide: give that design a motor
+   *  that resolves, whether by an adapter fix or a corpus re-cut, and a 6.32 cal margin computed from
+   *  zero mass reaches every surface at once. It fails then, and it says why. */
+  it("never lets a design that weighs nothing reach a surface with a loaded figure", async () => {
+    const published: string[] = [];
+    let massless = 0;
+    let flown = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      let run;
+      try {
+        run = runFromDocument(doc, {});
+      } catch {
+        continue; // no motor configuration to fly at all — a different case, covered elsewhere
+      }
+      flown++;
+      if (run.result.liftoffMass > 0) continue;
+      massless++;
+      if (run.motorsComplete)
+        published.push(
+          `${shortName(f.name)}: liftoff mass 0 kg and motorsComplete true — a static margin of ` +
+            `${run.result.staticMarginCal.toFixed(2)} cal computed from no mass would reach every ` +
+            `margin surface. Withhold it on the loaded-figure predicate rather than per surface.`,
+        );
+    }
+    console.log(
+      `loaded-figure reachability across ${files.length} design files: ${flown} flown, ` +
+        `${massless} weighing nothing at liftoff, ${published.length} of those reaching a surface`,
+    );
+    expect(flown, "no design flew, so this asserted nothing").toBeGreaterThan(0);
+    expect(
+      massless,
+      "no design in the corpus weighs nothing at liftoff — the case this guards is gone, so either " +
+        "the corpus was re-cut or an importer started inventing a mass; re-derive before deleting",
+    ).toBeGreaterThan(0);
+    expect(published, "designs that weigh nothing and still reach a surface with a loaded figure").toEqual([]);
+  }, 300_000);
+
   /** **The flyer's own scale reading lands on the airframe of every real design.**
    *
    *  The nose cone and the body tube were the last airframe kinds with no mass control: measured over
