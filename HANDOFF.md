@@ -155,7 +155,12 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
   assertions) but the reverse — editing a fix and re-running e2e without rebuilding — would report
   green on code that was never served. Rebuild before every e2e run you intend to believe.
 
-## This run — fourteen increments, thirteen merged and deployed, one on PR #164
+## This run — fifteen increments
+
+**Read the `where` column as of the moment this file was written, and check `git log` rather than
+trusting it.** The last row is always "in flight": the commit that would mark it merged is the one
+being merged, so this table cannot ever say every row landed. Everything above the last row was
+merged AND confirmed live on `loft.fusionspace.co`, not merely merged.
 
 | # | what | where |
 |---|---|---|
@@ -172,7 +177,8 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
 | 11 | P/row 31 — the airframe stays on screen while you work in another workspace | merged `f98a59f` |
 | 12 | R12/9 — the internal structure takes a weighed mass, on the slot with the largest gap | merged `a1428b1` |
 | 13 | The identify line says where a mass came from — the last surface that did not | merged `2797bca` |
-| 14 | The mass breakdown says it too, and the describer moves out of the component that owned it | PR #164 |
+| 14 | The mass breakdown says it too, and the describer moves out of the component that owned it | merged `9a24554` |
+| 15 | A CSV can carry what its table said — the validation export names what it withheld | in flight |
 
 Verified against production, not just against `main`: `/docs/validation` serves increment 7's
 sentinel paragraph, `/docs/methods` serves increment 9's canopy-mass section, and increment 8's
