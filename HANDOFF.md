@@ -155,7 +155,7 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
   assertions) but the reverse — editing a fix and re-running e2e without rebuilding — would report
   green on code that was never served. Rebuild before every e2e run you intend to believe.
 
-## This run — twelve increments, eleven merged and deployed, one on PR #162
+## This run — thirteen increments, twelve merged and deployed, one on PR #163
 
 | # | what | where |
 |---|---|---|
@@ -170,7 +170,8 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
 | 9 | R12/8 — a canopy can be given the mass it was weighed at | merged `2d66012` |
 | 10 | The linter runs the 61 rules everyone assumed it was running | merged `43dae0f` |
 | 11 | P/row 31 — the airframe stays on screen while you work in another workspace | merged `f98a59f` |
-| 12 | R12/9 — the internal structure takes a weighed mass, on the slot with the largest gap | PR #162 |
+| 12 | R12/9 — the internal structure takes a weighed mass, on the slot with the largest gap | merged `a1428b1` |
+| 13 | The identify line says where a mass came from — the last surface that did not | PR #163 |
 
 Verified against production, not just against `main`: `/docs/validation` serves increment 7's
 sentinel paragraph, `/docs/methods` serves increment 9's canopy-mass section, and increment 8's
