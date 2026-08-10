@@ -49,3 +49,28 @@ export function toTsv(rows: CsvCell[][]): string {
   };
   return rows.map((row) => row.map(cell).join("\t")).join("\n");
 }
+
+/** A displayed quantity as a CSV cell: the digits, without the thousands separator and without the
+ *  unit — and the header that has to travel with it.
+ *
+ *  **Derived from the SAME `Quantity` the cell renders, and that is the point rather than tidiness.**
+ *  A column whose export converts separately from its cell has two sources of truth for one number,
+ *  and they drift the moment one of them learns about a unit toggle. Measured 2026-08-11: the parts
+ *  table rendered `d.lengthMm(xFore, units)` on screen and exported `xFore * 1000` — so in Imperial a
+ *  flyer read *12.8 in* and pasted *323.8* into a build sheet, 25.4x off, under a header reading
+ *  `Station` with no unit anywhere in the file. The flight-phases table did the same with raw SI
+ *  altitude and speed. Taking both from one call makes that class of drift unrepresentable.
+ *
+ *  The unit moves to the HEADER because a CSV cell cannot be both a number a spreadsheet will sum and
+ *  a string carrying its unit — which is what `Column.csvLabel` already exists for, and what
+ *  `PartPicker` had been doing by hand all along. */
+export function csvQuantity(q: { value: string; unit: string }): CsvCell {
+  const n = Number(q.value.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : "";
+}
+
+/** `Station` + `mm` → `Station (mm)`. The unit is read off the quantity the column actually renders,
+ *  so a header cannot name a unit the cells are not in. A unitless quantity keeps its bare label. */
+export function csvHeader(label: string, q: { unit: string }): string {
+  return q.unit ? `${label} (${q.unit})` : label;
+}

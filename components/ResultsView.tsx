@@ -32,7 +32,7 @@ import MonteCarlo from "./MonteCarlo";
 import MassBreakdown from "./MassBreakdown";
 import GeometryInspector from "./GeometryInspector";
 import DownloadCsv from "./DownloadCsv";
-import type { CsvCell } from "@/lib/csv";
+import { csvQuantity, type CsvCell } from "@/lib/csv";
 import { parseFlightLog, type FlightLogPoint, type FlightLogSpeedPoint, type LogUnit, type LogSpeedUnit } from "@/lib/flightlog";
 import { mToFt, ftToM, mpsToFtps, ftpsToMps, mphToMps, KMH_PER_MPS, kgToLb } from "@/lib/units";
 import * as d from "@/lib/display";
@@ -2237,8 +2237,9 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
             cell: (r) => <span className="font-sans text-zinc-700 dark:text-zinc-200">{r.attached.join(" + ")}</span>,
             csv: (r) => r.attached.join(" + "),
           },
-          { key: "from", label: "From", cell: (r) => d.q(d.seconds(r.from)), csv: (r) => r.from },
-          { key: "to", label: "To", cell: (r) => d.q(d.seconds(r.to)), csv: (r) => r.to },
+          // Seconds in both systems, but a bare `From` still leaves a spreadsheet guessing.
+          { key: "from", label: "From", cell: (r) => d.q(d.seconds(r.from)), csvLabel: "From (s)", csv: (r) => r.from },
+          { key: "to", label: "To", cell: (r) => d.q(d.seconds(r.to)), csvLabel: "To (s)", csv: (r) => r.to },
           {
             key: "burnout",
             label: "Burnout",
@@ -2282,7 +2283,11 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
               ) : (
                 <span className="font-sans text-zinc-500 dark:text-zinc-400">not logged</span>
               ),
-            csv: (r) => (r.altitude !== undefined ? r.altitude : "not logged"),
+            // The unit travels in the header and the number comes from the SAME quantity the cell
+            // renders — it used to export the raw SI double under a bare `Altitude`, so a copied
+            // table read 62.34362601207104 where the cell said 205 ft.
+            csvLabel: `Altitude (${d.altitude(0, units).unit})`,
+            csv: (r) => (r.altitude !== undefined ? csvQuantity(d.altitude(r.altitude, units)) : "not logged"),
           },
           {
             key: "velocity",
@@ -2293,7 +2298,8 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
               ) : (
                 <span className="font-sans text-zinc-500 dark:text-zinc-400">not logged</span>
               ),
-            csv: (r) => (r.velocity !== undefined ? r.velocity : "not logged"),
+            csvLabel: `Speed (${d.speed(0, units).unit})`,
+            csv: (r) => (r.velocity !== undefined ? csvQuantity(d.speed(r.velocity, units)) : "not logged"),
           },
         ]}
       />

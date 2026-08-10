@@ -8,6 +8,7 @@ import { massSource, massSourceLabel } from "@/lib/mass-provenance";
 import type { MotorMark } from "@/lib/sim/setup";
 import { mouldLineStep, internalSpanLabel, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { csvQuantity } from "@/lib/csv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import type { CatalogPart } from "@/lib/components/db";
@@ -146,7 +147,12 @@ const PART_COLUMNS = (
     label: "Station",
     sortValue: ({ p }) => p.xFore,
     cell: ({ p }) => d.q(d.lengthMm(p.xFore, units)),
-    csv: ({ p }) => Math.round(p.xFore * 1000 * 10) / 10,
+    // **The export takes the SAME quantity the cell renders, and the unit travels in the header.**
+    // It used to compute its own `xFore * 1000`, which is millimetres whatever the toggle says — so
+    // in Imperial the screen read 12.8 in and the copied row said 323.8, 25.4x off, under a bare
+    // `Station`. A build sheet is exactly the surface a flyer acts on from.
+    csvLabel: d.lengthMm(0, units).unit ? `Station (${d.lengthMm(0, units).unit})` : "Station",
+    csv: ({ p }) => csvQuantity(d.lengthMm(p.xFore, units)),
   },
   {
     key: "mass",
@@ -178,11 +184,14 @@ const PART_COLUMNS = (
         </span>
       );
     },
+    // Kilograms whatever the toggle said, under a bare `Mass`, while the cell rendered pounds — the
+    // same drift as `Station` above and from the same cause, two sources of truth for one number.
+    csvLabel: `Mass (${d.mass(0, units).unit})`,
     csv: ({ p }) => {
       const m = masses.get(p.component.id);
       // The screen says "in <assembly>" where a part's mass is counted elsewhere; the export says the
       // same thing rather than a 0 that would silently sum wrong in a spreadsheet.
-      return !m ? "" : m.subsumedBy ? `in ${m.subsumedBy}` : Math.round(m.mass * 1e6) / 1e6;
+      return !m ? "" : m.subsumedBy ? `in ${m.subsumedBy}` : csvQuantity(d.mass(m.mass, units));
     },
   },
   {
