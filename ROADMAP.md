@@ -5115,6 +5115,18 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-08-10 — the persistent airframe strip is a DESKTOP affordance, and the phone keeps its
+  screens.** Driven at 390x664 the strip put the sweep's first answer 2.13 screens down, past
+  `DESIGN.md`'s two-screen rule. **Taken: `hidden sm:block`.** On a phone vertical space is the
+  scarce resource and persistent chrome spends it on every route at once; the drawing stays one tap
+  away on `/design`, which is the trade the two-screen rule exists to make, and every tool
+  `COMPETITION.md` row 31 cites keeps its rocket view in a desktop window. **Rejected: shrink it
+  until the phone fits** — the budget was already at 72 px, and below that the drawing stops being
+  legible as a rocket, so it would cost the phone its screens AND deliver a smear. **Rejected: ship
+  it everywhere and move the phone cap** — that cap guards the two-screen rule, and moving it to
+  admit a regression is what a ratchet exists to prevent. The desktop cap DID move (820 → 920), with
+  the measurement in `e2e/depth.spec.ts`, because there the strip costs depth the desktop can pay.
+
 - **2026-08-10 — the mass override ships on the PARACHUTE slot first, and sets the canopy's own
   `mass` rather than `overrideMass`.** Two choices, both forced by structure rather than taste.
   **Taken: parachute first.** `aimEditsAt` returns the FIRST matching slot and a green test forbids

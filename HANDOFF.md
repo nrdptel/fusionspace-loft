@@ -14,10 +14,13 @@ Where they stand:
   every field a slot aims must be listed in that condition or the applier silently falls back to
   "the primary part", which is right on a one-of-a-kind design and wrong the moment there are two.
   That bug was live in increment 9 until a pre-push read of the diff.
-- **P-track: P13's `done when` is met.** `ROADMAP.md`'s own decision entry says the next P pick is
-  the persistent airframe strip (`COMPETITION.md` row 31) unless a note says otherwise, and no note
-  does. Widening the shared `DESIGN.md` digest to §1, §2, §3 and §11 is the cheaper alternative and
-  is now a routine change.
+- **P-track: P13 is met and the airframe strip (`COMPETITION.md` row 31) shipped on desktop.** The
+  next P pick is open. Widening the shared `DESIGN.md` digest to §1, §2, §3 and §11 is the cheapest
+  real candidate and is now a routine change. **The strip left one thing genuinely undone and it is
+  worth doing properly rather than quietly:** a phone gets no persistent drawing at all, because at
+  390x664 it costs the sweep's answer its second screen. That is the right call today and it is not
+  the end state — a phone-shaped answer (a collapsed rail that expands, or the drawing docked to the
+  spine itself) is a design question nobody has scoped.
 
 **Three things this run learned that are worth more than any one of its increments:**
 
@@ -149,7 +152,7 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
   assertions) but the reverse — editing a fix and re-running e2e without rebuilding — would report
   green on code that was never served. Rebuild before every e2e run you intend to believe.
 
-## This run — ten increments, all merged and all deployed
+## This run — eleven increments, ten merged and deployed, one on PR #161
 
 | # | what | where |
 |---|---|---|
@@ -163,6 +166,7 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
 | 8 | A flight log's unit says whether the file named it or Loft guessed | merged `a8e5df7` |
 | 9 | R12/8 — a canopy can be given the mass it was weighed at | merged `2d66012` |
 | 10 | The linter runs the 61 rules everyone assumed it was running | merged `43dae0f` |
+| 11 | P/row 31 — the airframe stays on screen while you work in another workspace | PR #161 |
 
 Verified against production, not just against `main`: `/docs/validation` serves increment 7's
 sentinel paragraph, `/docs/methods` serves increment 9's canopy-mass section, and increment 8's

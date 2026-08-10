@@ -63,6 +63,13 @@ const MARGIN_SURFACES: Record<string, string> = {
     "the Loft-vs-RocketPy comparison row — its caller in ResultsView gates the whole panel on " +
     "`run.motorsComplete` and says why in a comment; this was the surface that got it RIGHT first, " +
     "and the two fixed on 2026-08-08 are the ones that did not copy it",
+  "components/AirframeStrip.tsx":
+    "the persistent strip above the workspace spine — it is a thin wrapper over RocketDiagram and " +
+    "passes `marginCal` straight through, and its caller in ResultsView gates it on " +
+    "`run.motorsComplete` with the same expression the full diagram's caller uses. Registered " +
+    "separately from RocketDiagram because it is a second CALLER of it: the gating that makes the " +
+    "figure honest lives at the call site, so a new call site is a new surface to check even when " +
+    "the drawing code is shared",
   "components/RocketDiagram.tsx":
     "the CG/CP marks and the drawing's accessible name — it takes `marginCal` as an optional prop and " +
     "renders nothing when it is absent, and GeometryInspector's caller passes it only under " +

@@ -18,6 +18,25 @@ big for one pass. Newest first.
 
 **Filed 2026-08-10, from run 10 — the sentinel gate on the validation table.**
 
+- **FIXED 2026-08-10 — a diagram drag inverted itself when the page was scrolled, and it had been
+  wrong for the life of the feature.** The drawing changes HEIGHT as it is dragged, and when its top
+  edge is above the viewport the browser's scroll anchoring compensates by moving the page — the grip
+  slides out from under the finger and the mapping reads a station the finger never visited. Measured
+  at 1440x900 on the bundled 38 mm design: from scrollY 484 a 30 px pull UP on the body wall, which
+  must WIDEN it, scrolled the page to 786 and took the caliber **38 mm to 10 mm** — the clamp floor,
+  the exact opposite of the gesture. Suppressing anchoring on the scroll root for the life of the
+  drag holds the page still and gives **205 mm**. **Nothing in the drag maths was wrong; the page
+  moved underneath it.** Fixed as a `useHeldScroll` effect covering BOTH gesture paths — the resize
+  grips and the carry — because they are one class of defect and fixing only the one a test happened
+  to catch would leave the other waiting for a scroll position nobody had driven. An effect rather
+  than an imperative set at pointerdown: `react-hooks/immutability` refused the direct mutation, and
+  it was right to — the effect restores the previous value on cleanup, so two overlapping gestures
+  cannot leave anchoring switched off. **Why it survived every green gate:** every scroll
+  position the suite dragged from happened to have the diagram's top on screen, so the one state that
+  breaks was never driven. The airframe strip pushed `/design` down far enough that it was — a defect
+  the increment REVEALED rather than caused, which is the second time this run that a change's real
+  value was exposing something older than itself.
+
 - **RESOLVED 2026-08-10, same run it was filed — and the whole recommended set was off, not one
   rule.** `eslint-config-next` brings React, hooks and Next rules and does not extend
   `js.configs.recommended`, so **61 checks** for plain JavaScript mistakes had been off for the life
