@@ -191,6 +191,7 @@ export const EDIT_ACTIONS: Readonly<Record<string, string>> = {
   // Recovery
   mainParachuteDiameter: "the parachute size",
   parachuteCd: "the canopy drag coefficient",
+  parachuteMass: "the canopy mass",
   mainDeployAltitude: "the main deployment altitude",
   drogueDiameter: "the drogue size",
   recoveryCdScale: "the recovery drag",

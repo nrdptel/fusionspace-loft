@@ -3901,6 +3901,55 @@ test.describe("Loft", () => {
     ).toBeVisible();
   });
 
+  /** R12's mass override, driven the way a flyer would: weigh the canopy, type it, fly it.
+   *
+   *  Loft derives a canopy's mass from its diameter and a surface density, so it cannot see line, a
+   *  swivel or a deployment bag. 22 of the corpus's 64 `<overridemass>` elements sit on parachutes —
+   *  more than on any other kind — and Loft has read that element since the first importer while
+   *  offering no way to write one. */
+  test("a canopy can be given the mass it was weighed at, and the design says whose figure it is", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    const mass = page.getByRole("spinbutton", { name: /Canopy mass/ });
+    await expect(mass, "the canopy's mass is not editable").toBeVisible();
+    // Starts from the design's own figure as a placeholder, so a flyer sees what they are overruling
+    // rather than an empty box beside a number nobody can see.
+    const design = parseFloat((await mass.getAttribute("placeholder")) ?? "0");
+    expect(design).toBeGreaterThan(0);
+    // And it says the estimate is Loft's — the case this control exists for.
+    await expect(page.getByText(/Loft's estimate from the canopy's diameter/)).toBeVisible();
+
+    // A heavier canopy is dead weight the motor lifts: apogee falls. A direction, not a figure.
+    const apogee = async () => {
+      const txt = await page
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div[1]")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    await page.getByRole("link", { name: "Flight" }).click();
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await mass.fill(String(design + 500)); // +500 g on a 38 mm rocket is a lot of canopy
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 15_000 }).toBeLessThan(before);
+
+    // And the surface attributes the flown figure to the flyer rather than to Loft or the file.
+    await page.getByRole("link", { name: "Design" }).click();
+    await expect(
+      page.getByText(/your own figure, typed here/),
+      "the flown canopy mass is the flyer's and the panel still attributes it elsewhere",
+    ).toBeVisible();
+    await expect(page.getByText(/Loft's estimate from the canopy's diameter/)).toHaveCount(0);
+  });
+
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

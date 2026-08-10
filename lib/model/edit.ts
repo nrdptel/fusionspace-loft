@@ -850,6 +850,18 @@ export interface GeometryEdits {
    *  Bounded by the applier rather than trusted: a coefficient of zero is a canopy that is not
    *  there, and a negative one is thrust. */
   parachuteCd?: number;
+  /** The aimed canopy's mass (kg) as the flyer weighed it — the first edit in this bag whose job is
+   *  to overrule a figure rather than to change a dimension.
+   *
+   *  Loft derives a canopy's mass from its diameter and a surface density, and a real canopy comes
+   *  with line, a swivel and a deployment bag that no diameter can see. 22 of the corpus's 64
+   *  `<overridemass>` elements sit on parachutes — more than any other kind — so this is the field
+   *  designers reach for most and the one Loft could read and never write.
+   *
+   *  **0 is a value, not an absence**, unlike every dimension in this bag: a canopy weighed at
+   *  nothing worth counting is a real answer, and the empty FIELD is what means "leave it alone".
+   *  The applier guards on finite-and-not-negative for that reason. */
+  parachuteMass?: number;
   /** Number of motors the mount holds (≥ 1). Flown as this many identical coaxial motors — N× the
    *  thrust and motor mass — so it answers "what would clustering buy?" A cluster is set on every
    *  motor mount in the design (a from-scratch or single-stage design has one); 1 flies a single
@@ -1000,6 +1012,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
       e.drogueDiameter !== undefined && e.drogueDiameter > 0) ||
     (e.mainParachuteDiameter !== undefined && e.mainParachuteDiameter > 0) ||
     (e.parachuteCd !== undefined && e.parachuteCd > 0) ||
+    (e.parachuteMass !== undefined && e.parachuteMass >= 0) ||
     (e.motorClusterCount !== undefined && e.motorClusterCount >= 1) ||
     (e.payloadMassKg !== undefined && e.payloadMassKg > 0)
   );
@@ -1287,6 +1300,7 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
       "drogueDiameter",
       "catalogParachute",
       "parachuteCd",
+      "parachuteMass",
     ],
   },
   // Five kinds, one slot, because they are one shape in `types.ts` — see `internalId`'s own docblock
@@ -2827,6 +2841,33 @@ function withParachuteCd(rocket: Rocket, cd: number, selectedId?: string): Rocke
   return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: transform(s.components) })) };
 }
 
+/** Set the aimed canopy's MASS to a figure the flyer states — the weighed number, replacing whatever
+ *  Loft, the file or a catalogue said.
+ *
+ *  **This is the first edit whose whole purpose is to overrule a computed figure**, which is why it
+ *  moves `massFrom` the way `withParachuteCd` moves `cdFrom`. A mass a flyer typed is not the file's
+ *  stated weight and not the source tool's computation, and leaving the provenance alone would have
+ *  left the parts table captioning a hand-typed number "stated by the design" — the same wrongness
+ *  `massFrom` exists to prevent, arriving from the other direction.
+ *
+ *  0 is a real answer and is NOT treated as "unset": a canopy can genuinely be weighed at nothing
+ *  worth counting, and the field's own empty state is what means "leave it alone". So this guards on
+ *  finite-and-not-negative rather than on `> 0`, unlike the diameter beside it, where 0 is not a
+ *  canopy at all. */
+function withParachuteMass(rocket: Rocket, mass: number, selectedId?: string): Rocket {
+  const main = primaryParachute(rocket, selectedId);
+  if (!main || !Number.isFinite(mass) || mass < 0) return rocket;
+  const transform = (list: RocketComponent[]): RocketComponent[] =>
+    list.map((c) => {
+      const children = transform(c.children);
+      if (c.id === main.id) {
+        return { ...(c as Parachute), mass, massFrom: "flyer" as const, children };
+      }
+      return children === c.children ? c : { ...c, children };
+    });
+  return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: transform(s.components) })) };
+}
+
 function withMainParachuteDiameter(rocket: Rocket, diameter: number, selectedId?: string): Rocket {
   const main = primaryParachute(rocket, selectedId);
   if (!main || !(diameter > 0)) return rocket;
@@ -4065,7 +4106,13 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     chutePick ||
     edits.mainParachuteDiameter !== undefined ||
     edits.mainDeployAltitude !== undefined ||
-    edits.parachuteCd !== undefined
+    edits.parachuteCd !== undefined ||
+    // Every field aimed by `parachuteId` has to be listed here, and a new one is easy to miss: left
+    // out, `withParachuteMass` gets `undefined` for its aim and falls back to "the largest canopy",
+    // so a flyer who selected the DROGUE and typed only a weight would weigh the main instead — the
+    // mirror image of the resize defect this whole block exists to prevent. The two-canopy case
+    // below covers it; the single-canopy starter cannot, because the fallback is right there.
+    edits.parachuteMass !== undefined
       ? primaryParachute(rocket, edits.parachuteId)?.id
       : undefined;
   // Recovery PICK: a real commercial canopy, applied BEFORE the resize below, because the two compose
@@ -4092,6 +4139,14 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // than being silently discarded by it.
   if (edits.parachuteCd !== undefined && edits.parachuteCd > 0) {
     out = withParachuteCd(out, edits.parachuteCd, chuteTargetId);
+  }
+  // Recovery mass: the canopy's weighed mass, on that same aimed canopy. **After the resize, and
+  // that order is load-bearing rather than tidy** — `withMainParachuteDiameter` SCALES the canopy's
+  // mass by (new/old)², which is right for a canopy Loft is estimating and wrong for one the flyer
+  // put on a scale. Applied last, a typed mass is the final word; applied first, resizing would
+  // quietly multiply the flyer's own measurement.
+  if (edits.parachuteMass !== undefined && edits.parachuteMass >= 0) {
+    out = withParachuteMass(out, edits.parachuteMass, chuteTargetId);
   }
   // Recovery add: convert to dual-deploy (main at altitude + a drogue at apogee), on that same canopy.
   if (edits.mainDeployAltitude !== undefined && edits.drogueDiameter !== undefined) {

@@ -107,7 +107,7 @@ import {
   EMPTY_HISTORY,
   type History,
 } from "@/lib/model/history";
-import type { Material, SurfaceFinish, NoseShape, FinCrossSection, CdProvenance } from "@/lib/model/types";
+import type { Material, SurfaceFinish, NoseShape, FinCrossSection, CdProvenance, MassProvenance } from "@/lib/model/types";
 import type { CatalogPart } from "@/lib/components/db";
 import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption,
   bakeMotorSwap,
@@ -263,6 +263,7 @@ interface Edits {
   drogueDiameter?: number; // builder edit: dual-deploy — drogue diameter (m) added at apogee
   mainParachuteDiameter?: number; // builder edit: resize the main (largest) parachute (m)
   parachuteCd?: number; // builder edit: the aimed canopy's drag coefficient
+  parachuteMass?: number; // builder edit: the aimed canopy's mass, as the flyer weighed it
   motorClusterCount?: number; // builder edit: how many motors the mount holds (cluster)
   payloadMassKg?: number; // builder edit: add a payload/av-bay point mass (kg)
   payloadStation?: number; // builder edit: where the added payload sits (m from nose; blank = mid-body)
@@ -1781,6 +1782,12 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             // The coefficient and its origin, read off the SAME canopy the diameter is — R9's gap:
             // it is the one input in the recovery chain that sets landing speed and landing energy,
             // and it was on no surface in the app at all.
+            // The canopy's mass and where it came from, off that SAME canopy. Read back so the
+            // field shows what it is overruling rather than an empty box beside a number nobody
+            // can see: Loft derives this from diameter and a surface density, and the flyer's
+            // scale knows about line, swivel and bag that no diameter can.
+            mainParachuteMass: primaryParachute(designBase, edits.parachuteId)?.mass,
+            mainParachuteMassFrom: primaryParachute(designBase, edits.parachuteId)?.massFrom,
             mainParachuteCd: primaryParachute(designBase, edits.parachuteId)?.cd,
             mainParachuteCdFrom: primaryParachute(designBase, edits.parachuteId)?.cdFrom,
             parachutePart: primaryParachutePart(designBase, edits.parachuteId),
@@ -1839,6 +1846,8 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             finish: undefined,
             airframeMaterial: undefined,
             mainParachuteDiameter: undefined,
+            mainParachuteMass: undefined,
+            mainParachuteMassFrom: undefined,
             mainParachuteCd: undefined,
             mainParachuteCdFrom: undefined,
             parachutePart: undefined,
@@ -2378,12 +2387,37 @@ function cdOriginPhrase(from: CdProvenance | undefined): string {
       return "Loft's fallback, because the file states none";
     case "loft":
       return "Loft's own, for a canopy authored here";
-    case "flyer":
-      return "your own figure";
+    // One `case "flyer"` — there were two, the second unreachable and shipped that way. Harmless in
+    // behaviour (the first wins) and not harmless as a signal: `no-duplicate-case` is not on in this
+    // repo's eslint config, so nothing said so. Filed in `BACKLOG.md`.
     case "flyer":
       return "your own figure, typed here";
     default:
       return "origin not recorded";
+  }
+}
+
+/** Where a canopy's MASS came from, in the flyer's words — the mass twin of `cdOriginPhrase`.
+ *
+ *  Deliberately NOT the same sentences as the parts table's `massSourceLabel`. That surface is a
+ *  column in a dense table and answers "which kind of figure is this" in two words; this one is a
+ *  sentence under a control the flyer is about to type into, and answers "whose number am I
+ *  overruling". `MassProvenance`'s three cases are the same three either way.
+ *
+ *  `undefined` means Loft derived it from the canopy's diameter and a surface density — the case
+ *  this control exists for, because that estimate cannot see line, swivel or bag. It says so
+ *  outright rather than staying silent, since a mass with no stated origin is exactly the one a
+ *  flyer should feel free to replace. */
+function massOriginPhrase(from: MassProvenance | undefined): string {
+  switch (from) {
+    case "stated":
+      return "the weight the design file states";
+    case "tool":
+      return "the source tool's own computation, carried across";
+    case "flyer":
+      return "your own figure, typed here";
+    default:
+      return "Loft's estimate from the canopy's diameter, which cannot see line, swivel or bag";
   }
 }
 
@@ -2527,6 +2561,8 @@ function DesignEditor({
     finish?: SurfaceFinish;
     airframeMaterial?: string;
     mainParachuteDiameter?: number;
+    mainParachuteMass?: number;
+    mainParachuteMassFrom?: MassProvenance;
     mainParachuteCd?: number;
     mainParachuteCdFrom?: CdProvenance;
     parachutePart?: AimedPart;
@@ -3418,6 +3454,28 @@ function DesignEditor({
                         onEdit({ parachuteCd: n !== undefined && n > 0 ? n : undefined });
                       }}
                     />
+                    {/* **The mass override, and the first control in Loft whose job is to overrule a
+                        computed figure rather than to change a dimension.** Loft derives a canopy's
+                        mass from its diameter and a surface density; a real canopy arrives with
+                        line, a swivel and a deployment bag that no diameter can see, which is why
+                        22 of the corpus's 64 `<overridemass>` elements sit on parachutes — more
+                        than on any other kind. Loft has read that element since the first importer
+                        and had no way to write one.
+
+                        `>= 0` rather than `> 0`, unlike every dimension on this surface: a canopy
+                        weighed at nothing worth counting is a real answer, and the EMPTY field is
+                        what means "leave it alone". Typing 0 is the flyer saying something. */}
+                    <NumberField
+                      label={`Canopy mass (${massU})`}
+                      value={toDispMass(edits.parachuteMass)}
+                      placeholder={toDispMass(designDims.mainParachuteMass)}
+                      min={0}
+                      hint="What the canopy, its lines and its bag actually weigh — Loft estimates this from diameter alone."
+                      onChange={(v) => {
+                        const kg = fromMass(v);
+                        onEdit({ parachuteMass: kg !== undefined && kg >= 0 ? kg : undefined });
+                      }}
+                    />
                   </div>
                   <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
                     Flying{" "}
@@ -3430,6 +3488,24 @@ function DesignEditor({
                     )}
                     . A real canopy&apos;s coefficient is only known to about &plusmn;10&ndash;20%, so
                     trying the range says more than any single figure.{" "}
+                    {/* The mass and its source, in the same sentence and the same shape as the
+                        coefficient above it — `DESIGN.md` §6 requires a reference value to name its
+                        source, and this is now two reference values sharing one caption. Reads the
+                        provenance the model carries rather than re-deriving it, so a mass carried
+                        from the file cannot be captioned as Loft's own. */}
+                    {designDims.mainParachuteMass !== undefined && (
+                      <>
+                        Weighing{" "}
+                        <span className="font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
+                          {toDispMass(edits.parachuteMass ?? designDims.mainParachuteMass)}&nbsp;{massU}
+                        </span>{" "}
+                        —{" "}
+                        {massOriginPhrase(
+                          edits.parachuteMass !== undefined ? "flyer" : designDims.mainParachuteMassFrom,
+                        )}
+                        .{" "}
+                      </>
+                    )}
                     <Link
                       href="/docs/limitations"
                       className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400"
