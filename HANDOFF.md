@@ -4,8 +4,45 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**ONE OF THE TWO SEV-1 CANDIDATES IS REPRODUCED, FIXED AND SHIPPED. THE OTHER IS STILL A CLAIM, AND
-IT IS THE FIRST JOB.**
+**NOTHING IS IN FLIGHT. Ten increments merged and deployed, no open PR, no unreproduced Sev-1 —
+the first genuinely clean slate in several runs.** Start from `ROADMAP.md` and the two tracks.
+Where they stand:
+
+- **R-track: R12/8 shipped, and the next member is a copy of it.** The canopy has a mass override;
+  nose cone and body tube are the same five pieces (bag key, applier, aim-slot target, control,
+  undo label) against a different slot. **Read `chuteTargetId` in `applyDimensionEdits` first** —
+  every field a slot aims must be listed in that condition or the applier silently falls back to
+  "the primary part", which is right on a one-of-a-kind design and wrong the moment there are two.
+  That bug was live in increment 9 until a pre-push read of the diff.
+- **P-track: P13's `done when` is met.** `ROADMAP.md`'s own decision entry says the next P pick is
+  the persistent airframe strip (`COMPETITION.md` row 31) unless a note says otherwise, and no note
+  does. Widening the shared `DESIGN.md` digest to §1, §2, §3 and §11 is the cheaper alternative and
+  is now a routine change.
+
+**Three things this run learned that are worth more than any one of its increments:**
+
+1. **Ask whether a user can REACH a defect before scoping it.** The Sev-1 screen filed
+   `compare.ts`'s missing `landed` gate three times over eight days; it was right about the code
+   every time and never asked. Measured: 115 stored corpus runs, 6 unlanded, all 6 already gated by
+   `hasPropulsion`, and `LoftApp.tsx:533` withholds the comparison from any edited design — so the
+   edit needed to stop a flight landing is the edit that removes the comparison. **Meanwhile the
+   reachable defect was a third sentinel nobody had enumerated**: `deploymentVelocity` is 0 when
+   nothing opened, and a flight with nothing out lands fine, so it clears every gate the landing
+   pair trips. One unedited corpus file published *"RockSim 33.4 m/s · Loft 0.0 m/s · −100%"* and
+   reported that design's mean error as 48.74% where its comparable metrics disagree by 42.33%.
+   Compare the two candidates: one took an hour to disprove, the other a minute to confirm, and the
+   difference was one question.
+2. **A disabled check is indistinguishable from a passing one.** `eslint-config-next` never extended
+   ESLint's recommended set, so 61 rules were off for the life of the repo and a duplicate `case`
+   shipped. The bill for turning them on was two genuine errors. Assume nothing about a tool that
+   reports success — `lib/lint-config.test.ts` and `lib/design-doc.test.ts` exist for the same
+   reason.
+3. **Read your own diff before pushing, even on a green gate.** Two of this run's real findings came
+   from that pass and from nothing else: the canopy-aim bug above, and a comment I had written that
+   asserted the opposite of what a `<select>` actually does.
+
+<details>
+<summary>The two Sev-1 candidates in full, for anyone re-reading the ledger entries</summary>
 
 1. **RESOLVED — but not where the screen kept pointing, and that is the transferable part.** The
    Sev-1 screen filed `compare.ts`'s missing `landed` gate three times over eight days. Run 9 ruled
@@ -32,6 +69,7 @@ IT IS THE FIRST JOB.**
    other was reachable by construction and took a minute to confirm. Reachability is cheap to ask and
    it is the question that separates them.
 
+</details>
 
 **PR #155 AND #156 ARE BOTH MERGED.** #155 is live (`23659a5`, deploy confirmed by fetching
 `/docs/methods` on loft.fusionspace.co); #156 squashed to `4d1512f` after CI ran green on both jobs.
@@ -111,7 +149,7 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
   assertions) but the reverse — editing a fix and re-running e2e without rebuilding — would report
   green on code that was never served. Rebuild before every e2e run you intend to believe.
 
-## This run — ten increments, nine merged, one on PR #160
+## This run — ten increments, all merged and all deployed
 
 | # | what | where |
 |---|---|---|
@@ -124,7 +162,12 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
 | 7 | The validation table stops scoring a sentinel — one live row, and the headline error it moved | merged `d0c81cd` |
 | 8 | A flight log's unit says whether the file named it or Loft guessed | merged `a8e5df7` |
 | 9 | R12/8 — a canopy can be given the mass it was weighed at | merged `2d66012` |
-| 10 | The linter runs the 61 rules everyone assumed it was running | PR #160 |
+| 10 | The linter runs the 61 rules everyone assumed it was running | merged `43dae0f` |
+
+Verified against production, not just against `main`: `/docs/validation` serves increment 7's
+sentinel paragraph, `/docs/methods` serves increment 9's canopy-mass section, and increment 8's
+*"the file's header does not name a unit"* is present in the deployed JS chunk. Deploy fires on push
+to `main` and was confirmed by fetching the live site, not assumed from a green merge.
 
 **Increment 7 is the one to read if you read one.** It is the only one that came from *reproducing* a
 filed claim rather than from the queue, it overturned two of this repo's own prior conclusions (run
