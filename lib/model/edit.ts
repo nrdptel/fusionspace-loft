@@ -786,6 +786,20 @@ export interface GeometryEdits {
    *  diameter shrank underneath it reaches the model on the next visit. The model decides what the
    *  solver sees; it does not rely on the caller having been careful. Undefined leaves it. */
   internalInnerDiameter?: number;
+  /** The aimed internal part's mass (kg) as the flyer weighed it.
+   *
+   *  The canopy's twin, on the slot that covers the largest remaining population. Measured over the
+   *  35-design corpus by kind, counting every mass the design or its tool supplied rather than Loft:
+   *  the five kinds this one slot addresses carry **45** between them — 22 centring rings, 9 inner
+   *  tubes, 8 couplers, 3 bulkheads, 3 engine blocks — against 26 for the nose cone and 13 for the
+   *  body tube. One field, one slot, the biggest gap.
+   *
+   *  **Written to `overrideMass`, not to a `mass` field, and that is a real difference from the
+   *  canopy.** A parachute has a mass of its own that `lib/sim/mass.ts` reads directly; a ring has
+   *  none — its mass is computed from geometry and material every time — so the only way to state one
+   *  is the override `ComponentBase` already carries and both importers already read. `0` is a value
+   *  here for the same reason it is on the canopy: the empty FIELD means "leave it alone". */
+  internalMass?: number;
   /** Absolute mass (kg) of the fitting `fittingId` names. Undefined leaves it. */
   fittingMass?: number;
   /** Absolute length (m) of that fitting — a lug's or a button's axial extent, a shock cord's
@@ -998,6 +1012,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     // impossible entry is a bore at or above the outer diameter, and that is refused in the applier
     // rather than here — this predicate answers "did anything change", not "is it buildable".
     (e.internalInnerDiameter !== undefined && e.internalInnerDiameter >= 0) ||
+    (e.internalMass !== undefined && e.internalMass >= 0) ||
     (e.fittingMass !== undefined && e.fittingMass >= 0) ||
     (e.fittingLength !== undefined && e.fittingLength > 0) ||
     (e.fittingDiameter !== undefined && e.fittingDiameter > 0) ||
@@ -1309,7 +1324,7 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
   // of the same three fields as a coupler is.
   internalId: {
     kinds: ["tubecoupler", "centeringring", "bulkhead", "engineblock", "innertube"],
-    targets: ["internalLength", "internalOuterDiameter", "internalInnerDiameter"],
+    targets: ["internalLength", "internalOuterDiameter", "internalInnerDiameter", "internalMass"],
   },
   // The external fittings — one `MinorComponent` in `types.ts`, so one slot, on the same reasoning as
   // `internalId` above. **A `streamer` is deliberately NOT here**: it shares the recovery job with a
@@ -2315,7 +2330,7 @@ function internalGeometryEdit(
   rocket: Rocket,
   edits: GeometryEdits,
   radiusScale: number,
-): { id: string; length?: number; outerRadius?: number; innerRadius?: number } | undefined {
+): { id: string; length?: number; outerRadius?: number; innerRadius?: number; mass?: number } | undefined {
   const target = primaryInternalPart(rocket, edits.internalId);
   if (!target) return undefined;
   const { maxLength: hostLength, maxOuterDiameter } = internalPartBounds(rocket, edits.internalId);
@@ -2348,15 +2363,23 @@ function internalGeometryEdit(
     edits.internalInnerDiameter !== undefined && edits.internalInnerDiameter >= 0
       ? Math.min(edits.internalInnerDiameter / 2, outerFlown * INTERNAL_MAX_BORE_FRACTION)
       : undefined;
-  if (length === undefined && outerRadius === undefined && innerRadius === undefined) return undefined;
-  return { id: target.id, length, outerRadius, innerRadius };
+  // Unbounded, unlike the three dimensions above: a mass has no host to fit inside. It is the
+  // flyer's own measurement of a real part, and the only thing that could be wrong with it is a
+  // number that is not one.
+  const mass =
+    edits.internalMass !== undefined && Number.isFinite(edits.internalMass) && edits.internalMass >= 0
+      ? edits.internalMass
+      : undefined;
+  if (length === undefined && outerRadius === undefined && innerRadius === undefined && mass === undefined)
+    return undefined;
+  return { id: target.id, length, outerRadius, innerRadius, mass };
 }
 
 /** Apply that resolved edit to the one component it names. A bare setter — every bound was already
  *  taken in `internalGeometryEdit`, against the pristine tree. */
 function withInternalGeometry(
   c: RocketComponent,
-  e: { id: string; length?: number; outerRadius?: number; innerRadius?: number },
+  e: { id: string; length?: number; outerRadius?: number; innerRadius?: number; mass?: number },
 ): RocketComponent {
   if (c.id === e.id && (INTERNAL_KINDS.has(c.kind))) {
     const part = c as RingComponent | InnerTube;
@@ -2383,6 +2406,12 @@ function withInternalGeometry(
       // is cut in and the part KEEPS THE WALL THE DESIGN DREW. Leaving it would fly a part inside
       // out; taking the bore cap instead would silently turn a 2 mm-walled coupler into foil.
       innerRadius: bore,
+      // **A stated mass overrules the geometry above it, and says who stated it.** Written as
+      // `overrideMass` because these kinds have no mass field of their own — `lib/sim/mass.ts`
+      // computes them from the dimensions and the stock, and `overrideMass` is the one thing it
+      // honours over that. The provenance moves with the number for the same reason it does on the
+      // canopy: without it the parts table captions a hand-typed weight "stated by the design".
+      ...(e.mass !== undefined ? { overrideMass: e.mass, massFrom: "flyer" as const } : {}),
     } as RocketComponent;
   }
   if (!c.children.length) return c;

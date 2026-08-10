@@ -3950,6 +3950,47 @@ test.describe("Loft", () => {
     await expect(page.getByText(/Loft's estimate from the canopy's diameter/)).toHaveCount(0);
   });
 
+  /** R12/9. The mass override on the slot with the largest remaining gap.
+   *
+   *  Counted across the corpus by kind, the five kinds this one slot addresses carry 45 masses the
+   *  design or its own tool supplied rather than Loft — 22 centring rings, 9 inner tubes, 8 couplers,
+   *  3 bulkheads, 3 engine blocks — more than the nose cone and body tube together. A plywood ring
+   *  cut on somebody's bandsaw weighs what it weighs, not what its diameter and a book density say. */
+  test("an internal part can be given the mass it was weighed at", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    // Select an internal part in the parts table so the internal fieldset aims at it. The table sits
+    // behind a disclosure that is closed by default — the state a phone lands in — so open it the way
+    // the neighbouring cases do.
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const internalRow = partsTable
+      .locator("tr")
+      .filter({ has: page.locator('[data-kind="centeringring"], [data-kind="tubecoupler"], [data-kind="innertube"]') })
+      .first();
+    await expect(internalRow, "the starter carries no internal part to weigh").toBeVisible();
+    await internalRow.click();
+
+    const massField = page.locator("label").filter({ hasText: /^Part mass \(/ }).first().locator("input");
+    await expect(massField, "the internal part's mass is not editable").toBeVisible();
+    // The placeholder is what the part weighs TODAY — Loft's own figure from geometry and stock — so
+    // the flyer sees the number they are overruling rather than an empty box.
+    const computed = parseFloat((await massField.getAttribute("placeholder")) ?? "0");
+    expect(computed).toBeGreaterThan(0);
+
+    // A weighed figure reaches the model AND says whose it is. The parts table is the surface that
+    // answers "did Loft read my rocket right", so it is the one that has to agree — a mass the flyer
+    // typed must not read there as one the design stated.
+    await massField.fill(String(computed + 200));
+    const row = internalRow;
+    await expect
+      .poll(async () => (await row.innerText()).replace(/\s+/g, " "), { timeout: 20000 })
+      .toMatch(/the figure you set/);
+  });
+
   /** **A drag must mean the same thing wherever the page happens to be scrolled to.**
    *
    *  The drawing changes height as it is dragged, and when its top edge is above the viewport the

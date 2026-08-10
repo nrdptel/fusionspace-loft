@@ -172,6 +172,7 @@ export default function Methods() {
         pitch inertia is the sum of each part&apos;s own inertia plus a parallel-axis term.
         Propellant burns off over the flight, so mass and CG are time-varying.
       </p>
+      <DocsH3>Weighing a part yourself</DocsH3>
       <p>
         <strong>You can put your own weight on a canopy.</strong>{" "}
         The mass Loft computes for a parachute comes from its area and an areal density, which is a
@@ -185,6 +186,18 @@ export default function Methods() {
         22 of the 64 <code>&lt;overridemass&gt;</code>{" "}elements in the reference corpus sit on
         parachutes, more than on any other kind of part, and Loft could read them from the first
         importer while offering no way to write one.
+      </p>
+      <p>
+        <strong>The same field is on the internal structure</strong>{" "}&mdash; centring rings, tube
+        couplers, bulkheads, engine blocks and motor-mount tubes, which share one selection and one
+        set of controls. Counted across the reference corpus by kind, those five carry{" "}
+        <strong>45</strong>{" "}masses that the design or its own tool supplied rather than Loft
+        computing them, more than the nose cone and the body tube together &mdash; a plywood ring cut
+        on somebody&apos;s bandsaw weighs what it weighs, not what its diameter and a book density
+        say. Unlike the canopy, these parts have no weight of their own in the model at all: their
+        mass is derived from the geometry and the stock every time, so a figure you type is stored as
+        an explicit override, exactly as an <code>&lt;overridemass&gt;</code>{" "}from the file is,
+        and the parts table marks it as yours.
       </p>
       <DocsH3>Stated masses, and where they win</DocsH3>
       <p>

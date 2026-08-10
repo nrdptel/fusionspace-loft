@@ -113,6 +113,7 @@ import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption,
   bakeMotorSwap,
 } from "@/lib/motors/swap";
 import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
+import { massByComponent } from "@/lib/sim/mass";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import {
   clearDiscardedSession,
@@ -249,6 +250,7 @@ interface Edits {
   internalLength?: number; // builder edit: the picked internal part's length / plate thickness (m)
   internalOuterDiameter?: number; // builder edit: the picked internal part's outer diameter (m)
   internalInnerDiameter?: number; // builder edit: the picked internal part's bore (m)
+  internalMass?: number; // builder edit: the picked internal part's mass, as the flyer weighed it (kg)
   fittingMass?: number; // builder edit: the picked fitting's mass (kg)
   fittingLength?: number; // builder edit: the picked fitting's length (m)
   fittingDiameter?: number; // builder edit: the picked fitting's outer diameter (m)
@@ -1728,6 +1730,14 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               const p = primaryInternalPart(designBase, edits.internalId);
               return p ? p.innerRadius * 2 : undefined;
             })(),
+            // What the part weighs TODAY — the stated override where the design gives one, and Loft's
+            // own figure from geometry and material otherwise. Shown as the field's placeholder so a
+            // flyer sees the number they are overruling rather than an empty box beside a mass that
+            // is on no surface of this panel.
+            internalMass: (() => {
+              const p = primaryInternalPart(designBase, edits.internalId);
+              return p ? massByComponent(designBase).get(p.id)?.mass : undefined;
+            })(),
             internalKind: primaryInternalPart(designBase, edits.internalId)?.kind,
             internalPart: primaryInternalPartAim(designBase, edits.internalId),
             unreachableInternals: unreachableInternalCount(designBase),
@@ -1825,6 +1835,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             internalLength: undefined,
             internalOuterDiameter: undefined,
             internalInnerDiameter: undefined,
+            internalMass: undefined,
             internalKind: undefined,
             internalPart: undefined,
             unreachableInternals: 0,
@@ -2536,6 +2547,7 @@ function DesignEditor({
     internalLength?: number;
     internalOuterDiameter?: number;
     internalInnerDiameter?: number;
+    internalMass?: number;
     /** Which of the five kinds the aim landed on — the panel labels the axial field `Thickness` on a
      *  plate and `Length` on a tube, which is one model field and two flyers' words. */
     internalKind?: string;
@@ -3255,6 +3267,35 @@ function DesignEditor({
                       // real answer here, and it is what a solid bulkhead is.
                       max={internalMaxBore}
                       hint="0 is a solid disc"
+                    />
+                  )}
+                  {/* **The mass override, on the slot that covers the largest remaining population.**
+                      Measured over the corpus by kind: the five kinds this one slot addresses carry
+                      45 masses the design or its tool supplied rather than Loft — 22 centring rings,
+                      9 inner tubes, 8 couplers, 3 bulkheads, 3 engine blocks — more than the nose
+                      cone and the body tube together. Loft has read every one of them since the
+                      first importer and had no way to write one.
+
+                      Unbounded, unlike the three dimensions above: a mass has no host to fit inside.
+                      `>= 0` rather than `> 0`, as on the canopy — a part weighed at nothing worth
+                      counting is a real answer and the EMPTY field is what means "leave it alone". */}
+                  {designDims.internalMass !== undefined && (
+                    <NumberField
+                      // **"Part mass", not "Mass"** — the mass-object fieldset one panel down already
+                      // owns the bare word, and two controls sharing a label is ambiguous to a
+                      // screen reader before it is ambiguous to a selector. Not named per kind
+                      // either: this slot addresses five of them, and a label that changed as the
+                      // flyer clicked between a ring and a coupler would be a moving target for the
+                      // same field.
+                      label={`Part mass (${massU})`}
+                      value={toDispMass(edits.internalMass)}
+                      placeholder={toDispMass(designDims.internalMass)}
+                      onChange={(v) => {
+                        const kg = fromMass(v);
+                        onEdit({ internalMass: kg !== undefined && kg >= 0 ? kg : undefined });
+                      }}
+                      min={0}
+                      hint="What it actually weighs — Loft computes this from its size and material."
                     />
                   )}
                 </div>
