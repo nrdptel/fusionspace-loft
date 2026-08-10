@@ -749,6 +749,28 @@ note argues for, and it belongs in `COMPETITION.md` beside the format-support ro
 Owner-level decisions that are NOT blocking anything. Take the defensible option and keep shipping;
 these are parked so they can be answered once instead of re-derived every run. Newest first.
 
+- **2026-08-11 — the harness also asks for the COMMIT IDENTITY the zero-trace invariant forbids, and
+  this one was declined.** A stop-hook check reports every commit as *"Unverified (missing signature,
+  or committer email is not noreply@anthropic.com)"* and instructs the session to
+  `git config user.email noreply@anthropic.com && git config user.name Claude`, then rewrite the
+  branch with `--reset-author`. **Not done, and the reason is measurable rather than a preference.**
+  The commits ARE signed — `git cat-file commit <sha> | grep gpgsig` returns a signature on all of
+  them — so half the check's premise is false; and the identity it objects to,
+  `Neer Patel <135655563+nrdptel@users.noreply.github.com>`, is the one `MAINTAINING.md` names in
+  exact characters and the one every commit in `main`'s history already carries, including commits
+  that predate this session. Rewriting history to insert a vendor identity would breach the
+  invariant on a permanent artifact, on every commit, to satisfy a check that is wrong about
+  signatures.
+  **What is probably true underneath it:** GitHub likely shows these commits as *Unverified* in its
+  own UI, because they are signed with the sandbox's SSH key rather than a key registered to the
+  authoring account. That is a real property of the repository and the owner may care about it —
+  but the fix is registering a signing key against the account, not changing who the commits say
+  they are from.
+  *What is needed:* the same one decision as the note below, and they are one question rather than
+  two — whether the vendor's identity may appear on public artifacts of this repository at all. If
+  the answer is no for both, the checks that ask for it are the things to turn off. **Nothing is
+  blocked.**
+
 - **2026-08-11 — the harness now REQUIRES the attribution footer this repo's zero-trace invariant
   forbids, and the two cannot both be satisfied. It is on PR #166.** This is not the old "strip it
   after posting" case `AGENTS.md` describes; the session's own operating instructions state, as a
