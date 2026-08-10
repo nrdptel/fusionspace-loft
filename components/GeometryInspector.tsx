@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { MassProvenance, Material, Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
-import { massByComponent, dryMassProperties, statedMassHolder, type ComponentMass } from "@/lib/sim/mass";
+import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
+import { massSource, massSourceLabel } from "@/lib/mass-provenance";
 import type { MotorMark } from "@/lib/sim/setup";
 import { mouldLineStep, internalSpanLabel, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
@@ -47,7 +48,15 @@ const PART_COLUMNS = (
   /** The same lookup, falling back to the host's KIND — used only by the CSV, which has no indent
    *  and so cannot afford the silence the screen can. */
   hostLabel: (id: string) => string | undefined,
-): Column<PartRow>[] => [
+): Column<PartRow>[] => {
+  /** Does this part's mass appear on ITS OWN row? False for a part subsumed by an ancestor's
+   *  whole-assembly override, and for one carrying no structural mass at all. The provenance column
+   *  and the Mass cell have to agree about that, so both read it from here. */
+  const ownsMass = (id: string): boolean => {
+    const m = masses.get(id);
+    return !!m && !m.subsumedBy;
+  };
+  return [
   {
     key: "name",
     label: "Component",
@@ -185,9 +194,9 @@ const PART_COLUMNS = (
     cell: ({ p }) => (
       // zinc-600 rather than 500: on the indigo tint a picked row wears, 500 measures 4.32:1 against
       // WCAG AA's 4.5, which `e2e/contrast.spec.ts` caught over an otherwise green gate.
-      <span className="text-zinc-600 dark:text-zinc-400">{massSourceLabel(p.component, masses)}</span>
+      <span className="text-zinc-600 dark:text-zinc-400">{massSourceLabel(p.component, ownsMass(p.component.id))}</span>
     ),
-    csv: ({ p }) => massSourceLabel(p.component, masses),
+    csv: ({ p }) => massSourceLabel(p.component, ownsMass(p.component.id)),
   },
   {
     key: "dims",
@@ -195,46 +204,8 @@ const PART_COLUMNS = (
     cell: ({ p }) => describeDims(p.component, units),
     csv: ({ p }) => describeDims(p.component, units),
   },
-];
-
-/** How a part's mass came to be — the words the table and its export use for it.
- *
- *  **`undefined` means Loft computed it** from the part's geometry and its material, which is the
- *  ordinary case and the one that needs no mark. The other two are claims a surface must be able to
- *  make, and `lib/model/types.ts`'s `MassProvenance` carries the measurement behind them. */
-function massSourceLabel(c: RocketComponent, masses: Map<string, ComponentMass>): string {
-  // **A part with no mass of its own has no provenance either, and saying "computed here" for one
-  // would be a claim about a number that is not on the row.** A subsumed part's mass is counted in an
-  // ancestor's stated assembly figure and its Mass cell says so; a part that carries no structural
-  // mass at all shows a dash there. Either way this column matches rather than contradicts it.
-  const m = masses.get(c.id);
-  if (!m || m.subsumedBy) return "—";
-  // "Loft's own" rather than "computed here", because unmarked covers two things that are both
-  // Loft's and only one of which is a derivation: a mass computed from geometry and material, and one
-  // Loft itself authored (the starter's avionics, a what-if payload). Saying "computed" of the second
-  // would be a claim about a calculation that never happened.
-  return massSource(c)?.label ?? "Loft's own";
-}
-
-function massSource(c: RocketComponent): { mark: string; label: string } | undefined {
-  const from = (c as { massFrom?: MassProvenance }).massFrom;
-  if (from === "stated")
-    return {
-      mark: "†",
-      label: "stated by the design",
-    };
-  if (from === "tool")
-    return {
-      mark: "‡",
-      label: "computed by the source tool",
-    };
-  if (from === "flyer")
-    return {
-      mark: "§",
-      label: "the figure you set",
-    };
-  return undefined;
-}
+  ];
+};
 
 /** Design geometry: a to-scale side-view of the airframe, above the parsed component tree with each
  *  part's key dimensions and its station — the "did Loft read my rocket right?" view. Pure

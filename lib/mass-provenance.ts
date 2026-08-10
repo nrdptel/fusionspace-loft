@@ -1,0 +1,43 @@
+/** Where a part's mass came from, in the words every surface uses for it.
+ *
+ *  `MassProvenance` in `lib/model/types.ts` carries the fact; this carries the sentence. It lives on
+ *  its own because **three surfaces now answer the same question and they must answer it the same
+ *  way**: the parts table's *Mass from* column, the identify line under the drawing, and the mass &
+ *  balance breakdown. A describer local to one of them is a describer the other two cannot import —
+ *  which is exactly how the validation table came to publish a sentinel this same run while the
+ *  Flight card withheld it, and why `lib/sim/withheld.ts` exists for the same reason.
+ *
+ *  **`undefined` means Loft computed it** from the part's geometry and its material, which is the
+ *  ordinary case and the one that needs no mark. The other three are claims a surface must be able
+ *  to make and a flyer must be able to tell apart. */
+
+import type { MassProvenance, RocketComponent } from "./model/types";
+
+/** The mark and the words for a stated provenance, or `undefined` when the mass is Loft's own.
+ *
+ *  The MARK is for a dense table that can carry a key within reach of it — the parts table puts one
+ *  in its own caption. A surface with nowhere to put a key should use the label and not the mark: a
+ *  dagger with no legend says less than nothing, which is why the identify line spells it out. */
+export function massSource(c: RocketComponent): { mark: string; label: string } | undefined {
+  const from = (c as { massFrom?: MassProvenance }).massFrom;
+  if (from === "stated") return { mark: "†", label: "stated by the design" };
+  if (from === "tool") return { mark: "‡", label: "computed by the source tool" };
+  if (from === "flyer") return { mark: "§", label: "the figure you set" };
+  return undefined;
+}
+
+/** The words for a part whose mass IS on the row, including the unmarked case.
+ *
+ *  "Loft's own" rather than "computed here", because unmarked covers two things that are both Loft's
+ *  and only one of which is a derivation: a mass computed from geometry and material, and one Loft
+ *  itself authored (the starter's avionics, a what-if payload). Saying "computed" of the second would
+ *  be a claim about a calculation that never happened.
+ *
+ *  `hasOwnMass` is false for a part whose mass is counted somewhere else — one subsumed by an
+ *  ancestor's whole-assembly override, or one carrying no structural mass at all. **A part with no
+ *  mass of its own has no provenance either**, and saying "Loft's own" there would be a claim about a
+ *  number that is not on the row; the caller's own Mass cell already says where it went. */
+export function massSourceLabel(c: RocketComponent, hasOwnMass: boolean): string {
+  if (!hasOwnMass) return "—";
+  return massSource(c)?.label ?? "Loft's own";
+}

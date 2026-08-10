@@ -1,7 +1,9 @@
 "use client";
 
 import type { Rocket } from "@/lib/model/types";
-import { structurePointMasses, combine } from "@/lib/sim/mass";
+import { structurePointMasses, combine, type PointMass } from "@/lib/sim/mass";
+import { flattenRocket } from "@/lib/model/geometry";
+import { massSourceLabel } from "@/lib/mass-provenance";
 import { kgToLb, mToIn } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
@@ -47,20 +49,30 @@ export default function MassBreakdown({
   const total = combine(points);
   // Heaviest first — the parts that dominate the dry mass lead.
   const rows = [...points].sort((a, b) => b.mass - a.mass);
+  // One describer for all three mass surfaces — see `lib/mass-provenance.ts` for why it is not local
+  // to any of them. Every row here HAS its own mass by construction (that is what a point mass is),
+  // so the "counted elsewhere" case the parts table handles cannot arise; the one row without a
+  // component is the stage-level lump, which has no single part to attribute.
+  const byId = new Map(flattenRocket(rocket).map((p) => [p.component.id, p.component]));
+  const provenanceOf = (p: PointMass): string => {
+    const c = p.componentId ? byId.get(p.componentId) : undefined;
+    return c ? massSourceLabel(c, true) : "—";
+  };
 
   const massUnit = units === "imperial" ? "lb" : "kg";
   const lenUnit = units === "imperial" ? "in" : "mm";
   const toMass = (kg: number) => (units === "imperial" ? kgToLb(kg) : kg);
   const toLen = (m: number) => (units === "imperial" ? mToIn(m) : m * 1000);
   const csv: CsvCell[][] = [
-    ["Component", `Mass (${massUnit})`, "% dry", `CG from nose (${lenUnit})`],
+    ["Component", `Mass (${massUnit})`, "Mass from", "% dry", `CG from nose (${lenUnit})`],
     ...rows.map((p): CsvCell[] => [
       p.source,
       round(toMass(p.mass), 4),
+      provenanceOf(p),
       total.mass > 0 ? round((p.mass / total.mass) * 100, 1) : "",
       round(toLen(p.cg), 1),
     ]),
-    ["Dry total", round(toMass(total.mass), 4), 100, round(toLen(total.cg), 1)],
+    ["Dry total", round(toMass(total.mass), 4), "", 100, round(toLen(total.cg), 1)],
   ];
 
   return (
@@ -102,6 +114,23 @@ export default function MassBreakdown({
               cell: (p) => <span className="font-sans font-normal text-zinc-700 dark:text-zinc-200">{p.source}</span>,
             },
             { key: "mass", label: "Mass", sortValue: (p) => p.mass, cell: (p) => d.q(d.mass(p.mass, units)) },
+            {
+              // **The third surface to answer "whose number is this", and the last one that did not.**
+              // The parts table gained a *Mass from* column and the identify line gained the words;
+              // this panel is the one a flyer opens to decide WHERE the weight is, and it showed the
+              // same 108 stated and 60 tool-carried figures as bare numbers. `DESIGN.md` section 6
+              // requires a reference value to name its source, and a breakdown is nothing but
+              // reference values.
+              //
+              // A row with no `componentId` is the lumped mass of a stage-level override — it stands
+              // for a whole assembly rather than one part, so there is no single provenance to give
+              // and it says so with the same dash the parts table uses.
+              key: "massFrom",
+              label: "Mass from",
+              sortValue: (p) => provenanceOf(p),
+              cell: (p) => <span className="text-zinc-500 dark:text-zinc-400">{provenanceOf(p)}</span>,
+              csv: (p) => provenanceOf(p),
+            },
             {
               key: "pct",
               label: "% dry",
