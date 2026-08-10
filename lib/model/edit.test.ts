@@ -96,7 +96,7 @@ import type {
 import { overallLength, maxBodyRadius } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
-import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
+import { dryMassProperties, massByComponent, statedMassHolder, statesOwnAssemblyMass } from "../sim/mass";
 import { isUuidShaped } from "./id";
 import { exportOrk } from "../ork/export";
 import { defaultPayloadStation } from "./edit";
@@ -4742,22 +4742,59 @@ describe("applyGeometryEdits — the airframe's own stated weight", () => {
 
   it("weighs the tube alone, and never the assembly inside it", async () => {
     // A tube is the one kind whose children are the norm, and `overrideSubcomponents` is what would
-    // make a stated figure swallow them. Never set here: OpenRocket's Override tab defaults to the
-    // component alone, and the field says so. Measured over the corpus, 0 of the 27 nose-cone and
-    // body-tube overrides carry the flag, so nothing real is being preserved — but preserving it is
-    // still what "neither set nor cleared" has to mean.
+    // make a stated figure swallow them. Never SET here: OpenRocket's Override tab defaults to the
+    // component alone, and the field says so.
+    //
+    // **Rewritten after a pre-push review showed the first version pinned nothing.** It asserted
+    // `overrideSubcomponents` was `undefined` on a fixture whose tube never had one, and a dry mass
+    // "greater than 0.3" that the design already exceeded — so it passed with `bodyTubeMass`
+    // completely unimplemented. It now measures the SHIFT the edit causes, which cannot pass without
+    // the feature: the tube's own contribution moves to the stated figure and every child's mass is
+    // unchanged, so the design's total moves by exactly the difference.
     const rocket = await load("demo-single-deploy.ork");
     const tube = tubesOf(rocket)[0];
     expect(tube.children.length, "the fixture's tube must hold something").toBeGreaterThan(0);
-    const edited = applyGeometryEdits(rocket, { bodyTubeId: tube.id, bodyTubeMass: 0.3 });
+    const before = massByComponent(rocket);
+    const tubeWas = before.get(tube.id)!.mass;
+    const kidsWere = tube.children.map((c) => before.get(c.id)?.mass ?? 0);
+    const totalWas = dryMassProperties(rocket).mass;
+    expect(tubeWas, "the fixture's tube must weigh something to begin with").toBeGreaterThan(0);
+
+    const edited = applyGeometryEdits(rocket, { bodyTubeId: tube.id, bodyTubeMass: tubeWas + 0.25 });
     expect(partOf(edited, tube.id).overrideSubcomponents).toBeUndefined();
-    // Every child keeps a mass of its own rather than being subsumed into the stated figure.
-    const masses = massByComponent(edited);
-    for (const child of tube.children) {
-      expect(masses.get(child.id)?.subsumedBy, `${child.kind} must not be subsumed`).toBeUndefined();
-    }
-    // And the design weighs the stated tube PLUS what is inside it, not the stated tube alone.
-    expect(dryMassProperties(edited).mass).toBeGreaterThan(0.3);
+    const after = massByComponent(edited);
+    // The tube now weighs exactly what was stated — the assertion that fails without the feature.
+    expect(after.get(tube.id)!.mass).toBeCloseTo(tubeWas + 0.25, 9);
+    // Every child keeps its own mass, unchanged and unsubsumed.
+    tube.children.forEach((child, i) => {
+      expect(after.get(child.id)?.subsumedBy, `${child.kind} must not be subsumed`).toBeUndefined();
+      expect(after.get(child.id)?.mass ?? 0, `${child.kind} must keep its own mass`).toBeCloseTo(kidsWere[i], 9);
+    });
+    // So the design moved by the difference and by nothing else.
+    expect(dryMassProperties(edited).mass).toBeCloseTo(totalWas + 0.25, 6);
+  });
+
+  it("leaves a tube that states its OWN assembly weight covering that assembly", async () => {
+    // The case a pre-push review found on a BUNDLED fixture after the docblock had generalised a
+    // corpus-only measurement to "any real design". `demo-quirks.ork`'s "Upper" carries
+    // `overrideMass` WITH `overrideSubcomponents`, so its 600 g is the tube plus what is inside it.
+    // `statedMassHolder` answers only the ancestor question and reports nothing for such a part, so
+    // the field stays live — correctly, the flyer may restate that figure — and what the surface
+    // must not do is call it the tube alone.
+    const rocket = await load("demo-quirks.ork");
+    const upper = tubesOf(rocket).find(
+      (t) => (t as RocketComponent & { overrideSubcomponents?: boolean }).overrideSubcomponents,
+    );
+    expect(upper, "the fixture must carry a tube stating its own assembly weight").toBeTruthy();
+    expect(statedMassHolder(rocket, upper!.id), "nothing ABOVE it states its weight").toBeNull();
+    expect(statesOwnAssemblyMass(rocket, upper!.id), "but it states its own").toBe(true);
+    // The figure on the surface is the assembly's, which is why the sentence beside it had to change.
+    expect(massByComponent(rocket).get(upper!.id)!.mass).toBeCloseTo(0.6, 9);
+    expect(upper!.children.length, "and it really does hold parts").toBeGreaterThan(0);
+    // Restating it keeps the flag, so the number goes on meaning what it meant.
+    const edited = applyGeometryEdits(rocket, { bodyTubeId: upper!.id, bodyTubeMass: 0.8 });
+    expect(partOf(edited, upper!.id).overrideSubcomponents).toBe(true);
+    expect(massByComponent(edited).get(upper!.id)!.mass).toBeCloseTo(0.8, 9);
   });
 
   it("takes a weighed zero as an answer, and refuses a mass that cannot mean anything", async () => {

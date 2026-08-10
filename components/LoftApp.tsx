@@ -113,7 +113,7 @@ import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption,
   bakeMotorSwap,
 } from "@/lib/motors/swap";
 import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
-import { massByComponent, statedMassHolder } from "@/lib/sim/mass";
+import { massByComponent, statedMassHolder, statesOwnAssemblyMass } from "@/lib/sim/mass";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import {
   clearDiscardedSession,
@@ -1706,9 +1706,18 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             // `massByComponent` rather than off the component, so the placeholder shows exactly the
             // quantity the typed number replaces: on the rare part carrying a whole-assembly
             // override that map already holds the assembly's figure rather than the part's.
+            // **`?? NaN`, not `?.mass`, and that is the difference between reaching every design and
+            //  reaching 31 of 35.** `massByComponent` has an entry only for a part that produces a
+            //  structural point mass — a subsumed part gets `{mass: 0}`, but a part Loft computes NO
+            //  mass for gets no entry at all. All 4 RASAero designs in the corpus are that shape:
+            //  the format states one lumped launch weight and no per-part masses, so the nose and the
+            //  tube had no entry, the readback was `undefined`, and the control never rendered — on
+            //  precisely the designs where a flyer's own scale is the ONLY possible source. The field
+            //  renders whenever the PART exists; what it weighs today is a separate question, and
+            //  `NaN` is how "there is no figure to show you" reaches the placeholder below.
             noseMass: (() => {
               const n = primaryNose(designBase);
-              return n ? massByComponent(designBase).get(n.id)?.mass : undefined;
+              return n ? (massByComponent(designBase).get(n.id)?.mass ?? Number.NaN) : undefined;
             })(),
             /** **Where a part's weight is already counted, on every field that offers to state one.**
              *
@@ -1726,6 +1735,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
              *  docblock: a control that demonstrably does nothing must not look as though it does. */
             massCarriedBy: (() => {
               const of = (id?: string) => (id ? statedMassHolder(designBase, id) ?? undefined : undefined);
+              // **A part that states its OWN whole-assembly weight is the other case, and it is not
+              //  this one.** `statedMassHolder` answers only the ANCESTOR question by design, so a
+              //  tube carrying `overrideMass` + `overrideSubcomponents` itself reports no holder: the
+              //  field stays live, which is right — the flyer can restate that figure — but the
+              //  number it shows is the assembly's, so the hint saying "the tube on its own" was the
+              //  exact opposite of the truth. `fixtures/demo-quirks.ork`'s "Upper" is this shape
+              //  (600 g covering the tube, a coupler and a streamer), and it is one click from the
+              //  front door.
+              const covers = (id?: string) => (id ? statesOwnAssemblyMass(designBase, id) : false);
               return {
                 nose: of(primaryNose(designBase)?.id),
                 bodyTube: of(primaryBodyTube(designBase, edits.bodyTubeId)?.id),
@@ -1733,12 +1751,14 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
                 fitting: of(primaryFitting(designBase, edits.fittingId)?.id),
                 massObject: of(primaryMassObject(designBase, edits.massObjectId)?.id),
                 parachute: of(primaryParachute(designBase, edits.parachuteId)?.id),
+                noseCoversAssembly: covers(primaryNose(designBase)?.id),
+                bodyTubeCoversAssembly: covers(primaryBodyTube(designBase, edits.bodyTubeId)?.id),
               };
             })(),
             bodyLength: primaryBodyTube(designBase, edits.bodyTubeId)?.length,
             bodyTubeMass: (() => {
               const t = primaryBodyTube(designBase, edits.bodyTubeId);
-              return t ? massByComponent(designBase).get(t.id)?.mass : undefined;
+              return t ? (massByComponent(designBase).get(t.id)?.mass ?? Number.NaN) : undefined;
             })(),
             bodyDiameter: primaryBodyDiameter(designBase, edits.bodyTubeId),
             bodyTubePart: primaryBodyTubePart(designBase, edits.bodyTubeId),
@@ -2589,6 +2609,10 @@ function DesignEditor({
       fitting?: string;
       massObject?: string;
       parachute?: string;
+      /** The part states one weight for ITSELF and everything in it — so the field is live and the
+       *  figure it holds is the assembly's, not the part's. A different sentence, not a disabled box. */
+      noseCoversAssembly?: boolean;
+      bodyTubeCoversAssembly?: boolean;
     };
     bodyLength?: number;
     bodyTubeMass?: number;
@@ -3066,14 +3090,29 @@ function DesignEditor({
                         onEdit({ noseMass: kg !== undefined && kg >= 0 ? kg : undefined });
                       }}
                       min={0}
-                      disabled={designDims.massCarriedBy.nose !== undefined}
+                      // **Disabled only while the field is EMPTY, and that is a way back out rather
+                      //  than a nicety.** A pick re-aims a live value onto the newly picked part, so
+                      //  typing a weight and then clicking a part whose mass an assembly already
+                      //  states left the number sitting in a box that could no longer be edited or
+                      //  cleared — still an active what-if, still withholding the stored-tool
+                      //  comparison, with only Undo as an exit. That is the one-way door the
+                      //  `disabled` prop was added without. A field the flyer has typed into stays
+                      //  editable so they can clear it; the hint still says where the weight is
+                      //  counted, so nothing is hidden.
+                      disabled={designDims.massCarriedBy.nose !== undefined && edits.noseMass === undefined}
                       hint={
                         designDims.massCarriedBy.nose
                           ? `Counted in ${designDims.massCarriedBy.nose}, which states one weight for itself and everything in it.`
-                          : "What it actually weighs — Loft computes this from its shape and stock."
+                          : designDims.massCarriedBy.noseCoversAssembly
+                            ? "This cone states one weight for itself and everything inside it — so this figure covers the assembly, not the shell."
+                            : "What it actually weighs — Loft computes this from its shape and stock."
                       }
+                      // No placeholder where there is no figure to show: `NaN` reaches here from a
+                      // design that states its weight as a whole and none of it per part.
                       placeholder={
-                        designDims.massCarriedBy.nose ? undefined : toDispMass(designDims.noseMass)
+                        designDims.massCarriedBy.nose || !Number.isFinite(designDims.noseMass)
+                          ? undefined
+                          : toDispMass(designDims.noseMass)
                       }
                     />
                   )}
@@ -3102,14 +3141,21 @@ function DesignEditor({
                         onEdit({ bodyTubeMass: kg !== undefined && kg >= 0 ? kg : undefined });
                       }}
                       min={0}
-                      disabled={designDims.massCarriedBy.bodyTube !== undefined}
+                      disabled={designDims.massCarriedBy.bodyTube !== undefined && edits.bodyTubeMass === undefined}
                       hint={
                         designDims.massCarriedBy.bodyTube
                           ? `Counted in ${designDims.massCarriedBy.bodyTube}, which states one weight for itself and everything in it.`
-                          : "The tube on its own — not the fins, mount or chute inside it."
+                          : designDims.massCarriedBy.bodyTubeCoversAssembly
+                            ? // The sentence below would be a flat lie on this design: the figure in
+                              // the box is the tube PLUS everything inside it, because that is what
+                              // the design states. `fixtures/demo-quirks.ork` is exactly this shape.
+                              "This tube states one weight for itself and everything inside it — so this figure covers the assembly, not the tube alone."
+                            : "The tube on its own — not the fins, mount or chute inside it."
                       }
                       placeholder={
-                        designDims.massCarriedBy.bodyTube ? undefined : toDispMass(designDims.bodyTubeMass)
+                        designDims.massCarriedBy.bodyTube || !Number.isFinite(designDims.bodyTubeMass)
+                          ? undefined
+                          : toDispMass(designDims.bodyTubeMass)
                       }
                     />
                   )}
