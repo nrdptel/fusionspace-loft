@@ -6408,7 +6408,14 @@ test.describe("Loft", () => {
     // two real corpus designs before the fix: 0 kg against 1.361 kg, and 0 kg against 2 kg.
     // `e2e/fixtures/stage-weighed.ork` is the bundled single-deploy design with a 1.234 kg
     // whole-stage weight added, which is exactly the shape those two files have.
+    // Back to a clean slate before the second import: the session persists the loaded design, and
+    // with one already in hand the results surface offers a flight-log box that is also a file input.
     await page.goto("/");
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+    await page.reload();
     await page
       .locator('input[type="file"]')
       .first()
@@ -6433,6 +6440,150 @@ test.describe("Loft", () => {
     const panel = text.match(/Mass & balance · dry ([\d.,]+\s*[a-z]+)/i);
     expect(panel).not.toBeNull();
     expect(caption![1]).toBe(panel![1]);
+  });
+
+  test("a copied table carries the units it was read in, not the ones it was stored in", async ({
+    page,
+  }) => {
+    // **Sev-1: the numbers a flyer pastes into a build sheet were 25.4x and 2.2x off, unlabelled.**
+    // `GeometryInspector`'s parts table rendered `lengthMm(xFore, units)` and `mass(m, units)` on
+    // screen while exporting `xFore * 1000` (always millimetres) and `m.mass` (always kilograms),
+    // under bare `Station` and `Mass` headers with no unit anywhere in the file. So in Imperial the
+    // screen read 12.8 in / 0.06 lb and the copied row said 323.8 / 0.026086. `DataTable` has carried
+    // a `csvLabel` prop for exactly this since 2026-08-05, with a docblock describing this failure —
+    // and one adopter, not for the unit case. The export now derives from the same quantity the cell
+    // renders, so the two cannot drift.
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("button", { name: "Imperial" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const parts = page.locator("table").filter({ hasText: "Dimensions" });
+    const stationCell = parts.locator("tbody tr").first().locator("td, th");
+    const shown = (await stationCell.allInnerTexts()).join(" | ");
+
+    await page.getByRole("button", { name: "Copy" }).first().click();
+    const text = await page.evaluate(() => navigator.clipboard.readText());
+    const [header, firstRow] = text.split("\n");
+
+    // The unit is in the header, where a spreadsheet can keep it beside a number it can still sum.
+    expect(header, `parts export header carried no unit: ${header}`).toMatch(/Station \(in\)/);
+    expect(header, `parts export header carried no unit: ${header}`).toMatch(/Mass \(lb\)/);
+    expect(header).not.toMatch(/Station\t/);
+
+    // And the exported station is the number on screen, not the millimetre figure behind it.
+    const cols = header.split("\t");
+    const stationIdx = cols.findIndex((c) => c.startsWith("Station"));
+    const exported = Number(firstRow.split("\t")[stationIdx]);
+    expect(Number.isFinite(exported), `station column ${stationIdx} was not a number`).toBe(true);
+    // The first part is the nose at station 0; take a row further down where the two would differ.
+    const rows = text.split("\n").slice(1).filter(Boolean);
+    const anyNonZero = rows.map((r) => Number(r.split("\t")[stationIdx])).find((n) => Number.isFinite(n) && n > 0);
+    expect(anyNonZero, "no part had a non-zero station, so this asserted nothing").toBeGreaterThan(0);
+    // Inches, not millimetres: the sample is a 38 mm rocket well under 100 in long, and the same
+    // stations in millimetres would all be in the hundreds.
+    expect(anyNonZero!, `station exported as ${anyNonZero} — millimetres, not the inches on screen`).toBeLessThan(100);
+    expect(shown.length, "the parts table rendered no cells").toBeGreaterThan(0);
+  });
+
+  test("a mass field offers nothing where the design already counts that mass elsewhere", async ({
+    page,
+  }) => {
+    // **The airframe gains a mass control, and this is the case where it must NOT be a live box.**
+    // Where an assembly states one weight for itself and everything in it, a part inside contributes
+    // nothing of its own — so a mass typed on that part changes no flight. Measured over the
+    // 35-design corpus: 42 aimable parts across 4 designs sit inside such an assembly, and three of
+    // the kinds (nose cone, body tube, internal structure) read their placeholder off
+    // `massByComponent`, which reports those parts at 0 kg. So the box advertised "this cone weighs
+    // 0" and swallowed whatever was typed into it.
+    //
+    // `NumberField`'s own `disabled` is the primitive for exactly this and says so in its docblock —
+    // a control that demonstrably does nothing must not sit there looking as though it does. The
+    // parts table one click away has always printed "in Sustainer"; this is the property surface
+    // finally agreeing with it.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+
+    // Every mass field on the design wall, on a design whose stage carries the weight.
+    for (const name of [/^Nose mass /, /^Body tube mass /, /^Part mass /, /^Mass \(/, /^Canopy mass /]) {
+      const field = page.getByLabel(name).first();
+      await expect(field, `${name} must be present to be disabled`).toBeVisible();
+      await expect(field, `${name} must not accept a weight the design counts elsewhere`).toBeDisabled();
+      // And it advertises NO figure at all, rather than the 0 kg `massByComponent` reports for a
+      // part whose weight is counted in an assembly — the wrong number this case exists to remove.
+      expect(await field.getAttribute("placeholder"), `${name} must advertise no figure`).toBeNull();
+    }
+    expect(
+      (await page.locator("body").innerText()).match(/Counted in Sustainer/g)?.length ?? 0,
+      "each disabled mass field names the assembly carrying its weight",
+    ).toBeGreaterThanOrEqual(5);
+  });
+
+  test("the same mass fields are live on a design that states no assembly weight", async ({ page }) => {
+    // **The control for the case above, and the half that fails if the condition is inverted.** Its
+    // own test rather than a second act of that one, because the session persists the design across
+    // a navigation — a single test would be asserting against whichever import ran last.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-single-deploy.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+    for (const name of [/^Nose mass /, /^Body tube mass /]) {
+      const field = page.getByLabel(name).first();
+      await expect(field, `${name} must be live where the part carries its own weight`).toBeEnabled();
+      // And it shows the figure it is overruling, so blank has something to mean.
+      await expect(field).toHaveAttribute("placeholder", /\d/);
+    }
+    expect((await page.locator("body").innerText()).match(/Counted in /g)?.length ?? 0).toBe(0);
+  });
+
+  test("a design that states no per-part mass still offers the field a scale would fill", async ({ page }) => {
+    // **The gap a pre-push review found, and the designs it hits are the ones that need the control
+    // most.** `massByComponent` has an entry only for a part that produces a structural point mass:
+    // a SUBSUMED part gets `{mass: 0}`, but a part Loft computes no mass for gets no entry at all.
+    // A RASAero `.CDX1` states one lumped launch weight and no per-part masses, so its nose and tube
+    // had no entry, the readback came back undefined and the field never rendered — on all 4 RASAero
+    // designs of the 35-design corpus, which are precisely the designs where a flyer's own scale is
+    // the only possible source of a per-part weight. The field is gated on the PART existing now.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+    for (const name of [/^Nose mass /, /^Body tube mass /]) {
+      const field = page.getByLabel(name).first();
+      await expect(field, `${name} must be offered even where Loft computes no figure`).toBeVisible();
+      await expect(field).toBeEnabled();
+      // And it advertises nothing, because there is no figure to overrule — not a 0 it would invent.
+      expect(await field.getAttribute("placeholder"), `${name} must advertise no figure`).toBeNull();
+    }
   });
 
   test("a removal the design's own stated weight swallows says so, before and after the click", async ({

@@ -583,6 +583,129 @@ suite("real-design corpus", () => {
     expect(massless, "fittings a real design flies with no mass at all").toEqual([]);
   }, 300_000);
 
+  /** **The flyer's own scale reading lands on the airframe of every real design.**
+   *
+   *  The nose cone and the body tube were the last airframe kinds with no mass control: measured over
+   *  this corpus, **13 body-tube and 10 nose-cone masses** come from the design or its own tool rather
+   *  than from Loft, and Loft had read every one of them since the first importer with no way to write
+   *  one. (The figure previously recorded for the nose cone was 26; re-measured 2026-08-10 by two
+   *  independent counts over the same files it is 10, and the body tube's 13 reproduced exactly.)
+   *
+   *  Asserted as a RELATIONSHIP over every design rather than as golden numbers, so a corpus re-cut
+   *  cannot silently disarm it: on each file the weight lands on the part it was aimed at, marks
+   *  itself the flyer's, never swallows the assembly inside the tube, and moves the design's dry mass.
+   *  The populations are asserted non-empty for the same reason the census is printed — a sweep that
+   *  examined nothing must not read like one that passed. */
+  it("puts the flyer's own weight on every real design's nose cone and body tube", async () => {
+    const wrong: string[] = [];
+    // **The second half, and it is the one a green gate would otherwise hide.** Where an assembly
+    // states one weight for itself and everything in it, a part inside contributes nothing of its
+    // own — so a mass typed on that part changes no flight, and the panel withholds the control and
+    // names the carrier instead. The two ways of asking that question have to agree everywhere: the
+    // mass model's own `subsumedBy`, which the parts table prints, and `statedMassHolder`, which the
+    // property panel reads. They disagreeing is how one surface comes to caveat what another states
+    // plainly.
+    const subsumedMismatch: string[] = [];
+    let subsumed = 0;
+    let subsumedDesigns = 0;
+    const AIMABLE = new Set([
+      "nosecone", "bodytube", "tubecoupler", "centeringring", "bulkhead", "engineblock",
+      "innertube", "shockcord", "launchlug", "railbutton", "masscomponent", "parachute",
+    ]);
+    let cones = 0;
+    let tubes = 0;
+    let multiTube = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const rocket = doc.rocket;
+      const base = dryMassProperties(rocket).mass;
+      const masses = massByComponent(rocket);
+      let hereSubsumed = 0;
+      for (const p of flattenRocket(rocket)) {
+        if (!AIMABLE.has(p.component.kind)) continue;
+        const byMassModel = masses.get(p.component.id)?.subsumedBy !== undefined;
+        const byHolder = statedMassHolder(rocket, p.component.id) !== null;
+        if (byMassModel !== byHolder)
+          subsumedMismatch.push(
+            `${shortName(f.name)}: ${p.component.kind} "${p.component.name}" — parts table says ` +
+              `${byMassModel ? "counted elsewhere" : "its own"}, the property panel says ` +
+              `${byHolder ? "counted elsewhere" : "its own"}`,
+          );
+        if (byMassModel) hereSubsumed++;
+      }
+      subsumed += hereSubsumed;
+      if (hereSubsumed > 0) subsumedDesigns++;
+      const nose = flattenRocket(rocket).find((p) => p.component.kind === "nosecone")?.component;
+      const allTubes = flattenRocket(rocket)
+        .filter((p) => p.component.kind === "bodytube")
+        .map((p) => p.component);
+      if (allTubes.length > 1) multiTube++;
+
+      if (nose) {
+        cones++;
+        const edited = applyGeometryEdits(rocket, { noseMass: 0.25 });
+        const after = flattenRocket(edited).find((p) => p.component.id === nose.id)!.component as {
+          overrideMass?: number;
+          massFrom?: string;
+        };
+        if (after.overrideMass !== 0.25 || after.massFrom !== "flyer")
+          wrong.push(`${shortName(f.name)}: a stated nose mass did not land on the cone`);
+        // The flight only has to move where the cone's own weight is what the design flies. Inside an
+        // assembly that states one figure for everything in it, the cone contributes nothing and the
+        // dry mass correctly sits still — which is precisely why the panel refuses to offer the
+        // control there rather than accepting a number and dropping it.
+        const noseCarried = statedMassHolder(rocket, nose.id) !== null;
+        if (!noseCarried && Math.abs(dryMassProperties(edited).mass - base) < 1e-9)
+          wrong.push(`${shortName(f.name)}: a stated nose mass did not move the design's dry mass`);
+        if (noseCarried && Math.abs(dryMassProperties(edited).mass - base) > 1e-9)
+          wrong.push(`${shortName(f.name)}: a nose mass moved a design whose stage states its weight`);
+      }
+
+      // Aim the LAST tube, so a design carrying several is a real test of the aim rather than of the
+      // fallback — the fallback and the aim agree on a single-tube design and only there.
+      const aimed = allTubes[allTubes.length - 1];
+      if (aimed) {
+        tubes++;
+        const edited = applyGeometryEdits(rocket, { bodyTubeId: aimed.id, bodyTubeMass: 0.25 });
+        const flat = flattenRocket(edited);
+        const after = flat.find((p) => p.component.id === aimed.id)!.component as {
+          overrideMass?: number;
+          overrideSubcomponents?: boolean;
+          massFrom?: string;
+        };
+        if (after.overrideMass !== 0.25 || after.massFrom !== "flyer")
+          wrong.push(`${shortName(f.name)}: a stated tube mass did not land on the aimed tube`);
+        if (after.overrideSubcomponents !== undefined)
+          wrong.push(`${shortName(f.name)}: a stated tube mass claimed the assembly inside the tube`);
+        // No other tube took the figure — the failure a single-tube design cannot show.
+        for (const other of allTubes) {
+          if (other.id === aimed.id) continue;
+          const o = flat.find((p) => p.component.id === other.id)!.component as {
+            overrideMass?: number;
+            massFrom?: string;
+          };
+          const was = other as { overrideMass?: number; massFrom?: string };
+          if (o.overrideMass !== was.overrideMass || o.massFrom !== was.massFrom)
+            wrong.push(`${shortName(f.name)}: a stated tube mass migrated onto another tube`);
+        }
+      }
+    }
+    console.log(
+      `stated airframe weights across ${files.length} design files: ${cones} nose cone(s) and ` +
+        `${tubes} body tube(s) aimable, ${multiTube} design(s) carrying more than one tube`,
+    );
+    expect(subsumedMismatch, "parts where the two answers to 'is this mass counted elsewhere' disagree").toEqual([]);
+    console.log(
+      `parts whose mass an assembly already states: ${subsumed} across ${subsumedDesigns} design file(s) — ` +
+        `each one a mass field the property panel withholds and names the carrier for`,
+    );
+    expect(subsumed, "no design states an assembly weight — the withheld case is untested").toBeGreaterThan(0);
+    expect(cones, "no design carried a nose cone, so this asserted nothing").toBeGreaterThan(0);
+    expect(tubes, "no design carried a body tube, so this asserted nothing").toBeGreaterThan(0);
+    expect(multiTube, "no design carried a second tube — the aim is untested without one").toBeGreaterThan(0);
+    expect(wrong, "real designs where a flyer's stated airframe weight went astray").toEqual([]);
+  }, 300_000);
+
   /** **Every note a real design file carries, read in and written back out unchanged.**
    *
    *  Loft read none of them and wrote none of them, so import → download deleted the lot. Measured

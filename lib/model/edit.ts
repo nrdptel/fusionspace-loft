@@ -697,12 +697,30 @@ export interface GeometryEdits {
   finMaterial?: string;
   /** Absolute nose-cone length (m) for the design's nose. Undefined leaves it. */
   noseLength?: number;
+  /** What the design's nose cone actually WEIGHS (kg), as the flyer put it on a scale.
+   *
+   *  Unaimed, like `noseLength` and `noseShape` beside it and for the same reason: there is no nose
+   *  slot in `AIM_SLOTS`, so all four resolve through `primaryNose` and cannot come to describe
+   *  different cones. Written as `overrideMass`, which `lib/sim/mass.ts` honours over the figure it
+   *  derives from the cone's contour and stock. Undefined leaves it. */
+  noseMass?: number;
   /** Nose-cone contour for the design's nose (drives nose pressure and wave drag). Chosen from the
    *  picker as a canonical instance of the shape. Undefined leaves it. */
   noseShape?: NoseShape;
   /** Absolute length (m) for the body tube `bodyTubeId` names — the longest when nothing is picked.
    *  Only that one tube resizes; everything aft of it restacks. Undefined leaves it. */
   bodyLength?: number;
+  /** What the body tube `bodyTubeId` names actually WEIGHS (kg), as the flyer put it on a scale.
+   *
+   *  **The part alone, not the assembly inside it.** A tube is the one kind whose children are the
+   *  norm — fins, lugs, a mount, a chute — and `overrideSubcomponents` is what would make a stated
+   *  figure cover them too. It is never set here and never cleared: OpenRocket's own Override tab
+   *  defaults to the component alone, and on a design that already states a whole-assembly figure the
+   *  placeholder shows that assembly's mass, so the number typed replaces exactly the quantity shown.
+   *  Measured over the 35-design corpus: 0 of the 27 nose-cone and body-tube overrides carry the
+   *  flag, so the second case does not arise on any real design — it is preserved rather than
+   *  handled. Undefined leaves it. */
+  bodyTubeMass?: number;
   /** Target outer diameter (m) of the body tube `bodyTubeId` names. The whole outer airframe (nose
    *  base, every body tube, transitions and their shoulders) scales by the same factor to hit it,
    *  keeping the mould line faired — the "same design in a wider/narrower tube" what-if. Fins, the
@@ -991,7 +1009,11 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.finMaterial !== undefined && FIN_MATERIALS.some((m) => m.key === e.finMaterial)) ||
     (e.noseLength !== undefined && e.noseLength > 0) ||
     e.noseShape !== undefined ||
+    // `>= 0` on both airframe masses, as on every other stated weight in this bag: a part weighed at
+    // nothing worth counting is a real answer, and the EMPTY field is what means "leave it alone".
+    (e.noseMass !== undefined && e.noseMass >= 0) ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
+    (e.bodyTubeMass !== undefined && e.bodyTubeMass >= 0) ||
     (e.bodyDiameter !== undefined && e.bodyDiameter > 0) ||
     // A picked part now carries a WALL and a STOCK of its own, so it changes the flight even with
     // both dimension fields blank — it stopped being the pure provenance record it was when it
@@ -1298,7 +1320,7 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
   // and `bodyDiameter` do, which is the behaviour a flyer already understands.
   bodyTubeId: {
     kinds: ["bodytube"],
-    targets: ["bodyLength", "bodyDiameter", "catalogBodyTube"],
+    targets: ["bodyLength", "bodyDiameter", "catalogBodyTube", "bodyTubeMass"],
     groupWide: ["bodyDiameter"],
   },
   transitionId: { kinds: ["transition"], targets: ["transitionLength", "transitionAftDiameter"] },
@@ -2373,6 +2395,23 @@ function internalGeometryEdit(
   if (length === undefined && outerRadius === undefined && innerRadius === undefined && mass === undefined)
     return undefined;
   return { id: target.id, length, outerRadius, innerRadius, mass };
+}
+
+/** Put the flyer's own weight on the one component `id` names, and say it was theirs.
+ *
+ *  Written as `overrideMass` because the outer airframe has no mass field of its own: `lib/sim/mass.ts`
+ *  derives a cone from its contour and a tube from its wall and stock, and `overrideMass` is the one
+ *  thing it honours over that. `massFrom` moves with the number for the same reason it does on the
+ *  canopy and on the internal structure — without it the parts table captions a hand-typed weight
+ *  "stated by the design", which is the surface whose stated job is *did Loft read my rocket right?*
+ *
+ *  `overrideSubcomponents` is deliberately neither set nor cleared — see `bodyTubeMass`' own docblock
+ *  for the measurement behind that. Unbounded, like every other stated weight: a mass has no host to
+ *  fit inside, and the only thing that could be wrong with it is a number that is not one. */
+function withStatedMass(c: RocketComponent, id: string, mass: number): RocketComponent {
+  if (c.id === id) return { ...c, overrideMass: mass, massFrom: "flyer" } as RocketComponent;
+  if (!c.children.length) return c;
+  return { ...c, children: c.children.map((k) => withStatedMass(k, id, mass)) };
 }
 
 /** Apply that resolved edit to the one component it names. A bare setter — every bound was already
@@ -3963,6 +4002,19 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // different parts on a design that carries more than one cone.
   const nosePick = usableCatalogNose(edits.catalogNoseCone) ? edits.catalogNoseCone : undefined;
   const nosePickId = nosePick ? primaryNose(rocket)?.id : undefined;
+  // The two stated airframe weights, resolved once against the PRISTINE tree like every other aim.
+  // The cone through `primaryNose`, which is what `noseLength`, `noseShape` and the catalogue pick
+  // already resolve through; the tube through the `bodyTubeId` aim, which is what `bodyLength` and
+  // the tube pick resolve through — so on a design carrying several tubes the weight lands on the
+  // one the length field beside it is holding, rather than on whatever the fallback finds.
+  const noseMassId =
+    edits.noseMass !== undefined && Number.isFinite(edits.noseMass) && edits.noseMass >= 0
+      ? primaryNose(rocket)?.id
+      : undefined;
+  const bodyMassId =
+    edits.bodyTubeMass !== undefined && Number.isFinite(edits.bodyTubeMass) && edits.bodyTubeMass >= 0
+      ? primaryBodyTube(rocket, edits.bodyTubeId)?.id
+      : undefined;
   const nosePickMaterial: Material | undefined = nosePick?.material
     ? { name: nosePick.material.name, density: nosePick.material.density, type: "bulk" }
     : undefined;
@@ -4098,6 +4150,13 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     if (massTarget && edits.massObjectMass !== undefined && edits.massObjectMass >= 0) {
       geo = withMassObject(geo, massTarget.id, edits.massObjectMass, undefined);
     }
+    // **The stated airframe weights, last of all, and that order is load-bearing rather than tidy.**
+    // A catalogue pick writes the vendor's published mass and the caliber scale re-derives one from
+    // the scaled geometry — both of which should lose to a number the flyer read off a scale, the
+    // same precedence `parachuteMass` already has over a resize. Applied before either, a typed
+    // weight would be silently overwritten by a pick made afterwards.
+    if (noseMassId && edits.noseMass !== undefined) geo = withStatedMass(geo, noseMassId, edits.noseMass);
+    if (bodyMassId && edits.bodyTubeMass !== undefined) geo = withStatedMass(geo, bodyMassId, edits.bodyTubeMass);
     return geo;
   };
   const edited: Rocket = {

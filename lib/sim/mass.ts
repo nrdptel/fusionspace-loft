@@ -338,6 +338,38 @@ function collectSubtree(roots: RocketComponent[]): Set<RocketComponent> {
  *  leaves dry mass at exactly 2000.0 g while the margin moves 4.461 → 4.312 cal — the model is right,
  *  because that is what an override means, but a flyer who deletes a part and watches the mass not
  *  move has been told nothing. */
+/** What an assembly carrying a whole-subtree override is CALLED, wherever one has to be named.
+ *
+ *  One function because two had drifted: `massByComponent` fell back to the component's `kind` (or
+ *  the bare word "stage") for an unnamed carrier while `statedMassHolder` fell back to "this
+ *  assembly" / "this stage". The parts table reads the first and the property panel's withheld-mass
+ *  hint reads the second, so on a design whose override-carrying assembly has an empty `<name>` the
+ *  two surfaces named the same carrier differently — the split this whole area keeps producing. */
+export function carrierLabel(c: RocketComponent | Stage): string {
+  return c.name || ("kind" in c ? c.kind : "stage");
+}
+
+/** True when this component states ONE weight for itself and everything inside it — an override the
+ *  flyer can still restate, unlike one an ancestor imposes. `statedMassHolder` deliberately answers
+ *  only the ancestor question, so this is the other half a surface needs before it can describe what
+ *  a mass field on that part would actually cover. */
+export function statesOwnAssemblyMass(rocket: Rocket, id: string): boolean {
+  for (const p of flattenAll(rocket)) if (p.id === id) return overridesSubtreeMass(p);
+  return false;
+}
+
+function flattenAll(rocket: Rocket): RocketComponent[] {
+  const out: RocketComponent[] = [];
+  const walk = (cs: RocketComponent[]) => {
+    for (const c of cs) {
+      out.push(c);
+      walk(c.children);
+    }
+  };
+  for (const st of rocket.stages) walk(st.components);
+  return out;
+}
+
 export function statedMassHolder(rocket: Rocket, id: string): string | null {
   // Wrapped rather than returned bare, because "found it, nothing covers it" and "did not find it"
   // are both null and mean opposite things.
@@ -348,13 +380,13 @@ export function statedMassHolder(rocket: Rocket, id: string): string | null {
       // `structurePointMasses` resolves it: a nested override inside an already-subsumed subtree
       // contributes nothing and must not be the one named.
       if (c.id === id) return { holder: covering };
-      const hit = search(c.children, covering ?? (overridesSubtreeMass(c) ? c.name || "this assembly" : null));
+      const hit = search(c.children, covering ?? (overridesSubtreeMass(c) ? carrierLabel(c) : null));
       if (hit) return hit;
     }
     return null;
   };
   for (const stage of rocket.stages) {
-    const hit = search(stage.components, stageOverridesSubtreeMass(stage) ? stage.name || "this stage" : null);
+    const hit = search(stage.components, stageOverridesSubtreeMass(stage) ? carrierLabel(stage) : null);
     if (hit) return hit.holder;
   }
   return null;
@@ -465,7 +497,7 @@ export function massByComponent(rocket: Rocket): Map<string, ComponentMass> {
   }
   // Anything the walk skipped is subsumed by an ancestor (or stage) override. Name the nearest
   // ancestor that carries a whole-assembly override so the row says where its mass is counted.
-  const label = (c: RocketComponent | Stage) => c.name || ("kind" in c ? c.kind : "stage");
+  const label = carrierLabel;
   const walk = (components: RocketComponent[], carrier: string | undefined) => {
     for (const c of components) {
       const carriedBy = carrier ?? (overridesSubtreeMass(c) ? label(c) : undefined);

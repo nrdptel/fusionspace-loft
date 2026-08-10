@@ -18,6 +18,148 @@ big for one pass. Newest first.
 
 **Filed 2026-08-10, from run 10 — the sentinel gate on the validation table.**
 
+**Filed 2026-08-11, from run 11 — the airframe mass override and its fan-out.**
+
+*From the desktop TENTH-use cold walk — an experienced flyer editing, sweeping and cross-checking.
+The two CSV findings are recorded above against the entry that already held them; the rest are new.*
+
+- **The parts catalogue is an overlay that traps a keyboard.** `components/PartPicker.tsx:608` is a
+  bare `aria-expanded` toggle rather than the app's `Popover`: no `role="dialog"`, Escape does not
+  close it, an outside click does not close it, focus never enters it. It then renders **all 1,089
+  tubes at once**, each with its own *Use* button — 1,096 focusables inside the panel out of 1,217 on
+  the page — so a keyboard flyer who opens it faces ~1,096 Tab presses and no Escape to bail out.
+  The sibling overlay one file away (`GeometryInspector.tsx:754`, the Properties popover) does all
+  four correctly, so two overlays in one workspace behave oppositely. **This is a one-way door on the
+  keyboard path and it is the strongest single candidate in this batch.**
+- **Every parts row is its own tab stop.** `components/GeometryInspector.tsx:1110` sets `tabIndex: 0`
+  with no roving index, so on the two-stage HPR corpus design (47 parts) it costs **54 Tab presses**
+  to get from the *Parts* summary to the *Swap motor* control below it. The component tree sits
+  between the keyboard flyer and every edit control on the workspace.
+- **There is no reset-to-fit on the diagram.** `components/RocketDiagram.tsx:1247` renders the zoom
+  readout as a non-interactive `<span>` that says *"Fit"* at 1x — so the word reads as the button it
+  is not, and the only way back from 8x is six clicks of the minus control. Every mature diagram
+  charges one click for this.
+- **An import always lands on `/flight`, overriding the workspace the flyer deliberately opened.**
+  `components/LoftApp.tsx:667`. Open `/design` with nothing loaded, click a bundled example, and you
+  are on `/flight`. The address a flyer chose is treated as a suggestion, at a cost of one navigation
+  every session that starts on the editor.
+- **The undo stack is empty after a reload while the edits it would undo survive.**
+  `components/LoftApp.tsx:1425`. Set a fin span, reload: the flight and the field both still carry
+  the edit, and Undo is disabled. The only way back is *Reset to as-designed*, which drops every
+  what-if at once. (Already filed at line ~1205; confirmed live on HEAD.)
+- **Two adjacent tables disagree about whether a view a flyer set up is worth remembering.** The
+  motor sweep persists its sort per browser (`components/MotorSweep.tsx:409`); the parts table drops
+  its sort, its picked part and its disclosure state on reload (`components/GeometryInspector.tsx:1092`).
+- **The parameter sweep has no table of its own points.** `components/ParameterSweep.tsx:552` renders
+  a chart plus `DownloadCsv`/`CopyTable` and nothing else, so the 25 flown values exist only in an
+  export or in pixels — the one result surface in the app whose numbers cannot be read on screen.
+- **The catalogue table is the only `DataTable` with no Copy and no CSV** (`PartPicker.tsx:827`, no
+  `exportName` passed). The table a flyer most wants to hand round — part numbers, OD/ID, stock — is
+  the one they cannot get out.
+- **The Burnout CSV cell always appends the stage name; the screen shows it only when a phase has
+  more than one burnout.** `components/ResultsView.tsx:2268` — a copied table that does not match the
+  table it was copied from, same class as the unit defect above and surviving its fix.
+- **UNVERIFIED — a saved session keeps hand-typed conditions and drops fetched weather.**
+  `lib/session.ts:27` stores design, name, opensOn, units, simIndex and edits, and no weather or
+  scenario — so *"Re-fly for today's weather"* would revert to as-designed on reload while the rail
+  and wind edits that live in `edits` survive, with nothing on screen saying which half was kept.
+  Read from the interface plus `LoftApp.tsx:464`; **not driven**, because Open-Meteo is unreachable
+  from this sandbox. Reproduce before scoping.
+
+*From the desktop first-use cold walk. Every one was measured by the agent against a live build at
+1440x900; the four marked REPRODUCED were re-checked against the code by me before filing. Findings
+the walk reported as page-load failures are discounted — I rebuilt `out/` underneath it mid-walk,
+which it noticed and said so.*
+
+- **REPRODUCED — the app claims to import RocketPy and SpaceCAD files, and it imports neither.**
+  `components/ImportPanel.tsx:343` and `CHANGELOG.md:42` (which generates `lib/version.ts` and is
+  served at `/docs/changelog`) both say *"Import the file you already have: OpenRocket .ork, RockSim
+  .rkt, RASAero .CDX1, RocketPy and SpaceCAD"*. The file input accepts
+  `.ork,.ork.gz,.rkt,.cdx1,.CDX1,application/zip` and `lib/ork/import.ts`'s own refusal names three
+  formats. `lib/validation/rocketpy-spec.ts` builds a spec **from** a Loft design for the in-browser
+  second solver — it is an export direction, and there is no SpaceCAD code at all. **And the check
+  built to prevent exactly this is directional**: `lib/version.test.ts`'s *names every design format
+  the importer actually accepts* asserts the README mentions every accepted extension, so it catches
+  an OMISSION and cannot catch an OVER-CLAIM. Taken as P10 increment 2.
+- **REPRODUCED — `CNα` renders as `CNΑ`, a capital Alpha.** `components/ResultsView.tsx:1640` passes
+  the label to `Readout`, whose label div is `uppercase` (`components/ui.tsx:699`), and CSS
+  `text-transform` maps α → Α. The number is right and its symbol is not, on the surface an aero
+  reader reads. One line, and it needs a rule that stops the next symbol going the same way.
+- **REPRODUCED — imperial mass is 4.5x coarser than metric, and small designs lose all resolution.**
+  `lib/display.ts:114` formats metric mass at 3 dp of kg (gram resolution) and imperial at 2 dp of lb
+  (4.54 g). On `The Red Hunter.ork` liftoff 0.047 kg and burnout 0.042 kg read as **47 g / 42 g**
+  metric and **0.10 lb / 0.09 lb** imperial. Not a wrong number — a correctly rounded one at a
+  precision that hides a 5 g difference. Ounces are the unit US hobby flyers use below a pound, and
+  OpenRocket offers them. Not Sev-1 by the stated test; a real craft defect.
+- **REPRODUCED — Undo and Redo are `aria-disabled` but not `disabled`.** On a freshly imported design
+  both are focusable and clickable no-ops. Two controls that tab and look live and cannot be.
+- **The import-failure card says nothing an assistive technology can hear, and little a sighted user
+  will see.** It renders after the whole `ImportPanel` (drop zone, *"Why Loft"*, *"Once a design is
+  loaded"*), landing at y=1370 in a 900 px viewport; scroll does not move, focus does not move, and
+  the page carries zero `[role=alert]` / `[role=status]` / `[aria-live]` nodes. The most likely
+  first-use failure produces a screen that looks unchanged.
+- **A cold deep-link to a workspace route silently redirects to `/`.** Open `/validate` in a fresh
+  context with no stored session and it lands on the import screen with no word about why. A
+  cross-check link shared on a forum is the case this breaks.
+- **Browser Back never reaches the landing page.** The import replaces the history entry rather than
+  pushing, so Back from `/design` goes to `/flight` and stops. *"← Import another"* is the only route
+  back, and Back is the reflex.
+- **A rejected Jupyter notebook is refused with `Not an OpenRocket file (root <Figure>)`** — an XML
+  parser detail in first-use copy. The rest of the sentence works without it.
+- **Every contextual provenance link lands at the top of a 13-section page.** *"how these are
+  computed"*, *"where it's weak"* and *"What backs each figure"* all navigate with no fragment
+  (measured `scrollY` 0 on arrival), so asking what one number means hands over a whole manual.
+  `DocsHeading` already mints anchors; nothing links to them.
+- **`components/MotorSweep.tsx:587` renders `On Apogeethe same mark means something different`** —
+  the space after `</em>` is lost in the built output (read via `textContent`, not `innerText`). The
+  paragraph explaining the one ambiguous marker is the one that is broken.
+- **The Fetch-weather button is a dead click with the site box empty.** `components/LoftApp.tsx:3993`
+  returns early on `!place.trim()` with the button enabled: no message, no pending state, no request,
+  no focus move.
+- **CLOSED, not a defect — four different "Loft" apogees for one design, each right for its own question.** The motor-sweep row marked *flying
+  now* read 260 m, the headline 258 m, the OpenRocket cross-check 258.5 m, the RocketPy table 260 m
+  and the dispersion median 256 m. The walk attributed the gap to the sweep's ballistic-ascent mode
+  from the caption's own text rather than from reading the solver, and did not reproduce it against
+  the code. **Partly resolved by reading it, 2026-08-11, and the sweep half is NOT a Sev-1.** The
+  sweep flies a ballistic ascent on purpose — `components/MotorSweep.tsx:58` states it,
+  `lib/sim/sweep.ts` exports `ballisticGap` for exactly this, and the caption connects the Design row
+  to the number the flyer just read. So the 258 vs 260 pair is designed, labelled behaviour rather
+  than two answers to one question. **And the RocketPy table checks out too, so this is CLOSED.**
+  `components/RocketpyCrossCheck.tsx:125` takes Loft's ballistic figure deliberately — *"exactly what
+  RocketPy's `terminate_on_apogee` run computes"* — and the panel says so where a flyer reads it, at
+  line 210 and again at line 423. Like-for-like against a second solver is the correct comparison and
+  it is labelled at the point of use. **Nothing here is a Sev-1.** What survives is a craft note: the
+  four figures are each right for their own question, and a flyer meets them on three surfaces
+  without a single sentence tying them together. If that is ever taken, it is one shared caption, not
+  a solver change.
+
+- **A stated weight on a FIN SET and on a TRANSITION is still unreachable, and they are the last two
+  aimable kinds without one.** Measured 2026-08-11 over the 35-design corpus by kind: 8 fin-set
+  masses (4 trapezoid, 3 freeform, 1 tube-fin) and 4 transition masses come from the design or its
+  own tool rather than from Loft. Both slots already exist (`finSetId`, `transitionId`), so each is
+  the same five pieces the nose and tube just took — bag key, applier line, slot target, control,
+  undo label. Finishing them makes the *done when* "every aimable kind offers a mass override"
+  assertable over `AIM_SLOTS` itself rather than kind by kind.
+- **`overrideSubcomponents` can be READ, WRITTEN by neither the editor nor a flyer, and is invisible
+  on every surface.** A design can state one weight for an assembly and everything in it — 4 of the
+  35 corpus designs do — and Loft now correctly withholds the per-part mass control inside one and
+  names the carrier. What a flyer still cannot do is set or clear that flag, so a design that states
+  its weight as a whole-stage figure can only ever be edited part by part somewhere else, and the
+  47 parts inside those assemblies have no route to a per-part weight at all. OpenRocket exposes it
+  as a checkbox beside the override. Not a defect in what ships; a capability gap with a measured
+  population, and it belongs on the R-track rather than here if it is taken.
+- **`npm run test:e2e` at full width still needs the two-shard split, and nothing in the repo
+  enforces it.** Confirmed again 2026-08-11: 129 + 129 = 258 tests pass as two sequential shards.
+  The FD-exhaustion hazard `MAINTAINING.md` documents is unchanged (`ulimit -n` is 4096 soft and
+  hard, unraisable), so a session that runs the suite unsharded can still read a server death as a
+  cluster of real failures. A wrapper script that shards by default would end this; it is a
+  four-line change nobody has made.
+- **The managed Playwright browser was ABSENT again at session start**, exactly as
+  `MAINTAINING.md` records: `@playwright/test` is 1.61.1 and manages chromium-1228, while
+  `/opt/pw-browsers` carried only 1194. `npx playwright install chromium` fixed it in about a minute.
+  This is paid for every session until it is in the environment's setup script, which is the owner's
+  to make and is already parked in `OWNER-NOTES.md`.
+
 - **FIXED 2026-08-10 — a diagram drag inverted itself when the page was scrolled, and it had been
   wrong for the life of the feature.** The drawing changes HEIGHT as it is dragged, and when its top
   edge is above the viewport the browser's scroll anchoring compensates by moving the page — the grip
@@ -669,6 +811,18 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   string with units baked in and commas forcing RFC-4180 quoting, and that one DOES flip. So one
   imperial export contains a metric column, an SI column and an imperial column side by side.
   `DataTable`'s new `csvLabel` is the mechanism; these two are the remaining call sites.
+
+  **FIXED 2026-08-11, and the six days it sat here are the more useful half of this entry.** The
+  defect was fully diagnosed on 2026-08-05, the mechanism was built in the same run, the two
+  remaining call sites were named by file — and nothing converted them, on a live site, in the ledger
+  the session-start list says to read. It was re-found from scratch by this run's tenth-use cold walk,
+  which measured it on the screen rather than in the code: *"row 2 is `Payload Bay 323.8 0.026086` while
+  the screen shows 12.8 in / 0.06 lb"*. **A filed entry naming its own fix is not a fix**, and the
+  thing that eventually moved it was somebody looking at the product. Both tables now derive their
+  export from the same `Quantity` their cell renders, via `csvQuantity`/`csvHeader` in `lib/csv.ts`,
+  so the two cannot drift again rather than merely being converted once. Pinned by
+  `e2e/smoke.spec.ts`'s *a copied table carries the units it was read in, not the ones it was stored
+  in*, whose negative control restores the old station export and reports the header with no unit.
 
 - **A crude phone-walk selector counted 8 controls under 44 px on `/flight` at 390 px, where the
   repo's own scoped ratchet is green. UNREPRODUCED, and filed as a question rather than a defect.**

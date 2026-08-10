@@ -2578,6 +2578,88 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 8 — the flyer's own scale reading reaches the airframe, and stops lying where it cannot,
+2026-08-10.** `COMPETITION.md` row 41 named (d) — a universal mass override — as the cheapest and
+most useful thing left in that row, and the nose cone and the body tube were the two kinds it had
+never reached. Measured over the 35-design corpus by kind, counting every mass the design or its own
+tool supplied rather than Loft: **13 body tubes and 10 nose cones**. `noseMass` and `bodyTubeMass`
+are the two new keys — the tube's a target of `bodyTubeId`, so on the **23 of 35** designs carrying
+more than one tube the weight lands on the tube the length field beside it is holding; the cone's
+unaimed, because there is no nose slot and `noseLength`, `noseShape` and the catalogue pick all
+resolve through `primaryNose` already. Both are written last in the applier, so a scale reading beats
+a catalogue pick and a caliber scale made in the same patch — the precedence `parachuteMass` already
+has over a resize.
+
+**A correction to a number this file published: the nose cone's count was recorded as 26 and it is
+10.** Re-measured 2026-08-10 by two independent counts over the same 35 files — `massFrom` tallied by
+kind, and every `overrideMass` on a cone listed by file — which agreed. The body tube's 13 reproduced
+exactly, so the method was right and the one figure was not. The comment in `components/LoftApp.tsx`
+that carried it is corrected in place rather than deleted, because the wrong number had already been
+used once to rank what to build next.
+
+**And the increment's own corpus check found a defect on four SHIPPED surfaces, which is most of what
+this increment is worth.** OpenRocket lets an assembly state one weight for itself and everything
+inside it, and **4 of the 35 corpus designs do** — a stage-level override on three, a component-level
+one on the fourth. A part inside such an assembly contributes nothing of its own, so a mass typed on
+it changes no flight. `massByComponent` reports those parts at **0 kg, counted in ⟨assembly⟩**, and
+`GeometryInspector`'s parts table has always printed exactly that. The property panel did not:
+**42 aimable parts across those 4 designs** — 10 body tubes, 7 centring rings, 5 canopies, 4 couplers,
+4 bulkheads, 3 nose cones, 2 inner tubes, 2 mass objects, 2 shock cords, 2 launch lugs, 1 rail button
+— sat behind a live-looking box, and on three of the kinds that box advertised a placeholder of **0**
+for a part that weighs something. 29 of the 42 are on controls that shipped in earlier increments, so
+this was live. Fixed on all six mass fields at once from one derived `massCarriedBy`, using
+`NumberField`'s own `disabled`, whose docblock already said it was for exactly this: *a control that
+demonstrably does nothing must not sit there looking as though it does*. The field names the carrier
+in words rather than greying out silently.
+
+**Increment 9 — what the review found in increment 8, and a Sev-1 beside it, 2026-08-11.** The
+pre-push agent read on increment 8's diff returned five findings and all five were real; three were
+on surfaces already pushed. Every one is the same shape — *the control described a quantity that was
+not the one it held*.
+
+- **The control never rendered on 4 of the 35 designs, and they are the ones that need it most.**
+  `massByComponent` has an entry only for a part producing a structural point mass: a SUBSUMED part
+  gets `{mass: 0}`, a part Loft computes no mass for gets no entry at all. Every RASAero `.CDX1`
+  states one lumped launch weight and no per-part masses, so its nose and tube had none, the readback
+  was `undefined` and the field never appeared — on exactly the designs where a flyer's scale is the
+  only possible source. Gated on the PART existing now.
+- **A typed weight could be stranded in a box that could no longer be edited** — a pick re-aims a
+  live value, so typing a weight and then clicking a part whose mass an assembly states left the
+  number in a `disabled` field, still an active what-if, with only Undo as a way out. That is the
+  one-way door the `disabled` prop was added without. It applies only while the field is empty now.
+- **A tube stating its OWN assembly weight was labelled the opposite of what it is.** The docblock
+  written in increment 8 said the case "does not arise on any real design" — measured over the
+  corpus and asserted of everything. `fixtures/demo-quirks.ork`'s "Upper" is the counterexample, one
+  click from the front door, 600 g covering the tube plus a coupler and a streamer, under a hint
+  reading *"the tube on its own"*. This is the measure-don't-remember trap taken while quoting a
+  measurement, and it is worth reading twice.
+- **The case pinning "the flag is never set" pinned nothing** — it passed with `bodyTubeMass`
+  unimplemented. It measures the shift the edit causes now, and its negative control fails by exactly
+  the 0.25 kg stated.
+- **`carrierLabel` is one function** because two had drifted on how to name an unnamed carrier, and
+  the parts table read one while the property panel read the other.
+
+**And the Sev-1 the tenth-use walk found, which preempted the rest of the run: a copied table carried
+the units the numbers were STORED in.** `GeometryInspector`'s parts table rendered
+`lengthMm(xFore, units)` and `mass(m, units)` on screen while exporting `xFore * 1000` — always
+millimetres — and `m.mass` — always kilograms — under bare `Station` and `Mass` headers. In Imperial
+the screen read *12.8 in / 0.06 lb* and the copied row said *323.8 / 0.026086*: a build sheet 25.4x
+and 2.2x off, with no unit anywhere in the file. Flight phases did the same with raw SI altitude and
+speed. **`BACKLOG.md` had held this since 2026-08-05** — diagnosed, with `DataTable`'s `csvLabel`
+named as the mechanism and both call sites named by file — and nothing converted them for six days.
+It took somebody looking at the product to move it. Fixed by deriving every export from the same
+`Quantity` its cell renders (`csvQuantity`/`csvHeader`), so the pair cannot drift again rather than
+being converted once.
+
+Pinned by `lib/corpus/sweep.test.ts`'s *puts the flyer's own weight on every real design's nose cone
+and body tube* — asserted as a relationship over all 35 files rather than as golden counts, with the
+aim taken on the LAST tube so a multi-tube design tests the aim rather than the fallback, and with a
+second half asserting that the mass model's `subsumedBy` and `statedMassHolder` agree on every
+aimable part, because those are the two answers the parts table and the property panel read. Plus
+seven cases in `lib/model/edit.test.ts` and two in `e2e/smoke.spec.ts`, the second of which is the
+control. Negative controls: dropping the aim to `primaryBodyTube(rocket)` reports *"a stated tube mass
+migrated onto another tube"* on the real corpus; removing the six `disabled` props fails the e2e case.
+
 **Increment 7 — the parts table says which masses the design STATED, 2026-08-10.** `COMPETITION.md`
 row 43, opened this run and closed by it. Both OpenRocket and RockSim tell a user when a mass was
 entered rather than derived — OpenRocket by storing the fact as its own element beside its own
@@ -4713,7 +4795,29 @@ truth are asserted. Prose about what the tool feels like is not testable, and pr
 would make the check noisy enough that someone disables it — which is how a stale README happens in
 the first place.
 
-**Remaining: increment 2, the repository SETTINGS half**, which is not a file and which no tool
+**Increment 2 — the claim the check could not see, 2026-08-11.** The mechanism increment 1 built is
+DIRECTIONAL: it asserts the README mentions every extension `ImportPanel`'s accept list takes, so it
+catches an omission and by construction cannot catch an over-claim. And an over-claim is what had
+shipped. The landing page's own *"It reads the file you already have"* card and the changelog entry
+served at `/docs/changelog` both said Loft imports **"OpenRocket `.ork`, RockSim `.rkt`, RASAero
+`.CDX1`, RocketPy and SpaceCAD"**. The input accepts three extensions, `lib/ork/import.ts`'s own
+refusal names three formats, and **there is no SpaceCAD code in the repo at all** —
+`lib/validation/rocketpy-spec.ts` builds a spec FROM a Loft design for the in-browser second solver,
+which is the export direction. So a RocketPy or SpaceCAD flyer read the front door, tried their file,
+and was told it is not a rocket design. Found by this run's desktop cold walk and reproduced against
+the code before it was touched.
+
+Both claims corrected, and pinned by `lib/version.test.ts`'s *names no design format the importer does
+not actually accept*: every design tool NAMED in an import claim must have its own file extension in
+the accept list. It reads the claim by the phrase both copies share rather than by line number, and
+bounds the window at the next bullet or the end of the JSX fragment — because the card immediately
+after names RocketPy legitimately, as the second solver, and a greedy window would fail on a true
+sentence. **Self-maintaining in the useful direction:** the day a SpaceCAD adapter lands and puts its
+extension in the accept list, naming SpaceCAD becomes legal on its own. Negative controls on both
+sources: restoring either sentence reports *"CHANGELOG.md names rocketpy, whose files are .py"* and
+the same for the panel.
+
+**Remaining: increment 3, the repository SETTINGS half**, which is not a file and which no tool
 available to a session can edit. Paste-ready description, website and topics are in `OWNER-NOTES.md`
 under *Awaiting the owner*. **Do not report `ON-B2` as closed while that half is open.**
 
@@ -4732,12 +4836,21 @@ No gate step reads README content — `check-links.mjs` resolves relative links 
 `README.md` is in no session-start list, so it goes stale silently every run. That is what ON-B2 is
 actually about.
 
-**Done when** the README describes what ships today, and the claims that can be mechanically tied to
-code are ASSERTED against it: the accepted import extensions against `ImportPanel`'s accept list, the
-route list against the exported routes, and the sample count against `public/samples/`. A false
-README claim then fails the build instead of waiting for an owner to notice.
+**Done when** the README *and the app's own copy* describe what ships today, and the claims that can
+be mechanically tied to code are ASSERTED against them **in both directions**: the accepted import
+extensions against `ImportPanel`'s accept list, the route list against the exported routes, and the
+sample count against `public/samples/`. A false claim then fails the build instead of waiting for an
+owner to notice.
 
-**Size.** 2 increments.
+**The *done when* was widened on 2026-08-11, and the reason is recorded rather than assumed.** As
+first written it named `README.md` alone and asserted only that no accepted format was MISSING from
+it. Both halves of that turned out to be too narrow on the same day: the false claim that shipped was
+in the app's own landing card and changelog rather than in the README, and it was an over-claim rather
+than an omission — so the milestone's own outcome, *"someone arriving from a forum link reads a
+landing page that describes the tool that exists today"*, was untrue of the page a forum link actually
+opens. Widening it is what makes the outcome and the check agree.
+
+**Size.** 3 increments (was 2; the in-app half is increment 2).
 
 **Notes.** The other half — repository description, website link and topics — is a GitHub SETTING, not
 a file, and no tool available to a session can edit it. It is parked in `OWNER-NOTES.md` under
