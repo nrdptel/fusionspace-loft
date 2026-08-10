@@ -18,7 +18,20 @@ big for one pass. Newest first.
 
 **Filed 2026-08-10, from run 10 — the sentinel gate on the validation table.**
 
-- **`eslint` is not running `no-duplicate-case`, and a duplicate shipped.** `cdOriginPhrase` in
+- **RESOLVED 2026-08-10, same run it was filed — and the whole recommended set was off, not one
+  rule.** `eslint-config-next` brings React, hooks and Next rules and does not extend
+  `js.configs.recommended`, so **61 checks** for plain JavaScript mistakes had been off for the life
+  of this repo. Enabling it cost **two** errors across the entire tree, both genuine and both fixed:
+  a sparse-array fallback in `e2e/smoke.spec.ts` (`[, "-"]`, correct and reading like a typo, which
+  is the rule's whole point) and a non-breaking space in a `lib/sim/simulate.ts` template — that one
+  DELIBERATE, so `no-irregular-whitespace` is configured to skip strings and templates and stays an
+  error everywhere else. Proven by re-introducing the original duplicate case and watching the
+  linter name it, and pinned by `lib/lint-config.test.ts`, which fails if the set is dropped again.
+  **The general lesson is the one worth keeping**: a disabled check is indistinguishable from a
+  passing one, so the config is now asserted rather than assumed — the same reason `DESIGN.md` is
+  read by a test rather than trusted.
+
+- ~~**`eslint` is not running `no-duplicate-case`, and a duplicate shipped.**~~ *(resolved above.)* `cdOriginPhrase` in
   `components/LoftApp.tsx` carried two `case "flyer":` arms; the second was unreachable and had been
   on `main` through every green gate. Behaviourally harmless — the first wins and returns a sensible
   sentence — but it is exactly the class a linter exists to catch, and nothing said a word. The

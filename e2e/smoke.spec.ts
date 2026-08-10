@@ -6167,7 +6167,11 @@ test.describe("Loft", () => {
 
     const strip = async () => {
       const t = (await page.locator("body").innerText()).replace(/−/g, "-");
-      const g = (re: RegExp) => (t.match(re) ?? [, "-"])[1]!.trim();
+      // The fallback stands in for a match, so it has to have the same SHAPE as one: index 0 is the
+      // whole match and index 1 is the capture this reads. It was written `[, "-"]` — a hole, then
+      // the value — which is correct and reads like a typo, and is what `no-sparse-arrays` is for.
+      // Spelled out, the intent is on the line instead of in the comma.
+      const g = (re: RegExp) => (t.match(re) ?? ["", "-"])[1]!.trim();
       return {
         length: g(/(?:^|\n)Length\n([^\n]*)/i),
         cp: g(/(?:^|\n)CP\n([^\n]*)/i),
