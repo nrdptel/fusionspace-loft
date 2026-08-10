@@ -173,6 +173,7 @@ export const EDIT_ACTIONS: Readonly<Record<string, string>> = {
   internalLength: "the internal part's size",
   internalOuterDiameter: "the internal part's outer diameter",
   internalInnerDiameter: "the internal part's bore",
+  internalMass: "the internal part's mass",
   // The external fittings. The diameter names what it IS rather than what it measures, because on a
   // lug or a button it is the frontal size the drag model squares rather than a dimension a flyer
   // would call a width.

@@ -8,9 +8,12 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 the first genuinely clean slate in several runs.** Start from `ROADMAP.md` and the two tracks.
 Where they stand:
 
-- **R-track: R12/8 shipped, and the next member is a copy of it.** The canopy has a mass override;
-  nose cone and body tube are the same five pieces (bag key, applier, aim-slot target, control,
-  undo label) against a different slot. **Read `chuteTargetId` in `applyDimensionEdits` first** —
+- **R-track: the mass override is on the canopy and on all five internal kinds.** What remains is
+  the nose cone (26 non-Loft masses across the corpus) and the body tube (13) — the same five pieces
+  (bag key, applier, aim-slot target, control, undo label) against a different slot. **Measure before
+  picking the next one**: this run's guess was "nose cone and body tube next", and counting the
+  corpus by kind said the five internal kinds carried 45 between them, nearly double either. The
+  probe is six lines over `massFrom`. **Read `chuteTargetId` in `applyDimensionEdits` first** —
   every field a slot aims must be listed in that condition or the applier silently falls back to
   "the primary part", which is right on a one-of-a-kind design and wrong the moment there are two.
   That bug was live in increment 9 until a pre-push read of the diff.
@@ -152,7 +155,7 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
   assertions) but the reverse — editing a fix and re-running e2e without rebuilding — would report
   green on code that was never served. Rebuild before every e2e run you intend to believe.
 
-## This run — eleven increments, ten merged and deployed, one on PR #161
+## This run — twelve increments, eleven merged and deployed, one on PR #162
 
 | # | what | where |
 |---|---|---|
@@ -166,7 +169,8 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
 | 8 | A flight log's unit says whether the file named it or Loft guessed | merged `a8e5df7` |
 | 9 | R12/8 — a canopy can be given the mass it was weighed at | merged `2d66012` |
 | 10 | The linter runs the 61 rules everyone assumed it was running | merged `43dae0f` |
-| 11 | P/row 31 — the airframe stays on screen while you work in another workspace | PR #161 |
+| 11 | P/row 31 — the airframe stays on screen while you work in another workspace | merged `f98a59f` |
+| 12 | R12/9 — the internal structure takes a weighed mass, on the slot with the largest gap | PR #162 |
 
 Verified against production, not just against `main`: `/docs/validation` serves increment 7's
 sentinel paragraph, `/docs/methods` serves increment 9's canopy-mass section, and increment 8's

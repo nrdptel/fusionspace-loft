@@ -4582,6 +4582,106 @@ describe("applyGeometryEdits — the canopy's mass", () => {
   });
 });
 
+/** The mass override on the slot that covers the largest remaining population.
+ *
+ *  Measured over the 35-design corpus by kind, counting every mass the design or its source tool
+ *  supplied rather than Loft: the five kinds this one slot addresses carry **45** between them —
+ *  22 centring rings, 9 inner tubes, 8 couplers, 3 bulkheads, 3 engine blocks — against 26 for the
+ *  nose cone and 13 for the body tube. One field, one slot, the biggest gap.
+ *
+ *  **Written to `overrideMass`, which is the real difference from the canopy.** A parachute has a
+ *  mass of its own that `lib/sim/mass.ts` reads directly; a ring has none — its mass is computed from
+ *  geometry and material every time — so the only way to state one is the override both importers
+ *  already read. */
+describe("applyGeometryEdits — an internal part's mass", () => {
+  const ringDesign = (): Rocket => {
+    const r = newDesign().rocket;
+    const tube = flattenRocket(r).find((p) => p.component.kind === "bodytube")!.component;
+    const ring: RocketComponent = {
+      id: "ring-1",
+      name: "Centring ring",
+      kind: "centeringring",
+      placement: { method: "top", offset: 0.01 },
+      length: 0.005,
+      outerRadius: 0.018,
+      innerRadius: 0.009,
+      material: { name: "Plywood", density: 630 },
+      children: [],
+    } as RocketComponent;
+    const withRing = (list: RocketComponent[]): RocketComponent[] =>
+      list.map((c) =>
+        c.id === tube.id ? { ...c, children: [...c.children, ring] } : { ...c, children: withRing(c.children) },
+      );
+    return { ...r, stages: r.stages.map((st) => ({ ...st, components: withRing(st.components) })) };
+  };
+  const ringOf = (r: Rocket) =>
+    flattenRocket(r).find((p) => p.component.id === "ring-1")!.component as RocketComponent & {
+      overrideMass?: number;
+      massFrom?: string;
+      outerRadius: number;
+      length: number;
+    };
+
+  it("states the aimed part's mass as an override, and records the figure as the flyer's", () => {
+    const rocket = ringDesign();
+    const before = ringOf(rocket);
+    expect(before.overrideMass).toBeUndefined(); // computed from geometry and stock until now
+
+    const after = ringOf(applyGeometryEdits(rocket, { internalId: "ring-1", internalMass: 0.012 }));
+    expect(after.overrideMass).toBeCloseTo(0.012, 9);
+    expect(after.massFrom).toBe("flyer");
+    // A weight is not a dimension: the ring is the same size as before.
+    expect(after.outerRadius).toBeCloseTo(before.outerRadius, 9);
+    expect(after.length).toBeCloseTo(before.length, 9);
+  });
+
+  it("takes a weighed zero as an answer rather than as an empty field", () => {
+    const after = ringOf(applyGeometryEdits(ringDesign(), { internalId: "ring-1", internalMass: 0 }));
+    expect(after.overrideMass).toBe(0);
+    expect(after.massFrom).toBe("flyer");
+  });
+
+  it("refuses a mass that cannot mean anything", () => {
+    for (const kg of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const after = ringOf(applyGeometryEdits(ringDesign(), { internalId: "ring-1", internalMass: kg }));
+      expect(after.overrideMass).toBeUndefined();
+      expect(after.massFrom).toBeUndefined();
+    }
+  });
+
+  /** The override has to beat the geometry, which is the whole point of it — and the two are applied
+   *  in one pass, so a resize in the same edit must not win. */
+  it("overrules the geometry it is set alongside", () => {
+    const edited = applyGeometryEdits(ringDesign(), {
+      internalId: "ring-1",
+      internalOuterDiameter: 0.05,
+      internalMass: 0.012,
+    });
+    const after = ringOf(edited);
+    expect(after.overrideMass).toBeCloseTo(0.012, 9);
+    expect(after.outerRadius).toBeGreaterThan(0.018); // the resize landed too
+    expect(dryMassProperties(edited).mass).toBeGreaterThan(0);
+  });
+
+  it("reaches the mass model, not just the tree", () => {
+    const base = dryMassProperties(ringDesign()).mass;
+    const heavy = dryMassProperties(applyGeometryEdits(ringDesign(), { internalId: "ring-1", internalMass: 1 })).mass;
+    // A kilogram of centring ring is a kilogram the design now carries.
+    expect(heavy).toBeGreaterThan(base + 0.9);
+  });
+
+  it("counts as an edit, and dies with the part it is aimed at", () => {
+    expect(hasGeometryEdits({ internalMass: 0.012 })).toBe(true);
+    expect(hasGeometryEdits({ internalMass: 0 })).toBe(true);
+    expect(AIM_SLOTS.internalId.targets).toContain("internalMass");
+    // Listed in the slot's targets, so removing the part clears the weighed figure with it rather
+    // than migrating it onto whatever the primary-internal fallback finds next.
+    const cleared = aimsClearedByRemoving(ringDesign(), { internalId: "ring-1", internalMass: 0.012 }, "ring-1");
+    expect("internalMass" in cleared).toBe(true);
+    expect(cleared.internalMass).toBeUndefined();
+  });
+});
+
 describe("the internal structure is a part like any other", () => {
   // The largest unreachable population in the model until now. Measured over the 35-design corpus:
   // 249 of 569 parts (43.8%) had no field describing them, and 194 of those 249 are these five
