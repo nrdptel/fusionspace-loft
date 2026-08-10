@@ -325,7 +325,17 @@ export default function ResultsView({
   const [log, setLog] = useState<{
     points: FlightLogPoint[];
     unit: LogUnit;
-    speed: { points: FlightLogSpeedPoint[]; unit: LogSpeedUnit } | null;
+    /** True while `unit` is Loft's GUESS rather than something the file named.
+     *
+     *  `lib/flightlog.ts` returns `unitHint: null` deliberately, to mean *the header does not say* —
+     *  a bare `Altitude` column parses fine and lands here. The guess is the flyer's current display
+     *  system, which is a reasonable default and is wrong for every flyer whose altimeter exports
+     *  feet while they read metric: the curve, both peaks and the percentage beneath them all come
+     *  out 3.28x, presented in the same confident voice as a stated unit. Carried so the surface can
+     *  say which of the two it is, and cleared the moment the flyer touches the picker — at that
+     *  point the unit is theirs, not Loft's. */
+    unitAssumed: boolean;
+    speed: { points: FlightLogSpeedPoint[]; unit: LogSpeedUnit; unitAssumed: boolean } | null;
   } | null>(null);
   const [logError, setLogError] = useState<string | null>(null);
   const onLogFile = (file: File | undefined) => {
@@ -339,8 +349,13 @@ export default function ResultsView({
         setLog({
           points: parsed.points,
           unit: parsed.unitHint ?? (units === "imperial" ? "ft" : "m"),
+          unitAssumed: parsed.unitHint === null,
           speed: parsed.speed
-            ? { points: parsed.speed.points, unit: parsed.speed.unitHint ?? (units === "imperial" ? "ft/s" : "m/s") }
+            ? {
+                points: parsed.speed.points,
+                unit: parsed.speed.unitHint ?? (units === "imperial" ? "ft/s" : "m/s"),
+                unitAssumed: parsed.speed.unitHint === null,
+              }
             : null,
         });
       } catch (e) {
@@ -719,12 +734,23 @@ export default function ResultsView({
                     <Select
                       aria-label="Flight log altitude unit"
                       value={log.unit}
-                      onChange={(e) => setLog({ ...log, unit: e.target.value as LogUnit })}
+                      // CHANGING the unit makes it the flyer's, so the marker goes. Re-picking the
+                      // value already shown does not fire `change` at all, so a flyer whose guess
+                      // was already right keeps the caution — which is the correct outcome and not
+                      // a workaround: Loft still does not know, and the file still does not say.
+                      // What is genuinely missing is a way to SAY "yes, metres" without changing
+                      // anything; filed rather than bolted on.
+                      onChange={(e) => setLog({ ...log, unit: e.target.value as LogUnit, unitAssumed: false })}
                     >
                       <option value="m">metres</option>
                       <option value="ft">feet</option>
                     </Select>
                   </label>
+                  {log.unitAssumed && (
+                    <span className="text-amber-700 dark:text-amber-400">
+                      · assumed &mdash; the file&apos;s header does not name a unit
+                    </span>
+                  )}
                   <span>· {log.points.length} points</span>
                   <Button
                     variant="ghost"
@@ -757,6 +783,20 @@ export default function ResultsView({
                 </>
               )}
               . Your measurement beside the estimate — not a model-accuracy figure.
+              {/* The caution rides with the number rather than only at the control that sets it: this
+                  sentence is what a flyer reads and quotes, and a unit Loft guessed is exactly the
+                  kind of assumption `DESIGN.md` §6 requires a reference value to name. Stated as the
+                  consequence, because "unit assumed" alone does not tell anyone what it would cost. */}
+              {log?.unitAssumed && (
+                <>
+                  {" "}
+                  <span className="text-amber-700 dark:text-amber-400">
+                    The unit is Loft&apos;s assumption, not the file&apos;s: if this log is in{" "}
+                    {log.unit === "m" ? "feet" : "metres"}, every figure on this line is out by 3.3&times;.
+                    Set it above.
+                  </span>
+                </>
+              )}
             </p>
           )}
         </Figure>
@@ -779,7 +819,16 @@ export default function ResultsView({
                   aria-label="Flight log speed unit"
                   value={log.speed.unit}
                   onChange={(e) =>
-                    setLog(log ? { ...log, speed: log.speed ? { ...log.speed, unit: e.target.value as LogSpeedUnit } : null } : null)
+                    setLog(
+                      log
+                        ? {
+                            ...log,
+                            speed: log.speed
+                              ? { ...log.speed, unit: e.target.value as LogSpeedUnit, unitAssumed: false }
+                              : null,
+                          }
+                        : null,
+                    )
                   }
                 >
                   <option value="m/s">m/s</option>
@@ -788,6 +837,11 @@ export default function ResultsView({
                   <option value="km/h">km/h</option>
                 </Select>
               </label>
+              {log.speed.unitAssumed && (
+                <span className="text-amber-700 dark:text-amber-400">
+                  · assumed, from four possibilities &mdash; the header does not name one
+                </span>
+              )}
               {logMaxV !== null && (
                 <span className="text-zinc-600 dark:text-zinc-300">
                   Log peak <strong className="tabular-nums">{d.fmt(logMaxV, 0)}&nbsp;{spdUnit}</strong> · Loft predicted{" "}
@@ -796,6 +850,14 @@ export default function ResultsView({
                     <>
                       {" "}— <strong className="tabular-nums">{d.fmt(Math.abs(vDeltaPct), 0)}%</strong>{" "}
                       {vDeltaPct >= 0 ? "faster" : "slower"}
+                    </>
+                  )}
+                  {log.speed.unitAssumed && (
+                    <>
+                      {" "}
+                      <span className="text-amber-700 dark:text-amber-400">
+                        on a unit Loft assumed &mdash; set it above.
+                      </span>
                     </>
                   )}
                 </span>

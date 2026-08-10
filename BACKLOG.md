@@ -18,6 +18,30 @@ big for one pass. Newest first.
 
 **Filed 2026-08-10, from run 10 — the sentinel gate on the validation table.**
 
+- **A flyer whose guessed flight-log unit is already right cannot say so.** The *assumed* marker
+  clears when the picker's value CHANGES, and an HTML `<select>` fires no `change` event when the
+  same option is re-picked — so the one flyer who could dismiss the caution with certainty (the one
+  reading metric whose log really is in metres) is the one who has to switch to feet and back to do
+  it. Found reviewing my own diff, where the comment I had written claimed the opposite. The caution
+  persisting is the correct default and the gap is the missing affirmative: a small "yes, metres"
+  confirm beside the picker, or treating any interaction with the control as the answer. **Not fixed
+  in the same change** — it is a control-vocabulary question (`DESIGN.md` §5 has no confirm-a-guess
+  primitive) and inventing one inline is how a sixth button weight gets born.
+
+- **`depth.spec.ts`'s desktop spine ratchet flaked once, and it is a RATCHET, so a flake is worse
+  than an ordinary one.** *"desktop: the workspace spine stays within 820px of the top"* failed
+  inside a full shard-1 run and then passed three times: alone, as a whole file, and on a repeat of
+  the identical full shard. The change in flight touched only the Plots figure, hundreds of pixels
+  below the spine, and the whole-file run measures the same four routes — so a real regression is
+  not the explanation. The likely cause is that `depthOf` measures a live layout and something above
+  the spine had not settled (a font swap or an image reserving its box) in the one run where the
+  suite was under full parallel load. **Why it matters more here than for a normal flake:** this test
+  exists so that a growth in shared chrome fails at the cause rather than at a route, and a check
+  that fires at random teaches a future session to re-run rather than to read it. **Next:** capture
+  the message on the next occurrence — it names the route and the measured pixels, so one real
+  sample separates "not settled" from "genuinely 821". Waiting on the layout to be stable before
+  measuring is the likely fix, not widening the cap.
+
 - **The validation CSV now omits a withheld metric without saying it did — found reviewing my own
   diff, and it is the export half of the defect I had just fixed.** `components/ValidationPanel.tsx`
   names the withheld metrics on screen; `DataTable` exports `report.comparisons`, which no longer
@@ -84,7 +108,23 @@ big for one pass. Newest first.
   correctly all three times, and never checked whether a user could get there, so the same latent
   case was re-filed twice while the live one next to it went unnamed for eight days.
 - **`components/ImportPanel.tsx:343` and `lib/version.ts:59` claim Loft imports "OpenRocket .ork, RockSim .rkt, RASAero .CDX1, RocketPy and SpaceCAD".** `lib/ork/import.ts:49` sniffs exactly three roots and `FORMATS` at `:74` states three. A flyer who brings a RocketPy script gets *"That does not look like a rocket design file"* from an app that just told them it reads RocketPy, on the first screen a stranger sees and again on `/docs/changelog`. `README.md:55` states the correct three, so this is in-app copy only — which is also why `P10`'s README check cannot see it. From the opening fan-out.
-- **SEV-1 CANDIDATE, UNREPRODUCED — reproduce before scoping, and ahead of any milestone.** An uploaded altimeter log whose header names no unit is silently read in the flyer's CURRENT display system.** `components/ResultsView.tsx:340`: `unit: parsed.unitHint ?? (units === "imperial" ? "ft" : "m")`, where `lib/flightlog.ts:33` returns `unitHint: null` deliberately to mean *the file does not say*. The Select at `:726` then shows the guess exactly as it shows a stated unit, and the caption at `:753` prints "the log flew N% higher than predicted" with no statement that the unit was assumed — a 3.28x error presented as a comparison. `DESIGN.md` §6 requires a reference value to name its source. From the opening fan-out.
+- **RESOLVED 2026-08-10 — reproduced, and unlike its sibling this one had no gate in front of it at
+  all.** Reachability took one reading: `isAltitudeHeader` at `lib/flightlog.ts:47` matches a bare
+  `Altitude` on `/alt|height|\bagl\b/`, and `unitOf` at `:60` then finds no unit in that same cell and
+  returns `null` — so the file parses perfectly and the unit is Loft's. There is no `edited` flag or
+  `hasPropulsion` guard anywhere in the path, because the path is "a flyer uploads a CSV". Driven
+  end-to-end against a bare-header fixture: both pickers showed the guess exactly as they show a
+  stated unit, and the caption read "the log flew N% higher than predicted" underneath it. The
+  altitude unit is a guess between two and the SPEED unit a guess between four. **Fixed by saying
+  which it is**: `unitAssumed` on the log state, an *assumed* marker at each picker, and a caution
+  riding with the number that names the consequence ("if this log is in feet, every figure on this
+  line is out by 3.3x") rather than only flagging the control. Touching either picker clears its own
+  marker — answering the question is what makes the unit the flyer's. Pinned by an e2e case whose
+  negative control is the fixture that DOES name its units and must show none of it. **Not withheld,
+  deliberately**: the flyer may well have the right unit, and the house precedent for a figure resting
+  on a default is `descentWhy`'s caution, not a blanked readout.
+
+- ~~**SEV-1 CANDIDATE, UNREPRODUCED.** An uploaded altimeter log whose header names no unit is silently read in the flyer's CURRENT display system.**~~ *(resolved above.)* `components/ResultsView.tsx:340`: `unit: parsed.unitHint ?? (units === "imperial" ? "ft" : "m")`, where `lib/flightlog.ts:33` returns `unitHint: null` deliberately to mean *the file does not say*. The Select at `:726` then shows the guess exactly as it shows a stated unit, and the caption at `:753` prints "the log flew N% higher than predicted" with no statement that the unit was assumed — a 3.28x error presented as a comparison. `DESIGN.md` §6 requires a reference value to name its source. From the opening fan-out.
 - **`AIM_SLOTS` has no entry for `tubefinset` or `streamer`, so both get NO Properties control at all.** `aimEditsAt` returns `{}` and `components/LoftApp.tsx:2256` returns null. Both kinds are fully modelled and both are in the corpus (`TubeFins1.rkt`, `Tube fin rocket.ork`). Worse for the streamer: `ResultsView.tsx:435` stamps the descent *extrapolated* when a streamer's Cd is a fallback, while the Cd field renders for parachutes only — a caveat naming a value with no control to set it. `components/GeometryInspector.tsx:254`'s `describeDims` has no case for either, so a tube-fin set shows only its length and a streamer shows a dash. This is the residue R12 increment 4 left: two kinds, not a long tail.
 - **`npx tsc --noEmit` is red with 19 errors, all in `lib/model/edit.test.ts`, and nothing in the four-command gate runs it.** `HANDOFF.md` recorded 9 on 2026-08-04, so it has more than doubled. Nine of them are one root: `hosted`'s parameter type at `edit.test.ts:4379` intersects conflicting literal `kind`s and collapses to `never`, so ten object literals describing internal-part fixtures are unchecked and a mistyped property name is silently ignored. The cost is that you cannot add a field to `GeometryEdits` and use the compiler to find the call sites — the cheapest tool for the next property-surface increment, unusable. From the opening fan-out.
 - **Two corpus-backed cases return early and report as PASSED rather than skipped when the corpus is absent** — `lib/ork/export.test.ts:765` and `lib/model/edit.test.ts:3599`, both jumping over their own denominator assertions. `lib/corpus/sweep.test.ts` uses `describe.skip`, which is visible; these two are not, and CI fetches the corpus only when `FIXTURES_TOKEN` is set, so on any fork PR they are green-and-empty. Same shape as the vacuous docs check run 8 found. `lib/validation/rocketpy-spec.test.ts:168` is a third variant: with no built export its only assertion is that a committed source file exists.
