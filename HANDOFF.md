@@ -155,7 +155,7 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
   assertions) but the reverse — editing a fix and re-running e2e without rebuilding — would report
   green on code that was never served. Rebuild before every e2e run you intend to believe.
 
-## This run — thirteen increments, twelve merged and deployed, one on PR #163
+## This run — fourteen increments, thirteen merged and deployed, one on PR #164
 
 | # | what | where |
 |---|---|---|
@@ -171,7 +171,8 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
 | 10 | The linter runs the 61 rules everyone assumed it was running | merged `43dae0f` |
 | 11 | P/row 31 — the airframe stays on screen while you work in another workspace | merged `f98a59f` |
 | 12 | R12/9 — the internal structure takes a weighed mass, on the slot with the largest gap | merged `a1428b1` |
-| 13 | The identify line says where a mass came from — the last surface that did not | PR #163 |
+| 13 | The identify line says where a mass came from — the last surface that did not | merged `2797bca` |
+| 14 | The mass breakdown says it too, and the describer moves out of the component that owned it | PR #164 |
 
 Verified against production, not just against `main`: `/docs/validation` serves increment 7's
 sentinel paragraph, `/docs/methods` serves increment 9's canopy-mass section, and increment 8's
