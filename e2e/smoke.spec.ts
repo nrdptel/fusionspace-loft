@@ -6408,7 +6408,14 @@ test.describe("Loft", () => {
     // two real corpus designs before the fix: 0 kg against 1.361 kg, and 0 kg against 2 kg.
     // `e2e/fixtures/stage-weighed.ork` is the bundled single-deploy design with a 1.234 kg
     // whole-stage weight added, which is exactly the shape those two files have.
+    // Back to a clean slate before the second import: the session persists the loaded design, and
+    // with one already in hand the results surface offers a flight-log box that is also a file input.
     await page.goto("/");
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+    await page.reload();
     await page
       .locator('input[type="file"]')
       .first()
@@ -6433,6 +6440,74 @@ test.describe("Loft", () => {
     const panel = text.match(/Mass & balance · dry ([\d.,]+\s*[a-z]+)/i);
     expect(panel).not.toBeNull();
     expect(caption![1]).toBe(panel![1]);
+  });
+
+  test("a mass field offers nothing where the design already counts that mass elsewhere", async ({
+    page,
+  }) => {
+    // **The airframe gains a mass control, and this is the case where it must NOT be a live box.**
+    // Where an assembly states one weight for itself and everything in it, a part inside contributes
+    // nothing of its own — so a mass typed on that part changes no flight. Measured over the
+    // 35-design corpus: 42 aimable parts across 4 designs sit inside such an assembly, and three of
+    // the kinds (nose cone, body tube, internal structure) read their placeholder off
+    // `massByComponent`, which reports those parts at 0 kg. So the box advertised "this cone weighs
+    // 0" and swallowed whatever was typed into it.
+    //
+    // `NumberField`'s own `disabled` is the primitive for exactly this and says so in its docblock —
+    // a control that demonstrably does nothing must not sit there looking as though it does. The
+    // parts table one click away has always printed "in Sustainer"; this is the property surface
+    // finally agreeing with it.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+
+    // Every mass field on the design wall, on a design whose stage carries the weight.
+    for (const name of [/^Nose mass /, /^Body tube mass /, /^Part mass /, /^Mass \(/, /^Canopy mass /]) {
+      const field = page.getByLabel(name).first();
+      await expect(field, `${name} must be present to be disabled`).toBeVisible();
+      await expect(field, `${name} must not accept a weight the design counts elsewhere`).toBeDisabled();
+      // And it advertises NO figure at all, rather than the 0 kg `massByComponent` reports for a
+      // part whose weight is counted in an assembly — the wrong number this case exists to remove.
+      expect(await field.getAttribute("placeholder"), `${name} must advertise no figure`).toBeNull();
+    }
+    expect(
+      (await page.locator("body").innerText()).match(/Counted in Sustainer/g)?.length ?? 0,
+      "each disabled mass field names the assembly carrying its weight",
+    ).toBeGreaterThanOrEqual(5);
+  });
+
+  test("the same mass fields are live on a design that states no assembly weight", async ({ page }) => {
+    // **The control for the case above, and the half that fails if the condition is inverted.** Its
+    // own test rather than a second act of that one, because the session persists the design across
+    // a navigation — a single test would be asserting against whichever import ran last.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-single-deploy.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+    for (const name of [/^Nose mass /, /^Body tube mass /]) {
+      const field = page.getByLabel(name).first();
+      await expect(field, `${name} must be live where the part carries its own weight`).toBeEnabled();
+      // And it shows the figure it is overruling, so blank has something to mean.
+      await expect(field).toHaveAttribute("placeholder", /\d/);
+    }
+    expect((await page.locator("body").innerText()).match(/Counted in /g)?.length ?? 0).toBe(0);
   });
 
   test("a removal the design's own stated weight swallows says so, before and after the click", async ({

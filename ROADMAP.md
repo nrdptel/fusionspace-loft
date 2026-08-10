@@ -2578,6 +2578,49 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 8 — the flyer's own scale reading reaches the airframe, and stops lying where it cannot,
+2026-08-10.** `COMPETITION.md` row 41 named (d) — a universal mass override — as the cheapest and
+most useful thing left in that row, and the nose cone and the body tube were the two kinds it had
+never reached. Measured over the 35-design corpus by kind, counting every mass the design or its own
+tool supplied rather than Loft: **13 body tubes and 10 nose cones**. `noseMass` and `bodyTubeMass`
+are the two new keys — the tube's a target of `bodyTubeId`, so on the **23 of 35** designs carrying
+more than one tube the weight lands on the tube the length field beside it is holding; the cone's
+unaimed, because there is no nose slot and `noseLength`, `noseShape` and the catalogue pick all
+resolve through `primaryNose` already. Both are written last in the applier, so a scale reading beats
+a catalogue pick and a caliber scale made in the same patch — the precedence `parachuteMass` already
+has over a resize.
+
+**A correction to a number this file published: the nose cone's count was recorded as 26 and it is
+10.** Re-measured 2026-08-10 by two independent counts over the same 35 files — `massFrom` tallied by
+kind, and every `overrideMass` on a cone listed by file — which agreed. The body tube's 13 reproduced
+exactly, so the method was right and the one figure was not. The comment in `components/LoftApp.tsx`
+that carried it is corrected in place rather than deleted, because the wrong number had already been
+used once to rank what to build next.
+
+**And the increment's own corpus check found a defect on four SHIPPED surfaces, which is most of what
+this increment is worth.** OpenRocket lets an assembly state one weight for itself and everything
+inside it, and **4 of the 35 corpus designs do** — a stage-level override on three, a component-level
+one on the fourth. A part inside such an assembly contributes nothing of its own, so a mass typed on
+it changes no flight. `massByComponent` reports those parts at **0 kg, counted in ⟨assembly⟩**, and
+`GeometryInspector`'s parts table has always printed exactly that. The property panel did not:
+**42 aimable parts across those 4 designs** — 10 body tubes, 7 centring rings, 5 canopies, 4 couplers,
+4 bulkheads, 3 nose cones, 2 inner tubes, 2 mass objects, 2 shock cords, 2 launch lugs, 1 rail button
+— sat behind a live-looking box, and on three of the kinds that box advertised a placeholder of **0**
+for a part that weighs something. 29 of the 42 are on controls that shipped in earlier increments, so
+this was live. Fixed on all six mass fields at once from one derived `massCarriedBy`, using
+`NumberField`'s own `disabled`, whose docblock already said it was for exactly this: *a control that
+demonstrably does nothing must not sit there looking as though it does*. The field names the carrier
+in words rather than greying out silently.
+
+Pinned by `lib/corpus/sweep.test.ts`'s *puts the flyer's own weight on every real design's nose cone
+and body tube* — asserted as a relationship over all 35 files rather than as golden counts, with the
+aim taken on the LAST tube so a multi-tube design tests the aim rather than the fallback, and with a
+second half asserting that the mass model's `subsumedBy` and `statedMassHolder` agree on every
+aimable part, because those are the two answers the parts table and the property panel read. Plus
+seven cases in `lib/model/edit.test.ts` and two in `e2e/smoke.spec.ts`, the second of which is the
+control. Negative controls: dropping the aim to `primaryBodyTube(rocket)` reports *"a stated tube mass
+migrated onto another tube"* on the real corpus; removing the six `disabled` props fails the e2e case.
+
 **Increment 7 — the parts table says which masses the design STATED, 2026-08-10.** `COMPETITION.md`
 row 43, opened this run and closed by it. Both OpenRocket and RockSim tell a user when a mass was
 entered rather than derived — OpenRocket by storing the fact as its own element beside its own

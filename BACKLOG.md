@@ -18,6 +18,102 @@ big for one pass. Newest first.
 
 **Filed 2026-08-10, from run 10 — the sentinel gate on the validation table.**
 
+**Filed 2026-08-11, from run 11 — the airframe mass override and its fan-out.**
+
+*From the desktop first-use cold walk. Every one was measured by the agent against a live build at
+1440x900; the four marked REPRODUCED were re-checked against the code by me before filing. Findings
+the walk reported as page-load failures are discounted — I rebuilt `out/` underneath it mid-walk,
+which it noticed and said so.*
+
+- **REPRODUCED — the app claims to import RocketPy and SpaceCAD files, and it imports neither.**
+  `components/ImportPanel.tsx:343` and `CHANGELOG.md:42` (which generates `lib/version.ts` and is
+  served at `/docs/changelog`) both say *"Import the file you already have: OpenRocket .ork, RockSim
+  .rkt, RASAero .CDX1, RocketPy and SpaceCAD"*. The file input accepts
+  `.ork,.ork.gz,.rkt,.cdx1,.CDX1,application/zip` and `lib/ork/import.ts`'s own refusal names three
+  formats. `lib/validation/rocketpy-spec.ts` builds a spec **from** a Loft design for the in-browser
+  second solver — it is an export direction, and there is no SpaceCAD code at all. **And the check
+  built to prevent exactly this is directional**: `lib/version.test.ts`'s *names every design format
+  the importer actually accepts* asserts the README mentions every accepted extension, so it catches
+  an OMISSION and cannot catch an OVER-CLAIM. Taken as P10 increment 2.
+- **REPRODUCED — `CNα` renders as `CNΑ`, a capital Alpha.** `components/ResultsView.tsx:1640` passes
+  the label to `Readout`, whose label div is `uppercase` (`components/ui.tsx:699`), and CSS
+  `text-transform` maps α → Α. The number is right and its symbol is not, on the surface an aero
+  reader reads. One line, and it needs a rule that stops the next symbol going the same way.
+- **REPRODUCED — imperial mass is 4.5x coarser than metric, and small designs lose all resolution.**
+  `lib/display.ts:114` formats metric mass at 3 dp of kg (gram resolution) and imperial at 2 dp of lb
+  (4.54 g). On `The Red Hunter.ork` liftoff 0.047 kg and burnout 0.042 kg read as **47 g / 42 g**
+  metric and **0.10 lb / 0.09 lb** imperial. Not a wrong number — a correctly rounded one at a
+  precision that hides a 5 g difference. Ounces are the unit US hobby flyers use below a pound, and
+  OpenRocket offers them. Not Sev-1 by the stated test; a real craft defect.
+- **REPRODUCED — Undo and Redo are `aria-disabled` but not `disabled`.** On a freshly imported design
+  both are focusable and clickable no-ops. Two controls that tab and look live and cannot be.
+- **The import-failure card says nothing an assistive technology can hear, and little a sighted user
+  will see.** It renders after the whole `ImportPanel` (drop zone, *"Why Loft"*, *"Once a design is
+  loaded"*), landing at y=1370 in a 900 px viewport; scroll does not move, focus does not move, and
+  the page carries zero `[role=alert]` / `[role=status]` / `[aria-live]` nodes. The most likely
+  first-use failure produces a screen that looks unchanged.
+- **A cold deep-link to a workspace route silently redirects to `/`.** Open `/validate` in a fresh
+  context with no stored session and it lands on the import screen with no word about why. A
+  cross-check link shared on a forum is the case this breaks.
+- **Browser Back never reaches the landing page.** The import replaces the history entry rather than
+  pushing, so Back from `/design` goes to `/flight` and stops. *"← Import another"* is the only route
+  back, and Back is the reflex.
+- **A rejected Jupyter notebook is refused with `Not an OpenRocket file (root <Figure>)`** — an XML
+  parser detail in first-use copy. The rest of the sentence works without it.
+- **Every contextual provenance link lands at the top of a 13-section page.** *"how these are
+  computed"*, *"where it's weak"* and *"What backs each figure"* all navigate with no fragment
+  (measured `scrollY` 0 on arrival), so asking what one number means hands over a whole manual.
+  `DocsHeading` already mints anchors; nothing links to them.
+- **`components/MotorSweep.tsx:587` renders `On Apogeethe same mark means something different`** —
+  the space after `</em>` is lost in the built output (read via `textContent`, not `innerText`). The
+  paragraph explaining the one ambiguous marker is the one that is broken.
+- **The Fetch-weather button is a dead click with the site box empty.** `components/LoftApp.tsx:3993`
+  returns early on `!place.trim()` with the button enabled: no message, no pending state, no request,
+  no focus move.
+- **CLOSED, not a defect — four different "Loft" apogees for one design, each right for its own question.** The motor-sweep row marked *flying
+  now* read 260 m, the headline 258 m, the OpenRocket cross-check 258.5 m, the RocketPy table 260 m
+  and the dispersion median 256 m. The walk attributed the gap to the sweep's ballistic-ascent mode
+  from the caption's own text rather than from reading the solver, and did not reproduce it against
+  the code. **Partly resolved by reading it, 2026-08-11, and the sweep half is NOT a Sev-1.** The
+  sweep flies a ballistic ascent on purpose — `components/MotorSweep.tsx:58` states it,
+  `lib/sim/sweep.ts` exports `ballisticGap` for exactly this, and the caption connects the Design row
+  to the number the flyer just read. So the 258 vs 260 pair is designed, labelled behaviour rather
+  than two answers to one question. **And the RocketPy table checks out too, so this is CLOSED.**
+  `components/RocketpyCrossCheck.tsx:125` takes Loft's ballistic figure deliberately — *"exactly what
+  RocketPy's `terminate_on_apogee` run computes"* — and the panel says so where a flyer reads it, at
+  line 210 and again at line 423. Like-for-like against a second solver is the correct comparison and
+  it is labelled at the point of use. **Nothing here is a Sev-1.** What survives is a craft note: the
+  four figures are each right for their own question, and a flyer meets them on three surfaces
+  without a single sentence tying them together. If that is ever taken, it is one shared caption, not
+  a solver change.
+
+- **A stated weight on a FIN SET and on a TRANSITION is still unreachable, and they are the last two
+  aimable kinds without one.** Measured 2026-08-11 over the 35-design corpus by kind: 8 fin-set
+  masses (4 trapezoid, 3 freeform, 1 tube-fin) and 4 transition masses come from the design or its
+  own tool rather than from Loft. Both slots already exist (`finSetId`, `transitionId`), so each is
+  the same five pieces the nose and tube just took — bag key, applier line, slot target, control,
+  undo label. Finishing them makes the *done when* "every aimable kind offers a mass override"
+  assertable over `AIM_SLOTS` itself rather than kind by kind.
+- **`overrideSubcomponents` can be READ, WRITTEN by neither the editor nor a flyer, and is invisible
+  on every surface.** A design can state one weight for an assembly and everything in it — 4 of the
+  35 corpus designs do — and Loft now correctly withholds the per-part mass control inside one and
+  names the carrier. What a flyer still cannot do is set or clear that flag, so a design that states
+  its weight as a whole-stage figure can only ever be edited part by part somewhere else, and the
+  47 parts inside those assemblies have no route to a per-part weight at all. OpenRocket exposes it
+  as a checkbox beside the override. Not a defect in what ships; a capability gap with a measured
+  population, and it belongs on the R-track rather than here if it is taken.
+- **`npm run test:e2e` at full width still needs the two-shard split, and nothing in the repo
+  enforces it.** Confirmed again 2026-08-11: 129 + 129 = 258 tests pass as two sequential shards.
+  The FD-exhaustion hazard `MAINTAINING.md` documents is unchanged (`ulimit -n` is 4096 soft and
+  hard, unraisable), so a session that runs the suite unsharded can still read a server death as a
+  cluster of real failures. A wrapper script that shards by default would end this; it is a
+  four-line change nobody has made.
+- **The managed Playwright browser was ABSENT again at session start**, exactly as
+  `MAINTAINING.md` records: `@playwright/test` is 1.61.1 and manages chromium-1228, while
+  `/opt/pw-browsers` carried only 1194. `npx playwright install chromium` fixed it in about a minute.
+  This is paid for every session until it is in the environment's setup script, which is the owner's
+  to make and is already parked in `OWNER-NOTES.md`.
+
 - **FIXED 2026-08-10 — a diagram drag inverted itself when the page was scrolled, and it had been
   wrong for the life of the feature.** The drawing changes HEIGHT as it is dragged, and when its top
   edge is above the viewport the browser's scroll anchoring compensates by moving the page — the grip

@@ -96,7 +96,7 @@ import type {
 import { overallLength, maxBodyRadius } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
-import { dryMassProperties, statedMassHolder } from "../sim/mass";
+import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
 import { isUuidShaped } from "./id";
 import { exportOrk } from "../ork/export";
 import { defaultPayloadStation } from "./edit";
@@ -4682,6 +4682,138 @@ describe("applyGeometryEdits — an internal part's mass", () => {
     const cleared = aimsClearedByRemoving(ringDesign(), { internalId: "ring-1", internalMass: 0.012 }, "ring-1");
     expect("internalMass" in cleared).toBe(true);
     expect(cleared.internalMass).toBeUndefined();
+  });
+});
+
+/** The stated weight on the two kinds every rocket has.
+ *
+ *  Measured over the 35-design corpus by kind, counting every mass the design or its source tool
+ *  supplied rather than Loft: **13 body tubes and 10 nose cones**. Those were the last airframe parts
+ *  a flyer could read a scale onto and not type it in — the internal structure, the fittings, the
+ *  canopies and the mass objects all gained the control first.
+ *
+ *  **Written to `overrideMass`, like the internal structure and unlike the canopy.** Neither kind has
+ *  a mass field of its own: `lib/sim/mass.ts` derives a cone from its contour and a tube from its wall
+ *  and stock, and `overrideMass` is the one thing it honours over that. */
+describe("applyGeometryEdits — the airframe's own stated weight", () => {
+  const partOf = (r: Rocket, id: string) =>
+    flattenRocket(r).find((p) => p.component.id === id)!.component as RocketComponent & {
+      overrideMass?: number;
+      overrideSubcomponents?: boolean;
+      massFrom?: string;
+    };
+  const noseOf = (r: Rocket) => flattenRocket(r).find((p) => p.component.kind === "nosecone")!.component;
+  const tubesOf = (r: Rocket) =>
+    flattenRocket(r).filter((p) => p.component.kind === "bodytube").map((p) => p.component);
+
+  it("states the nose cone's mass as an override, and records the figure as the flyer's", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const nose = noseOf(rocket);
+    const after = partOf(applyGeometryEdits(rocket, { noseMass: 0.089 }), nose.id);
+    expect(after.overrideMass).toBeCloseTo(0.089, 9);
+    expect(after.massFrom).toBe("flyer");
+    // A weight is not a dimension: the cone is the same length as before.
+    expect((after as unknown as { length: number }).length).toBeCloseTo(
+      (nose as unknown as { length: number }).length,
+      9,
+    );
+  });
+
+  it("puts the tube's weight on the AIMED tube, and leaves the other alone", async () => {
+    // The half that actually fails when the aim is not resolved. `demo-quirks.ork` carries two tubes
+    // in one stage, so a fallback to "the primary tube" is visible rather than invisible — which is
+    // exactly how the canopy's own aim bug reached a green gate once.
+    const rocket = await load("demo-quirks.ork");
+    const tubes = tubesOf(rocket);
+    expect(tubes.length, "the fixture must carry more than one tube").toBeGreaterThan(1);
+    const aimed = tubes[1];
+    const other = tubes[0];
+    const edited = applyGeometryEdits(rocket, { bodyTubeId: aimed.id, bodyTubeMass: 0.234 });
+    expect(partOf(edited, aimed.id).overrideMass).toBeCloseTo(0.234, 9);
+    expect(partOf(edited, aimed.id).massFrom).toBe("flyer");
+    // Unchanged rather than absent: this fixture's OTHER tube states a weight of its own, which is
+    // what makes it the right control — a fallback would overwrite a real stated figure, not fill a
+    // blank, and the flyer would never see which of the two they had actually weighed.
+    const before = other as RocketComponent & { overrideMass?: number; massFrom?: string };
+    expect(before.overrideMass, "the fixture's other tube must state its own weight").toBeDefined();
+    expect(partOf(edited, other.id).overrideMass).toBeCloseTo(before.overrideMass!, 9);
+    expect(partOf(edited, other.id).massFrom).toBe(before.massFrom);
+  });
+
+  it("weighs the tube alone, and never the assembly inside it", async () => {
+    // A tube is the one kind whose children are the norm, and `overrideSubcomponents` is what would
+    // make a stated figure swallow them. Never set here: OpenRocket's Override tab defaults to the
+    // component alone, and the field says so. Measured over the corpus, 0 of the 27 nose-cone and
+    // body-tube overrides carry the flag, so nothing real is being preserved — but preserving it is
+    // still what "neither set nor cleared" has to mean.
+    const rocket = await load("demo-single-deploy.ork");
+    const tube = tubesOf(rocket)[0];
+    expect(tube.children.length, "the fixture's tube must hold something").toBeGreaterThan(0);
+    const edited = applyGeometryEdits(rocket, { bodyTubeId: tube.id, bodyTubeMass: 0.3 });
+    expect(partOf(edited, tube.id).overrideSubcomponents).toBeUndefined();
+    // Every child keeps a mass of its own rather than being subsumed into the stated figure.
+    const masses = massByComponent(edited);
+    for (const child of tube.children) {
+      expect(masses.get(child.id)?.subsumedBy, `${child.kind} must not be subsumed`).toBeUndefined();
+    }
+    // And the design weighs the stated tube PLUS what is inside it, not the stated tube alone.
+    expect(dryMassProperties(edited).mass).toBeGreaterThan(0.3);
+  });
+
+  it("takes a weighed zero as an answer, and refuses a mass that cannot mean anything", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const nose = noseOf(rocket);
+    expect(partOf(applyGeometryEdits(rocket, { noseMass: 0 }), nose.id).overrideMass).toBe(0);
+    for (const kg of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const after = partOf(applyGeometryEdits(rocket, { noseMass: kg }), nose.id);
+      expect(after.overrideMass).toBeUndefined();
+      expect(after.massFrom).not.toBe("flyer");
+    }
+  });
+
+  it("reaches the mass model, not just the tree", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const base = dryMassProperties(rocket).mass;
+    const heavy = dryMassProperties(applyGeometryEdits(rocket, { noseMass: 1 })).mass;
+    // A kilogram of nose cone is a kilogram the design now carries.
+    expect(heavy).toBeGreaterThan(base + 0.9);
+  });
+
+  /** The precedence that makes the field worth having: a scale reading is the flyer's own
+   *  measurement, and nothing computed in the same patch may quietly replace it. */
+  it("beats the caliber scale it is typed alongside", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const tube = tubesOf(rocket)[0];
+    const edited = applyGeometryEdits(rocket, {
+      bodyTubeId: tube.id,
+      bodyDiameter: (tube as unknown as { outerRadius: number }).outerRadius * 4,
+      bodyTubeMass: 0.234,
+    });
+    expect(partOf(edited, tube.id).overrideMass).toBeCloseTo(0.234, 9);
+    // The scale landed too — the two compose rather than compete.
+    expect((partOf(edited, tube.id) as unknown as { outerRadius: number }).outerRadius).toBeGreaterThan(
+      (tube as unknown as { outerRadius: number }).outerRadius,
+    );
+  });
+
+  it("counts as an edit, and the tube's dies with the tube it is aimed at", async () => {
+    expect(hasGeometryEdits({ noseMass: 0.089 })).toBe(true);
+    expect(hasGeometryEdits({ noseMass: 0 })).toBe(true);
+    expect(hasGeometryEdits({ bodyTubeMass: 0.234 })).toBe(true);
+    expect(hasGeometryEdits({ bodyTubeMass: 0 })).toBe(true);
+    expect(AIM_SLOTS.bodyTubeId.targets).toContain("bodyTubeMass");
+    // The nose is deliberately NOT in a slot — there is none — so it cannot migrate: `primaryNose`
+    // is what `noseLength`, `noseShape` and the catalogue pick already resolve through.
+    expect(Object.values(AIM_SLOTS).some((d) => d.targets.includes("noseMass"))).toBe(false);
+    const rocket = await load("demo-quirks.ork");
+    const aimed = tubesOf(rocket)[1];
+    const cleared = aimsClearedByRemoving(
+      rocket,
+      { bodyTubeId: aimed.id, bodyTubeMass: 0.234 },
+      aimed.id,
+    );
+    expect("bodyTubeMass" in cleared).toBe(true);
+    expect(cleared.bodyTubeMass).toBeUndefined();
   });
 });
 
