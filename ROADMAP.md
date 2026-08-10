@@ -5115,6 +5115,29 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-08-10 — a metric whose event never happened is withheld PER METRIC, not by skipping the
+  whole validation report.** `lib/sim/run.ts` already handles two versions of this question by
+  skipping the report entirely (no propulsion, ballistic what-if), so matching that would have been
+  the consistent-looking choice. **Taken: per metric.** An unlanded flight still has a real apogee,
+  max velocity, max Mach and time to apogee; skipping the report throws eight good comparisons away
+  to suppress two bad ones, and the panel a flyer opens to ask "can I trust this" would go blank on
+  the flights that most need answering. **Rejected: report-level skip** — simpler, one condition,
+  and it loses information that is not in question. **Rejected: comparing anyway with a caveat** —
+  the withheld figure is not an uncertain measurement, it is the absence of one, and `DESIGN.md` §6
+  does not have a treatment for "this number is fictional". The withheld metrics are named under the
+  table instead, so the table cannot silently shrink.
+
+- **2026-08-10 — the reason a figure is withheld lives in `lib/sim/withheld.ts`, shared, rather than
+  being restated at the second surface.** The wording was a local `const` in `components/ResultsView.tsx`
+  whose own docblock said it existed so four readouts "cannot drift apart again" — and the drift that
+  followed was a fifth surface that never read it. **Taken: extract the condition and its sentence.**
+  A component-local string cannot be shared by `lib/validation/compare.ts`, which must not import a
+  React component; putting it in `lib/sim/` next to the summary that defines the sentinels means a
+  new surface has to walk past the rule to break it. **Rejected: duplicate the wording** — it is what
+  produced this defect. **Rejected: a `withheld` flag on the summary itself** — the summary would then
+  carry presentation copy, and the two conditions (`landed`, `deployments`) are already there for a
+  consumer to ask.
+
 - **2026-08-09 — the P-track's next milestone is the design-system reconciliation, not the persistent
   airframe strip and not a numeric desktop contract.** The P-track had run dry: P1–P9, P11 and P12 are
   shipped and P10's remaining half is a repository SETTING no session can edit, so `MAINTAINING.md`'s

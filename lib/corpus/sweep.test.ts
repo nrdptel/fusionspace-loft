@@ -2373,22 +2373,30 @@ suite("real-design corpus", () => {
       "rail-exit velocity should collapse fifteen rows to two, not to one — the rail length reaches it",
     ).toBe(13);
 
-    // **And no metric is de-duplicated into insignificance.** One key is excused by name rather than
-    // by a lower threshold, and the distinction matters: `deploymentVelocity/ballistic` has n=1 and
-    // had n=1 before any of this — it is the single stored run in the corpus where a charge fires
-    // with nothing out, published on its own line precisely because it is not the same quantity as
-    // the other 81. De-duplication did not shrink it. Naming it keeps the floor at ten for every
-    // metric the rule can actually affect, instead of lowering the bar to one for all of them.
+    // **And no metric is de-duplicated into insignificance.** The floor is ten distinct comparisons:
+    // below that a median is not a census figure.
+    //
+    // **`deploymentVelocity/ballistic` used to be excused by name here at n=1, and on 2026-08-10 it
+    // went to n=0 — because that one row was never a comparison.** It is the single corpus run where
+    // the charge fires with nothing out, and the split above exists because the tool still stores a
+    // figure for it: *"the charge fires whether or not anything comes out"*. Loft has no such
+    // reading — it times the deployment of a device, and on this flight no device deployed — so the
+    // row was RockSim's 33.4 m/s against Loft's not-a-measurement 0, published as a flawless
+    // −100%. Splitting it into its own bucket kept it out of the other median but left it on the
+    // panel; `compareToStored` now withholds it, and the bucket it was the whole population of is
+    // empty. Asserted as absent rather than deleted, so a regression that starts scoring it again
+    // fails here as well as in the sentinel census at the bottom of this file.
     const perKey = new Map<string, number>();
     for (const r of kept.values()) perKey.set(r.key, (perKey.get(r.key) ?? 0) + 1);
     const gutted = [...perKey.entries()].filter(([, n]) => n < 10).map(([k, n]) => `${k} n=${n}`);
     expect(
-      gutted.filter((g) => !g.startsWith("deploymentVelocity/ballistic ")),
+      gutted,
       "a metric's population fell below ten distinct comparisons — a median over that is not a census figure",
     ).toEqual([]);
-    // …and the excused key is still there and still the size it was, so the excuse cannot start
-    // covering a metric that collapsed into it.
-    expect(perKey.get("deploymentVelocity/ballistic"), "the single not-deployed row is gone").toBe(1);
+    expect(
+      perKey.get("deploymentVelocity/ballistic"),
+      "the not-deployed run is being scored again — it has no deployment for the stored figure to disagree with",
+    ).toBeUndefined();
 
     // **What the de-duplication COST, replaced rather than accepted.** Weight is the whole reason a
     // median notices a single design: fifteen rows moving from below the median to the top used to
@@ -3214,5 +3222,74 @@ suite("real-design corpus", () => {
     console.log(`dispersion bands checked on ${checked} designs at 4x recovery, 40 samples each`);
     expect(checked, "no design produced a dispersion, so this asserted nothing").toBeGreaterThan(0);
     expect(bad, "a dispersion band contains a figure physics cannot produce").toEqual([]);
+  }, 900_000);
+
+  /** The validation table was the THIRD surface to read a sentinel as a measurement.
+   *
+   *  `FlightSummary` reports 0 for a figure whose event never happened, and says so on the field
+   *  itself: *"a sentinel, not a measurement ... Surfaces must withhold them rather than render the
+   *  zeros"*. The Flight card obeyed it. The Monte-Carlo summary was fixed to obey it (the check
+   *  directly above). `compareToStored` did not ask at all, and it is the surface that publishes a
+   *  DIFFERENCE — so the sentinel came out not as a suspicious 0 but as a confident agreement
+   *  figure against the source tool.
+   *
+   *  **One live case, on an unedited corpus file, with nothing exotic done to it.**
+   *  `rocksimTestRocket1.rkt [E6-2]` flies with nothing out while the file states a 33.4 m/s
+   *  deployment; the row read **"RockSim 33.4 m/s · Loft 0.0 m/s · −100%"**. The landing pair
+   *  needs a flight that does not finish, which no corpus file does under its own recovery — so the
+   *  arithmetic is pinned by `lib/validation/compare.test.ts` and the reachable half is pinned here.
+   *
+   *  The count is asserted EXACTLY. A withheld row is a real finding about a design, not a
+   *  nuisance: if this number moves, either a flight changed or the gate did, and both want reading
+   *  rather than a `toBeLessThan` that absorbs them silently. */
+  it("never scores a stored metric against a flight that could not answer it", async () => {
+    const scoredSentinels: string[] = [];
+    const withheldRows: string[] = [];
+    let rows = 0;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      for (const sim of doc.simulations) {
+        let run;
+        try {
+          run = runFromDocument(doc, {
+            configId: sim.conditions.configId,
+            validateAgainst: doc.flownAsReduced ? undefined : sim,
+            overrides: overridesFromStored(sim),
+          });
+        } catch {
+          continue; // owned by the import/flight checks above
+        }
+        if (!run.validation) continue;
+        const s = run.result.summary;
+        const where = `${shortName(f.name)} [${sim.name}]`;
+        for (const w of run.validation.withheld) withheldRows.push(`${where} ${w.key}`);
+        for (const c of run.validation.comparisons) {
+          rows++;
+          // Stated as the condition each metric NEEDS, so a new metric with a new sentinel has to be
+          // added here to be trusted — rather than as "is the value 0", which cannot tell a sentinel
+          // from a rocket that genuinely did something at 0.
+          const needs =
+            c.key === "groundHitVelocity" || c.key === "flightTime"
+              ? s.landed
+              : c.key === "deploymentVelocity"
+                ? s.deployments > 0
+                : true;
+          if (!needs) scoredSentinels.push(`${where} ${c.key} stored=${c.stored} loft=${c.simulated}`);
+        }
+      }
+    }
+    console.log(
+      `${rows} stored comparisons scored; ${withheldRows.length} withheld: ${withheldRows.join(", ") || "none"}`,
+    );
+    expect(rows, "no stored comparison ran, so this asserted nothing").toBeGreaterThan(0);
+    expect(scoredSentinels, "a stored metric was scored against a sentinel").toEqual([]);
+    // The reachable half, named. Deleting the gate puts this row back among the scored ones above,
+    // so the two assertions fail together rather than one covering for the other.
+    expect(withheldRows).toEqual(["rocksimTestRocket1.rkt [E6-2] deploymentVelocity"]);
   }, 900_000);
 });

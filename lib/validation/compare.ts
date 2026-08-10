@@ -6,6 +6,7 @@
 
 import type { FlightSummary } from "../sim/simulate";
 import type { StoredResults } from "../ork/adapt";
+import { notLandedWhy, noDeploymentWhy } from "../sim/withheld";
 
 export interface MetricComparison {
   key: string;
@@ -18,12 +19,24 @@ export interface MetricComparison {
   pctError: number;
 }
 
+/** A metric the file stored and Loft did NOT compare, with the reason said out loud. */
+export interface WithheldMetric {
+  key: string;
+  label: string;
+  reason: string;
+}
+
 export interface ValidationReport {
   comparisons: MetricComparison[];
   /** Mean absolute percentage error across the compared metrics. */
   mape: number;
   /** Number of metrics that were available to compare. */
   count: number;
+  /** Metrics the stored run has and this flight cannot answer, because the event they describe
+   *  never happened. Empty on a normal flight. Surfaced rather than silently dropped: a table that
+   *  quietly shrinks from ten rows to eight reads as "the file stored less", which is not what
+   *  happened. */
+  withheld: WithheldMetric[];
 }
 
 interface MetricDef {
@@ -31,6 +44,21 @@ interface MetricDef {
   label: string;
   unit: string;
   sim: (s: FlightSummary) => number;
+  /** Why this flight cannot answer this metric, when it cannot — `undefined` on a flight that can.
+   *
+   *  **A zero here is an event that did not happen, not a measurement of zero**, and only the flight
+   *  knows which. `FlightSummary` says so on `landed` ("a sentinel, not a measurement ... Surfaces
+   *  must withhold them rather than render the zeros") and on `deployments`, and the Flight card has
+   *  always obeyed it. This table did not: it read the sentinel as Loft's answer and published the
+   *  arithmetic. Scored against `rocksimTestRocket1.rkt [E6-2]`, whose flight opens nothing while the
+   *  file states 33.4 m/s, the deployment row read **"RockSim 33.4 m/s · Loft 0.0 m/s · −100%"**
+   *  — a perfect-looking disagreement about a measurement neither tool made.
+   *
+   *  Only the metrics whose own event can fail to occur carry one. Apogee, max velocity and time to
+   *  apogee are answers a flight has whether or not it lands, which is why this is per metric rather
+   *  than a gate on the whole report: withholding all ten would throw away eight good comparisons to
+   *  suppress two bad ones. */
+  unanswerable?: (s: FlightSummary) => string | undefined;
 }
 
 const METRICS: MetricDef[] = [
@@ -39,10 +67,25 @@ const METRICS: MetricDef[] = [
   { key: "maxAcceleration", label: "Max acceleration", unit: "m/s²", sim: (s) => s.maxAcceleration },
   { key: "maxMach", label: "Max Mach", unit: "", sim: (s) => s.maxMach },
   { key: "timeToApogee", label: "Time to apogee", unit: "s", sim: (s) => s.timeToApogee },
-  { key: "flightTime", label: "Flight time", unit: "s", sim: (s) => s.flightTime },
-  { key: "groundHitVelocity", label: "Ground-hit velocity", unit: "m/s", sim: (s) => s.groundHitVelocity },
+  // Not a sentinel like the two below — the clock genuinely ran — but on an unlanded flight it is
+  // the CAP rather than a flight time, so comparing it scores 1,200 s against a stored 70 s and
+  // reports Loft 1,600% slow. A lower bound is not an answer to "how long was the flight".
+  { key: "flightTime", label: "Flight time", unit: "s", sim: (s) => s.flightTime, unanswerable: notLandedWhy },
+  {
+    key: "groundHitVelocity",
+    label: "Ground-hit velocity",
+    unit: "m/s",
+    sim: (s) => s.groundHitVelocity,
+    unanswerable: notLandedWhy,
+  },
   { key: "launchRodVelocity", label: "Rail-exit velocity", unit: "m/s", sim: (s) => s.railExitVelocity },
-  { key: "deploymentVelocity", label: "Deployment velocity", unit: "m/s", sim: (s) => s.deploymentVelocity },
+  {
+    key: "deploymentVelocity",
+    label: "Deployment velocity",
+    unit: "m/s",
+    sim: (s) => s.deploymentVelocity,
+    unanswerable: noDeploymentWhy,
+  },
   { key: "optimumDelay", label: "Optimum delay", unit: "s", sim: (s) => s.optimumDelay },
 ];
 
@@ -82,9 +125,17 @@ export function compareToStored(
   } = {},
 ): ValidationReport {
   const comparisons: MetricComparison[] = [];
+  const withheld: WithheldMetric[] = [];
   for (const m of METRICS) {
     const storedVal = stored[m.key];
     if (storedVal === undefined || !Number.isFinite(storedVal)) continue;
+    // Asked before the value is read, not after: the point is that the number in the summary cannot
+    // be distinguished from a real one by looking at it.
+    const cannot = m.unanswerable?.(summary);
+    if (cannot) {
+      withheld.push({ key: m.key, label: m.label, reason: cannot });
+      continue;
+    }
     const simVal =
       m.key === "groundHitVelocity" && opts.groundHitVelocityFrame === "total"
         ? summary.groundHitTotalVelocity
@@ -110,5 +161,5 @@ export function compareToStored(
     withPct.length > 0
       ? withPct.reduce((a, c) => a + Math.abs(c.pctError), 0) / withPct.length
       : NaN;
-  return { comparisons, mape, count: comparisons.length };
+  return { comparisons, mape, count: comparisons.length, withheld };
 }

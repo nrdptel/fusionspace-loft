@@ -312,6 +312,24 @@ export default async function Validation() {
         3.3% and <strong>0.9 m/s</strong>. Read it in m/s, not percent. The genuinely wrong
         deployment cases are elsewhere and are listed as known issues in the suite.
       </p>
+      <p>
+        <strong>
+          One of them was not a deployment error at all &mdash; it was a flight with nothing out,
+          scored as though it had opened at 0 m/s.
+        </strong>{" "}
+        Loft reports <code>0</code>{" "}for the deployment speed of a flight where no device opened,
+        the same way it reports <code>0</code>{" "}for the landing speed of a flight that never
+        reaches the ground: a sentinel meaning <em>this did not happen</em>, not a measurement.
+        Against a file that stores a real figure, that came out of the arithmetic as a flawless
+        &minus;100% &mdash; a confident disagreement about a number neither tool measured. One
+        corpus design does exactly this, and its own stored figure is 33.4 m/s. Because that row
+        also entered the mean, the panel reported this design&apos;s mean absolute error as{" "}
+        <strong>48.7%</strong>{" "}when the metrics it could actually compare disagree by{" "}
+        <strong>42.3%</strong>: the fault made Loft look <em>worse</em>{" "}than it is, on the one
+        page whose job is saying whether Loft can be trusted at all. A metric whose event never
+        happened is now withheld and named under the table rather than scored, so a row is only ever
+        a disagreement between two answers.
+      </p>
       <DocsH3>Optimum delay: one word, two meanings</DocsH3>
       <p>
         <strong>Optimum delay is where two formats mean different things by the same word.</strong>{" "}
