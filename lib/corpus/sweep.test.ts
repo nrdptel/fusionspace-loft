@@ -706,6 +706,7 @@ suite("real-design corpus", () => {
    *  examined nothing must not read like one that passed. */
   it("puts the flyer's own weight on every real design's nose cone and body tube", async () => {
     const wrong: string[] = [];
+    let lumpedSkipped = 0;
     // **The second half, and it is the one a green gate would otherwise hide.** Where an assembly
     // states one weight for itself and everything in it, a part inside contributes nothing of its
     // own — so a mass typed on that part changes no flight, and the panel withholds the control and
@@ -726,6 +727,15 @@ suite("real-design corpus", () => {
     for (const f of files) {
       const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
       const rocket = doc.rocket;
+      // **A design whose whole weight is ONE lump is the case where this control is correctly
+      // refused, not the case where it must land.** Its adapter's single point mass already contains
+      // the cone and the tube, so writing an override on either would ADD to a figure that includes
+      // it — which is what the sibling case below asserts, and what this one must therefore skip.
+      // Counted rather than silently passed over, so a corpus re-cut cannot empty both populations.
+      if (statedAirframeMass(rocket)) {
+        lumpedSkipped++;
+        continue;
+      }
       const base = dryMassProperties(rocket).mass;
       const masses = massByComponent(rocket);
       let hereSubsumed = 0;
@@ -800,7 +810,8 @@ suite("real-design corpus", () => {
     }
     console.log(
       `stated airframe weights across ${files.length} design files: ${cones} nose cone(s) and ` +
-        `${tubes} body tube(s) aimable, ${multiTube} design(s) carrying more than one tube`,
+        `${tubes} body tube(s) aimable, ${multiTube} design(s) carrying more than one tube, ` +
+        `${lumpedSkipped} design(s) skipped for stating one weight for the whole airframe`,
     );
     expect(subsumedMismatch, "parts where the two answers to 'is this mass counted elsewhere' disagree").toEqual([]);
     console.log(
