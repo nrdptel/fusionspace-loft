@@ -35,11 +35,16 @@ const SHELL = "/";
 // The bundled sample designs, fetched on demand (on a "try a sample" click) rather than
 // on first paint — so stale-while-revalidate wouldn't have them cached before a user goes
 // offline. They ship in the bundle; precache them.
+//
+// **Enumerated at build time rather than listed here, because the hand-written list drifted and
+// nothing noticed for three days.** These filenames are stable, unlike the hashed chunks below, so
+// a static list looked safe — and then `public/samples/` went from four designs to eight on
+// 2026-08-08 and this array stayed at four. Offline, half the "try a bundled example" chips on the
+// front door returned the worker's own synthetic 504: the exact pad-with-no-signal case the offline
+// claim is sold on. `scripts/gen-sw-precache.mjs` reads `out/samples/` and injects the list, so
+// adding a sample cannot forget this file.
 const SAMPLES = [
-  "/samples/demo-single-deploy.ork",
-  "/samples/demo-dual-deploy.ork",
-  "/samples/demo-multi-config.ork",
-  "/samples/demo-rocksim.rkt",
+  // __BUILD_SAMPLES__
 ];
 // The exported JS/CSS/font assets that make the app run. Each carries a per-build content
 // hash, so they can't be listed statically here — scripts/gen-sw-precache.mjs enumerates

@@ -723,6 +723,20 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       setError(null);
       try {
         const res = await fetch(path);
+        // **A failed fetch is not an empty file, and saying so blamed the flyer.** The service
+        // worker answers an uncached request offline with a synthetic 504, whose body is empty — so
+        // without this check the bytes were a 0-length array, the importer took its empty-file
+        // branch, and the screen read "That file is empty. Pick the design file your tool saved."
+        // to somebody who had picked nothing and had no signal. The recovery it advised was
+        // impossible and the real cause was invisible. Bundled samples ship with the app, so the
+        // only way one is unreachable is the network.
+        if (!res.ok) {
+          throw new Error(
+            navigator.onLine
+              ? `That sample could not be loaded (${res.status}). It ships with Loft, so this is usually temporary — try again, or import a design file of your own.`
+              : "That sample has not been saved for offline use yet. Open it once with a connection and it will be there next time; a design file from your device works offline either way.",
+          );
+        }
         const bytes = new Uint8Array(await res.arrayBuffer());
         const document = await importDesign(bytes);
         loadDoc(document, label, "flight", bytes);
