@@ -4597,7 +4597,10 @@ describe("applyGeometryEdits — an internal part's mass", () => {
   const ringDesign = (): Rocket => {
     const r = newDesign().rocket;
     const tube = flattenRocket(r).find((p) => p.component.kind === "bodytube")!.component;
-    const ring: RocketComponent = {
+    // Built as a real `RingComponent` rather than cast: the cast hid a missing `Material.type`, and
+    // a fixture the compiler cannot check is a fixture that can drift away from the model it stands in
+    // for — which is the whole reason `lib/model/edit.test.ts`'s type errors are on the ledger.
+    const ring: RingComponent = {
       id: "ring-1",
       name: "Centring ring",
       kind: "centeringring",
@@ -4605,9 +4608,9 @@ describe("applyGeometryEdits — an internal part's mass", () => {
       length: 0.005,
       outerRadius: 0.018,
       innerRadius: 0.009,
-      material: { name: "Plywood", density: 630 },
+      material: { name: "Plywood", density: 630, type: "bulk" },
       children: [],
-    } as RocketComponent;
+    };
     const withRing = (list: RocketComponent[]): RocketComponent[] =>
       list.map((c) =>
         c.id === tube.id ? { ...c, children: [...c.children, ring] } : { ...c, children: withRing(c.children) },

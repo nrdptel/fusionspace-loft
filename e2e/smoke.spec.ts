@@ -3950,6 +3950,40 @@ test.describe("Loft", () => {
     await expect(page.getByText(/Loft's estimate from the canopy's diameter/)).toHaveCount(0);
   });
 
+  /** **The identify line under the drawing had a mass and no source, and it is the only mass on
+   *  screen while the parts table is closed** — which is its default, and the state a phone lands in.
+   *  `DESIGN.md` section 6 requires a reference value to name its source; the parts table honoured
+   *  that and the line above it did not, which is exactly the drift the provenance work exists to
+   *  stop. Words rather than the table's dagger marks: a mark needs a key, and this line is outside
+   *  the table the key belongs to. */
+  test("the part under the pointer says where its mass came from, not just what it is", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Design" }).click();
+
+    // Weigh a part, then point at it — the provenance has to follow the number onto this surface.
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const row = partsTable
+      .locator("tr")
+      .filter({ has: page.locator('[data-kind="centeringring"], [data-kind="tubecoupler"], [data-kind="innertube"]') })
+      .first();
+    await expect(row, "the starter carries no internal part to weigh").toBeVisible();
+    await row.click();
+    const massField = page.locator("label").filter({ hasText: /^Part mass \(/ }).first().locator("input");
+    const computed = parseFloat((await massField.getAttribute("placeholder")) ?? "0");
+    expect(computed).toBeGreaterThan(0);
+    await massField.fill(String(computed + 200));
+
+    // The identify line is the aria-live region beneath the drawing; the picked part stays named in
+    // it, so no hover is needed — which is also why it works on a phone.
+    const identify = page.locator("p[aria-live='polite']").first();
+    await expect
+      .poll(async () => (await identify.innerText()).replace(/\s+/g, " "), { timeout: 20000 })
+      .toMatch(/the figure you set/);
+  });
+
   /** R12/9. The mass override on the slot with the largest remaining gap.
    *
    *  Counted across the corpus by kind, the five kinds this one slot addresses carry 45 masses the

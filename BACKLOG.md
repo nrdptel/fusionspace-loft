@@ -119,7 +119,14 @@ big for one pass. Newest first.
 
 **Filed 2026-08-09, from run 9 — the notes round trip, the rail-button Sev-1, and its opening fan-out.**
 
-- **The diagram's identify line prints a mass with no provenance, in the panel the provenance work is about.** `components/GeometryInspector.tsx`'s aria-live readout under the drawing ends `· <mass>` for the part under the pointer, and it is the ONLY mass readout visible while the `Parts` disclosure is closed — which is its default, and the state a phone lands in. On `demo-rocksim.rkt` it reads "Nose cone · … · 118.50 g" with no ‡ and no key anywhere on screen, while the same part inside the disclosure reads "computed by the source tool". `massSource` is one call away. From the pre-push review's surface audit.
+- **RESOLVED 2026-08-10.** The identify line now names the source in WORDS beside the figure —
+  "118.50 g · computed by the source tool" — rather than borrowing the table's †/‡/§ marks, because a
+  mark needs a key and this line sits outside the table whose caption is the key. Silent for a mass
+  Loft computed itself, which is the ordinary case and the one that makes no claim, and silent for a
+  subsumed part, whose Mass cell already says the figure belongs to an assembly. Pinned by an e2e
+  case that weighs a part and then reads the line, so the two surfaces cannot drift apart again.
+
+- ~~**The diagram's identify line prints a mass with no provenance, in the panel the provenance work is about.**~~ *(resolved above.)* `components/GeometryInspector.tsx`'s aria-live readout under the drawing ends `· <mass>` for the part under the pointer, and it is the ONLY mass readout visible while the `Parts` disclosure is closed — which is its default, and the state a phone lands in. On `demo-rocksim.rkt` it reads "Nose cone · … · 118.50 g" with no ‡ and no key anywhere on screen, while the same part inside the disclosure reads "computed by the source tool". `massSource` is one call away. From the pre-push review's surface audit.
 
 - **Loft's own `.ork` export launders 51 computed masses into stated ones on reopen.** Measured 2026-08-10 by round-tripping all 27 corpus `.ork` designs through `exportOrk` and diffing `massFrom` by component id: 51 parts flip `undefined → "stated"` — parachutes, shock cords and launch lugs — and none flips the other way. The cause is that the exporter writes a mass Loft COMPUTED as an explicit `<overridemass>`/`<mass>`, which is how a canopy's mass survives a round trip at all (dropping it costs `A simple model rocket.ork` 7.976 g → 4.736 g, already filed below). The claim is not false — the file does state them, and OpenRocket would show them stated too — but the flyer loses the fact that Loft is what said so. **The fix is on the EXPORT side**: do not write an override for a figure the importer would recompute identically, or write a marker Loft's own importer can read back. `lib/model/types.ts`'s `massFrom` docblock and the methods page both say this out loud rather than hiding it, and `lib/ork/export.test.ts` allows the flip in that one direction only. Found by the pre-push review, which round-tripped the corpus rather than reading the code.
 

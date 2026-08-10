@@ -723,7 +723,24 @@ export default function GeometryInspector({
                 · at {d.q(d.lengthMm(active.xFore, units))} from the nose
               </span>{" "}
               <span className="font-mono">{describeDims(active.component, units)}</span>{" "}
-              <span className="text-zinc-500 dark:text-zinc-400">· {massCell(active.component.id).text}</span>
+              {/* **The mass, and where it came from — this line had the figure and not the source.**
+                  It is the ONLY mass readout on screen while the `Parts` disclosure is closed, which
+                  is its default and the state a phone lands in: on `demo-rocksim.rkt` it read
+                  "Nose cone · … · 118.50 g" with no marker and no key anywhere, while the same part
+                  inside the disclosure read "computed by the source tool". `DESIGN.md` §6 requires a
+                  reference value to name its source, and one surface honouring that while its
+                  neighbour does not is the drift the provenance work exists to stop.
+
+                  Spelled out in WORDS here rather than borrowing the table's †/‡/§ marks. A mark
+                  needs a key, the table's key is its caption, and this line is outside the table —
+                  a dagger with no legend within reach says less than nothing. Silent for a mass
+                  Loft computed itself, which is the ordinary case and the one that needs no claim. */}
+              <span className="text-zinc-500 dark:text-zinc-400">
+                · {massCell(active.component.id).text}
+                {massSource(active.component) && !masses.get(active.component.id)?.subsumedBy
+                  ? ` · ${massSource(active.component)!.label}`
+                  : ""}
+              </span>
             </>
           ) : (
             <span className="text-zinc-500 dark:text-zinc-400">
