@@ -42,6 +42,39 @@ const FIN_FIELD_LABEL: Record<FinField, string> = {
   finSpan: "Span",
 };
 
+/** **Hold the page still while a gesture on the drawing is live.**
+ *
+ *  The drawing changes HEIGHT as it is dragged — a wider caliber, a longer span, a carried part
+ *  moving between slots — and when its top edge is above the viewport the browser's scroll anchoring
+ *  compensates by scrolling, to keep whatever it chose as the anchor still. The grip slides out from
+ *  under the finger, the mapping reads a station the finger never visited, and the value runs away.
+ *
+ *  Measured on the bundled 38 mm design at 1440x900, dragging the body wall UP by 30 px (which must
+ *  WIDEN it): from scrollY 484 the page scrolled itself to 786 and the caliber went **38 mm to
+ *  10 mm**, the clamp floor — the exact opposite of the gesture. Held still it gives **205 mm**.
+ *  Nothing in the drag maths was wrong; the page moved underneath it.
+ *
+ *  Suppressed on the SCROLL ROOT, because that is the element that performs the adjustment: setting
+ *  it on the figure that changes size does nothing, since the anchor is chosen from the content
+ *  BELOW the change. Only while a gesture is live — anchoring is worth having the rest of the time,
+ *  and this app resizes content above the fold constantly. Restores whatever was there rather than
+ *  clearing, so two overlapping gestures cannot leave it off.
+ *
+ *  It survived every green gate because every scroll position the suite dragged from happened to
+ *  have the diagram's top on screen. The persistent airframe strip pushed `/design` down far enough
+ *  that it no longer did — the defect was revealed by that change, not caused by it. */
+function useHeldScroll(active: boolean): void {
+  useEffect(() => {
+    if (!active) return;
+    const root = document.documentElement;
+    const prev = root.style.overflowAnchor;
+    root.style.overflowAnchor = "none";
+    return () => {
+      root.style.overflowAnchor = prev;
+    };
+  }, [active]);
+}
+
 export default function RocketDiagram({
   rocket,
   units,
@@ -58,6 +91,7 @@ export default function RocketDiagram({
   selectedFinSetId,
   selectedBodyTubeId,
   selectedMassObjectId,
+  variant = "full",
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -100,6 +134,22 @@ export default function RocketDiagram({
   selectedFinSetId?: string;
   selectedBodyTubeId?: string;
   selectedMassObjectId?: string;
+  /** `"strip"` is the persistent airframe above the workspace spine, and it differs from the full
+   *  drawing in exactly two ways — both because it is a REMINDER of the subject rather than the
+   *  surface you work on.
+   *
+   *  **It never rotates.** The full drawing turns upright on a phone held upright (`DESIGN.md` §8),
+   *  which is right for the drawing you are editing and wrong for a strip: the rotated layout takes a
+   *  500 px height budget, and 500 px of chrome above every workspace is not a strip, it is a second
+   *  panel the flyer has to scroll past to reach the numbers they navigated for.
+   *
+   *  **It carries no zoom control.** Zoom belongs to the surface you are working on; on the strip it
+   *  is a control with no task, and `DESIGN.md` §5 does not spend a control row on one.
+   *
+   *  Everything else is shared deliberately — one outline, one CG/CP marking, one set of tap columns
+   *  — so the picture above the spine and the picture on `/design` cannot drift into disagreeing
+   *  about the same rocket. */
+  variant?: "full" | "strip";
 }) {
   const uid = useId();
   // A drag-frozen vertical extent, set while a vertical resize handle is being dragged (the fin SPAN
@@ -112,6 +162,7 @@ export default function RocketDiagram({
   // POSITION rather than the slot index, because the render needs a pixel and a ref may not be read
   // during one — the slot itself stays in a ref, where the commit reads it.
   const [carry, setCarry] = useState<{ id: string; px: number } | null>(null);
+  useHeldScroll(carry !== null);
   // Everything the live drag needs, snapshotted at pointer-down. The slot table in particular: with no
   // live preview the geometry does not move under the pointer, but a re-render for any other reason
   // (a hover, a re-fly finishing) would otherwise recompute it mid-gesture.
@@ -196,11 +247,12 @@ export default function RocketDiagram({
   const o = rocketOutline(rocket);
   if (!(o.length > 0) || !(o.maxExtent > 0) || o.body.length < 2) return null;
 
-  const vertical = coarse && portrait;
+  // The strip stays horizontal whatever the device is doing — see `variant`.
+  const vertical = variant !== "strip" && coarse && portrait;
   /** The column the drawing sits in. `W` below is the drawing's own width, which is the same thing
    *  horizontally and is the LENGTH extent once rotated. */
   const colW = Math.round(available * zoom);
-  const padX = 14;
+  const basePadX = 14;
   const padY = 10;
   // Editable diagrams reserve 30% headroom around the widest part so a radial grip (fin span, body
   // diameter) has room to pull the edge outward; a static diagram fits tightly. A live radial drag
@@ -219,6 +271,22 @@ export default function RocketDiagram({
    *  §8's 44 px that way and this must not be sold as if it did — the tap columns stay the hit
    *  targets, exactly as before. */
   const VERTICAL_HEIGHT_BUDGET = 500;
+  /** **How much height the persistent strip may use, and why it needs a budget at all.**
+   *
+   *  A horizontal drawing is true to scale with its length filling the column, so its HEIGHT is set
+   *  by the airframe's widest point — which is the fin span, not the tube. Measured on the bundled
+   *  38 mm single-deploy at 1440 px: the same drawing that is 12 px tall in a narrow panel is
+   *  **216 px** across a full-width desktop column, because the fins scale with everything else.
+   *  That is a correct drawing and a terrible strip: it put 280 px of chrome above every workspace
+   *  and pushed the sweep's first answer to 2.13 screens on a phone, past `DESIGN.md`'s two-screen
+   *  rule, which `e2e/depth.spec.ts` caught on the first run.
+   *
+   *  So the strip is height-bound rather than width-bound: the scale is whichever of the two limits
+   *  binds first, and a design that cannot fill the column at this height is drawn smaller and
+   *  centred rather than cropped. Same shape as the rotated layout's budget directly above, for the
+   *  same reason — a height cannot be read during render without a hydration mismatch, so it is
+   *  stated. */
+  const STRIP_HEIGHT_BUDGET = 72;
   /** Pixels per metre — equal on both axes, so the drawing stays true to scale whichever way it runs.
    *
    *  Horizontal: the length fills the column. Vertical: the length fills the HEIGHT budget, and the
@@ -230,10 +298,22 @@ export default function RocketDiagram({
         (VERTICAL_HEIGHT_BUDGET - 2 * padY) / o.length,
         (colW - 2 * padY) / (2 * frameExtent),
       )
-    : (colW - 2 * padX) / o.length;
+    : variant === "strip"
+      ? Math.min(
+          (colW - 2 * basePadX) / o.length,
+          (STRIP_HEIGHT_BUDGET - 2 * padY) / (2 * frameExtent),
+        )
+      : (colW - 2 * basePadX) / o.length;
+  /** The drawing's left inset. Constant everywhere except the strip, where a height-bound design is
+   *  narrower than its column and is centred in it — a rocket pinned to the left edge under a full
+   *  width of empty space reads as a layout fault rather than as a scale. Every consumer of the
+   *  x-mapping takes this same value, including the drag handles' inverse mapping, so the picture and
+   *  the pointer cannot disagree about where a station is. */
+  const padX =
+    variant === "strip" ? Math.max(basePadX, (colW - o.length * s) / 2) : basePadX;
   /** The drawing's own width, in its own coordinates: the airframe's LENGTH plus padding. Identical
    *  to the column horizontally; once rotated it is what becomes the drawing's screen HEIGHT. */
-  const W = vertical ? Math.round(2 * padX + o.length * s) : colW;
+  const W = vertical ? Math.round(2 * basePadX + o.length * s) : colW;
   const centerY = padY + frameExtent * s;
   const H = centerY + frameExtent * s + padY;
 
@@ -604,7 +684,15 @@ export default function RocketDiagram({
         // A pure picture is an `img`; once it carries the interactive fin handle it becomes a
         // labelled `group` — an `img` may not hold focusable descendants (it's an atomic graphic).
         role={onEdit ? "group" : "img"}
-        aria-label={`Scale side-view of ${rocket.name || "the rocket"}: ${lengthLabel} long, ${d.q(d.lengthMm(2 * o.maxRadius, units))} maximum diameter${motorLabel ? `, motor ${motorLabel}` : ""}${marginLabel && showCg && showCp ? `, centre of gravity ahead of centre of pressure by ${marginLabel}` : ""}`}
+        // **The strip is named differently on purpose, and it is an accessibility fix before it is a
+        // selector one.** Two graphics with the same accessible name on one page is a worse thing to
+        // hand a screen reader than it is to hand a test: "scale side-view of X" twice gives no way
+        // to tell the working drawing from the reminder above the spine. Naming them apart also
+        // resolves the strict-mode ambiguity the strip introduced across four existing selectors,
+        // which is the same problem stated in the other direction.
+        aria-label={`${
+          variant === "strip" ? "Airframe reminder" : "Scale side-view"
+        } of ${rocket.name || "the rocket"}: ${lengthLabel} long, ${d.q(d.lengthMm(2 * o.maxRadius, units))} maximum diameter${motorLabel ? `, motor ${motorLabel}` : ""}${marginLabel && showCg && showCp ? `, centre of gravity ahead of centre of pressure by ${marginLabel}` : ""}`}
         preserveAspectRatio="xMidYMid meet"
       >
       {/* **Nose at TOP, which is settled by convention rather than taste**: `MassBreakdown`'s "CG from
@@ -1085,7 +1173,7 @@ export default function RocketDiagram({
       </svg>
       </div>
       <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
-        <ZoomControl zoom={zoom} onZoom={setZoom} />
+        {variant !== "strip" && <ZoomControl zoom={zoom} onZoom={setZoom} />}
         {coarse && onEdit && primaryFin && finStationNow !== undefined && (
           <FinHandlePicker
             value={activeFin}
@@ -1321,6 +1409,7 @@ function FinHandle({
   // mouse a precise number to aim for and puts on screen, for sighted keyboard users, the value that
   // otherwise only reaches assistive tech through aria-valuetext.
   const [dragging, setDragging] = useState(false);
+  useHeldScroll(dragging);
   const [focused, setFocused] = useState(false);
 
   /** **The screen axis, DERIVED — never stated at a call site.** A station runs across a horizontal

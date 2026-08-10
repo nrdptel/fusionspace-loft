@@ -288,7 +288,11 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  panels, so two files stopped importing what they still render. Adoption moving a count DOWN is
    *  the system working. What would be a regression is a file rendering one of these and importing
    *  neither it nor a primitive that owns it. */
-  Card: 10,
+  // 11 on 2026-08-10: `components/AirframeStrip.tsx` is a new surface and it took the primitive
+  // rather than hand-rolling a band — which is the number moving in the direction §9 wants. A new
+  // file that rendered its own bordered box would have left this at 10 and shown up in the
+  // off-system counts instead.
+  Card: 11,
   Button: 12,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than

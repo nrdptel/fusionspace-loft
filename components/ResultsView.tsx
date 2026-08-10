@@ -7,6 +7,7 @@ import { transonicReason } from "@/lib/sim/envelope";
 import { notLandedWhy as whyNotLanded } from "@/lib/sim/withheld";
 import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
+import AirframeStrip from "./AirframeStrip";
 import { WORKSPACES, type Workspace } from "@/lib/workspaces";
 import DataTable from "./DataTable";
 import type { FlightRun } from "@/lib/sim/run";
@@ -540,6 +541,35 @@ export default function ResultsView({
             </Card>
           ))}
         </ul>
+      )}
+
+      {/* **The airframe, kept on screen while the flyer works on something else** —
+          `COMPETITION.md` row 31, and the one thing the route split cost that the scrolling page did
+          not. Every desktop tool keeps a view of the rocket beside whatever tab is open; Loft mounted
+          the drawing in `panel-design` alone, so sweeping a fin or reading a dispersion meant losing
+          sight of the airframe both are about.
+
+          It sits HERE, above the spine and outside every `role="region"` block, for a mechanical
+          reason as well as a visual one: `RocketDiagram` measures itself with `useMeasuredWidth`,
+          which reads 0 inside a `hidden` subtree — mounted within a workspace panel it would measure
+          nothing and draw nothing, silently, on every route but the open one.
+
+          Suppressed on `/design`, where the full drawing is already the top of the workspace. A
+          second copy there would be redundant and, worse, AMBIGUOUS: the same accessible names would
+          appear twice on one page.
+
+          The CG/CP gating mirrors the full diagram's below, deliberately and for the reason recorded
+          there — an unmatched motor must retire the CG mark, its caption and the SVG's own
+          `aria-label` together, rather than drawing a balance point that assumes a motor is aboard. */}
+      {tab !== "design" && (
+        <AirframeStrip
+          rocket={shownRocket}
+          units={units}
+          cg={run.motorsComplete ? run.result.cgLoaded : undefined}
+          cp={run.result.stability.cp}
+          marginCal={run.motorsComplete ? run.result.staticMarginCal : undefined}
+          motors={shownMotors}
+        />
       )}
 
       {/* The workspace spine — one row of links, on every workspace route, showing where the flyer

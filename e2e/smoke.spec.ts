@@ -3950,6 +3950,79 @@ test.describe("Loft", () => {
     await expect(page.getByText(/Loft's estimate from the canopy's diameter/)).toHaveCount(0);
   });
 
+  /** **A drag must mean the same thing wherever the page happens to be scrolled to.**
+   *
+   *  The drawing changes height as it is dragged, and when its top edge is above the viewport the
+   *  browser's scroll anchoring compensates by moving the page — sliding the grip out from under the
+   *  pointer, so the mapping reads a station the finger never visited. Measured before the fix at
+   *  1440x900: from scrollY 484 a 30 px pull UP on the body wall, which must WIDEN the airframe,
+   *  scrolled the page to 786 and took the caliber 38 mm to 10 mm — the clamp floor, the opposite of
+   *  the gesture. Suppressing anchoring for the life of the drag holds the page still and gives
+   *  205 mm.
+   *
+   *  It hid for the life of the repo because every scroll position the suite dragged from had the
+   *  diagram's top on screen; the persistent airframe strip pushed `/design` far enough down that it
+   *  no longer did. **So this case scrolls ON PURPOSE before dragging** — the neighbouring drag test
+   *  covers the in-view case, and this one covers the state that broke. */
+  test("a diagram drag means the same thing with the page scrolled down", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Design" }).click();
+
+    const dia = page.getByRole("slider", { name: "Body diameter" });
+    await expect(dia).toBeVisible();
+    await dia.scrollIntoViewIfNeeded();
+    // Put the drawing's top edge above the fold, which is the state that made the browser move the
+    // page mid-drag. Guarded, so a future layout that cannot reach it fails loudly here rather than
+    // passing on a scroll that never happened.
+    await page.evaluate(() => window.scrollBy(0, 120));
+    const scrolledTo = await page.evaluate(() => window.scrollY);
+    expect(scrolledTo, "the page could not be scrolled, so this asserts nothing").toBeGreaterThan(100);
+
+    const startMm = parseFloat((await dia.getAttribute("aria-valuenow")) ?? "0");
+    expect(startMm).toBeGreaterThan(0);
+    const box = (await dia.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 30, { steps: 12 });
+    await page.mouse.up();
+
+    // Up widens, from wherever the page was — the assertion the old behaviour inverted.
+    await expect.poll(async () => parseFloat((await dia.getAttribute("aria-valuenow")) ?? "0")).toBeGreaterThan(startMm);
+    // And the page did not move itself while the finger was down.
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrolledTo);
+  });
+
+  /** `COMPETITION.md` row 31: switching workspace changes the panel, not the subject.
+   *
+   *  The route split mounted the drawing in `panel-design` alone, so a flyer sweeping a motor or
+   *  reading a dispersion lost sight of the airframe both are about — the one thing the split cost
+   *  that the scrolling page it replaced did not. */
+  test("the airframe stays on screen while the flyer works in another workspace", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const strip = page.getByRole("region", { name: "Airframe" });
+    // Present on every workspace that is not the one already showing the full drawing.
+    for (const route of ["Flight", "Sweep", "Cross-check"]) {
+      await page.getByRole("link", { name: route }).click();
+      await expect(strip, `the airframe is not on ${route}`).toBeVisible();
+      // It is the real drawing, sized — not an empty box. `useMeasuredWidth` reads 0 inside a
+      // `hidden` subtree, so a strip mounted in the wrong place would render at zero height and
+      // still "be visible"; this is the assertion that tells those two apart.
+      const box = await strip.boundingBox();
+      expect(box!.height, `the airframe on ${route} drew nothing`).toBeGreaterThan(40);
+    }
+
+    // **And exactly once.** On Design the full drawing is already the top of the workspace, so the
+    // strip stands down — two copies would be redundant and would make the same accessible name
+    // match twice.
+    await page.getByRole("link", { name: "Design" }).click();
+    await expect(page.getByRole("region", { name: "Airframe" })).toHaveCount(0);
+  });
+
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

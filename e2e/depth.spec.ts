@@ -160,8 +160,19 @@ for (const size of [DESKTOP, PHONE]) {
 // needs `hasTouch` and that is a CONTEXT option — it cannot be switched mid-test. Measuring the
 // phone with a fine pointer is what made this ratchet report 914 px for a chrome that is 1011 px on
 // a real touch device.
+// **Desktop moved 820 -> 920 on 2026-08-10, deliberately, and this is the note that makes it a
+// decision rather than a drift.** The persistent airframe strip (`COMPETITION.md` row 31) is chrome
+// above the spine by construction — that is what "persistent" means — so it costs desktop depth and
+// nothing else can pay for it. Measured: 773px before, 909px after, for a 72px drawing plus its
+// caption, card padding and the stack gap. 920 is that plus the same slack the other caps carry.
+//
+// **The phone cap did NOT move, and that is the load-bearing half.** Driven at 390x664 the strip put
+// the sweep's first answer 2.13 screens down, past the two-screen rule the cases above enforce — so
+// the strip is `hidden sm:block` and a phone's chrome is byte-for-byte what it was. If a future
+// change makes the strip render below `sm`, the phone cap here goes red before the two-screen rule
+// does, which is the ordering this file is built for: fail where the cause is named.
 for (const [size, cap] of [
-  [DESKTOP, 820],
+  [DESKTOP, 920],
   [PHONE, 1060],
 ] as const) {
   const label = size === DESKTOP ? "desktop" : "phone";
