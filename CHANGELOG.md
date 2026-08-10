@@ -39,8 +39,7 @@ it here — the per-change record starts from this entry.
 
 ### Simulate and check
 
-- **Import the file you already have**: OpenRocket `.ork`, RockSim `.rkt`, RASAero `.CDX1`, RocketPy
-  and SpaceCAD.
+- **Import the file you already have**: OpenRocket `.ork`, RockSim `.rkt`, RASAero `.CDX1`.
 - **See more than one answer.** Loft's own solver, the numbers the design file already stores from
   the tool that made it, and an in-browser RocketPy second opinion — presented side by side, with
   disagreement flagged rather than hidden.

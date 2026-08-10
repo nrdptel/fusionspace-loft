@@ -339,9 +339,9 @@ const DIFFERENTIATORS: { title: string; body: React.ReactNode }[] = [
     body: (
       <>
         OpenRocket <code className="font-mono">.ork</code>, RockSim{" "}
-        <code className="font-mono">.rkt</code>, RASAero <code className="font-mono">.CDX1</code>,
-        RocketPy and SpaceCAD — each into the same model, so a design you imported and one you built
-        here are edited and flown by exactly the same tools.
+        <code className="font-mono">.rkt</code> and RASAero <code className="font-mono">.CDX1</code>{" "}
+        — each into the same model, so a design you imported and one you built here are edited and
+        flown by exactly the same tools.
       </>
     ),
   },

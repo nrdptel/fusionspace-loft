@@ -4756,7 +4756,29 @@ truth are asserted. Prose about what the tool feels like is not testable, and pr
 would make the check noisy enough that someone disables it — which is how a stale README happens in
 the first place.
 
-**Remaining: increment 2, the repository SETTINGS half**, which is not a file and which no tool
+**Increment 2 — the claim the check could not see, 2026-08-11.** The mechanism increment 1 built is
+DIRECTIONAL: it asserts the README mentions every extension `ImportPanel`'s accept list takes, so it
+catches an omission and by construction cannot catch an over-claim. And an over-claim is what had
+shipped. The landing page's own *"It reads the file you already have"* card and the changelog entry
+served at `/docs/changelog` both said Loft imports **"OpenRocket `.ork`, RockSim `.rkt`, RASAero
+`.CDX1`, RocketPy and SpaceCAD"**. The input accepts three extensions, `lib/ork/import.ts`'s own
+refusal names three formats, and **there is no SpaceCAD code in the repo at all** —
+`lib/validation/rocketpy-spec.ts` builds a spec FROM a Loft design for the in-browser second solver,
+which is the export direction. So a RocketPy or SpaceCAD flyer read the front door, tried their file,
+and was told it is not a rocket design. Found by this run's desktop cold walk and reproduced against
+the code before it was touched.
+
+Both claims corrected, and pinned by `lib/version.test.ts`'s *names no design format the importer does
+not actually accept*: every design tool NAMED in an import claim must have its own file extension in
+the accept list. It reads the claim by the phrase both copies share rather than by line number, and
+bounds the window at the next bullet or the end of the JSX fragment — because the card immediately
+after names RocketPy legitimately, as the second solver, and a greedy window would fail on a true
+sentence. **Self-maintaining in the useful direction:** the day a SpaceCAD adapter lands and puts its
+extension in the accept list, naming SpaceCAD becomes legal on its own. Negative controls on both
+sources: restoring either sentence reports *"CHANGELOG.md names rocketpy, whose files are .py"* and
+the same for the panel.
+
+**Remaining: increment 3, the repository SETTINGS half**, which is not a file and which no tool
 available to a session can edit. Paste-ready description, website and topics are in `OWNER-NOTES.md`
 under *Awaiting the owner*. **Do not report `ON-B2` as closed while that half is open.**
 
@@ -4775,12 +4797,21 @@ No gate step reads README content — `check-links.mjs` resolves relative links 
 `README.md` is in no session-start list, so it goes stale silently every run. That is what ON-B2 is
 actually about.
 
-**Done when** the README describes what ships today, and the claims that can be mechanically tied to
-code are ASSERTED against it: the accepted import extensions against `ImportPanel`'s accept list, the
-route list against the exported routes, and the sample count against `public/samples/`. A false
-README claim then fails the build instead of waiting for an owner to notice.
+**Done when** the README *and the app's own copy* describe what ships today, and the claims that can
+be mechanically tied to code are ASSERTED against them **in both directions**: the accepted import
+extensions against `ImportPanel`'s accept list, the route list against the exported routes, and the
+sample count against `public/samples/`. A false claim then fails the build instead of waiting for an
+owner to notice.
 
-**Size.** 2 increments.
+**The *done when* was widened on 2026-08-11, and the reason is recorded rather than assumed.** As
+first written it named `README.md` alone and asserted only that no accepted format was MISSING from
+it. Both halves of that turned out to be too narrow on the same day: the false claim that shipped was
+in the app's own landing card and changelog rather than in the README, and it was an over-claim rather
+than an omission — so the milestone's own outcome, *"someone arriving from a forum link reads a
+landing page that describes the tool that exists today"*, was untrue of the page a forum link actually
+opens. Widening it is what makes the outcome and the check agree.
+
+**Size.** 3 increments (was 2; the in-app half is increment 2).
 
 **Notes.** The other half — repository description, website link and topics — is a GitHub SETTING, not
 a file, and no tool available to a session can edit it. It is parked in `OWNER-NOTES.md` under

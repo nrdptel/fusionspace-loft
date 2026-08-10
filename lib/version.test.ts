@@ -109,6 +109,84 @@ describe("README.md — the landing page is a surface, and it goes stale like on
     ).toEqual([]);
   });
 
+  /** **The other direction, and it is the one that actually shipped a false claim.**
+   *
+   *  The check above asserts the README MENTIONS every extension the input accepts — so it catches an
+   *  omission and, by construction, cannot catch an over-claim. Measured 2026-08-11: the landing
+   *  page's own card and the changelog entry served at `/docs/changelog` both said Loft imports
+   *  *"OpenRocket .ork, RockSim .rkt, RASAero .CDX1, RocketPy and SpaceCAD"*. The file input accepts
+   *  three extensions, `lib/ork/import.ts`'s refusal names three formats, and there is no SpaceCAD
+   *  code in the repo at all — `lib/validation/rocketpy-spec.ts` builds a spec FROM a Loft design for
+   *  the in-browser second solver, which is the export direction. A RocketPy or SpaceCAD flyer read
+   *  the front door, tried their file, and was told it is not a rocket design.
+   *
+   *  So: every design tool NAMED in an import claim must have its own file extension in the accept
+   *  list. That is the rule in the direction nothing was checking, and it is self-maintaining — the
+   *  day a SpaceCAD adapter lands and puts its extension in the accept list, naming SpaceCAD becomes
+   *  legal on its own. */
+  it("names no design format the importer does not actually accept", () => {
+    const accept = /accept="([^"]+)"/.exec(read("components/ImportPanel.tsx"));
+    expect(accept, "ImportPanel no longer declares an accept list — this check needs rewiring").toBeTruthy();
+    const exts = new Set(
+      accept![1]
+        .split(",")
+        .map((x) => x.trim().toLowerCase())
+        .filter((x) => x.startsWith("."))
+        .map((x) => x.replace(/\.gz$/, "")),
+    );
+
+    /** The extension each design tool's own files carry. A tool is importable exactly when the input
+     *  takes its extension — which is why this maps the tool to the FILE rather than to a boolean. */
+    const TOOL_FILE: Readonly<Record<string, string>> = {
+      openrocket: ".ork",
+      rocksim: ".rkt",
+      rasaero: ".cdx1",
+      rocketpy: ".py",
+      spacecad: ".sc",
+      aerolab: ".ael",
+      openrocketpy: ".py",
+    };
+
+    // Where an import claim is made, in the two places a flyer meets one. Matched on the shared
+    // phrase rather than on a line number so a reworded card still gets read.
+    const CLAIMS: readonly { where: string; text: string }[] = [
+      { where: "components/ImportPanel.tsx", text: read("components/ImportPanel.tsx") },
+      { where: "CHANGELOG.md", text: read("CHANGELOG.md") },
+    ].flatMap(({ where, text }) => {
+      const out: { where: string; text: string }[] = [];
+      // The claim is what follows "the file you already have" — the phrase both copies share — up to
+      // whichever comes first of the next markdown bullet, the end of the JSX fragment, or 240
+      // characters. Bounded rather than greedy on purpose: the card AFTER this one names RocketPy
+      // legitimately, as the second solver, and a window that ran into it would fail on a true
+      // sentence. Matched on the phrase rather than on a line number so a reworded claim is still read.
+      const re = /the file you already have/gi;
+      for (let m = re.exec(text); m; m = re.exec(text)) {
+        const rest = text.slice(m.index + m[0].length, m.index + m[0].length + 240);
+        const stop = [rest.indexOf("\n- **"), rest.indexOf("</>")].filter((i) => i >= 0);
+        out.push({ where, text: stop.length ? rest.slice(0, Math.min(...stop)) : rest });
+      }
+      return out;
+    });
+    expect(
+      CLAIMS.length,
+      "no import claim was found in either source — this check is asserting nothing",
+    ).toBeGreaterThanOrEqual(2);
+
+    const overclaimed: string[] = [];
+    for (const { where, text } of CLAIMS) {
+      const flat = text.toLowerCase().replace(/[^a-z]/g, "");
+      for (const [tool, file] of Object.entries(TOOL_FILE)) {
+        if (!flat.includes(tool)) continue;
+        if (!exts.has(file)) overclaimed.push(`${where} names ${tool}, whose files are ${file}`);
+      }
+    }
+    expect(
+      overclaimed,
+      `an import claim names a design tool the file input does not accept: ${overclaimed.join("; ")}.\n` +
+        "A flyer with that tool's file reads the claim, tries it, and is told it is not a rocket design.",
+    ).toEqual([]);
+  });
+
   it("states the number of bundled examples the repo actually ships", () => {
     const n = readdirSync(resolve(root, "public/samples")).filter((f) => /\.(ork|rkt|cdx1)$/i.test(f)).length;
     const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight"];

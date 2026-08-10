@@ -197,9 +197,19 @@ test.describe("a stranger's first five minutes", () => {
     // offline claim and the disagreement claim are the two a sceptic would test.
     await expect(page.getByText(/keeps working with no signal/i).first()).toBeVisible();
     await expect(page.getByText(/Where they disagree it says so/i).first()).toBeVisible();
-    // And the format list has to be the one Loft actually reads — five, not the three the drop zone
-    // names, because RocketPy and SpaceCAD import too and a stranger comparing tools counts them.
-    for (const fmt of [".ork", ".rkt", ".CDX1", "RocketPy", "SpaceCAD"]) {
+    // And the format list has to be the one Loft actually reads: the THREE the drop zone names.
+    //
+    // **This assertion used to demand five, and its own comment explained why — "because RocketPy and
+    // SpaceCAD import too and a stranger comparing tools counts them". Neither imports.** The file
+    // input accepts `.ork`, `.rkt` and `.CDX1`; `lib/ork/import.ts`'s refusal names the same three;
+    // `lib/validation/rocketpy-spec.ts` builds a spec FROM a Loft design for the in-browser second
+    // solver, which is the export direction; and there is no SpaceCAD code in the repo at all. So a
+    // check written to stop the landing surface going stale was holding a false claim IN PLACE, which
+    // is how it survived on the front door and in the changelog for four months. A check that asserts
+    // a capability the code does not have is worse than no check: it converts the fix into a
+    // regression. `lib/version.test.ts` now asserts the other direction against the accept list
+    // itself, so this list cannot drift from the importer again in either direction.
+    for (const fmt of [".ork", ".rkt", ".CDX1"]) {
       await expect(
         page.getByRole("definition").filter({ hasText: /OpenRocket/ }).first(),
         `the format claim omits ${fmt}`,
