@@ -3950,6 +3950,7 @@ test.describe("Loft", () => {
     await expect(page.getByText(/Loft's estimate from the canopy's diameter/)).toHaveCount(0);
   });
 
+<<<<<<< HEAD
   /** **The identify line under the drawing had a mass and no source, and it is the only mass on
    *  screen while the parts table is closed** — which is its default, and the state a phone lands in.
    *  `DESIGN.md` section 6 requires a reference value to name its source; the parts table honoured
@@ -3984,6 +3985,8 @@ test.describe("Loft", () => {
       .toMatch(/the figure you set/);
   });
 
+=======
+>>>>>>> origin/claude/ultracode-maintenance-45dnnw
   /** R12/9. The mass override on the slot with the largest remaining gap.
    *
    *  Counted across the corpus by kind, the five kinds this one slot addresses carry 45 masses the
