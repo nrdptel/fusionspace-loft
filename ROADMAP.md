@@ -5115,6 +5115,20 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-08-10 — the mass override ships on the PARACHUTE slot first, and sets the canopy's own
+  `mass` rather than `overrideMass`.** Two choices, both forced by structure rather than taste.
+  **Taken: parachute first.** `aimEditsAt` returns the FIRST matching slot and a green test forbids
+  one kind routing to two, so a *universal* per-part override cannot be a peer slot — it needs the
+  keyed bag the flat `GeometryEdits` cannot express. Per-slot is what ships today, and the canopy is
+  where the demand is: 22 of the corpus's 64 `<overridemass>` elements sit on parachutes, more than
+  any other kind. **Rejected: wait for the keyed bag** — it would leave the single most-overridden
+  kind unreachable for another run to buy generality nothing yet asks for.
+  **Taken: write `Parachute.mass`.** `lib/sim/mass.ts` reads `c.mass` as a canopy's natural weight
+  and `overrideMass` only as a later override of it, and the catalogue pick beside this control
+  already writes `mass` with `massFrom: "flyer"`. Writing the same field keeps one meaning for it.
+  **Rejected: write `overrideMass`** — it would give one surface two ways to say the same thing and
+  make "which wins" a question a flyer could ask and Loft could answer badly.
+
 - **2026-08-10 — an assumed flight-log unit is MARKED, not withheld.** A log whose header names no
   unit is read in the flyer's display system, and the comparison built on it can be 3.28x out.
   **Taken: state the assumption at the picker and put a caution on the number naming what it would

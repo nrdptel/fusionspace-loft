@@ -4449,6 +4449,139 @@ describe("applyGeometryEdits — the canopy's drag coefficient", () => {
   });
 });
 
+/** R12's mass override, on the kind that carries most of them.
+ *
+ *  Loft derives a canopy's mass from its diameter and a surface density, and a real canopy arrives
+ *  with line, a swivel and a deployment bag that no diameter can see. 22 of the corpus's 64
+ *  `<overridemass>` elements sit on parachutes — more than on any other kind — so this is the field
+ *  designers reach for most, and Loft could read it from the first importer and never write one. */
+describe("applyGeometryEdits — the canopy's mass", () => {
+  it("sets the aimed canopy's mass, records the figure as the flyer's, and leaves its shape alone", () => {
+    const rocket = newDesign().rocket;
+    const before = primaryParachute(rocket)!;
+
+    const after = primaryParachute(applyGeometryEdits(rocket, { parachuteMass: 0.042 }))!;
+    expect(after.mass).toBeCloseTo(0.042, 9);
+    // The provenance moves with the number, exactly as `cdFrom` does beside it — otherwise the parts
+    // table captions a hand-typed weight "stated by the design".
+    expect(after.massFrom).toBe("flyer");
+    // A weight is not a shape: the canopy is the same size and the same porosity as before.
+    expect(after.diameter).toBeCloseTo(before.diameter, 9);
+    expect(after.cd).toBeCloseTo(before.cd, 9);
+    expect(primaryParachute(rocket)!.mass).toBeCloseTo(before.mass, 9);
+  });
+
+  /** **0 is a value here and an absence everywhere else in this bag**, which is the one thing about
+   *  this field a future reader is most likely to "fix". A canopy weighed at nothing worth counting
+   *  is a real answer; the EMPTY FIELD is what means "leave it alone". */
+  it("takes a weighed zero as an answer rather than as an empty field", () => {
+    const rocket = newDesign().rocket;
+    const after = primaryParachute(applyGeometryEdits(rocket, { parachuteMass: 0 }))!;
+    expect(after.mass).toBe(0);
+    expect(after.massFrom).toBe("flyer");
+  });
+
+  it("refuses a mass that cannot mean anything, rather than flying it", () => {
+    const rocket = newDesign().rocket;
+    const before = primaryParachute(rocket)!;
+    for (const kg of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const after = primaryParachute(applyGeometryEdits(rocket, { parachuteMass: kg }))!;
+      expect(after.mass).toBeCloseTo(before.mass, 9);
+      expect(after.massFrom).toBe(before.massFrom);
+    }
+  });
+
+  /** **The ordering, which is the part that is load-bearing rather than tidy.** A resize SCALES the
+   *  canopy's mass by (new/old)² — right for a mass Loft is estimating, wrong for one the flyer put
+   *  on a scale. Applied in the other order the resize would silently multiply the flyer's own
+   *  measurement, and the number on screen would not be the number they typed. */
+  it("gives the flyer's weighed mass the last word over a resize in the same edit", () => {
+    const rocket = newDesign().rocket;
+    const before = primaryParachute(rocket)!;
+    const bigger = before.diameter * 2;
+
+    // Resize alone scales the mass — the behaviour being protected, asserted so this test fails if
+    // that scaling ever quietly disappears and makes the ordering moot.
+    const resizedOnly = primaryParachute(applyGeometryEdits(rocket, { mainParachuteDiameter: bigger }))!;
+    expect(resizedOnly.mass).toBeGreaterThan(before.mass * 3);
+
+    const both = primaryParachute(
+      applyGeometryEdits(rocket, { mainParachuteDiameter: bigger, parachuteMass: 0.042 }),
+    )!;
+    expect(both.diameter).toBeCloseTo(bigger, 9);
+    expect(both.mass).toBeCloseTo(0.042, 9); // the typed figure, NOT 0.042 x 4
+    expect(both.massFrom).toBe("flyer");
+  });
+
+  it("reaches the solver, not just the model", () => {
+    const rocket = newDesign().rocket;
+    const apogee = (kg: number) =>
+      runFlight(applyGeometryEdits(rocket, { parachuteMass: kg }), {}).result.summary.apogee;
+    // A kilogram of canopy is dead weight the motor has to lift. Asserted as an ordering against a
+    // real flight, because an edit that reaches the model and not the solver is the failure here.
+    expect(apogee(1)).toBeLessThan(apogee(0.001));
+  });
+
+  it("counts as an edit, and is aimed by the same slot as the rest of the canopy's fields", () => {
+    expect(hasGeometryEdits({ parachuteMass: 0.042 })).toBe(true);
+    // Zero counts too — it is a figure the flyer typed, and a design flying it is edited.
+    expect(hasGeometryEdits({ parachuteMass: 0 })).toBe(true);
+    expect(hasGeometryEdits({})).toBe(false);
+
+    const rocket = newDesign().rocket;
+    const chute = primaryParachute(rocket)!;
+    // Selecting the canopy aims the canopy slot — the one this field is listed under.
+    expect(aimEditsAt(rocket, chute.id)).toEqual({ parachuteId: chute.id });
+
+    // **And being listed under it is what makes a weighed figure die with its canopy.** An absolute
+    // mass left behind when its part is removed still resolves through "the largest canopy", so it
+    // would silently re-land on a different chute — the migration defect `catalogParachute` was
+    // added to this slot's targets to prevent. Asserted through the real clearing path rather than
+    // by reading the table, so an entry deleted from `targets` fails here.
+    const cleared = aimsClearedByRemoving(
+      rocket,
+      { parachuteId: chute.id, parachuteMass: 0.042, parachuteCd: 1.4 },
+      chute.id,
+    );
+    expect(cleared).toHaveProperty("parachuteMass", undefined);
+    expect("parachuteMass" in cleared).toBe(true); // present-and-undefined, i.e. actively cleared
+  });
+
+  /** **The aim has to be RESOLVED for a mass typed on its own, and it very nearly was not.**
+   *
+   *  `applyDimensionEdits` computes the canopy's target id only when one of the canopy fields is
+   *  present, and a new field left off that list silently gets `undefined` — which makes the applier
+   *  fall back to "the largest canopy". On a single-canopy design that fallback is the right answer,
+   *  so nothing fails; on a dual-deploy design a flyer who selected the DROGUE and typed only a
+   *  weight would weigh the MAIN instead. That is the mirror image of the resize defect the block's
+   *  own comment documents, and it was live in this increment until a pre-push read of the diff.
+   *
+   *  Driven with `parachuteMass` as the ONLY edit, deliberately: adding any other canopy field would
+   *  resolve the aim for it and the test would pass with the bug in place. */
+  it("weighs the canopy the flyer selected, even when the mass is the only edit", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-dual-deploy.ork")));
+    const rocket = doc.rocket;
+    const chutes = flattenRocket(rocket)
+      .filter((p) => p.component.kind === "parachute")
+      .map((p) => p.component as Parachute);
+    expect(chutes.length, "this case needs a design with two canopies").toBeGreaterThan(1);
+    const main = chutes.reduce((a, b) => (b.diameter > a.diameter ? b : a));
+    const drogue = chutes.reduce((a, b) => (b.diameter < a.diameter ? b : a));
+    expect(drogue.id).not.toBe(main.id);
+
+    const edited = applyGeometryEdits(rocket, { parachuteId: drogue.id, parachuteMass: 0.042 });
+    const after = flattenRocket(edited)
+      .filter((p) => p.component.kind === "parachute")
+      .map((p) => p.component as Parachute);
+
+    expect(after.find((c) => c.id === drogue.id)!.mass).toBeCloseTo(0.042, 9);
+    expect(after.find((c) => c.id === drogue.id)!.massFrom).toBe("flyer");
+    // And the main is untouched — the half that actually fails when the aim is not resolved.
+    expect(after.find((c) => c.id === main.id)!.mass).toBeCloseTo(main.mass, 9);
+    expect(after.find((c) => c.id === main.id)!.massFrom).toBe(main.massFrom);
+  });
+});
+
 describe("the internal structure is a part like any other", () => {
   // The largest unreachable population in the model until now. Measured over the 35-design corpus:
   // 249 of 569 parts (43.8%) had no field describing them, and 194 of those 249 are these five

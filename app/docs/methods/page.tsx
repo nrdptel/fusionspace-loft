@@ -172,6 +172,20 @@ export default function Methods() {
         pitch inertia is the sum of each part&apos;s own inertia plus a parallel-axis term.
         Propellant burns off over the flight, so mass and CG are time-varying.
       </p>
+      <p>
+        <strong>You can put your own weight on a canopy.</strong>{" "}
+        The mass Loft computes for a parachute comes from its area and an areal density, which is a
+        fair estimate of fabric and nothing else &mdash; it cannot see the shroud lines, the swivel or
+        the deployment bag, and on a small rocket those can outweigh the canopy. So{" "}
+        <code>/design</code>{" "}takes a <strong>canopy mass</strong>{" "}beside the drag coefficient:
+        put the packed chute on a kitchen scale and type what it says. The figure is flown as-is
+        rather than scaled, it survives a resize in the same edit &mdash; resizing a canopy scales the
+        mass Loft <em>estimated</em>, never the one you weighed &mdash; and the caption beneath both
+        fields says whose number each one is. This is the field the design formats reach for most:
+        22 of the 64 <code>&lt;overridemass&gt;</code>{" "}elements in the reference corpus sit on
+        parachutes, more than on any other kind of part, and Loft could read them from the first
+        importer while offering no way to write one.
+      </p>
       <DocsH3>Stated masses, and where they win</DocsH3>
       <p>
         A RockSim <code>.rkt</code>{" "}is the exception to the &ldquo;compute from geometry&rdquo; rule:

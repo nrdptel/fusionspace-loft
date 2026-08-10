@@ -18,6 +18,16 @@ big for one pass. Newest first.
 
 **Filed 2026-08-10, from run 10 — the sentinel gate on the validation table.**
 
+- **`eslint` is not running `no-duplicate-case`, and a duplicate shipped.** `cdOriginPhrase` in
+  `components/LoftApp.tsx` carried two `case "flyer":` arms; the second was unreachable and had been
+  on `main` through every green gate. Behaviourally harmless — the first wins and returns a sensible
+  sentence — but it is exactly the class a linter exists to catch, and nothing said a word. The
+  duplicate is deleted (found while writing the mass twin of that function, not by any tool).
+  **The fix is the rule, not the instance**: `no-duplicate-case` is in `eslint`'s recommended set, so
+  the question to answer first is which config this repo is extending that drops it, since whatever
+  else that config drops is also unenforced. Same shape as the `tsc --noEmit` entry below: a check
+  everybody assumes is running.
+
 - **A flyer whose guessed flight-log unit is already right cannot say so.** The *assumed* marker
   clears when the picker's value CHANGES, and an HTML `<select>` fires no `change` event when the
   same option is re-picked — so the one flyer who could dismiss the caution with certainty (the one

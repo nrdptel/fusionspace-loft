@@ -46,12 +46,18 @@ Its sibling, `nrdptel/fusionspace-debrief#170`, is merged.
    which the mechanism now makes a routine change. `lib/design-shared.test.ts` holds §4, §6, §7, §8 and
    §10 to one digest in BOTH repos. §1, §2, §3 and §11 are next: they differ only in clauses one copy
    has taken and the other has not.
-3. **R12's next member is the mass override CONTROL.** The model, the solver, both halves of the `.ork`
-   I/O and now the PROVENANCE are all in place; what is missing is a bag key, an applier that walks to
-   an arbitrary id, a readback, a control and an undo label. **Scope it per-slot, not universally** —
-   `aimEditsAt` returns the FIRST matching slot and a green test forbids one kind routing to two.
-   `parachuteId` is where the corpus overrides are: 22 of the 64 `<overridemass>` elements sit on
-   parachutes and that slot has no mass field at all.
+3. **R12's mass override SHIPPED on the parachute slot; the remaining kinds are the same shape.**
+   `parachuteMass` is a bag key, an applier, a readback, a control and an undo label — the whole
+   vertical slice — and the caption beside it names whose figure is being flown. **The next kinds are
+   a copy of this, not a design problem**: nose cone and body tube are the two with real demand after
+   the canopy. What CANNOT be copied is a universal per-part override: `aimEditsAt` returns the FIRST
+   matching slot and a green test forbids one kind routing to two, so a universal target cannot be a
+   peer slot — it needs the keyed bag the flat `GeometryEdits` cannot express, which is its own
+   milestone. **Read `chuteTargetId` in `applyDimensionEdits` before adding the next one**: every
+   field aimed by a slot must be listed in that condition or the applier silently falls back to
+   "the largest/primary part", which is right on a one-of-a-kind design and wrong the moment there
+   are two. That bug was live in this increment until a pre-push read of the diff, and the
+   dual-deploy case that catches it is in `edit.test.ts`.
 
 ## Read this first
 
@@ -105,7 +111,7 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
   assertions) but the reverse — editing a fix and re-running e2e without rebuilding — would report
   green on code that was never served. Rebuild before every e2e run you intend to believe.
 
-## This run — eight increments, six merged, two on PR #157
+## This run — nine increments, eight merged, one on PR #159
 
 | # | what | where |
 |---|---|---|
@@ -115,8 +121,9 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
 | 4 | P13/1 — `DESIGN.md` is read by the gate | merged `23659a5` |
 | 5 | P13/2+3 — a `Swatch` primitive, a radius rule the gate can see, one digest over both repos | merged `4d1512f` |
 | 6 | R12/7 — the parts table says which masses the design stated | merged `4d1512f` |
-| 7 | The validation table stops scoring a sentinel — one live row, and the headline error it moved | PR #157 |
-| 8 | A flight log's unit says whether the file named it or Loft guessed | PR #157 |
+| 7 | The validation table stops scoring a sentinel — one live row, and the headline error it moved | merged `d0c81cd` |
+| 8 | A flight log's unit says whether the file named it or Loft guessed | merged `a8e5df7` |
+| 9 | R12/8 — a canopy can be given the mass it was weighed at | PR #159 |
 
 **Increment 7 is the one to read if you read one.** It is the only one that came from *reproducing* a
 filed claim rather than from the queue, it overturned two of this repo's own prior conclusions (run
