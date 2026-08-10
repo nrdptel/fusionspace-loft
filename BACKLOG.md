@@ -20,6 +20,121 @@ big for one pass. Newest first.
 
 **Filed 2026-08-11, from run 11 — the airframe mass override and its fan-out.**
 
+*From the phone cold walk (390x664 and 412x915, touch emulated), the corpus sweep, the design-system
+audit and the competitive probe. The offline Sev-1 these turned up is fixed and merged; what follows
+is what was NOT taken this run.*
+
+**Touch contract — `DESIGN.md` §8 says the count must be zero, and it is not.**
+- **`lib/ui-tokens.ts:28` — `TOUCH_TARGET` constrains HEIGHT only.** `pointer-coarse:min-h-11` sets
+  no width, so every short-label control it is applied to still fails the 44 px rule on one axis:
+  the footer's `Docs` measures **33x44** and `v0.9.0` **41x44** at 412x915. The token reads like a
+  guarantee at ~40 call sites and delivers half of one. Fixing the token is one line and will move
+  counts all over the app, so it wants its own increment and its own measurement.
+- **`components/SectionNav.tsx:56` — the docs jump chips are 34 px tall, 14 of 14 failing** on
+  `/docs/methods` (`85x34` *Methods*, `268x34` *Aerodynamic stability — Barrowman*, `58x34` *Drag*).
+  `Disclosure`'s summary already carries `TOUCH_TARGET`; these do not.
+- **`components/SectionNav.tsx:31` — the sticky jump strip is unreachable on a phone.** At 412x915
+  `/docs/faq` measures `scrollWidth 8777` against `clientWidth 388`: 27 links, **1 fully visible**.
+  `/docs/methods` 2105 vs 388 (2 of 14), `/docs/validation` 2124 vs 388 (2 of 9). The only navigation
+  aid on those pages is itself behind 22 screens of horizontal swipe in a 34 px strip.
+- **`components/Footer.tsx:173,182,204` — three links omit `TOUCH_TARGET` entirely** while their
+  siblings on lines 43/51/74 carry it: `ThrustCurve.org` **109x18**, `OpenRocket` **84x18**,
+  `SAMHSA help →` **92x16**. Under 40% of the floor, and one of them is a crisis link.
+- **`components/SiteHeader.tsx:17` — the wordmark home link is 37x28**, failing on both axes. It is
+  the only "back to start" affordance in the header.
+- **`components/DocsHeading.tsx:48` — `scroll-mt-12` (48 px) is smaller than the sticky nav (72 px
+  on a phone)**, so every in-page jump on every docs page lands the reader with the heading's first
+  24 px under the strip.
+- **`components/PartPicker.tsx:589` — the *Use* button is 441 px off-screen right** on a phone
+  (`left=753` in a scroller ending at `x=362`; 463 px at 390x664), on every one of 1,089 rows. It is
+  the only way to commit a catalogue part.
+- **Docs page depth on a phone**: `/docs/limitations` is **64.3x** viewport at 390x664 (11,626
+  words), `/docs/methods` **51.5x** (8,775 words), `/docs/faq` **28.3x** with the worst
+  nav-to-length ratio of any route. P11 chunked the prose; it did not shorten the pages.
+
+**Capability the model already carries and no surface exposes** — each verified in source AND counted
+over the corpus, and each the same shape as the mass override that shipped this run.
+- **Motor overhang: imported, FLOWN and exported, with no control.** `lib/ork/adapt.ts:491`,
+  `lib/rkt/adapt.ts:597`, used in `lib/sim/setup.ts:246` (`cg = mountAft + overhang - motorLen/2`),
+  written by `lib/ork/export.ts:261`. **35 `<overhang>` across 27 of 27 corpus `.ork`** (21 nonzero,
+  in 18 files) and **33 `<EngineOverhang>` across 4 of 4 `.rkt`** (19 at 12.7 mm). OpenRocket ships a
+  *Motor overhang* field on its Motor tab. The mount's own fieldset holds Length / Outer Ø / Bore Ø /
+  Part mass and nothing else.
+- **`overrideCGx`: carried end to end, no control.** `lib/ork/adapt.ts:316`, `lib/rkt/adapt.ts:583`,
+  honoured in `lib/sim/mass.ts:66` and `:463`, exported at `lib/ork/export.ts:141`. **12
+  `<overridecg>` across 5 of 27 `.ork`** plus `<KnownCG>` on **67 of 67** `.rkt` parts, 47 nonzero.
+  OpenRocket's Override tab carries four controls; Loft now has one of them. **This is the cheapest
+  remaining item on `COMPETITION.md` row 41(d) and the exact twin of what shipped this run.**
+- **Cluster scale and rotation are DESTROYED on every round trip.** Loft parses neither
+  `<clusterscale>` nor `<clusterrotation>` and writes neither: **31 of each across 22 of 27 `.ork`**,
+  and the two genuine clusters carry scale 1.1 and 2.5 and rotation 27.5°, all silently lost. This is
+  data loss of the same class as the per-part comment that R12 increment 5 fixed.
+- **`overrideSubcomponents` is import-only.** 9 occurrences across 2 of 27 `.ork`. It is the flag that
+  decides whether the mass box a flyer now has means *this part* or *this part and everything in it*,
+  and this run had to add a whole second sentence to the UI because a flyer cannot see or set it.
+- **CORRECTION to `COMPETITION.md` row 41:** its claim that "a motor mount's own overhang and cluster
+  count have no control" is **half stale**. A `Motor cluster` control exists (min 1, max 12) — it sits
+  in the *Motor* fieldset rather than on the mount's own property panel. Overhang has none.
+- **`lib/ork/export.ts:168` writes `${clusterCount}-ring` unconditionally**, so a 2-motor cluster
+  exports as `2-ring` while Loft's own importer maps OpenRocket's name for two as `double`. Import
+  accepts a name export can never emit. Whether OpenRocket rejects `2-ring` is UNVERIFIED.
+
+**The corpus census, and what it does and does not prove.**
+- **The suite runs 35 of the corpus's 38 files, and the 3 it drops are the only ones with real flown
+  ground truth.** `lib/corpus/sweep.test.ts:326` filters on `/\.(ork|ork\.gz|rkt|cdx1)$/i`, which
+  excludes `corpus/rocketpy/*` — the Valetudo (860 m), Bella Lui (459 m) and NDRT (1316.7 m) files,
+  which carry measured altimeter results. **So 100% of the published accuracy census is "another
+  simulator said so", never "a rocket actually did this"**, and neither the suite nor the validation
+  page says so. That is a claim about what the numbers mean, not a bug, and it belongs on the
+  validation page in the tool's own voice.
+- **Only 2 of the 12 censused metrics have a per-case gate** (`maxAltitude` and `maxVelocity` at
+  ±12%, `sweep.test.ts:2190`). The other ten are measured, published and never asserted per design:
+  `deploymentVelocity` reaches **+204.2%** and `groundHitVelocity` **+65.4%** on real designs with the
+  suite green. The census median is the only thing between a per-design regression and a passing
+  build.
+- **`FullScaleModelTH.rkt [L1940X-P]` sits at −10.0% to −10.3% apogee on nine configurations**, 1.7
+  points inside the ±12% gate, with no `KNOWN_ISSUES` entry. Nine rows clustered under the bar means
+  a small drag or mass change flips nine breaches at once; there is no warning band below the
+  tolerance.
+- **`KNOWN_ISSUES` carries 8 entries and the two largest disagreements in the corpus are both
+  excused rather than fixed**: `rocksimTestRocket1.rkt` apogee **−68.2%** (445.13 m stored → 141.62 m)
+  and `OR vs RAS Test 1.CDX1` apogee **−59.8%** (22,375 m → 9,004 m).
+- **The validation page's deployment-velocity defence skips the band where it fails.** It argues
+  openings under 5 m/s disagree by 23% but only 0.5 m/s, and over 15 m/s by 3.3%; it never mentions
+  the 5–15 m/s band, which is the largest (n=35) and where `Tube fin rocket.ork [Simulation 1]`
+  stores 9.05 m/s against Loft's 22.87 m/s — a **13.8 m/s** absolute error on the number a flyer
+  sizes a shock cord to. No known-issue entry.
+- **RASAero imports carry no structural mass at all.** `Show-off.CDX1` totals exactly 0.45359237 kg —
+  1.000 lb, its single lumped mass component — with CG at exactly 0.0254 m, because the format states
+  no per-part weights (`grep -c "<Weight>" corpus/rasaero/*` → 0 in all four). `Complex.Two-Stage.CDX1`
+  is scored in the census as a 2.56 kg vehicle whose entire structure weighs nothing, so agreement
+  there is not evidence about Loft's mass model.
+
+**Design-system divergences from `DESIGN.md`** — the audit that had never been run.
+- **`components/ui.tsx:380` — `Tabs` is declared, exported and has ZERO call sites**, which is the
+  exact census that got `Chip` deleted. `lib/design-doc.test.ts` checks declaration, never adoption.
+- **Four hand-rolled `<details>/<summary>` with their own chevrons** (`MassBreakdown.tsx:79`,
+  `LoftApp.tsx:4059`, `GeometryInspector.tsx:1090`, `RocketpyCrossCheck.tsx:330`) while `Disclosure`
+  sits at **one** adopter — the duplication §5 already records against it, still true.
+- **`loading` has no primitive at all**: the spinner is hand-rolled five times across four files at
+  two sizes (`h-3 w-3` and `h-3.5 w-3.5`). §5 names five required states; this is the missing one.
+- **§5's `Chip` note is now factually false.** It asserts the app "contains exactly one token-shaped
+  element"; there are **three**, in two geometries (`MassBreakdown.tsx:84`, `GeometryInspector.tsx:661`,
+  `ResultsView.tsx:1449`). §5 states the trigger itself: "If a second token surface ever arrives, that
+  pill strip is the shape to extract."
+- **A fourth copy of the text-field treatment, already drifted**: `LoftApp.tsx:2027` uses
+  `px-2.5 py-1` against `TREAT_INPUT`'s `px-2.5 py-1.5`, and the same class string is byte-identical
+  in three files. Measured on `/design` at 1280: design-name **176x30**, Launch site **1092x34**,
+  NumberField **289x36** — three heights for text entry on one surface, none of them §4's
+  `px-3 py-1.5`. §9's greps are blind to this because every class in it is on-system. Wants a
+  `TextField` primitive.
+- **§3 line length: prose is capped by `max-w-3xl` rather than by a measured rem**, giving median
+  **92** and max **106** characters per line at ≥768 px on methods, limitations, faq and validation.
+  §3's cap is 45–75 and it names this exact failure.
+- **`components/ServiceWorker.tsx:74` mixes border weights** — light `border-zinc-200` (hairline)
+  with `dark:border-zinc-700` (control), the only such pair in the tree — and §9 says a floating toast
+  gets its own named primitive rather than an inline card treatment.
+
 *From the desktop TENTH-use cold walk — an experienced flyer editing, sweeping and cross-checking.
 The two CSV findings are recorded above against the entry that already held them; the rest are new.*
 

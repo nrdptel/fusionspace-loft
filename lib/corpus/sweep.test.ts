@@ -43,6 +43,7 @@ import {
 import type { Rocket, RocketComponent } from "../model/types";
 import {
   applyGeometryEdits,
+  statedAirframeMass,
   moveTarget,
   moveSlots,
   canAddStage,
@@ -581,6 +582,56 @@ suite("real-design corpus", () => {
     expect(total, "no design carried a fitting, so this asserted nothing").toBeGreaterThan(0);
     expect(byKind.railbutton ?? 0, "no design carried a rail button — the kind this pins").toBeGreaterThan(0);
     expect(massless, "fittings a real design flies with no mass at all").toEqual([]);
+  }, 300_000);
+
+  /** **A stated weight is never ADDED to a design that already states one for the whole airframe.**
+   *
+   *  A RASAero `.CDX1` states one launch weight and no per-part masses, so its adapter mints a single
+   *  point mass that already contains the nose and the tube. The airframe mass controls shipped on
+   *  2026-08-10 wrote an `overrideMass` on either without checking, so the flyer's figure was ADDED to
+   *  a total that already included it: measured on the bundled RASAero sample, 500 g typed on the cone
+   *  took dry mass 1.567 kg → 2.067 kg — exactly 500 g of double count — and on the corpus's larger
+   *  `.CDX1` it moved apogee 1,083 m → 996 m and the margin 1.92 → 2.23 cal, with the breakdown still
+   *  reading "Airframe (stated launch weight)" beside it. A flyer sizes a motor, a chute and a margin
+   *  off those.
+   *
+   *  Found by the opening fan-out's Sev-1 screen, which drove the bundled sample rather than reading
+   *  the code — and the increment it caught was the one that had deliberately MADE these controls
+   *  render on RASAero designs, on the reasoning that a scale is the only source there. The reasoning
+   *  was right about the need and wrong about the arithmetic.
+   *
+   *  `statedAirframeMass` is the guard, and it is the same one `primaryMassObject` and
+   *  `removalRefusal` already applied to that lump — written twice in this file and skipped by the
+   *  third caller, which is why it is exported now rather than written a fourth time. */
+  it("never adds a stated part weight to a design that states one weight for the whole airframe", async () => {
+    const doubled: string[] = [];
+    let lumped = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      if (!statedAirframeMass(doc.rocket)) continue;
+      lumped++;
+      const base = dryMassProperties(doc.rocket).mass;
+      for (const [what, edit] of [
+        ["nose", { noseMass: 0.5 }],
+        ["body tube", { bodyTubeMass: 0.5 }],
+      ] as const) {
+        const after = dryMassProperties(applyGeometryEdits(doc.rocket, edit)).mass;
+        if (Math.abs(after - base) > 1e-9)
+          doubled.push(
+            `${shortName(f.name)}: a stated ${what} weight moved dry mass ${base.toFixed(4)} → ` +
+              `${after.toFixed(4)} kg on a design whose whole weight is one lump that already contains it`,
+          );
+      }
+    }
+    console.log(
+      `lumped-airframe designs across ${files.length} design files: ${lumped} stating one weight for ` +
+        `the whole airframe, ${doubled.length} of them double-counting a stated part weight`,
+    );
+    expect(
+      lumped,
+      "no design states its weight as one lump — the double-count case is untested",
+    ).toBeGreaterThan(0);
+    expect(doubled, "designs where a stated part weight is added to a weight that already includes it").toEqual([]);
   }, 300_000);
 
   /** **A vehicle that weighs nothing never reaches a flyer with a balance point — and the reason is

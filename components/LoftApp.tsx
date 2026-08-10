@@ -114,6 +114,7 @@ import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption,
 } from "@/lib/motors/swap";
 import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
 import { massByComponent, statedMassHolder, statesOwnAssemblyMass } from "@/lib/sim/mass";
+import { statedAirframeMass } from "@/lib/model/edit";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import {
   clearDiscardedSession,
@@ -1758,6 +1759,14 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               //  (600 g covering the tube, a coupler and a streamer), and it is one click from the
               //  front door.
               const covers = (id?: string) => (id ? statesOwnAssemblyMass(designBase, id) : false);
+              // **The design's whole weight as ONE lump, which is a third case again.** A RASAero
+              // `.CDX1` states one launch weight and no per-part masses, so its adapter mints a single
+              // point mass that already contains the nose and the tube. A weight typed on either is
+              // then ADDED to a figure that already includes it — measured on the bundled RASAero
+              // sample: 500 g into Nose mass took dry 8.265 → 8.765 kg and apogee 1,083 → 996 m. The
+              // guard is `statedAirframeMass`, which `primaryMassObject` and `removalRefusal` have
+              // both used all along and which these two controls were written past.
+              const lump = statedAirframeMass(designBase);
               return {
                 nose: of(primaryNose(designBase)?.id),
                 bodyTube: of(primaryBodyTube(designBase, edits.bodyTubeId)?.id),
@@ -1767,6 +1776,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
                 parachute: of(primaryParachute(designBase, edits.parachuteId)?.id),
                 noseCoversAssembly: covers(primaryNose(designBase)?.id),
                 bodyTubeCoversAssembly: covers(primaryBodyTube(designBase, edits.bodyTubeId)?.id),
+                lumpedAirframe: lump?.name,
               };
             })(),
             bodyLength: primaryBodyTube(designBase, edits.bodyTubeId)?.length,
@@ -2627,6 +2637,9 @@ function DesignEditor({
        *  figure it holds is the assembly's, not the part's. A different sentence, not a disabled box. */
       noseCoversAssembly?: boolean;
       bodyTubeCoversAssembly?: boolean;
+      /** This design states ONE weight for the whole airframe, named here — so no per-part weight can
+       *  be added to it without double-counting, and the control is withheld rather than offered. */
+      lumpedAirframe?: string;
     };
     bodyLength?: number;
     bodyTubeMass?: number;
@@ -3113,13 +3126,19 @@ function DesignEditor({
                       //  `disabled` prop was added without. A field the flyer has typed into stays
                       //  editable so they can clear it; the hint still says where the weight is
                       //  counted, so nothing is hidden.
-                      disabled={designDims.massCarriedBy.nose !== undefined && edits.noseMass === undefined}
+                      disabled={
+                        (designDims.massCarriedBy.nose !== undefined ||
+                          designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                        edits.noseMass === undefined
+                      }
                       hint={
-                        designDims.massCarriedBy.nose
-                          ? `Counted in ${designDims.massCarriedBy.nose}, which states one weight for itself and everything in it.`
-                          : designDims.massCarriedBy.noseCoversAssembly
-                            ? "This cone states one weight for itself and everything inside it — so this figure covers the assembly, not the shell."
-                            : "What it actually weighs — Loft computes this from its shape and stock."
+                        designDims.massCarriedBy.lumpedAirframe
+                          ? `This design states one weight for the whole airframe (${designDims.massCarriedBy.lumpedAirframe}), which already includes the cone — a weight set here would be added to it rather than replace it.`
+                          : designDims.massCarriedBy.nose
+                            ? `Counted in ${designDims.massCarriedBy.nose}, which states one weight for itself and everything in it.`
+                            : designDims.massCarriedBy.noseCoversAssembly
+                              ? "This cone states one weight for itself and everything inside it — so this figure covers the assembly, not the shell."
+                              : "What it actually weighs — Loft computes this from its shape and stock."
                       }
                       // No placeholder where there is no figure to show: `NaN` reaches here from a
                       // design that states its weight as a whole and none of it per part.
@@ -3155,9 +3174,15 @@ function DesignEditor({
                         onEdit({ bodyTubeMass: kg !== undefined && kg >= 0 ? kg : undefined });
                       }}
                       min={0}
-                      disabled={designDims.massCarriedBy.bodyTube !== undefined && edits.bodyTubeMass === undefined}
+                      disabled={
+                        (designDims.massCarriedBy.bodyTube !== undefined ||
+                          designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                        edits.bodyTubeMass === undefined
+                      }
                       hint={
-                        designDims.massCarriedBy.bodyTube
+                        designDims.massCarriedBy.lumpedAirframe
+                          ? `This design states one weight for the whole airframe (${designDims.massCarriedBy.lumpedAirframe}), which already includes this tube — a weight set here would be added to it rather than replace it.`
+                          : designDims.massCarriedBy.bodyTube
                           ? `Counted in ${designDims.massCarriedBy.bodyTube}, which states one weight for itself and everything in it.`
                           : designDims.massCarriedBy.bodyTubeCoversAssembly
                             ? // The sentence below would be a flat lie on this design: the figure in
@@ -3470,7 +3495,7 @@ function DesignEditor({
                         onEdit({ internalMass: kg !== undefined && kg >= 0 ? kg : undefined });
                       }}
                       min={0}
-                      disabled={designDims.massCarriedBy.internal !== undefined}
+                      disabled={designDims.massCarriedBy.internal !== undefined && edits.internalMass === undefined}
                       hint={
                         designDims.massCarriedBy.internal
                           ? `Counted in ${designDims.massCarriedBy.internal}, which states one weight for itself and everything in it.`
@@ -3524,7 +3549,7 @@ function DesignEditor({
                     }
                     onChange={(v) => onEdit({ fittingMass: fromMass(v) })}
                     min={0}
-                    disabled={designDims.massCarriedBy.fitting !== undefined}
+                    disabled={designDims.massCarriedBy.fitting !== undefined && edits.fittingMass === undefined}
                     hint={
                       designDims.massCarriedBy.fitting
                         ? `Counted in ${designDims.massCarriedBy.fitting}, which states one weight for itself and everything in it.`
@@ -3706,7 +3731,7 @@ function DesignEditor({
                           : toDispMass(designDims.mainParachuteMass)
                       }
                       min={0}
-                      disabled={designDims.massCarriedBy.parachute !== undefined}
+                      disabled={designDims.massCarriedBy.parachute !== undefined && edits.parachuteMass === undefined}
                       hint={
                         designDims.massCarriedBy.parachute
                           ? `Counted in ${designDims.massCarriedBy.parachute}, which states one weight for itself and everything in it.`
@@ -3868,7 +3893,7 @@ function DesignEditor({
                     }
                     onChange={(v) => onEdit({ massObjectMass: fromMass(v) })}
                     min={0}
-                    disabled={designDims.massCarriedBy.massObject !== undefined}
+                    disabled={designDims.massCarriedBy.massObject !== undefined && edits.massObjectMass === undefined}
                     hint={
                       designDims.massCarriedBy.massObject
                         ? `Counted in ${designDims.massCarriedBy.massObject}, which states one weight for itself and everything in it.`
