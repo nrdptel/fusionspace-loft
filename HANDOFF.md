@@ -4,101 +4,90 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Everything in PR #155 is MERGED AND LIVE** — four commits, squashed as `23659a5`, CI green before
-the merge. Work is continuing on the same branch and a second pull request will carry it.
+**PR #155 is MERGED AND LIVE** (`23659a5`, CI green, deploy confirmed by fetching
+`/docs/methods` on loft.fusionspace.co). **PR #156 is OPEN with three more commits, gated in full
+locally.** Its sibling, `nrdptel/fusionspace-debrief#170`, is merged.
 
-1. **P13 is the live milestone and it is 1 of 3 done.** `DESIGN.md` is now READ by the gate
-   (`lib/design-doc.test.ts`). Increment 2 is in flight on the branch — a `Swatch` primitive and a
-   radius check that can actually see drift. **Increment 3 is the mirror to the sibling, and this
-   run has what the last one lacked: `add_repo` with `access: "push"` for
-   `nrdptel/fusionspace-debrief` SUCCEEDED, and the repo is cloned at `/workspace/fusionspace-debrief`.**
-   That is the single most useful fact in this file — the previous run recorded the permission as
-   refused and parked the whole reconciliation on the owner. It is not blocked.
-2. **The two copies of `DESIGN.md` are 12 hunks apart and the drift runs BOTH ways**, so neither can
-   be pasted over the other. Loft is 753 lines, the sibling 834. Loft has §3's prose-chunking clause,
-   `Select`, `ClosePanel`, and (as of this run) `Swatch`, the reader check and a radius rule with an
-   owner; the sibling has `Button variant="link"`, `Chip`, `ChipButton`, `Notice`, an `offline`-state
-   census, and a §9 whose greps were corrected on 2026-08-04 from a fixture. **They cannot become
-   byte-identical, because the two apps genuinely ship different primitives** — Loft deleted `Chip`
-   on 2026-08-04 and the sibling defines it. So the reconciliation needs a SHARED SPAN with the
-   per-app entries explicitly marked, and the digest holds the shared span only. Decide that shape
-   before merging text.
-3. **R12's next member is the mass override control**, and the scouting is done and recorded in
-   `ROADMAP.md`. The model, the solver and both halves of the `.ork` I/O already carry
-   `overrideMass`; what is missing is a bag key, an applier that walks to an arbitrary id, a readback,
-   a control and an undo label. **Scope it per-slot, not universally** — `aimEditsAt` returns the
-   FIRST matching slot and a green test forbids one kind routing to two, so a universal slot cannot
-   coexist with the seven. `parachuteId` is where the corpus overrides are: 22 of the 64
-   `<overridemass>` elements sit on parachutes, and that slot has no mass field at all.
+1. **CI produced no run for #156's head, and that is the first thing to check.** Runs 619–621 exist
+   for the same branch and for `main`; nothing fired for `0ba149d`, `7346ff1` or `9d55c8b` despite two
+   pushes and a close/reopen. **Do not describe that PR as CI-green — it never ran.** The local gate
+   on the tip was full and green: lint (0 errors), **1,192 unit tests including the real corpus at its
+   full 35 fixtures**, build, and Playwright 126 + 126 in two shards.
+2. **P13 is 3 of 3 in Loft and its `done when` is met**; what remains is widening the shared span,
+   which the mechanism now makes a routine change. `lib/design-shared.test.ts` holds §4, §6, §7, §8 and
+   §10 to one digest in BOTH repos. §1, §2, §3 and §11 are next: they differ only in clauses one copy
+   has taken and the other has not.
+3. **R12's next member is the mass override CONTROL.** The model, the solver, both halves of the `.ork`
+   I/O and now the PROVENANCE are all in place; what is missing is a bag key, an applier that walks to
+   an arbitrary id, a readback, a control and an undo label. **Scope it per-slot, not universally** —
+   `aimEditsAt` returns the FIRST matching slot and a green test forbids one kind routing to two.
+   `parachuteId` is where the corpus overrides are: 22 of the 64 `<overridemass>` elements sit on
+   parachutes and that slot has no mass field at all.
 
 ## Read this first
 
-**`add_repo` with push access to the sibling worked this run.** `MAINTAINING.md`'s
-DESIGN-IS-BINDING invariant says a change to one copy is a change to both in the same run, and the
-last run could not honour it. Attach the sibling FIRST whenever `DESIGN.md` moves — before writing
-the change, not after.
+**The pre-push agent review is worth more than the gate, and this run is the strongest evidence yet.**
+Over three fully green gates it found: an exporter minting a component id TWICE (7 freeform fin sets
+on 6 corpus designs went out under a fabricated hash); a new model field riding `structuredClone` onto
+parts Loft invents and then into the flyer's file; a `DESIGN.md` exception that bought a permanent
+carve-out for **zero pixels** (CSS clamps a corner radius to what its edge can hold, so on a 12x8 px
+chip every radius at or above 4 px renders as 4 px); a design-system check that could not see the one
+file holding the control radius for every button in the app; and **seven wrong provenance marks** on
+the mass work, three of them claims the design file does not support. Not one is visible in a passing
+suite. Give it the diff and nothing else, and ask it to refute.
+
+**`add_repo` with `access: "push"` for `nrdptel/fusionspace-debrief` SUCCEEDS.** The previous run
+recorded it as refused and parked the whole design-system reconciliation on the owner; it was never
+blocked. Attach the sibling FIRST whenever `DESIGN.md` moves.
 
 **A check can name one literal and read green over the whole class it was written to catch.** §9's
-radius grep named the middle radius; with it reporting 0, the tree held seven off-system radii, five
-of them one treatment — a legend swatch hand-rolled across four files at two different radii. The
-lesson generalises and this repo keeps relearning it: **enumerate the class and subtract what is
-allowed**, never list the values you already know are wrong. `offScaleType` had already learnt it and
-said so in its own docblock, one screen above the radius check that had not.
-
-**And a class-token check must read the right text.** Run over raw source, a radius pattern reads the
-English word in prose — 18 hits across the docs routes. Run over `class="…"` attributes only (which is
-how the sibling solved it), it cannot see a class composed through `cx(…)`, which is how every
-primitive in this app writes its own. The answer here is every string literal, with comments
-stripped: `roundedLg`'s docblock had instead put the burden on every future author of a comment —
-*"the name cannot be written even in a comment"* — and that rule was broken by the very commit that
-widened the check.
-
-**The pre-push agent review earned its place again, twice.** Over a fully green gate — lint, 1,179
-tests, 250 e2e, the corpus — it found that the exporter minted a component id TWICE for the two
-fin-set cases (7 sets across 6 corpus designs went out under a fabricated hash), that a new model
-field would ride `structuredClone` onto parts Loft invents and get written into the flyer's file, and
-that a test whose docblock claimed to cover the freeform branch drove a trapezoid through the shared
-path instead. None of the three is visible in a passing suite.
+radius grep named the middle radius; with it at 0, the tree held seven off-system radii, five of them
+one hand-rolled treatment. Enumerate the class and SUBTRACT what is allowed. And read the right text:
+over raw source a class pattern reads English prose (18 hits across the docs routes); over `class="…"`
+attributes only it cannot see a class composed through `cx(…)`, which is how every primitive here
+writes its own. String literals with comments stripped is the answer.
 
 **Do not trust a quick corpus measurement taken with `execSync`.** A first count of the author notes
 returned 23 across 11 files and was wrong: node's default 1 MB `maxBuffer` silently truncated the
-larger designs. The real figure is 40 across 18, which is what the repo already said. `maxBuffer`
-generously, or read through the repo's own importer.
+larger designs. The real figure is 40 across 18, which is what the repo already said.
 
-## The environment, measured 2026-08-09 (run 9)
+## The environment, measured 2026-08-09/10 (run 9)
 
-- **Both fixture and sibling repos are reachable.** `loft-fixtures` was on disk at session start;
+- **Both fixture and sibling repos are reachable.** `loft-fixtures` is on disk at session start;
   linking its five per-tool directories into `corpus/` gives the suite its full **35 fixtures**, and
-  the sweep names that count. `nrdptel/fusionspace-debrief` attaches with `access: "push"`.
-- `npx playwright install chromium` was needed again — **seventh consecutive run**. It is one minute
-  and 114 MB every time, and it belongs in the environment's setup script. Parked for the owner.
-- The clone is SHALLOW: any commit count is a window, not the record.
+  the sweep names that count in its own test name.
+- `npx playwright install chromium` was needed again — **seventh consecutive run**, one minute and
+  114 MB. It belongs in the environment's setup script. Parked for the owner.
+- The clone is SHALLOW; any commit count is a window, not the record.
 - Git identity arrives as the harness vendor's default and must be set per-repo before the first
   commit. Commits sign correctly once it is.
-- `test.yml` fires on `pull_request` and on a push to `main`, and NOT on a push to a working branch —
-  so a branch push runs nothing and the local gate is the only gate until the PR exists.
-- The e2e suite still needs two shards on this sandbox (125 + 125). Nothing flaked this run.
+- `test.yml` fires on `pull_request` and on a push to `main`, not on a working-branch push — and see
+  point 1 above: it did not fire for PR #156 at all.
+- The e2e suite still needs two shards on this sandbox (126 + 126). Nothing flaked this run.
 
-## This run — three increments merged, one in flight
+## This run — six increments, four merged, three pending on the branch
 
 | # | what | where |
 |---|---|---|
-| 1 | The notes a design file carries survive Loft — model, both importers, the exporter | merged in `23659a5` |
-| 2 | Sev-1: a rail button imported at 0 kg on all 9 in the corpus | merged in `23659a5` |
-| 3 | The queue's own state; P13 written because the P-track had run dry | merged in `23659a5` |
-| 4 | P13 increment 1 — `DESIGN.md` is read by the gate | merged in `23659a5` |
+| 1 | The notes a design file carries survive Loft — 81 across 22 of the 35 designs | merged `23659a5` |
+| 2 | Sev-1: a rail button imported at 0 kg on all 9 in the corpus | merged `23659a5` |
+| 3 | The queue's state; P13 opened because the P-track had run dry | merged `23659a5` |
+| 4 | P13/1 — `DESIGN.md` is read by the gate | merged `23659a5` |
+| 5 | P13/2+3 — a `Swatch` primitive, a radius rule the gate can see, one digest over both repos | PR #156 |
+| 6 | R12/7 — the parts table says which masses the design stated | PR #156 |
 
 ## The corpus, stated plainly
 
-**35 design files, and the suite names that count in its own test name.** Every new check this run
-asserts its own denominator, so a re-cut that dropped the annotated designs could not leave one
-passing on nothing: 81 author notes, 332 stated component ids, 54 external fittings.
+**35 design files**, and every check added this run asserts its own denominator so a re-cut cannot
+leave one passing on nothing: 81 author notes, 332 stated component ids, 54 external fittings, 108
+stated masses / 60 from the source tool / 401 Loft's own, and 332 parts compared by id across a round
+trip.
 
 ## What is waiting on the owner
 
-`OWNER-NOTES.md`'s *Awaiting the owner* — and one entry there is now WRONG and has been corrected:
-the sibling repo is attachable with push access from a Loft session. The remaining two are the
-Playwright browser in the setup script (seven runs and counting) and repository-page settings.
+Two entries in `OWNER-NOTES.md`'s *Awaiting the owner*: the Playwright browser in the setup script
+(seven runs), and the repository-page settings. A third was ANSWERED by measurement this run — push
+access to the sibling — and is marked as such rather than deleted.
 
 ## The previous run (2026-08-08, earlier the same day)
 
