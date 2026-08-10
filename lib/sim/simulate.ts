@@ -221,6 +221,15 @@ export interface FlightSummary {
    *  7.227 for the t=210.22 main — comparing Loft's max against that stored figure is a +70% error
    *  with no physics in it at all. So the census scores this one and the flyer reads the other. */
   lastDeploymentVelocity: number;
+  /** How many recovery devices actually opened during this flight.
+   *
+   *  0 makes both deployment velocities above the same kind of sentinel `landed` makes the landing
+   *  figures: a zero that means "the event never happened", not "it happened at 0 m/s". Nothing can
+   *  tell the two apart from the number alone, so the count is carried rather than inferred — and a
+   *  surface that publishes a deployment velocity has to consult it first. Measured on the corpus:
+   *  `rocksimTestRocket1.rkt [E6-2]` flies with nothing out while the file states 33.4 m/s, and
+   *  that one row is the whole distance between "we disagree by 100%" and "we did not measure it". */
+  deployments: number;
   driftDistance: number;
   /** Landing point relative to the pad (m): downrange (+x) and crossrange (+y) components of the
    *  drift, so a set of flights (e.g. a Monte-Carlo) can be plotted as a 2D scatter. Their
@@ -1148,6 +1157,7 @@ export function simulate(input: SimulateInput): FlightResult {
       optimumDelayAsFlown: optimumDelay,
       deploymentVelocity: deploymentV,
       lastDeploymentVelocity: lastDeploymentV,
+      deployments: deployEvents.length,
       driftDistance,
       landingX: state.pos.x,
       landingY: state.pos.y,

@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Button, Card, Figure, Panel, Readout, Section, Select, type CardTone } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
+import { notLandedWhy as whyNotLanded } from "@/lib/sim/withheld";
 import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
 import { WORKSPACES, type Workspace } from "@/lib/workspaces";
@@ -437,20 +438,14 @@ export default function ResultsView({
   const descentWhy = descentFromDefault
     ? "the canopy's drag coefficient is Loft's fallback, not a figure this design states — the descent figures below follow it, so treat them as rough and try the range on /design"
     : undefined;
-  /** Why every landing figure is withheld, when they are — one string for the four readouts that
-   *  share the condition, so they cannot drift apart again.
+  /** Why every landing figure is withheld, when they are — the four readouts below share it.
    *
-   *  **The two non-landing outcomes are different facts and used to share one sentence.** A rocket
-   *  still descending at the 1,200 s cap is a real prediction about a very slow descent. An
-   *  integrator that ran out of steps is Loft failing, not the rocket floating — measured on the
-   *  38 mm sample with a 25 m main, the run stops at 1.3 s because an enormous canopy drives the
-   *  adaptive step to nothing — and telling a flyer it "did not land inside the time cap" points
-   *  them at a canopy size when the answer is that the number should not be trusted at all. */
-  const notLandedWhy = s.landed
-    ? undefined
-    : s.notLandedReason === "step-budget"
-      ? "the solver could not integrate this descent — the canopy is large enough that the step size collapses, so no landing figure is available. Try a smaller recovery size."
-      : "still descending at the 1,200 s cap, so it has no landing figures — the recovery is large enough that this flight does not finish";
+   *  It lived here, and that was the bug: the validation table is a fifth surface reading the same
+   *  sentinels, it never asked, and it published them as −100% disagreements with the source
+   *  tool while these four said "—". One local string cannot be shared by a module that does
+   *  not import this component, so the condition and its wording now live in `lib/sim/withheld.ts`
+   *  and both surfaces read them from there. */
+  const notLandedWhy = whyNotLanded(s);
   /** Asked of the EDITED rocket, not the pristine one. R5 made a stage something a flyer can author, so
    *  `doc.rocket.stages.length` is the count of the stages the FILE came with and a booster added in the
    *  editor never moves it. Every tool below this line is gated on it, and the cross-check is the one

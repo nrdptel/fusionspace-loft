@@ -194,6 +194,26 @@ export default function ValidationPanel({
           },
         ]}
       />
+
+      {/* What the file stored and this flight cannot answer. Said out loud, because the alternative
+          is a table that quietly comes back with eight rows instead of ten and reads as though the
+          file stored less than it did. `DESIGN.md` §3 puts a withheld figure's REASON in the same
+          place as the figure it replaces, so this sits with the table rather than in a footnote. */}
+      {report.withheld.length > 0 && (
+        <Card as="p" tone="sunken" className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+          Not compared:{" "}
+          {report.withheld.map((w, i) => (
+            <span key={w.key}>
+              {i > 0 && "; "}
+              <strong className="font-medium">{w.label.toLowerCase()}</strong> &mdash; {w.reason}
+            </span>
+          ))}
+          . {toolName} stored {report.withheld.length === 1 ? "a figure" : "figures"} for{" "}
+          {report.withheld.length === 1 ? "it" : "them"}; Loft&apos;s flight has none to set beside{" "}
+          {report.withheld.length === 1 ? "it" : "them"}, so nothing is scored rather than scoring a
+          zero that only looks like a measurement.
+        </Card>
+      )}
     </Panel>
   );
 }

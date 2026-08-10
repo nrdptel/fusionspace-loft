@@ -16,6 +16,41 @@ big for one pass. Newest first.
 
 **Filed 2026-08-09, from run 8 — the fitting Sev-1s, the docs chunk, and the opening fan-out.**
 
+**Filed 2026-08-10, from run 10 — the sentinel gate on the validation table.**
+
+- **The validation CSV now omits a withheld metric without saying it did — found reviewing my own
+  diff, and it is the export half of the defect I had just fixed.** `components/ValidationPanel.tsx`
+  names the withheld metrics on screen; `DataTable` exports `report.comparisons`, which no longer
+  contains them, so the downloaded file for `rocksimTestRocket1.rkt [E6-2]` is eight rows with
+  nothing saying a ninth was withheld or why. Strictly better than before — the row it used to carry
+  was the wrong −100% — but it is the *"caveat on one surface, confident number in an export"* shape
+  this ledger already lists three times. **Deliberately not fixed in the same change**: neither
+  `DataTable` nor `DownloadCsv` has a preamble or footnote hook, and the entry above proposing *"a
+  conditions preamble on every CSV that carries a flown number"* is the increment that builds one.
+  Do them together; a second bespoke mechanism here is what makes the third one expensive.
+
+- **`BALLISTIC_SPLIT_METRICS`'s justification for `deploymentVelocity` cites figures the comparison
+  never sees.** `lib/corpus/sweep.test.ts:230` explains the split with *"RockSim writes ~234 m/s for
+  `FullScaleModelTH`'s plugged runs, where its canopy runs store 10 to 33"* — but measured
+  2026-08-10, all 11 of that file's `[L1940X-P]` runs arrive with `StoredResults.deploymentVelocity`
+  **undefined**, so none of them produces a comparison and none ever entered the split. The one row
+  the bucket ever held was `rocksimTestRocket1.rkt [E6-2]`, now withheld. So either the adapter is
+  dropping a figure the file states — the interesting case, and the one to check first — or the
+  comment is describing a field it does not read. Cheap to settle: parse the `.rkt` for what those
+  runs actually carry. Found while gating the sentinel, not by reading the comment.
+
+- **A large enough canopy does not stall the solver, it makes it diverge — and the summary reports
+  the divergence as ordinary numbers.** Driving every corpus design at a 25 m canopy (the size
+  `simulate.ts`'s own `notLandedReason` docblock cites for the step-budget case), 92 flights ran and
+  the worst returned `maxVelocity` **1.97e+47 m/s**, `maxAltitude` **4.27e+18 m**, and one a
+  *negative* apogee of −1.78e+15 m. Nothing refuses them: `Number.isFinite` is true, so they flow
+  into the summary, the comparison table and the mean. The Monte-Carlo path has a band check for
+  exactly this (`sweep.test.ts`, "a dispersion band contains a figure physics cannot produce"); the
+  single-flight path has none. **Not reachable from an unedited corpus file** — measured, 0 of 115
+  stored runs diverge — and the recovery editor's own range is what decides whether a flyer can get
+  there, which is the thing to establish before scoping. The honest fix is a physicality assert at
+  the point the summary is built, not a clamp on the way out.
+
 **Filed 2026-08-09, from run 9 — the notes round trip, the rail-button Sev-1, and its opening fan-out.**
 
 - **The diagram's identify line prints a mass with no provenance, in the panel the provenance work is about.** `components/GeometryInspector.tsx`'s aria-live readout under the drawing ends `· <mass>` for the part under the pointer, and it is the ONLY mass readout visible while the `Parts` disclosure is closed — which is its default, and the state a phone lands in. On `demo-rocksim.rkt` it reads "Nose cone · … · 118.50 g" with no ‡ and no key anywhere on screen, while the same part inside the disclosure reads "computed by the source tool". `massSource` is one call away. From the pre-push review's surface audit.
@@ -27,7 +62,27 @@ big for one pass. Newest first.
 
 - **The rocket diagram's motor legend chip changed shape when it converged onto `Swatch`**, from a hand-written 2 px corner to the 4 px every bar swatch renders. The 2 px was tracking the drawn mark's own `rx={1.5}` in `components/RocketDiagram.tsx`, so the chip resembled the motor casing it stands for; the four chart-series bars beside it are stadiums, and now so is this. **Deliberate, and recorded rather than filed as a defect**: a legend chip is a colour sample beside a label, not a scale drawing, and a third `Swatch` shape for one adopter is what `DESIGN.md` §5 declines to do elsewhere. If a second rectangular-mark legend ever arrives, that pair is the shape to extract. Found by the pre-push review measuring the pixels rather than reading the classes.
 
-- **SEV-1 CANDIDATE, UNREPRODUCED — reproduce before scoping, and ahead of any milestone.** `lib/validation/compare.ts:43` has no `landed` gate, so a flight that never reaches the ground publishes `Loft 0.0 m/s, Δ −100%` for ground-hit velocity in the Cross-check workspace — and folds it into that panel's headline mean absolute error.** `lib/sim/simulate.ts:959` hard-zeroes the ground-hit figures when the flight does not finish, and `components/ResultsView.tsx:449` correctly WITHHOLDS those four figures on the Flight card. So two surfaces of one flight disagree about whether it landed: one says the figures are unavailable, the other prints 0.0 m/s as Loft's answer and scores it. `lib/sim/run.ts:238`'s own comment names the −100% shape as the reason it gates on `hasPropulsion`; the same gate is missing here. From the opening fan-out's Sev-1 screen, unreproduced by this session.
+- **RESOLVED 2026-08-10, and the Sev-1 was NOT where two runs of the Sev-1 screen kept pointing.**
+  The screen filed `compare.ts`'s missing `landed` gate three times (2026-08-02, 2026-08-09 twice).
+  Run 9's ledger entry below already ruled it **latent rather than reachable** and gave the reason;
+  I re-derived that independently and **the prior ruling is correct**. `components/LoftApp.tsx:533`
+  passes `validateAgainst: edited || document.flownAsReduced ? undefined : stored`, so the edit
+  needed to stop a flight landing is the same edit that withholds the stored comparison — and
+  unedited, every corpus run that fails to land does so with `hasPropulsion: false`, which
+  `lib/sim/run.ts:238` already gates. Measured: 115 stored runs, 6 unlanded, **all 6 no-propulsion,
+  0 publishing a landing row.** Driving it anyway by enlarging every canopy to 25 m reproduces it
+  66 times out of 92 — but only through `runFromDocument` directly, which is not a path the app has.
+  **The reachable one was a third sentinel nobody had enumerated.** `deploymentVelocity` is 0 when
+  nothing opened, and a flight with nothing out lands perfectly well — so it clears every gate the
+  landing pair trips. `rocksimTestRocket1.rkt [E6-2]`, unedited, publishes **"RockSim 33.4 m/s ·
+  Loft 0.0 m/s · −100%"** today, and because that row also enters the mean the panel reported that
+  design's error as **48.74%** against the **42.33%** its comparable metrics actually disagree by.
+  The fault made Loft look *worse* than it is, on the accuracy page. Fixed together: a metric whose
+  event never happened is withheld and named, per metric rather than per report, with the condition
+  and its wording in `lib/sim/withheld.ts` so the Flight card and the table cannot drift.
+  **The lesson for the screen is the transferable part** — it read the sentinel and the missing gate
+  correctly all three times, and never checked whether a user could get there, so the same latent
+  case was re-filed twice while the live one next to it went unnamed for eight days.
 - **`components/ImportPanel.tsx:343` and `lib/version.ts:59` claim Loft imports "OpenRocket .ork, RockSim .rkt, RASAero .CDX1, RocketPy and SpaceCAD".** `lib/ork/import.ts:49` sniffs exactly three roots and `FORMATS` at `:74` states three. A flyer who brings a RocketPy script gets *"That does not look like a rocket design file"* from an app that just told them it reads RocketPy, on the first screen a stranger sees and again on `/docs/changelog`. `README.md:55` states the correct three, so this is in-app copy only — which is also why `P10`'s README check cannot see it. From the opening fan-out.
 - **SEV-1 CANDIDATE, UNREPRODUCED — reproduce before scoping, and ahead of any milestone.** An uploaded altimeter log whose header names no unit is silently read in the flyer's CURRENT display system.** `components/ResultsView.tsx:340`: `unit: parsed.unitHint ?? (units === "imperial" ? "ft" : "m")`, where `lib/flightlog.ts:33` returns `unitHint: null` deliberately to mean *the file does not say*. The Select at `:726` then shows the guess exactly as it shows a stated unit, and the caption at `:753` prints "the log flew N% higher than predicted" with no statement that the unit was assumed — a 3.28x error presented as a comparison. `DESIGN.md` §6 requires a reference value to name its source. From the opening fan-out.
 - **`AIM_SLOTS` has no entry for `tubefinset` or `streamer`, so both get NO Properties control at all.** `aimEditsAt` returns `{}` and `components/LoftApp.tsx:2256` returns null. Both kinds are fully modelled and both are in the corpus (`TubeFins1.rkt`, `Tube fin rocket.ork`). Worse for the streamer: `ResultsView.tsx:435` stamps the descent *extrapolated* when a streamer's Cd is a fallback, while the Cd field renders for parachutes only — a caveat naming a value with no control to set it. `components/GeometryInspector.tsx:254`'s `describeDims` has no case for either, so a tube-fin set shows only its length and a streamer shows a dash. This is the residue R12 increment 4 left: two kinds, not a long tail.

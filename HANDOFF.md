@@ -4,33 +4,42 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**TWO SEV-1-SHAPED FINDINGS ARE OPEN AND UNREPRODUCED, and that is this run's real gap.** Both came
-from the opening fan-out, both are wrong numbers on a surface a flyer would act on, and neither was
-reproduced by this session — so under `MAINTAINING.md`'s own rule they are claims, not findings, and
-the first job is to reproduce them:
+**ONE OF THE TWO SEV-1 CANDIDATES IS REPRODUCED, FIXED AND SHIPPED. THE OTHER IS STILL A CLAIM, AND
+IT IS THE FIRST JOB.**
 
-1. **`lib/validation/compare.ts:43` has no `landed` gate.** A flight that never reaches the ground has
-   its ground-hit figures hard-zeroed by `lib/sim/simulate.ts:959`, and the Cross-check workspace then
-   publishes *"Loft 0.0 m/s, Δ −100%"* and folds it into that panel's headline mean absolute error —
-   while the Flight card correctly WITHHOLDS the same four figures. Two surfaces of one flight
-   disagreeing about whether it landed.
-2. **`components/ResultsView.tsx:340` reads an altimeter log with no unit header in the flyer's
-   CURRENT display system**, and `lib/flightlog.ts:33` returns `unitHint: null` deliberately to mean
-   *the file does not say*. A feet log on a metric display is a 3.28x error presented as a comparison,
-   with nothing saying the unit was assumed.
+1. **RESOLVED — but not where the screen kept pointing, and that is the transferable part.** The
+   Sev-1 screen filed `compare.ts`'s missing `landed` gate three times over eight days. Run 9 ruled
+   it **latent rather than reachable**; I re-derived that independently and **run 9 was right**:
+   `components/LoftApp.tsx:533` withholds the stored comparison from any edited design, and the edit
+   needed to stop a flight landing is exactly that edit. Measured: 115 stored runs, 6 unlanded, all
+   6 already gated by `hasPropulsion`. **The reachable defect was a third sentinel nobody had
+   enumerated** — `deploymentVelocity` is 0 when nothing opened, and a flight with nothing out lands
+   fine, so it clears every gate the landing pair trips. `rocksimTestRocket1.rkt [E6-2]`, unedited,
+   published *"RockSim 33.4 m/s · Loft 0.0 m/s · −100%"* and reported that design's mean absolute
+   error as **48.74%** where its comparable metrics disagree by **42.33%** — the fault made Loft look
+   *worse* than it is, on the accuracy page. **The lesson: the screen read the code correctly every
+   time and never asked whether a user could get there.** Reachability is the first question, not the
+   last one.
+2. **STILL A CLAIM — reproduce it before scoping.** `components/ResultsView.tsx:340` reads an
+   altimeter log with no unit header in the flyer's CURRENT display system, where
+   `lib/flightlog.ts:33` returns `unitHint: null` deliberately to mean *the file does not say*. A
+   feet log on a metric display is a 3.28x error presented as a comparison, with nothing saying the
+   unit was assumed. **Reachability is the open question and it looks answerable in minutes**: unlike
+   the one above there is no upstream gate in the way — any flyer can upload any CSV — so the work is
+   to confirm a real altimeter export with a bare `Altitude` header, then decide between marking the
+   assumption and withholding the delta until the unit is confirmed. `lib/flightlog.test.ts:42`
+   already pins the null case.
 
-Both are in `BACKLOG.md` with their file:line. Reproduce, then fix — ahead of any milestone.
 
+**PR #155 AND #156 ARE BOTH MERGED.** #155 is live (`23659a5`, deploy confirmed by fetching
+`/docs/methods` on loft.fusionspace.co); #156 squashed to `4d1512f` after CI ran green on both jobs.
+Its sibling, `nrdptel/fusionspace-debrief#170`, is merged.
 
-**PR #155 is MERGED AND LIVE** (`23659a5`, CI green, deploy confirmed by fetching
-`/docs/methods` on loft.fusionspace.co). **PR #156 is OPEN with three more commits, gated in full
-locally.** Its sibling, `nrdptel/fusionspace-debrief#170`, is merged.
-
-1. **CI produced no run for #156's head, and that is the first thing to check.** Runs 619–621 exist
-   for the same branch and for `main`; nothing fired for `0ba149d`, `7346ff1` or `9d55c8b` despite two
-   pushes and a close/reopen. **Do not describe that PR as CI-green — it never ran.** The local gate
-   on the tip was full and green: lint (0 errors), **1,192 unit tests including the real corpus at its
-   full 35 fixtures**, build, and Playwright 126 + 126 in two shards.
+1. **#156's CI silence resolved itself and the cause is worth keeping.** No run fired for `0ba149d`,
+   `7346ff1` or `9d55c8b`; the cause was that `main` had moved under #155's squash, leaving the PR
+   un-mergeable — GitHub cannot build a merge commit for a `pull_request` event, so it produces no
+   run at all rather than a failing one. Merging `origin/main` into the branch started a run
+   immediately. **A PR with no CI run at all is a merge-conflict symptom, not a CI outage.**
 2. **P13 is 3 of 3 in Loft and its `done when` is met**; what remains is widening the shared span,
    which the mechanism now makes a routine change. `lib/design-shared.test.ts` holds §4, §6, §7, §8 and
    §10 to one digest in BOTH repos. §1, §2, §3 and §11 are next: they differ only in clauses one copy
@@ -83,7 +92,7 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
   point 1 above: it did not fire for PR #156 at all.
 - The e2e suite still needs two shards on this sandbox (126 + 126). Nothing flaked this run.
 
-## This run — six increments, four merged, three pending on the branch
+## This run — seven increments, all merged
 
 | # | what | where |
 |---|---|---|
@@ -91,8 +100,15 @@ larger designs. The real figure is 40 across 18, which is what the repo already 
 | 2 | Sev-1: a rail button imported at 0 kg on all 9 in the corpus | merged `23659a5` |
 | 3 | The queue's state; P13 opened because the P-track had run dry | merged `23659a5` |
 | 4 | P13/1 — `DESIGN.md` is read by the gate | merged `23659a5` |
-| 5 | P13/2+3 — a `Swatch` primitive, a radius rule the gate can see, one digest over both repos | PR #156 |
-| 6 | R12/7 — the parts table says which masses the design stated | PR #156 |
+| 5 | P13/2+3 — a `Swatch` primitive, a radius rule the gate can see, one digest over both repos | merged `4d1512f` |
+| 6 | R12/7 — the parts table says which masses the design stated | merged `4d1512f` |
+| 7 | The validation table stops scoring a sentinel — one live row, and the headline error it moved | PR #157 |
+
+**Increment 7 is the one to read if you read one.** It is the only one that came from *reproducing* a
+filed claim rather than from the queue, it overturned two of this repo's own prior conclusions (run
+9's "latent" ruling stands; the Sev-1 screen's three filings pointed at the wrong metric), and it is
+pinned by a corpus census that names the single row it changes. `lib/sim/withheld.ts` is new and is
+where a reason for a withheld figure now lives for every surface.
 
 ## The corpus, stated plainly
 
