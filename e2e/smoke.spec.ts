@@ -6557,14 +6557,21 @@ test.describe("Loft", () => {
     expect((await page.locator("body").innerText()).match(/Counted in /g)?.length ?? 0).toBe(0);
   });
 
-  test("a design that states no per-part mass still offers the field a scale would fill", async ({ page }) => {
-    // **The gap a pre-push review found, and the designs it hits are the ones that need the control
-    // most.** `massByComponent` has an entry only for a part that produces a structural point mass:
-    // a SUBSUMED part gets `{mass: 0}`, but a part Loft computes no mass for gets no entry at all.
-    // A RASAero `.CDX1` states one lumped launch weight and no per-part masses, so its nose and tube
-    // had no entry, the readback came back undefined and the field never rendered — on all 4 RASAero
-    // designs of the 35-design corpus, which are precisely the designs where a flyer's own scale is
-    // the only possible source of a per-part weight. The field is gated on the PART existing now.
+  test("a design that states one weight for the whole airframe says so, and takes no per-part weight", async ({
+    page,
+  }) => {
+    // **This case was asserted the other way round one increment ago, and the other way round was
+    // wrong.** A RASAero `.CDX1` states one launch weight and no per-part masses, so its adapter
+    // mints a single point mass that already contains the nose and the tube. The increment that
+    // added these controls made them RENDER here deliberately, reasoning that a flyer's scale is the
+    // only possible source of a per-part weight on such a design — and then a weight typed on the
+    // cone was ADDED to a figure that already included it: 500 g in took dry mass 1.567 kg to
+    // 2.067 kg, and on the corpus's larger `.CDX1` it moved apogee 1,083 m to 996 m. The need was
+    // real; the arithmetic was not.
+    //
+    // So the field is offered and REFUSED, which is strictly better than either previous state: it
+    // vanished before the render gate was fixed, which told the flyer nothing, and it took a
+    // double-counted number after, which told them something false. Now it names the lump.
     await page.goto("/");
     await page
       .locator('input[type="file"]')
@@ -6579,11 +6586,16 @@ test.describe("Loft", () => {
     }
     for (const name of [/^Nose mass /, /^Body tube mass /]) {
       const field = page.getByLabel(name).first();
-      await expect(field, `${name} must be offered even where Loft computes no figure`).toBeVisible();
-      await expect(field).toBeEnabled();
-      // And it advertises nothing, because there is no figure to overrule — not a 0 it would invent.
+      // Present, so the flyer can see the question was considered rather than silently dropped.
+      await expect(field, `${name} must still be offered on a design that states one weight`).toBeVisible();
+      await expect(field, `${name} must refuse a weight that would be added to a stated total`).toBeDisabled();
       expect(await field.getAttribute("placeholder"), `${name} must advertise no figure`).toBeNull();
     }
+    // And it says WHY, naming the figure that already contains the part.
+    await expect(
+      page.getByText(/states one weight for the whole airframe/).first(),
+      "the withheld field must name the stated weight it would be added to",
+    ).toBeVisible();
   });
 
   test("a removal the design's own stated weight swallows says so, before and after the click", async ({
