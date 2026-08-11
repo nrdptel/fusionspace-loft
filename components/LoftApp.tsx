@@ -1761,22 +1761,44 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               const covers = (id?: string) => (id ? statesOwnAssemblyMass(designBase, id) : false);
               // **The design's whole weight as ONE lump, which is a third case again.** A RASAero
               // `.CDX1` states one launch weight and no per-part masses, so its adapter mints a single
-              // point mass that already contains the nose and the tube. A weight typed on either is
-              // then ADDED to a figure that already includes it — measured on the bundled RASAero
-              // sample: 500 g into Nose mass took dry 8.265 → 8.765 kg and apogee 1,083 → 996 m. The
-              // guard is `statedAirframeMass`, which `primaryMassObject` and `removalRefusal` have
-              // both used all along and which these two controls were written past.
+              // point mass that already contains every part the FILE brought. A weight typed on one of
+              // those is then ADDED to a figure that already includes it — measured on the bundled
+              // RASAero sample: 500 g into Nose mass took dry 8.265 → 8.765 kg and apogee
+              // 1,083 → 996 m.
+              //
+              // **But only the parts the file brought, which is why this is per-field and not one
+              // flag.** A part the flyer AUTHORS cannot be inside a weight stated before it existed,
+              // and RASAero is precisely the format where authoring needs a weight — it states none.
+              // A design-wide flag greyed out the Mass field on a mass object the flyer had just
+              // added, whose 0.045 kg default exists so that "the next keystroke replaces the starting
+              // weight"; that keystroke did nothing. `lib/model/edit.ts`'s
+              // `stripPerPartMassOnLumpedAirframe` makes the same distinction the same way, and the
+              // two must agree or the panel offers a control the applier ignores.
               const lump = statedAirframeMass(designBase);
+              const fromFile = new Set(doc ? flattenRocket(doc.rocket).map((p) => p.component.id) : []);
+              /** The lump's name, but only for a field aimed at a part the file itself brought. */
+              const lumpFor = (id?: string) => (lump && id !== undefined && fromFile.has(id) ? lump.name : undefined);
+              const noseId = primaryNose(designBase)?.id;
+              const tubeId = primaryBodyTube(designBase, edits.bodyTubeId)?.id;
+              const internalId = primaryInternalPart(designBase, edits.internalId)?.id;
+              const fittingId = primaryFitting(designBase, edits.fittingId)?.id;
+              const massObjectId = primaryMassObject(designBase, edits.massObjectId)?.id;
+              const parachuteId = primaryParachute(designBase, edits.parachuteId)?.id;
               return {
-                nose: of(primaryNose(designBase)?.id),
-                bodyTube: of(primaryBodyTube(designBase, edits.bodyTubeId)?.id),
-                internal: of(primaryInternalPart(designBase, edits.internalId)?.id),
-                fitting: of(primaryFitting(designBase, edits.fittingId)?.id),
-                massObject: of(primaryMassObject(designBase, edits.massObjectId)?.id),
-                parachute: of(primaryParachute(designBase, edits.parachuteId)?.id),
-                noseCoversAssembly: covers(primaryNose(designBase)?.id),
-                bodyTubeCoversAssembly: covers(primaryBodyTube(designBase, edits.bodyTubeId)?.id),
-                lumpedAirframe: lump?.name,
+                nose: of(noseId),
+                bodyTube: of(tubeId),
+                internal: of(internalId),
+                fitting: of(fittingId),
+                massObject: of(massObjectId),
+                parachute: of(parachuteId),
+                noseCoversAssembly: covers(noseId),
+                bodyTubeCoversAssembly: covers(tubeId),
+                lumpedNose: lumpFor(noseId),
+                lumpedBodyTube: lumpFor(tubeId),
+                lumpedInternal: lumpFor(internalId),
+                lumpedFitting: lumpFor(fittingId),
+                lumpedMassObject: lumpFor(massObjectId),
+                lumpedParachute: lumpFor(parachuteId),
               };
             })(),
             bodyLength: primaryBodyTube(designBase, edits.bodyTubeId)?.length,
@@ -2648,9 +2670,20 @@ function DesignEditor({
        *  figure it holds is the assembly's, not the part's. A different sentence, not a disabled box. */
       noseCoversAssembly?: boolean;
       bodyTubeCoversAssembly?: boolean;
-      /** This design states ONE weight for the whole airframe, named here — so no per-part weight can
-       *  be added to it without double-counting, and the control is withheld rather than offered. */
-      lumpedAirframe?: string;
+      /** This design states ONE weight for the whole airframe, named here — so a weight typed on a
+       *  part that weight already contains would double-count, and the control is withheld rather
+       *  than offered.
+       *
+       *  **One key per field, because it is a fact about the aimed PART and not about the design.**
+       *  A part the flyer authored is not inside a weight the file stated before it existed, so its
+       *  own key stays undefined and its control stays live — which is the whole point of a per-part
+       *  weight on a format that states none. */
+      lumpedNose?: string;
+      lumpedBodyTube?: string;
+      lumpedInternal?: string;
+      lumpedFitting?: string;
+      lumpedMassObject?: string;
+      lumpedParachute?: string;
     };
     bodyLength?: number;
     bodyTubeMass?: number;
@@ -3139,12 +3172,12 @@ function DesignEditor({
                       //  counted, so nothing is hidden.
                       disabled={
                         (designDims.massCarriedBy.nose !== undefined ||
-                          designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                          designDims.massCarriedBy.lumpedNose !== undefined) &&
                         edits.noseMass === undefined
                       }
                       hint={
-                        designDims.massCarriedBy.lumpedAirframe
-                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "the cone")
+                        designDims.massCarriedBy.lumpedNose
+                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedNose, "the cone")
                           : designDims.massCarriedBy.nose
                             ? `Counted in ${designDims.massCarriedBy.nose}, which states one weight for itself and everything in it.`
                             : designDims.massCarriedBy.noseCoversAssembly
@@ -3187,12 +3220,12 @@ function DesignEditor({
                       min={0}
                       disabled={
                         (designDims.massCarriedBy.bodyTube !== undefined ||
-                          designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                          designDims.massCarriedBy.lumpedBodyTube !== undefined) &&
                         edits.bodyTubeMass === undefined
                       }
                       hint={
-                        designDims.massCarriedBy.lumpedAirframe
-                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "this tube")
+                        designDims.massCarriedBy.lumpedBodyTube
+                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedBodyTube, "this tube")
                           : designDims.massCarriedBy.bodyTube
                           ? `Counted in ${designDims.massCarriedBy.bodyTube}, which states one weight for itself and everything in it.`
                           : designDims.massCarriedBy.bodyTubeCoversAssembly
@@ -3508,18 +3541,18 @@ function DesignEditor({
                       min={0}
                       disabled={
                         (designDims.massCarriedBy.internal !== undefined ||
-                          designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                          designDims.massCarriedBy.lumpedInternal !== undefined) &&
                         edits.internalMass === undefined
                       }
                       hint={
-                        designDims.massCarriedBy.lumpedAirframe
-                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "this part")
+                        designDims.massCarriedBy.lumpedInternal
+                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedInternal, "this part")
                           : designDims.massCarriedBy.internal
                             ? `Counted in ${designDims.massCarriedBy.internal}, which states one weight for itself and everything in it.`
                             : "What it actually weighs — Loft computes this from its size and material."
                       }
                       placeholder={
-                        designDims.massCarriedBy.internal || designDims.massCarriedBy.lumpedAirframe
+                        designDims.massCarriedBy.internal || designDims.massCarriedBy.lumpedInternal
                           ? undefined
                           : toDispMass(designDims.internalMass)
                       }
@@ -3564,7 +3597,7 @@ function DesignEditor({
                     label={`Fitting mass each (${massU})`}
                     value={toDispMass(edits.fittingMass)}
                     placeholder={
-                      designDims.massCarriedBy.fitting || designDims.massCarriedBy.lumpedAirframe
+                      designDims.massCarriedBy.fitting || designDims.massCarriedBy.lumpedFitting
                         ? undefined
                         : toDispMass(designDims.fittingMass)
                     }
@@ -3572,12 +3605,12 @@ function DesignEditor({
                     min={0}
                     disabled={
                       (designDims.massCarriedBy.fitting !== undefined ||
-                        designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                        designDims.massCarriedBy.lumpedFitting !== undefined) &&
                       edits.fittingMass === undefined
                     }
                     hint={
-                      designDims.massCarriedBy.lumpedAirframe
-                        ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "this fitting")
+                      designDims.massCarriedBy.lumpedFitting
+                        ? lumpedAirframeHint(designDims.massCarriedBy.lumpedFitting, "this fitting")
                         : designDims.massCarriedBy.fitting
                           ? `Counted in ${designDims.massCarriedBy.fitting}, which states one weight for itself and everything in it.`
                           : undefined
@@ -3753,19 +3786,19 @@ function DesignEditor({
                       label={`Canopy mass (${massU})`}
                       value={toDispMass(edits.parachuteMass)}
                       placeholder={
-                        designDims.massCarriedBy.parachute || designDims.massCarriedBy.lumpedAirframe
+                        designDims.massCarriedBy.parachute || designDims.massCarriedBy.lumpedParachute
                           ? undefined
                           : toDispMass(designDims.mainParachuteMass)
                       }
                       min={0}
                       disabled={
                         (designDims.massCarriedBy.parachute !== undefined ||
-                          designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                          designDims.massCarriedBy.lumpedParachute !== undefined) &&
                         edits.parachuteMass === undefined
                       }
                       hint={
-                        designDims.massCarriedBy.lumpedAirframe
-                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "this canopy")
+                        designDims.massCarriedBy.lumpedParachute
+                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedParachute, "this canopy")
                           : designDims.massCarriedBy.parachute
                             ? `Counted in ${designDims.massCarriedBy.parachute}, which states one weight for itself and everything in it.`
                             : "What the canopy, its lines and its bag actually weigh — Loft estimates this from diameter alone."
@@ -3922,7 +3955,7 @@ function DesignEditor({
                     label={`Mass (${massU})`}
                     value={toDispMass(edits.massObjectMass)}
                     placeholder={
-                      designDims.massCarriedBy.massObject || designDims.massCarriedBy.lumpedAirframe
+                      designDims.massCarriedBy.massObject || designDims.massCarriedBy.lumpedMassObject
                         ? undefined
                         : toDispMass(designDims.massObjectMass)
                     }
@@ -3930,12 +3963,12 @@ function DesignEditor({
                     min={0}
                     disabled={
                       (designDims.massCarriedBy.massObject !== undefined ||
-                        designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                        designDims.massCarriedBy.lumpedMassObject !== undefined) &&
                       edits.massObjectMass === undefined
                     }
                     hint={
-                      designDims.massCarriedBy.lumpedAirframe
-                        ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "this mass")
+                      designDims.massCarriedBy.lumpedMassObject
+                        ? lumpedAirframeHint(designDims.massCarriedBy.lumpedMassObject, "this mass")
                         : designDims.massCarriedBy.massObject
                           ? `Counted in ${designDims.massCarriedBy.massObject}, which states one weight for itself and everything in it.`
                           : undefined

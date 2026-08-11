@@ -1623,7 +1623,7 @@ describe("the aim registry is the one list", () => {
     // The nose has no slot, so its mass field is named directly — the same exception `AIM_FIELDS`
     // carries in `components/LoftApp.tsx`.
     const expected = new Set([...aimedMassFields, "noseMass"]);
-    const declared = new Set<string>(PER_PART_MASS_FIELDS);
+    const declared = new Set<string>(Object.keys(PER_PART_MASS_FIELDS));
     for (const f of expected) {
       expect(declared.has(f), `${f} writes a per-part weight but PER_PART_MASS_FIELDS omits it`).toBe(true);
     }
@@ -1645,16 +1645,63 @@ describe("the aim registry is the one list", () => {
     const perPart = await load("demo-dual-deploy.ork");
     expect(statedAirframeMass(perPart), "the control design must state its masses per part").toBeUndefined();
 
-    const bag = Object.fromEntries(PER_PART_MASS_FIELDS.map((k) => [k, 0.5]));
-    const stripped = stripPerPartMassOnLumpedAirframe(lumped, { ...bag, bodyLength: 0.4, finSpan: 0.05 });
-    for (const k of PER_PART_MASS_FIELDS) expect(stripped[k], `${k} survived the strip`).toBeUndefined();
+    const keys = Object.keys(PER_PART_MASS_FIELDS);
+    const bag = Object.fromEntries(keys.map((k) => [k, 0.5]));
+    const fileIds = new Set(flattenRocket(lumped).map((p) => p.component.id));
+    const stripped = stripPerPartMassOnLumpedAirframe(lumped, { ...bag, bodyLength: 0.4, finSpan: 0.05 }, fileIds);
+    // Only the fields that actually resolve to a part of the FILE are taken: this design carries no
+    // internal structure, so `internalMass` has no target and is left alone rather than swallowed.
+    for (const k of ["noseMass", "bodyTubeMass", "parachuteMass", "fittingMass"]) {
+      expect(stripped[k as keyof typeof stripped], `${k} survived the strip`).toBeUndefined();
+    }
     // A dimension is not a weight: the refusal must not swallow the rest of the flyer's what-if.
     expect(stripped.bodyLength).toBe(0.4);
     expect(stripped.finSpan).toBe(0.05);
     // And on a design that states its masses per part, the bag comes back untouched — by identity,
     // so the common path allocates nothing.
     const normal = { ...bag, bodyLength: 0.4 };
-    expect(stripPerPartMassOnLumpedAirframe(perPart, normal)).toBe(normal);
+    expect(stripPerPartMassOnLumpedAirframe(perPart, normal, new Set())).toBe(normal);
+  });
+
+  /** **A part the flyer AUTHORED is not inside a weight the file stated before it existed**, so the
+   *  refusal must be about the part and not about the design.
+   *
+   *  The first version of this guard stripped every per-part weight from any design carrying a lump,
+   *  and that broke authoring on exactly the format where authoring matters most: RASAero states no
+   *  per-part masses at all, so a flyer's own scale is the only possible source of one. Reproduced
+   *  before the fix on the bundled sample — add a mass object to a body tube and it lands at the
+   *  0.045 kg default whose stated purpose is that "the next keystroke replaces the starting weight";
+   *  that keystroke did nothing and dry mass stayed at 8.3099 kg, with the control greyed out.
+   *
+   *  Found by the pre-push agent review, which is the only thing that looked at it: the gate was
+   *  fully green, because every check written for this guard asked whether an IMPORTED part could be
+   *  double-counted and none asked whether an authored one could still be weighed. */
+  it("still weighs a part the flyer authored on a lumped-airframe design", async () => {
+    const doc = await importDesign(new Uint8Array(readFileSync(resolve("public/samples/demo-rasaero.CDX1"))));
+    const rocket = doc.rocket;
+    expect(statedAirframeMass(rocket)).toBeDefined();
+    const tube = flattenRocket(rocket).find((p) => p.component.kind === "bodytube")!;
+    const added = [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        kind: "masscomponent" as const,
+        after: tube.component.id,
+        length: 0,
+        name: "Altimeter bay",
+        mass: 0.045,
+      },
+    ];
+    const base = dryMassProperties(applyGeometryEdits(rocket, { added })).mass;
+    const weighed = dryMassProperties(applyGeometryEdits(rocket, { added, massObjectMass: 0.3 })).mass;
+    // The authored part's own default (0.045) is replaced by the typed weight (0.3), so the design
+    // gains exactly the difference. It must not gain zero, which is what a design-wide strip gave.
+    expect(weighed - base, "a weight typed on a part the flyer authored did not reach the flight").toBeCloseTo(
+      0.3 - 0.045,
+      9,
+    );
+    // And the imported cone on the SAME design is still refused, so this did not simply reopen it.
+    const cone = dryMassProperties(applyGeometryEdits(rocket, { added, noseMass: 0.5 })).mass;
+    expect(cone, "an imported part's weight is still added to the stated lump").toBeCloseTo(base, 9);
   });
 
   /** The behaviour the strip exists for, end to end and in the units a flyer reads: on the bundled
@@ -1665,13 +1712,13 @@ describe("the aim registry is the one list", () => {
     const lumped = (await importDesign(new Uint8Array(readFileSync(resolve("public/samples/demo-rasaero.CDX1")))))
       .rocket;
     const lumpedBase = dryMassProperties(lumped).mass;
-    for (const k of PER_PART_MASS_FIELDS) {
+    for (const k of Object.keys(PER_PART_MASS_FIELDS)) {
       const after = dryMassProperties(applyGeometryEdits(lumped, { [k]: 0.5 })).mass;
       expect(after, `${k} moved dry mass on a design whose whole weight is one lump`).toBeCloseTo(lumpedBase, 9);
     }
     const perPart = await load("demo-dual-deploy.ork");
     const perPartBase = dryMassProperties(perPart).mass;
-    const landed = PER_PART_MASS_FIELDS.filter(
+    const landed = Object.keys(PER_PART_MASS_FIELDS).filter(
       (k) => Math.abs(dryMassProperties(applyGeometryEdits(perPart, { [k]: 0.5 })).mass - perPartBase) > 1e-9,
     );
     // Not all six: this fixture carries no fitting and no internal structure to weigh. The point is

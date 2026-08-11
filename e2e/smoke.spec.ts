@@ -6613,6 +6613,59 @@ test.describe("Loft", () => {
     ).toHaveCount(3);
   });
 
+  /** **The other half of the lumped-airframe refusal, and the half a design-wide guard got wrong.**
+   *  A stated launch weight contains every part the FILE brought — and cannot contain a part the
+   *  flyer adds afterwards. RASAero is precisely the format where that matters: it states no per-part
+   *  masses at all, so a flyer's own scale is the only possible source of one, and an altimeter bay
+   *  they just authored is the canonical thing to weigh.
+   *
+   *  A first pass at the refusal keyed it on the design and greyed this control out, which turned the
+   *  0.045 kg default — whose stated purpose is that "the next keystroke replaces the starting
+   *  weight" — into a number nothing could change. The gate was fully green: every check asked
+   *  whether an IMPORTED part could be double-counted, and none asked whether an authored one could
+   *  still be weighed. The pre-push agent review is what found it. */
+  test("a part the flyer adds to a lumped-airframe design can still be weighed", async ({ page }) => {
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const margin = async () => {
+      const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const asImported = await margin();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    await partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).first().click();
+    await page.getByRole("button", { name: /Add a mass inside this/ }).click();
+
+    // Live, not greyed — the stated weight predates this part by construction.
+    const massField = page.locator("label").filter({ hasText: /^Mass \(/ }).first().locator("input");
+    await expect(massField, "a part the flyer authored must be weighable on a lumped design").toBeEnabled();
+    await massField.fill("400");
+
+    // And the weight reaches the flight: the balance moves, which is what ballast is for.
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).not.toBe(asImported);
+
+    // Meanwhile the IMPORTED cone on the same design is still refused, so this did not reopen the
+    // double-count it was closing.
+    await page.getByRole("link", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+    await expect(
+      page.getByLabel(/^Nose mass /).first(),
+      "an imported part's weight is still refused on the same design",
+    ).toBeDisabled();
+  });
+
   test("a removal the design's own stated weight swallows says so, before and after the click", async ({
     page,
   }) => {

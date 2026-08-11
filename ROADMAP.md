@@ -2652,6 +2652,28 @@ the canopy's panel guard fails the e2e case with *"Expected: disabled, Received:
 so a source revert with no rebuild silently re-runs the previous bundle and the control "passes". It
 did, once, here. Recorded in `MAINTAINING.md`.
 
+**The pre-push review then found that the first version of this fix broke authoring, and it is the
+most useful thing this increment produced.** Keyed on the DESIGN, the refusal stripped every per-part
+weight from any design carrying a lump — including a weight typed on a part the flyer had just
+**added**, which a figure the file stated before that part existed cannot possibly contain. Reproduced
+on the bundled sample: add a mass object to a body tube, and it arrives at the 0.045 kg default whose
+whole purpose is that *"the next keystroke replaces the starting weight"*; that keystroke did nothing
+and dry mass stayed at **8.3099 kg**, with the control greyed out. RASAero is the format where this
+hurts most, because it states no per-part masses at all — a flyer's own scale is the only possible
+source of one there.
+
+**The gate was fully green through all of it.** Every check written for this guard asked whether an
+IMPORTED part could be double-counted; not one asked whether an authored part could still be weighed.
+So the refusal is keyed on the PART now: `applyGeometryEdits` captures every id the FILE brought
+before a single authored part joins the tree, and a target absent from that set is the flyer's own.
+Deriving it from the two trees rather than from the bag's entries is what makes it right for
+`mountAdds` and `addedStages` too, which build their components at apply time and carry no id to
+enumerate. `massCarriedBy` makes the same distinction the same way — six keys rather than one flag —
+because a panel that offers a control the applier ignores is the defect this whole family is about.
+Pinned by a new case in each of `lib/model/edit.test.ts` and `e2e/smoke.spec.ts`; the negative control
+(restoring the design-wide test) reports *"a weight typed on a part the flyer authored did not reach
+the flight: expected +0 to be close to 0.255"*.
+
 **Increment 9 — what the review found in increment 8, and a Sev-1 beside it, 2026-08-11.** The
 pre-push agent read on increment 8's diff returned five findings and all five were real; three were
 on surfaces already pushed. Every one is the same shape — *the control described a quantity that was

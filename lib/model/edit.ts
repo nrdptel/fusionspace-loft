@@ -2416,38 +2416,65 @@ export function statedAirframeMass(rocket: Rocket): RocketComponent | undefined 
     .find((c) => c.kind === "masscomponent" && c.standsForAirframe);
 }
 
-/** Every edit key that puts a flyer's own weight on ONE part.
+/** Every edit key that puts a flyer's own weight on ONE part, with the resolver that says WHICH part.
  *
- *  **One list, because the guard that governs them was written per-field and was incomplete the day
+ *  **One table, because the guard that governs these was written per-field and was incomplete the day
  *  it shipped.** `statedAirframeMass` above already had two callers refusing the same lump; the mass
  *  controls added a third and a fourth that walked past it, and the fix for those covered the nose and
- *  the tube while the canopy and the fitting went on double-counting. A list the applier reads is the
- *  only version of this that a new mass field cannot miss — adding `finMass` or a keyed per-part bag
- *  means adding a line here, and `lib/model/edit.test.ts` fails if a key that writes a mass is absent.
+ *  the tube while the canopy went on double-counting in the shipped app. A table the applier reads is
+ *  the only version of this a new mass field cannot miss — adding `finMass` means adding a line here,
+ *  and `lib/model/edit.test.ts` derives the expected KEYS from `AIM_SLOTS`' own targets, so a field
+ *  that writes a weight without joining this table fails the build.
  *
- *  `massObjectMass` and `internalMass` are here even though neither reaches a lumped design today —
- *  `primaryMassObject` refuses to aim at the lump, and no lumped corpus design carries internal
- *  structure. Both are one aim change away from reaching it, and a guard that holds only because of
- *  something another function happens to do is the shape of defect this list exists to end. */
-export const PER_PART_MASS_FIELDS = [
-  "noseMass",
-  "bodyTubeMass",
-  "parachuteMass",
-  "massObjectMass",
-  "internalMass",
-  "fittingMass",
-] as const satisfies readonly (keyof GeometryEdits)[];
+ *  **The resolver is here rather than the key alone, because the refusal is about the PART and not
+ *  about the design.** The first version of this stripped every per-part weight from any design
+ *  carrying a lump, which is wrong in one direction that matters: a part the flyer AUTHORS cannot
+ *  possibly be inside a weight the file stated before it existed. Measured on the bundled RASAero
+ *  sample — add a mass object to a body tube, and it lands at the 0.045 kg default whose whole purpose
+ *  is that "the next keystroke replaces the starting weight"; with a design-wide strip that keystroke
+ *  did nothing and dry mass stayed at 8.3099 kg. Weighing an altimeter you just added is exactly what
+ *  a per-part weight is FOR on a format that states no per-part masses at all. */
+export const PER_PART_MASS_FIELDS: Readonly<
+  Record<string, (rocket: Rocket, edits: GeometryEdits) => string | undefined>
+> = {
+  noseMass: (r) => primaryNose(r)?.id,
+  bodyTubeMass: (r, e) => primaryBodyTube(r, e.bodyTubeId)?.id,
+  parachuteMass: (r, e) => primaryParachute(r, e.parachuteId)?.id,
+  massObjectMass: (r, e) => primaryMassObject(r, e.massObjectId)?.id,
+  internalMass: (r, e) => primaryInternalPart(r, e.internalId)?.id,
+  fittingMass: (r, e) => primaryFitting(r, e.fittingId)?.id,
+};
 
-/** The edit bag with every per-part weight removed when the design states one weight for the whole
- *  airframe — see `PER_PART_MASS_FIELDS` and the applier's own note for the measurements.
+/** The edit bag with a per-part weight removed where — and only where — that weight would be ADDED to
+ *  a figure that already contains the part it lands on.
  *
- *  Returns the bag unchanged on every other design, so this costs one `flattenRocket` walk and
- *  changes nothing on the 32 of 35 corpus designs that state their masses per part. */
-export function stripPerPartMassOnLumpedAirframe(rocket: Rocket, edits: GeometryEdits): GeometryEdits {
-  if (!statedAirframeMass(rocket)) return edits;
-  if (!PER_PART_MASS_FIELDS.some((k) => edits[k] !== undefined)) return edits;
+ *  `built` is the tree the dimension edits will run against (adds, stages, mounts and moves already
+ *  applied); `fromFile` is the id of every part that came out of the design FILE. A part in `built`
+ *  and not in `fromFile` is one the flyer authored, and a weight the file stated before that part
+ *  existed cannot contain it — so that weight is theirs to type. Deriving it from the two trees rather
+ *  than from the bag's own entries is what makes it right for `mountAdds` and `addedStages` too, which
+ *  build their components at apply time and carry no id anyone could enumerate.
+ *
+ *  Returns the bag unchanged on every design that states its masses per part, so this costs nothing on
+ *  the 32 of 35 corpus designs that do. */
+export function stripPerPartMassOnLumpedAirframe(
+  built: Rocket,
+  edits: GeometryEdits,
+  fromFile: ReadonlySet<string>,
+): GeometryEdits {
+  if (!statedAirframeMass(built)) return edits;
+  const keys = Object.keys(PER_PART_MASS_FIELDS).filter((k) => edits[k as keyof GeometryEdits] !== undefined);
+  if (!keys.length) return edits;
+  const doomed = keys.filter((k) => {
+    const target = PER_PART_MASS_FIELDS[k](built, edits);
+    // No target at all: nothing to double-count, and the applier drops it anyway. Left in place, so
+    // this function has exactly one job and the what-if predicates keep seeing what the flyer typed.
+    if (target === undefined) return false;
+    return fromFile.has(target);
+  });
+  if (!doomed.length) return edits;
   const out = { ...edits };
-  for (const k of PER_PART_MASS_FIELDS) delete out[k];
+  for (const k of doomed) delete out[k as keyof GeometryEdits];
   return out;
 }
 
@@ -3710,17 +3737,20 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   //  - and FITTING the authored internal parts dead last, over the finished tree, because whether a
   //    coupler fits its tube is only answerable once every step above has run. See
   //    `fitAddedInternalParts` for the two gates this replaced and how they disagreed.
-  return fitAddedInternalParts(
-    applyDimensionEdits(
-      applyMoves(
-        applyRemovals(
-          applyMountAdds(applyAdds(applyAddedStages(applyMountAdds(rocket, edits.mountAdds), edits.addedStages), edits.added), edits.mountAdds),
-          edits.removedIds,
-        ),
-        edits.moved,
-      ),
-      withoutRemovedAims(edits),
+  // **Every id the design FILE brought**, captured before a single authored part joins the tree. It
+  // is what lets the lumped-airframe refusal below tell a part the stated weight already contains
+  // from one the flyer added afterwards, which that weight cannot possibly contain. Taken here
+  // because this is the only place both trees exist.
+  const fromFile: ReadonlySet<string> = new Set(flattenRocket(rocket).map((p) => p.component.id));
+  const built = applyMoves(
+    applyRemovals(
+      applyMountAdds(applyAdds(applyAddedStages(applyMountAdds(rocket, edits.mountAdds), edits.addedStages), edits.added), edits.mountAdds),
+      edits.removedIds,
     ),
+    edits.moved,
+  );
+  return fitAddedInternalParts(
+    applyDimensionEdits(built, stripPerPartMassOnLumpedAirframe(built, withoutRemovedAims(edits), fromFile)),
     edits.added,
   );
 }
@@ -4012,25 +4042,8 @@ function withoutRemovedAims(edits: GeometryEdits): GeometryEdits {
 }
 
 /** The dimension half of the edit bag, applied to a design whose removals have already been taken out. */
-function applyDimensionEdits(rocket: Rocket, rawEdits: GeometryEdits): Rocket {
-  if (!hasGeometryEdits(rawEdits)) return rocket;
-  // **A design that states ONE weight for the whole airframe takes no per-part weight at all**, and
-  // this is the single place that decides it rather than the sixth guard in a row. A RASAero `.CDX1`
-  // states a launch weight and no per-part masses, so its adapter mints one point mass that already
-  // contains every part; a weight typed on any of them is ADDED to a figure that already includes it.
-  //
-  // The guard shipped per-field and was therefore incomplete the moment it shipped: it covered the
-  // nose and the tube, and the canopy and the fitting went on double-counting. Measured over the
-  // corpus, on the two lumped designs carrying those parts — `Show-off.CDX1` took a 500 g canopy
-  // weight from a dry mass of 0.4536 kg to 0.9536 kg and its stability margin from 12.81 to 9.28 cal,
-  // and `Complex.Two-Stage.CDX1` took 1.1777 kg to 2.1777 kg on a fitting (unit mass x count) and its
-  // margin from 1.78 to 1.29 cal. Both are numbers a flyer sizes a motor and a recovery system
-  // against, and neither design was ever edited to reach them.
-  //
-  // Stripping the keys HERE, before anything resolves an aim, is what makes a seventh mass field safe
-  // to add: `PER_PART_MASS_FIELDS` is one list, and a field missing from it fails
-  // `lib/model/edit.test.ts`'s registry case rather than double-counting in silence.
-  const edits = stripPerPartMassOnLumpedAirframe(rocket, rawEdits);
+function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
+  if (!hasGeometryEdits(edits)) return rocket;
   // Resolve which components the length edits target, once, from the pristine design.
   const lengths = new Map<string, number>();
   if (edits.noseLength !== undefined && edits.noseLength > 0) {

@@ -624,7 +624,7 @@ suite("real-design corpus", () => {
       // Reading the registry means a seventh mass field is covered the moment it is declared, and a
       // field that writes a mass without being declared fails `lib/model/edit.test.ts`'s registry
       // case instead of quietly double-counting here.
-      for (const key of PER_PART_MASS_FIELDS) {
+      for (const key of Object.keys(PER_PART_MASS_FIELDS)) {
         const after = dryMassProperties(applyGeometryEdits(doc.rocket, { [key]: 0.5 })).mass;
         if (Math.abs(after - base) > 1e-9) {
           moved.add(key);
@@ -638,7 +638,7 @@ suite("real-design corpus", () => {
     console.log(
       `lumped-airframe designs across ${files.length} design files: ${lumped} stating one weight for ` +
         `the whole airframe, ${doubled.length} double-counts across ` +
-        `${PER_PART_MASS_FIELDS.length} per-part mass fields` +
+        `${Object.keys(PER_PART_MASS_FIELDS).length} per-part mass fields` +
         (moved.size ? ` (${[...moved].join(", ")})` : ""),
     );
     expect(
