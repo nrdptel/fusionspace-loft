@@ -4,9 +4,9 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**FOUR increments are on `claude/ultracode-maintenance-3dsn8p` behind PR #169, plus PR #168 merged at
-the top of the run. Check whether #169 landed before assuming anything below is live.** Nothing else
-is in flight and there is no unreproduced Sev-1.
+**NOTHING IS IN FLIGHT.** PR #168 and PR #169 are both merged and both confirmed LIVE on
+loft.fusionspace.co by fetching the deployed bundle — not inferred from a green merge. `main` is at
+`6a0f027`. No open PR, no unreproduced Sev-1.
 
 Where the two tracks stand, measured this run:
 
@@ -48,6 +48,12 @@ Where the two tracks stand, measured this run:
    warning; it is now in `MAINTAINING.md` under *This repo, concretely*, with the negative-control
    case spelled out, because a handoff is rewritten every session and this cost a wrong conclusion
    before I caught it. Every e2e control is `revert → rebuild → run → restore → rebuild`.
+4. **Measure elapsed time; do not infer it from how much you have done.** I read a CI run as hung for
+   55 minutes and cancelled it. `date -u` in the container said it was four minutes old — the
+   background `sleep` calls I had been starting were not blocking, so almost no wall-clock time had
+   passed between polls. The re-run then went green in seven minutes, which is this repo's normal.
+   The same manual rule that governs commit counts and remote refs governs the clock: check it, and
+   `until [ $(( $(date +%s) - start )) -ge N ]` is how you actually wait.
 
 ## Read this first
 
@@ -96,15 +102,15 @@ trusting it.**
 | # | what | where |
 |---|---|---|
 | 0 | PR #168 merged: the lumped-airframe guard for the nose and tube, from the previous run | merged `abdfe60` |
-| 1 | Sev-1: the canopy and fitting mass fields double-counted on a lumped design; one registry-driven refusal replaces two per-field guards | `26ebf51`, PR #169 |
-| 2 | Sev-1 (self-inflicted, caught by the pre-push review): the refusal is keyed on the PART, so a part the flyer authors is still weighable | `76ea836`, PR #169 |
-| 3 | Sev-1: the airframe MATERIAL select weighed the airframe twice — 8.2649 → 25.5895 kg on fibreglass | `bc5e65c`, PR #169 |
-| 4 | P14/1: the border tokens `DESIGN.md` said were only two — a check, a pairing check, nine conversions | `1c37264`, PR #169 |
-| 5 | R12/11: `cgFrom` — the balance point says whose figure it is | `7529e12`, PR #169 |
-| 6 | R12/11 cont.: the CG mark is cleared with the number it describes (5 real designs) | `11acf69`, PR #169 |
-| 7 | R12/11 cont.: the RASAero lump's stated CG is marked, and a census this repo published is corrected | `dc06762`, PR #169 |
+| 1 | Sev-1: the canopy and fitting mass fields double-counted on a lumped design; one registry-driven refusal replaces two per-field guards | merged in `6a0f027`, live |
+| 2 | Sev-1 (self-inflicted, caught by the pre-push review): the refusal is keyed on the PART, so a part the flyer authors is still weighable | merged in `6a0f027`, live |
+| 3 | Sev-1: the airframe MATERIAL select weighed the airframe twice — 8.2649 → 25.5895 kg on fibreglass | merged in `6a0f027`, live |
+| 4 | P14/1: the border tokens `DESIGN.md` said were only two — a check, a pairing check, nine conversions | merged in `6a0f027`, live |
+| 5 | R12/11: `cgFrom` — the balance point says whose figure it is | merged in `6a0f027`, live |
+| 6 | R12/11 cont.: the CG mark is cleared with the number it describes (5 real designs) | merged in `6a0f027`, live |
+| 7 | R12/11 cont.: the RASAero lump's stated CG is marked, and a census this repo published is corrected | merged in `6a0f027`, live |
 
-Also in #169: two stale `ROADMAP.md` state lines corrected (the P-track baton said P13 was unstarted
+Also in `6a0f027`: two stale `ROADMAP.md` state lines corrected (the P-track baton said P13 was unstarted
 while P13 was shipped; P10 said "1 of 2" while its own body recorded increment 2 shipped), the
 `MAINTAINING.md` e2e-rebuild note, `COMPETITION.md` row 45, and ten verified fan-out findings filed in
 `BACKLOG.md`.
