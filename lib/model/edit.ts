@@ -1915,6 +1915,13 @@ function withCatalogTube(
       massFrom: publishedMass !== undefined && publishedMass > 0 ? ("flyer" as const) : undefined,
       overrideMass: publishedMass !== undefined && publishedMass > 0 ? publishedMass : undefined,
       overrideCGx: undefined,
+      // **The mark goes with the number.** Clearing `overrideCGx` and leaving `cgFrom` behind claims
+      // the design stated a balance point that is now Loft's own computation — reproduced on 5 real
+      // corpus designs (`03.Three-stage.ork`, `Cherokee-E-5055.ork`, `EscapeVelocity.ork`,
+      // `rocksimTestRocket1.rkt`, `TubeFins1.rkt`), where the breakdown went on reading "stated by
+      // the design" beside a figure the file no longer supplies. The same shape as the four wrong
+      // mass marks the review caught on the increment that added `massFrom`.
+      cgFrom: undefined,
       children,
     };
   }
@@ -1972,6 +1979,13 @@ function withCatalogParachute(c: RocketComponent, id: string, p: PickedParachute
       // waiting on the one kind where it is the majority.
       overrideMass: undefined,
       overrideCGx: undefined,
+      // **The mark goes with the number.** Clearing `overrideCGx` and leaving `cgFrom` behind claims
+      // the design stated a balance point that is now Loft's own computation — reproduced on 5 real
+      // corpus designs (`03.Three-stage.ork`, `Cherokee-E-5055.ork`, `EscapeVelocity.ork`,
+      // `rocksimTestRocket1.rkt`, `TubeFins1.rkt`), where the breakdown went on reading "stated by
+      // the design" beside a figure the file no longer supplies. The same shape as the four wrong
+      // mass marks the review caught on the increment that added `massFrom`.
+      cgFrom: undefined,
       children,
     };
   }
@@ -2048,6 +2062,13 @@ function withCatalogNose(
       massFrom: p.mass !== undefined && p.mass > 0 ? ("flyer" as const) : undefined,
       overrideMass: p.mass !== undefined && p.mass > 0 ? p.mass : undefined,
       overrideCGx: undefined,
+      // **The mark goes with the number.** Clearing `overrideCGx` and leaving `cgFrom` behind claims
+      // the design stated a balance point that is now Loft's own computation — reproduced on 5 real
+      // corpus designs (`03.Three-stage.ork`, `Cherokee-E-5055.ork`, `EscapeVelocity.ork`,
+      // `rocksimTestRocket1.rkt`, `TubeFins1.rkt`), where the breakdown went on reading "stated by
+      // the design" beside a figure the file no longer supplies. The same shape as the four wrong
+      // mass marks the review caught on the increment that added `massFrom`.
+      cgFrom: undefined,
       children,
     };
   }

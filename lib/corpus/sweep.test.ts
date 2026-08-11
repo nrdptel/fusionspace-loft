@@ -534,6 +534,52 @@ suite("real-design corpus", () => {
     expect(wrong, "balance points whose stated marker disagrees with the file").toEqual([]);
   }, 300_000);
 
+  /** **A mark must not outlive the number it describes — and the case above cannot see that, because
+   *  it only ever looks at an IMPORT.**
+   *
+   *  A catalogue pick replaces a cone with a different one, so it clears `overrideCGx`: a 65.4 mm
+   *  balance measured on a 396.9 mm cone would otherwise be pinned onto the 233.7 mm one that
+   *  replaced it. The first version of `cgFrom` cleared the number at all three pick sites and left
+   *  the MARK at every one, so the breakdown went on reading *"stated by the design"* beside a figure
+   *  the design no longer supplies. Reproduced on **5 real corpus designs** before the fix.
+   *
+   *  This is the same shape as the four wrong mass marks the review caught on the increment that
+   *  added `massFrom`, which is why it is asserted over the EDIT path rather than trusted to a
+   *  reading: the invariant is "marked implies a figure behind it", and it has to hold after an edit
+   *  and not merely after a parse. */
+  it("never leaves a stated-CG mark on a design whose CG an edit has replaced", async () => {
+    // A real catalogued cone, in the shape `catalogNoseCone` takes. Its dimensions do not have to
+    // match any design: the point is that picking one clears the imported balance point.
+    const pick = {
+      manufacturer: "Estes",
+      partNumber: "PNC-70A",
+      shape: "ogive" as const,
+      length: 0.2337,
+      outerDiameter: 0.054,
+      shoulderDiameter: 0.052,
+      shoulderLength: 0.02,
+      mass: 0.12,
+    };
+    const stranded: string[] = [];
+    let picked = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const nose = primaryNose(doc.rocket);
+      if (!nose || (nose as { cgFrom?: string }).cgFrom !== "stated") continue;
+      picked++;
+      const after = applyGeometryEdits(doc.rocket, { catalogNoseCone: pick as never });
+      const c = flattenRocket(after).find((p) => p.component.id === nose.id)?.component as
+        | { overrideCGx?: number; cgFrom?: string }
+        | undefined;
+      if (c && c.cgFrom !== undefined && c.overrideCGx === undefined) {
+        stranded.push(`${shortName(f.name)}: nose is marked "${c.cgFrom}" with no stated CG behind it`);
+      }
+    }
+    console.log(`stated-CG marks across an edit: ${picked} design(s) whose nose states a CG, ${stranded.length} stranded`);
+    expect(picked, "no corpus design states a nose CG — this asserted nothing").toBeGreaterThan(0);
+    expect(stranded, "designs left claiming a stated CG after an edit replaced it").toEqual([]);
+  }, 300_000);
+
   /** **A round trip through Loft must not turn Loft's own arithmetic into the design's claim.**
    *
    *  The exporter writes a mass Loft COMPUTED as an explicit figure — that is what keeps a canopy's

@@ -2653,6 +2653,18 @@ and the other *Loft's own*, which a single provenance field reused for both numb
 Negative controls: removing the mark reports four real designs by name; removing it and rebuilding
 fails the e2e case with *Received: "Nose cone0.084 kgLoft's own16%63 mmLoft's own"*.
 
+**And the increment's own review found a stale mark on 5 real designs, which is the most useful thing
+it produced.** All three catalogue-pick sites clear `overrideCGx` — a 65.4 mm balance measured on a
+396.9 mm cone must not be pinned onto the 233.7 mm one that replaced it — and the first version of
+`cgFrom` cleared the number at every one and the MARK at none. So picking a catalogued cone on
+`03.Three-stage.ork`, `Cherokee-E-5055.ork`, `EscapeVelocity.ork`, `rocksimTestRocket1.rkt` or
+`TubeFins1.rkt` left the breakdown reading *"stated by the design"* beside a figure the design no
+longer supplies. **The same shape as the four wrong mass marks the review caught on the increment that
+added `massFrom`** — a label put on a number nobody re-checked — and the corpus case written for this
+increment could not see it, because that case only ever looks at an IMPORT. A second case asserts the
+invariant over the EDIT path (*never leaves a stated-CG mark on a design whose CG an edit has
+replaced*, 5 designs exercised); its negative control reports all five by name.
+
 **A flaky e2e, recorded so the next session does not diagnose it as a regression.**
 `e2e/rocketpy-selfhosted.spec.ts:254` failed once in a full shard-1 run and passed in isolation, on
 the clean baseline with this run's changes stashed, and on a re-run of the same shard (132 + 132 =
