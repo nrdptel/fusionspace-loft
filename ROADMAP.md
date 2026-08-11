@@ -27,9 +27,16 @@ work, and a queue containing only the first can only ever ship the first.
   line it summarises, or it becomes the most misleading sentence in the file.)*
 - **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
   shape, design system, first run, form factor, documentation, discoverability. **P1–P9 and P12
-  shipped** (P8 on 2026-08-09, P11 on 2026-08-09); **P10 is IN PROGRESS** with its remaining half
-  blocked on a repository SETTING no session can edit; **P13 is the next unstarted one**, and it was
-  written on 2026-08-09 because the track had otherwise run dry.
+  shipped** (P8 on 2026-08-09, P11 on 2026-08-09); **P10 is IN PROGRESS at 2 of 3** with its
+  remaining increment blocked on a repository SETTING no session can edit; **P13 is SHIPPED
+  (2026-08-09)**, its *done when* met in Loft.
+
+  **Corrected 2026-08-11: this line said "P13 is the next unstarted one" while P13's own Status said
+  3 of 3 shipped, and it said P10 was "1 of 2" while P10's body recorded increment 2 shipped on
+  2026-08-11.** This paragraph is the baton — the file says so four lines below — and a stale baton
+  sends the next run hunting for work that is done. Both were found by an agent reading the file
+  against itself rather than by anyone re-reading their own edit. **The next unstarted P milestone is
+  P14**, written this run because the track had otherwise run dry.
 
 **A run takes the next unstarted milestone from EACH track, and ships both.** Not one or the other.
 Start with whichever is smaller so something lands early, then take the other. If a run has time for
@@ -2612,6 +2619,39 @@ this was live. Fixed on all six mass fields at once from one derived `massCarrie
 demonstrably does nothing must not sit there looking as though it does*. The field names the carrier
 in words rather than greying out silently.
 
+**Increment 10 — the same Sev-1 again, on the four fields the last fix did not reach, 2026-08-11.**
+`#168` stopped a stated part weight being ADDED to a design that states one weight for its whole
+airframe — and it stopped it on the nose and the body tube, which were the two fields that increment
+happened to be about. **The canopy went on double-counting, and it was live in the shipped app.**
+Measured on the bundled `demo-rasaero.CDX1`, one click from the front door: the *Canopy mass* control
+rendered **enabled**, and 500 g typed into it took dry mass **0.4536 → 0.9536 kg** on `Show-off.CDX1`
+and its stability margin **12.81 → 9.28 cal**; on `Complex.Two-Stage.CDX1` a fitting weight took
+**1.1777 → 2.1777 kg** (the typed unit mass times its count) and the margin **1.78 → 1.29 cal**. Ten
+double-counts across three designs and four fields, on designs nobody had edited.
+
+**The repair is not a fifth copy of the guard — it is the deletion of the per-field guard.** The two
+`!lumpedAirframe` clauses are gone; `stripPerPartMassOnLumpedAirframe` takes every per-part mass key
+out of the bag once, at the top of `applyDimensionEdits`, before any aim resolves. It reads
+`PER_PART_MASS_FIELDS`, and `lib/model/edit.test.ts` derives the expected contents of that list from
+`AIM_SLOTS`' own targets — so a seventh mass field that forgets to join it fails the build with
+*"`X` writes a per-part weight but PER_PART_MASS_FIELDS omits it"* rather than double-counting in
+silence. The panel half is one `lumpedAirframeHint` rather than six sentences, for the reason
+`carrierLabel` is one function.
+
+**This is the third time this exact defect has been filed, and the shape of the miss is the lesson.**
+Each fix covered the fields its own increment was looking at, and each shipped a check written in the
+same increment — which can only encode that increment's belief. The corpus case listed the nose and
+the tube by hand and passed for a day while two other fields were wrong; it is driven off the registry
+now. Pinned by `lib/corpus/sweep.test.ts` (all six fields x 35 designs), two cases in
+`lib/model/edit.test.ts` on the bundled RASAero sample, and `e2e/smoke.spec.ts`'s lumped-airframe case
+extended from two fields to three. Negative controls: dropping two keys from the registry reports
+them by name; disabling the strip reports all **10** real double-counts by design and field; reverting
+the canopy's panel guard fails the e2e case with *"Expected: disabled, Received: enabled"*.
+
+**And that last control only fires after a rebuild** — `playwright.config.ts` serves the built `out/`,
+so a source revert with no rebuild silently re-runs the previous bundle and the control "passes". It
+did, once, here. Recorded in `MAINTAINING.md`.
+
 **Increment 9 — what the review found in increment 8, and a Sev-1 beside it, 2026-08-11.** The
 pre-push agent read on increment 8's diff returned five findings and all five were real; three were
 on surfaces already pushed. Every one is the same shape — *the control described a quantity that was
@@ -4782,7 +4822,13 @@ decided here. Build the token alignment without it.
 
 ## P10 (from ON-B2) — The repo page is a surface, and it goes stale like one
 
-**Status: IN PROGRESS** — increment 1 of 2 shipped 2026-08-08: the README describes what ships, and
+**Status: IN PROGRESS — 2 of 3 shipped.** Increment 2 landed 2026-08-11 (its entry is below);
+increment 3 is the repository SETTINGS half, which is not a file and which no session can edit, so it
+is parked on the owner and this milestone cannot close without them. *(Status line corrected
+2026-08-11: it read "increment 1 of 2" for a day after increment 2 shipped and after the size grew to
+3, contradicting this section's own body.)*
+
+Increment 1 shipped 2026-08-08: the README describes what ships, and
 two of its claims are now asserted against the code that makes them true. Pinned by
 `lib/version.test.ts`'s *names every design format the importer actually accepts* (which reads
 `ImportPanel`'s own `accept` list, so a new adapter fails the build until the README names it) and

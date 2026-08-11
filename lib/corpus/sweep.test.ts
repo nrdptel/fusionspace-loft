@@ -44,6 +44,7 @@ import type { Rocket, RocketComponent } from "../model/types";
 import {
   applyGeometryEdits,
   statedAirframeMass,
+  PER_PART_MASS_FIELDS,
   moveTarget,
   moveSlots,
   canAddStage,
@@ -605,27 +606,40 @@ suite("real-design corpus", () => {
    *  third caller, which is why it is exported now rather than written a fourth time. */
   it("never adds a stated part weight to a design that states one weight for the whole airframe", async () => {
     const doubled: string[] = [];
+    const moved = new Set<string>();
     let lumped = 0;
     for (const f of files) {
       const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
       if (!statedAirframeMass(doc.rocket)) continue;
       lumped++;
       const base = dryMassProperties(doc.rocket).mass;
-      for (const [what, edit] of [
-        ["nose", { noseMass: 0.5 }],
-        ["body tube", { bodyTubeMass: 0.5 }],
-      ] as const) {
-        const after = dryMassProperties(applyGeometryEdits(doc.rocket, edit)).mass;
-        if (Math.abs(after - base) > 1e-9)
+      // **Driven off `PER_PART_MASS_FIELDS` rather than a hand-written pair, and that is the whole
+      // repair.** The first version of this case listed the nose and the body tube — the two fields
+      // the increment beside it had just guarded — and passed for a day while `parachuteMass` and
+      // `fittingMass` went on adding a typed weight to a figure that already contained it. Measured
+      // 2026-08-11 before the fix: `Show-off.CDX1` took 0.4536 → 0.9536 kg on a 500 g canopy and its
+      // margin 12.81 → 9.28 cal; `Complex.Two-Stage.CDX1` took 1.1777 → 2.1777 kg on a fitting (the
+      // typed unit mass times its count) and its margin 1.78 → 1.29 cal.
+      //
+      // Reading the registry means a seventh mass field is covered the moment it is declared, and a
+      // field that writes a mass without being declared fails `lib/model/edit.test.ts`'s registry
+      // case instead of quietly double-counting here.
+      for (const key of PER_PART_MASS_FIELDS) {
+        const after = dryMassProperties(applyGeometryEdits(doc.rocket, { [key]: 0.5 })).mass;
+        if (Math.abs(after - base) > 1e-9) {
+          moved.add(key);
           doubled.push(
-            `${shortName(f.name)}: a stated ${what} weight moved dry mass ${base.toFixed(4)} → ` +
+            `${shortName(f.name)}: a stated \`${key}\` weight moved dry mass ${base.toFixed(4)} → ` +
               `${after.toFixed(4)} kg on a design whose whole weight is one lump that already contains it`,
           );
+        }
       }
     }
     console.log(
       `lumped-airframe designs across ${files.length} design files: ${lumped} stating one weight for ` +
-        `the whole airframe, ${doubled.length} of them double-counting a stated part weight`,
+        `the whole airframe, ${doubled.length} double-counts across ` +
+        `${PER_PART_MASS_FIELDS.length} per-part mass fields` +
+        (moved.size ? ` (${[...moved].join(", ")})` : ""),
     );
     expect(
       lumped,

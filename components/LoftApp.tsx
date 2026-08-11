@@ -2575,6 +2575,17 @@ const AIM_FIELDS: Readonly<Record<string, readonly string[]>> = {
 /** Every field any aim owns — the set a property surface filters DOWN from. */
 const AIMED_FIELDS: ReadonlySet<string> = new Set(Object.values(AIM_FIELDS).flat());
 
+/** Why a weight cannot be typed on a part of a design that states ONE weight for the whole airframe.
+ *
+ *  **One sentence, in one function, for the same reason `carrierLabel` is one function**: the first
+ *  version of this was written twice — once for the cone, once for the tube — and the four other mass
+ *  fields it should have covered kept taking a weight that was then ADDED to a figure already
+ *  containing it. `noun` is what the field in front of the flyer is holding, so the sentence names
+ *  their part rather than a generic one; `lib/model/edit.ts`'s `PER_PART_MASS_FIELDS` is the matching
+ *  list on the applier side, and the two are meant to be read together. */
+const lumpedAirframeHint = (lump: string, noun: string) =>
+  `This design states one weight for the whole airframe (${lump}), which already includes ${noun} — a weight set here would be added to it rather than replace it.`;
+
 function DesignEditor({
   units,
   edits,
@@ -3133,7 +3144,7 @@ function DesignEditor({
                       }
                       hint={
                         designDims.massCarriedBy.lumpedAirframe
-                          ? `This design states one weight for the whole airframe (${designDims.massCarriedBy.lumpedAirframe}), which already includes the cone — a weight set here would be added to it rather than replace it.`
+                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "the cone")
                           : designDims.massCarriedBy.nose
                             ? `Counted in ${designDims.massCarriedBy.nose}, which states one weight for itself and everything in it.`
                             : designDims.massCarriedBy.noseCoversAssembly
@@ -3181,7 +3192,7 @@ function DesignEditor({
                       }
                       hint={
                         designDims.massCarriedBy.lumpedAirframe
-                          ? `This design states one weight for the whole airframe (${designDims.massCarriedBy.lumpedAirframe}), which already includes this tube — a weight set here would be added to it rather than replace it.`
+                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "this tube")
                           : designDims.massCarriedBy.bodyTube
                           ? `Counted in ${designDims.massCarriedBy.bodyTube}, which states one weight for itself and everything in it.`
                           : designDims.massCarriedBy.bodyTubeCoversAssembly
@@ -3495,14 +3506,22 @@ function DesignEditor({
                         onEdit({ internalMass: kg !== undefined && kg >= 0 ? kg : undefined });
                       }}
                       min={0}
-                      disabled={designDims.massCarriedBy.internal !== undefined && edits.internalMass === undefined}
+                      disabled={
+                        (designDims.massCarriedBy.internal !== undefined ||
+                          designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                        edits.internalMass === undefined
+                      }
                       hint={
-                        designDims.massCarriedBy.internal
-                          ? `Counted in ${designDims.massCarriedBy.internal}, which states one weight for itself and everything in it.`
-                          : "What it actually weighs — Loft computes this from its size and material."
+                        designDims.massCarriedBy.lumpedAirframe
+                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "this part")
+                          : designDims.massCarriedBy.internal
+                            ? `Counted in ${designDims.massCarriedBy.internal}, which states one weight for itself and everything in it.`
+                            : "What it actually weighs — Loft computes this from its size and material."
                       }
                       placeholder={
-                        designDims.massCarriedBy.internal ? undefined : toDispMass(designDims.internalMass)
+                        designDims.massCarriedBy.internal || designDims.massCarriedBy.lumpedAirframe
+                          ? undefined
+                          : toDispMass(designDims.internalMass)
                       }
                     />
                   )}
@@ -3545,15 +3564,23 @@ function DesignEditor({
                     label={`Fitting mass each (${massU})`}
                     value={toDispMass(edits.fittingMass)}
                     placeholder={
-                      designDims.massCarriedBy.fitting ? undefined : toDispMass(designDims.fittingMass)
+                      designDims.massCarriedBy.fitting || designDims.massCarriedBy.lumpedAirframe
+                        ? undefined
+                        : toDispMass(designDims.fittingMass)
                     }
                     onChange={(v) => onEdit({ fittingMass: fromMass(v) })}
                     min={0}
-                    disabled={designDims.massCarriedBy.fitting !== undefined && edits.fittingMass === undefined}
+                    disabled={
+                      (designDims.massCarriedBy.fitting !== undefined ||
+                        designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                      edits.fittingMass === undefined
+                    }
                     hint={
-                      designDims.massCarriedBy.fitting
-                        ? `Counted in ${designDims.massCarriedBy.fitting}, which states one weight for itself and everything in it.`
-                        : undefined
+                      designDims.massCarriedBy.lumpedAirframe
+                        ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "this fitting")
+                        : designDims.massCarriedBy.fitting
+                          ? `Counted in ${designDims.massCarriedBy.fitting}, which states one weight for itself and everything in it.`
+                          : undefined
                     }
                   />
                   {designDims.fittingLength !== undefined && (
@@ -3726,16 +3753,22 @@ function DesignEditor({
                       label={`Canopy mass (${massU})`}
                       value={toDispMass(edits.parachuteMass)}
                       placeholder={
-                        designDims.massCarriedBy.parachute
+                        designDims.massCarriedBy.parachute || designDims.massCarriedBy.lumpedAirframe
                           ? undefined
                           : toDispMass(designDims.mainParachuteMass)
                       }
                       min={0}
-                      disabled={designDims.massCarriedBy.parachute !== undefined && edits.parachuteMass === undefined}
+                      disabled={
+                        (designDims.massCarriedBy.parachute !== undefined ||
+                          designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                        edits.parachuteMass === undefined
+                      }
                       hint={
-                        designDims.massCarriedBy.parachute
-                          ? `Counted in ${designDims.massCarriedBy.parachute}, which states one weight for itself and everything in it.`
-                          : "What the canopy, its lines and its bag actually weigh — Loft estimates this from diameter alone."
+                        designDims.massCarriedBy.lumpedAirframe
+                          ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "this canopy")
+                          : designDims.massCarriedBy.parachute
+                            ? `Counted in ${designDims.massCarriedBy.parachute}, which states one weight for itself and everything in it.`
+                            : "What the canopy, its lines and its bag actually weigh — Loft estimates this from diameter alone."
                       }
                       onChange={(v) => {
                         const kg = fromMass(v);
@@ -3889,15 +3922,23 @@ function DesignEditor({
                     label={`Mass (${massU})`}
                     value={toDispMass(edits.massObjectMass)}
                     placeholder={
-                      designDims.massCarriedBy.massObject ? undefined : toDispMass(designDims.massObjectMass)
+                      designDims.massCarriedBy.massObject || designDims.massCarriedBy.lumpedAirframe
+                        ? undefined
+                        : toDispMass(designDims.massObjectMass)
                     }
                     onChange={(v) => onEdit({ massObjectMass: fromMass(v) })}
                     min={0}
-                    disabled={designDims.massCarriedBy.massObject !== undefined && edits.massObjectMass === undefined}
+                    disabled={
+                      (designDims.massCarriedBy.massObject !== undefined ||
+                        designDims.massCarriedBy.lumpedAirframe !== undefined) &&
+                      edits.massObjectMass === undefined
+                    }
                     hint={
-                      designDims.massCarriedBy.massObject
-                        ? `Counted in ${designDims.massCarriedBy.massObject}, which states one weight for itself and everything in it.`
-                        : undefined
+                      designDims.massCarriedBy.lumpedAirframe
+                        ? lumpedAirframeHint(designDims.massCarriedBy.lumpedAirframe, "this mass")
+                        : designDims.massCarriedBy.massObject
+                          ? `Counted in ${designDims.massCarriedBy.massObject}, which states one weight for itself and everything in it.`
+                          : undefined
                     }
                   />
                 )}

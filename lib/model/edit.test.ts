@@ -52,6 +52,9 @@ import {
   primaryParachutePart,
   aimsOf,
   AIM_SLOTS,
+  PER_PART_MASS_FIELDS,
+  statedAirframeMass,
+  stripPerPartMassOnLumpedAirframe,
   INERT_EDIT_FIELDS,
   primaryFinGroupIds,
   primaryFinSetPart,
@@ -1601,6 +1604,79 @@ describe("the aim registry is the one list", () => {
     // fire on a typed span, with a number where a component id belongs.
     expect(Object.keys(aims).sort()).toEqual(Object.keys(AIM_SLOTS).sort());
     for (const v of Object.values(aims)) expect(typeof v === "string" || v === undefined).toBe(true);
+  });
+
+  /** **Every field that writes a weight onto ONE part has to be in `PER_PART_MASS_FIELDS`**, because
+   *  that list is what the lumped-airframe refusal reads. A design that states one weight for the
+   *  whole airframe already contains every part, so a mass key missing from the list is a weight
+   *  ADDED to a figure that already includes it — which is exactly how `parachuteMass` and
+   *  `fittingMass` went on double-counting after the same guard was written for the nose and tube.
+   *
+   *  The naming convention is the mechanism: a key ending in `Mass` writes a mass. That is a weak
+   *  rule on its own, which is why the corpus sweep asserts the BEHAVIOUR over real files as well —
+   *  this case catches the omission at the point it is made, in the file where it is made. */
+  it("declares every per-part mass field, so the lumped-airframe refusal cannot miss one", () => {
+    // The aim registry's own targets are the authority on which value fields exist.
+    const aimedMassFields = Object.values(AIM_SLOTS)
+      .flatMap((def) => def.targets)
+      .filter((t) => t.endsWith("Mass"));
+    // The nose has no slot, so its mass field is named directly — the same exception `AIM_FIELDS`
+    // carries in `components/LoftApp.tsx`.
+    const expected = new Set([...aimedMassFields, "noseMass"]);
+    const declared = new Set<string>(PER_PART_MASS_FIELDS);
+    for (const f of expected) {
+      expect(declared.has(f), `${f} writes a per-part weight but PER_PART_MASS_FIELDS omits it`).toBe(true);
+    }
+    for (const f of declared) {
+      expect(expected.has(f), `PER_PART_MASS_FIELDS names ${f}, which no aim target and no exception provides`).toBe(
+        true,
+      );
+    }
+  });
+
+  /** The refusal itself, at the one choke point, on the BUNDLED RASAero sample rather than on a
+   *  hand-built lump — a real file of the format that causes this, reachable from the front door and
+   *  present in CI whether or not the private corpus is. Every key in the registry must come back out
+   *  of the bag; nothing else may be touched. */
+  it("strips every per-part weight from a lumped-airframe design, and nothing else", async () => {
+    const lumped = (await importDesign(new Uint8Array(readFileSync(resolve("public/samples/demo-rasaero.CDX1")))))
+      .rocket;
+    expect(statedAirframeMass(lumped), "the bundled RASAero sample no longer states one lumped weight").toBeDefined();
+    const perPart = await load("demo-dual-deploy.ork");
+    expect(statedAirframeMass(perPart), "the control design must state its masses per part").toBeUndefined();
+
+    const bag = Object.fromEntries(PER_PART_MASS_FIELDS.map((k) => [k, 0.5]));
+    const stripped = stripPerPartMassOnLumpedAirframe(lumped, { ...bag, bodyLength: 0.4, finSpan: 0.05 });
+    for (const k of PER_PART_MASS_FIELDS) expect(stripped[k], `${k} survived the strip`).toBeUndefined();
+    // A dimension is not a weight: the refusal must not swallow the rest of the flyer's what-if.
+    expect(stripped.bodyLength).toBe(0.4);
+    expect(stripped.finSpan).toBe(0.05);
+    // And on a design that states its masses per part, the bag comes back untouched — by identity,
+    // so the common path allocates nothing.
+    const normal = { ...bag, bodyLength: 0.4 };
+    expect(stripPerPartMassOnLumpedAirframe(perPart, normal)).toBe(normal);
+  });
+
+  /** The behaviour the strip exists for, end to end and in the units a flyer reads: on the bundled
+   *  lumped design NO per-part weight may move the dry mass, and on a per-part design every one of
+   *  them that has a part to land on still must. The second half is the negative control — a strip
+   *  that refused everywhere would pass the first half alone. */
+  it("moves no mass on a lumped design, and still moves it on a per-part one", async () => {
+    const lumped = (await importDesign(new Uint8Array(readFileSync(resolve("public/samples/demo-rasaero.CDX1")))))
+      .rocket;
+    const lumpedBase = dryMassProperties(lumped).mass;
+    for (const k of PER_PART_MASS_FIELDS) {
+      const after = dryMassProperties(applyGeometryEdits(lumped, { [k]: 0.5 })).mass;
+      expect(after, `${k} moved dry mass on a design whose whole weight is one lump`).toBeCloseTo(lumpedBase, 9);
+    }
+    const perPart = await load("demo-dual-deploy.ork");
+    const perPartBase = dryMassProperties(perPart).mass;
+    const landed = PER_PART_MASS_FIELDS.filter(
+      (k) => Math.abs(dryMassProperties(applyGeometryEdits(perPart, { [k]: 0.5 })).mass - perPartBase) > 1e-9,
+    );
+    // Not all six: this fixture carries no fitting and no internal structure to weigh. The point is
+    // that the strip is what silences them on the lumped file, not that they are inert everywhere.
+    expect(landed.length, "no per-part weight lands on a design that states its masses per part").toBeGreaterThan(0);
   });
 });
 

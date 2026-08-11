@@ -6584,18 +6584,33 @@ test.describe("Loft", () => {
       const d = details.nth(i);
       if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
     }
-    for (const name of [/^Nose mass /, /^Body tube mass /]) {
+    // **THE CANOPY IS THE THIRD FIELD, and the first version of this case did not have it.** That
+    // version was written in the same increment as the guard it pins, so it could only encode that
+    // increment's belief — that the nose and the tube were the whole of it. This fixture carries a
+    // canopy as well, and it went on adding a typed weight to the stated total: measured on the
+    // corpus, 500 g typed there took `Show-off.CDX1` from 0.4536 to 0.9536 kg and its stability
+    // margin from 12.81 to 9.28 cal, on a design nobody had edited.
+    //
+    // The fitting is the fourth kind this design carries and it is deliberately NOT asserted here:
+    // `fittingUnitMass` returns undefined for a launch lug the file states no weight for, so the
+    // control never renders on a RASAero import and there is nothing on screen to refuse. Its guard
+    // is real and pinned elsewhere — the applier strips the key whatever the panel does, because a
+    // persisted edit bag replays through `lib/session.ts` with no panel involved — by the corpus
+    // sweep's own case over all six fields and by `lib/model/edit.test.ts`. Asserting it here would
+    // be asserting a control that does not exist.
+    for (const name of [/^Nose mass /, /^Body tube mass /, /^Canopy mass /]) {
       const field = page.getByLabel(name).first();
       // Present, so the flyer can see the question was considered rather than silently dropped.
       await expect(field, `${name} must still be offered on a design that states one weight`).toBeVisible();
       await expect(field, `${name} must refuse a weight that would be added to a stated total`).toBeDisabled();
       expect(await field.getAttribute("placeholder"), `${name} must advertise no figure`).toBeNull();
     }
-    // And it says WHY, naming the figure that already contains the part.
+    // And it says WHY, naming the figure that already contains the part — once per withheld field,
+    // rather than once on the surface, because a flyer reads the hint under the control they clicked.
     await expect(
-      page.getByText(/states one weight for the whole airframe/).first(),
-      "the withheld field must name the stated weight it would be added to",
-    ).toBeVisible();
+      page.getByText(/states one weight for the whole airframe/),
+      "every withheld field must name the stated weight it would be added to",
+    ).toHaveCount(3);
   });
 
   test("a removal the design's own stated weight swallows says so, before and after the click", async ({

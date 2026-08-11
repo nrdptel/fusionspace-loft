@@ -18,6 +18,88 @@ big for one pass. Newest first.
 
 **Filed 2026-08-10, from run 10 — the sentinel gate on the validation table.**
 
+**Filed 2026-08-11, from run 12 — the lumped-airframe Sev-1's remaining fields, and its fan-out.**
+
+*Ten findings survived adversarial verification out of 24 filed; 14 were refuted, most for being real
+in the code and unreachable in the product. The Sev-1 (the canopy and fitting mass double-count) is
+fixed and merged. What follows is what was NOT taken.*
+
+**The design-system checks can only see what they already know, which is the theme of this fan-out.**
+- **`lib/design-system.test.ts` has NO border-token check at all**, and `DESIGN.md` §2 defines exactly
+  two borders and says "Two, deliberately". Measured across `components/` and `app/`:
+  `border-zinc-100` x6, `-200` x6, `-300` x12, `-400` x1, `-600` x1, `-700` x12, `-800` x11 — so
+  **four values beyond the two the file sanctions**. Radius, spacing, type, `<select>`, chart and
+  focus are all ratcheted; the token §2 calls the readability signal is not. `components/DataTable.tsx:261`
+  sets every table body row in the app (7 files) to `border-zinc-100 dark:border-zinc-800` — a third
+  light value against the hairline dark, so the pair is mismatched between themes; `:287` then spells
+  the `<tfoot>` rule with the CONTROL token 26 lines away. Also `components/SectionNav.tsx:59`
+  (`border-zinc-400 dark:border-zinc-600`, a fourth pair, nowhere else in the tree).
+- **`lib/design-system.test.ts:774`'s `DATA_SURFACES` is a hand-typed two-name allowlist**
+  (`MassBreakdown`, `DataTable`), so the missing-empty-state ratchet can only ever find the two
+  surfaces someone already fixed — every data surface added since is exempt by construction. Three
+  real vanishes it cannot see: `components/GeometryInspector.tsx:653` (`parts.length === 0 → null`,
+  the Design geometry panel), `components/FlightViz.tsx:38` (`traj.length < 2 → null`, a hole where
+  the flight path was, against `components/ui.tsx:922`'s rule for `Figure` stating exactly this), and
+  `components/ParameterSweep.tsx:344` (`axes.length === 0 → null`, the whole Sweep panel — the
+  primary surface of `/sweep`, so the flyer gets a blank route with the reason in a source comment).
+- **`e2e/touch.spec.ts:1253` counts the `title` ATTRIBUTE, so `HOVER_ONLY_FLOOR = 0` is measuring the
+  wrong thing.** `components/RocketDiagram.tsx` states eleven gestures in SVG `<title>` CHILD
+  elements (nine drag grips via `FinHandle`, plus 889 and 936), which render the identical native
+  tooltip a phone cannot reach; the element has a 0x0 rect so the walk `continue`s past it. The
+  ratchet reads green over the one surface `DESIGN.md` §8 was written for.
+- **`components/LoftApp.tsx:4132` collapses `offline` and `error` into one sentence.** A bare
+  `catch {}` discards the error, so a 12 s timeout, an Open-Meteo HTTP status and an offline
+  `TypeError` all read *"Couldn't fetch weather (offline, or the service is down)"* — naming nothing
+  and offering no way forward, against §5's three-part `ErrorState` contract. `navigator.onLine` is
+  already branched correctly 3,400 lines above in the same file (`:736`) and in
+  `components/RocketpyCrossCheck.tsx:179`. Reachable offline: `public/sw.js:126` passes the
+  cross-origin request straight through. Rendered as a hand-rolled red `text-xs` `<p>` at `:4259`
+  rather than the `ErrorState` primitive.
+- **`components/ResultsView.tsx:747` hand-rolls a secondary button on a `<label>`** at `px-2.5 py-1`
+  where `lib/ui-tokens.ts`'s `buttonClass` is `px-3 py-1.5` — a fifth button weight by geometry.
+  `components/LoftApp.tsx:153`'s `TREAT_INPUT` and `components/PartPicker.tsx:603` are two copies of
+  the free-text-input treatment with no primitive behind them. Both are how the twelve card variants
+  began.
+- **`components/DataTable.tsx:211` — `sticky top-0` on every `<th>` is a no-op**, because the wrapper
+  at `:196` is `overflow-x-auto` and a non-`visible` value on one axis makes the other a scroll
+  container. On a 390 px phone the motor-sweep and parts tables are long and horizontally scrolled,
+  so the column labels go with them.
+- **Two viewport-WIDTH keys that should be pointer keys**, the error `lib/ui-tokens.ts:17-27` already
+  records as having cost 82 under-target controls once: `components/ui.tsx:1209` (`Popover`'s
+  bottom-sheet is `max-sm:`, so a Pixel 7 in landscape at 863 px gets the desktop treatment) and
+  `lib/ui-tokens.ts:152` (`NAV_BAR` releases stickiness at `sm:static`, so the workspace spine the
+  touch suite protects disappears on rotation).
+- **`components/DownloadCsv.tsx:56` tells a phone to press ⌘/Ctrl+C.** The clipboard-failure state
+  renders that as the button's own label, and a mobile browser denying `navigator.clipboard` is
+  exactly the case that reaches it.
+
+**R12 family — what the scout found, which makes the keyed per-part bag much smaller than assumed.**
+- **`lib/model/edit.ts:2430` — `withStatedMass(c, id, mass)` is ALREADY the recursive id-keyed setter
+  a keyed bag needs**, four lines, no slot involved. `ROADMAP.md` calls the keyed bag "its own
+  milestone" on the strength of `aimEditsAt` returning the first matching slot — but that constraint
+  binds the SLOT mechanism, and a keyed entry never goes through a slot. The obstacle is aim
+  resolution and readback, not the applier.
+- **`lib/model/edit.ts:528` — the bag is not flat already**: `removedIds`, `added`, `moved`,
+  `addedStages` and `mountAdds` are all id-addressed, so a `perPart?: Record<string, {…}>` key is
+  additive with five precedents.
+- **Two named hazards for whoever builds it.** `lib/model/design-key.ts:63` serialises an
+  object-valued key with bare `JSON.stringify`, which is insertion-order sensitive — the same bag
+  rebuilt in another order keys differently and silently discards a Monte-Carlo cache. And
+  `lib/model/edit.ts:1396`'s `isEditedValue` needs a Record branch or an EMPTY bag counts as a
+  what-if, which withholds the imported file's stored-simulation comparison while changing no number.
+- **`lib/model/types.ts:99` — `comment` is imported, stored, exported, and rendered by NOTHING.**
+  39 non-empty `<comment>` across 17 of 27 corpus `.ork` plus 35 `<PartDesc>`. The READ half is the
+  cheapest genuinely shippable slice in the family.
+- **`lib/sim/setup.ts:244` — motor mount overhang is imported, FLOWN and exported with no control
+  anywhere.** 33 `<overhang>` across 25 of 27 `.ork`. Needs no bag work at all: a fourth target on a
+  mount-bearing tube's existing aim.
+- **`lib/ork/adapt.ts:316` — `overrideCGx` is the exact twin of the mass override**, carried end to
+  end and honoured over the computed CG, with no control. 12 `<overridecg>` on 5 `.ork` files, 67
+  `<KnownCG>` and 26 `<UseKnownCG>1` across the `.rkt`.
+- **`components/GeometryInspector.tsx:470` — the component tree R12 is NAMED after still ships behind
+  a closed `<details>`.** Deferred in increment 1 with a reason (opening it moves `/design` down by
+  about a screen against a 1,841 px journey, and 82 lines across three e2e specs click it open).
+
 **Filed 2026-08-11, from run 11 — the airframe mass override and its fan-out.**
 
 *From the phone cold walk (390x664 and 412x915, touch emulated), the corpus sweep, the design-system

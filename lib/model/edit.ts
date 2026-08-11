@@ -2416,6 +2416,41 @@ export function statedAirframeMass(rocket: Rocket): RocketComponent | undefined 
     .find((c) => c.kind === "masscomponent" && c.standsForAirframe);
 }
 
+/** Every edit key that puts a flyer's own weight on ONE part.
+ *
+ *  **One list, because the guard that governs them was written per-field and was incomplete the day
+ *  it shipped.** `statedAirframeMass` above already had two callers refusing the same lump; the mass
+ *  controls added a third and a fourth that walked past it, and the fix for those covered the nose and
+ *  the tube while the canopy and the fitting went on double-counting. A list the applier reads is the
+ *  only version of this that a new mass field cannot miss — adding `finMass` or a keyed per-part bag
+ *  means adding a line here, and `lib/model/edit.test.ts` fails if a key that writes a mass is absent.
+ *
+ *  `massObjectMass` and `internalMass` are here even though neither reaches a lumped design today —
+ *  `primaryMassObject` refuses to aim at the lump, and no lumped corpus design carries internal
+ *  structure. Both are one aim change away from reaching it, and a guard that holds only because of
+ *  something another function happens to do is the shape of defect this list exists to end. */
+export const PER_PART_MASS_FIELDS = [
+  "noseMass",
+  "bodyTubeMass",
+  "parachuteMass",
+  "massObjectMass",
+  "internalMass",
+  "fittingMass",
+] as const satisfies readonly (keyof GeometryEdits)[];
+
+/** The edit bag with every per-part weight removed when the design states one weight for the whole
+ *  airframe — see `PER_PART_MASS_FIELDS` and the applier's own note for the measurements.
+ *
+ *  Returns the bag unchanged on every other design, so this costs one `flattenRocket` walk and
+ *  changes nothing on the 32 of 35 corpus designs that state their masses per part. */
+export function stripPerPartMassOnLumpedAirframe(rocket: Rocket, edits: GeometryEdits): GeometryEdits {
+  if (!statedAirframeMass(rocket)) return edits;
+  if (!PER_PART_MASS_FIELDS.some((k) => edits[k] !== undefined)) return edits;
+  const out = { ...edits };
+  for (const k of PER_PART_MASS_FIELDS) delete out[k];
+  return out;
+}
+
 /** Put the flyer's own weight on the one component `id` names, and say it was theirs.
  *
  *  Written as `overrideMass` because the outer airframe has no mass field of its own: `lib/sim/mass.ts`
@@ -3977,8 +4012,25 @@ function withoutRemovedAims(edits: GeometryEdits): GeometryEdits {
 }
 
 /** The dimension half of the edit bag, applied to a design whose removals have already been taken out. */
-function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
-  if (!hasGeometryEdits(edits)) return rocket;
+function applyDimensionEdits(rocket: Rocket, rawEdits: GeometryEdits): Rocket {
+  if (!hasGeometryEdits(rawEdits)) return rocket;
+  // **A design that states ONE weight for the whole airframe takes no per-part weight at all**, and
+  // this is the single place that decides it rather than the sixth guard in a row. A RASAero `.CDX1`
+  // states a launch weight and no per-part masses, so its adapter mints one point mass that already
+  // contains every part; a weight typed on any of them is ADDED to a figure that already includes it.
+  //
+  // The guard shipped per-field and was therefore incomplete the moment it shipped: it covered the
+  // nose and the tube, and the canopy and the fitting went on double-counting. Measured over the
+  // corpus, on the two lumped designs carrying those parts — `Show-off.CDX1` took a 500 g canopy
+  // weight from a dry mass of 0.4536 kg to 0.9536 kg and its stability margin from 12.81 to 9.28 cal,
+  // and `Complex.Two-Stage.CDX1` took 1.1777 kg to 2.1777 kg on a fitting (unit mass x count) and its
+  // margin from 1.78 to 1.29 cal. Both are numbers a flyer sizes a motor and a recovery system
+  // against, and neither design was ever edited to reach them.
+  //
+  // Stripping the keys HERE, before anything resolves an aim, is what makes a seventh mass field safe
+  // to add: `PER_PART_MASS_FIELDS` is one list, and a field missing from it fails
+  // `lib/model/edit.test.ts`'s registry case rather than double-counting in silence.
+  const edits = stripPerPartMassOnLumpedAirframe(rocket, rawEdits);
   // Resolve which components the length edits target, once, from the pristine design.
   const lengths = new Map<string, number>();
   if (edits.noseLength !== undefined && edits.noseLength > 0) {
@@ -4027,25 +4079,18 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // the tube pick resolve through — so on a design carrying several tubes the weight lands on the
   // one the length field beside it is holding, rather than on whatever the fallback finds.
   //
-  // **And neither is written at all on a design whose weight is ONE lump.** A RASAero `.CDX1` states
-  // one launch weight and no per-part masses, so its adapter mints a single point mass that already
-  // contains the cone and the tube; an override on either is ADDED to that figure rather than
-  // replacing it. Measured on the bundled RASAero sample: 500 g typed on the cone took dry mass
-  // 1.567 kg → 2.067 kg, exactly 500 g of double count, and on the corpus's larger `.CDX1` it moved
-  // apogee 1,083 m → 996 m. The panel withholds the control on such a design and says why — this is
-  // the same refusal at the applier, because the edit bag is persisted and replayed
-  // (`lib/session.ts`), so a saved session or a swept axis can carry the key with no panel involved.
-  // `primaryMassObject` and `removalRefusal` have both refused this same lump all along.
-  const lumpedAirframe = statedAirframeMass(rocket) !== undefined;
+  // Neither is written at all on a design whose weight is ONE lump, and that refusal is no longer
+  // spelled here: `stripPerPartMassOnLumpedAirframe` at the top of this function has already taken
+  // the key out of the bag, for all six mass fields rather than for these two. It is done at the
+  // applier and not only in the panel because the edit bag is persisted and replayed
+  // (`lib/session.ts`), so a saved session or a swept axis can carry the key in with no panel
+  // involved.
   const noseMassId =
-    !lumpedAirframe && edits.noseMass !== undefined && Number.isFinite(edits.noseMass) && edits.noseMass >= 0
+    edits.noseMass !== undefined && Number.isFinite(edits.noseMass) && edits.noseMass >= 0
       ? primaryNose(rocket)?.id
       : undefined;
   const bodyMassId =
-    !lumpedAirframe &&
-    edits.bodyTubeMass !== undefined &&
-    Number.isFinite(edits.bodyTubeMass) &&
-    edits.bodyTubeMass >= 0
+    edits.bodyTubeMass !== undefined && Number.isFinite(edits.bodyTubeMass) && edits.bodyTubeMass >= 0
       ? primaryBodyTube(rocket, edits.bodyTubeId)?.id
       : undefined;
   const nosePickMaterial: Material | undefined = nosePick?.material
