@@ -4,104 +4,52 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**NOTHING IS IN FLIGHT. Ten increments merged and deployed, no open PR, no unreproduced Sev-1 —
-the first genuinely clean slate in several runs.** Start from `ROADMAP.md` and the two tracks.
-Where they stand:
+**NOTHING IS IN FLIGHT. Two pull requests merged and deployed this run, one commit on the branch
+awaiting its own PR, no open Sev-1.** Start from `ROADMAP.md`.
 
-- **R-track: the mass override is on the canopy and on all five internal kinds.** What remains is
-  the nose cone (26 non-Loft masses across the corpus) and the body tube (13) — the same five pieces
-  (bag key, applier, aim-slot target, control, undo label) against a different slot. **Measure before
-  picking the next one**: this run's guess was "nose cone and body tube next", and counting the
-  corpus by kind said the five internal kinds carried 45 between them, nearly double either. The
-  probe is six lines over `massFrom`. **Read `chuteTargetId` in `applyDimensionEdits` first** —
-  every field a slot aims must be listed in that condition or the applier silently falls back to
-  "the primary part", which is right on a one-of-a-kind design and wrong the moment there are two.
-  That bug was live in increment 9 until a pre-push read of the diff.
-- **P-track: P13 is met and the airframe strip (`COMPETITION.md` row 31) shipped on desktop.** The
-  next P pick is open. Widening the shared `DESIGN.md` digest to §1, §2, §3 and §11 is the cheapest
-  real candidate and is now a routine change. **The strip left one thing genuinely undone and it is
-  worth doing properly rather than quietly:** a phone gets no persistent drawing at all, because at
-  390x664 it costs the sweep's answer its second screen. That is the right call today and it is not
-  the end state — a phone-shaped answer (a collapsed rail that expands, or the drawing docked to the
-  spine itself) is a design question nobody has scoped.
+- **R-track: R12's mass override is DONE on every kind it can reach, and the twin is the next slice.**
+  The nose cone and the body tube shipped this run (13 body-tube and 10 nose-cone non-Loft masses
+  across the corpus — **not** the 26 the previous handoff recorded for the cone; re-measured twice,
+  it is 10). What is left on `COMPETITION.md` row 41(d) is **`overrideCGx`**: carried end to end
+  already — `lib/ork/adapt.ts:316`, `lib/rkt/adapt.ts:583`, honoured in `lib/sim/mass.ts:66`, exported
+  at `lib/ork/export.ts:141` — with no control anywhere, on **12 `<overridecg>` across 5 of 27 `.ork`
+  plus `<KnownCG>` on 67 of 67 `.rkt` parts**. It is the exact twin of what just shipped: same five
+  pieces, a different field. **Take it first.** After it, motor overhang (imported, flown, exported,
+  no control, **35 across 27 of 27 `.ork`**) and cluster scale/rotation (**parsed by nothing, 31 of
+  each across 22 of 27, destroyed on every round trip**).
+- **P-track: P10 increment 3 is the repo SETTINGS half and is owner-blocked; the next real pick is
+  the touch contract.** `DESIGN.md` §8 says the count of controls under 44 px must be zero and it is
+  not, and the cause is one line: **`lib/ui-tokens.ts:28`'s `TOUCH_TARGET` sets `min-h-11` and no
+  width**, so ~40 call sites get half a guarantee. Fixing the token will move counts across the whole
+  app, which is why it wants its own increment and its own before/after measurement. The docs jump
+  strip is the worst single surface: 34 px chips, and at 412x915 `/docs/faq` shows **1 of 27 links**.
 
-**Three things this run learned that are worth more than any one of its increments:**
+**Four things this run learned that outlast any of its increments.**
 
-1. **Ask whether a user can REACH a defect before scoping it.** The Sev-1 screen filed
-   `compare.ts`'s missing `landed` gate three times over eight days; it was right about the code
-   every time and never asked. Measured: 115 stored corpus runs, 6 unlanded, all 6 already gated by
-   `hasPropulsion`, and `LoftApp.tsx:533` withholds the comparison from any edited design — so the
-   edit needed to stop a flight landing is the edit that removes the comparison. **Meanwhile the
-   reachable defect was a third sentinel nobody had enumerated**: `deploymentVelocity` is 0 when
-   nothing opened, and a flight with nothing out lands fine, so it clears every gate the landing
-   pair trips. One unedited corpus file published *"RockSim 33.4 m/s · Loft 0.0 m/s · −100%"* and
-   reported that design's mean error as 48.74% where its comparable metrics disagree by 42.33%.
-   Compare the two candidates: one took an hour to disprove, the other a minute to confirm, and the
-   difference was one question.
-2. **A disabled check is indistinguishable from a passing one.** `eslint-config-next` never extended
-   ESLint's recommended set, so 61 rules were off for the life of the repo and a duplicate `case`
-   shipped. The bill for turning them on was two genuine errors. Assume nothing about a tool that
-   reports success — `lib/lint-config.test.ts` and `lib/design-doc.test.ts` exist for the same
-   reason.
-3. **Read your own diff before pushing, even on a green gate.** Two of this run's real findings came
-   from that pass and from nothing else: the canopy-aim bug above, and a comment I had written that
-   asserted the opposite of what a `<select>` actually does.
+1. **Reachability is the first question, and I got it wrong once in the same run I quoted the rule.**
+   A corpus probe found `Three-stage rocket.CDX1` importing at **0 kg** with
+   `result.staticMarginCal = 6.32 cal`, and I filed it as a Sev-1 and shipped a guard. The negative
+   control then refused to fail — the design has no motor assigned, so `motorsComplete` was already
+   false and every margin surface already withheld it. Reverted. **Read the figure through the gate
+   the app applies, not off the result object.**
+2. **A filed ledger entry that names its own fix is not a fix.** The CSV unit defect sat in
+   `BACKLOG.md` from 2026-08-05 — both broken tables named by file, `csvLabel` named as the
+   mechanism — for six days, on a live site, in the file the session-start list says to read. What
+   moved it was an agent measuring the screen against the clipboard. Several sessions passed over it
+   correctly under the quota rule, because nobody had classified it Sev-1. It reads like tidy-up in a
+   ledger and like a wrong number on the product.
+3. **A check can hold a false claim IN PLACE.** `e2e/first-run.spec.ts` asserted the landing page
+   names five import formats, with a comment explaining "because RocketPy and SpaceCAD import too".
+   Neither imports. That is why the false claim survived four months on the front door. A check that
+   asserts a capability the code lacks converts the fix into a regression.
+4. **The corpus is not every real design.** A docblock written this run said a case "does not arise on
+   any real design", measured over the 35-file corpus and asserted of everything —
+   `fixtures/demo-quirks.ork` is the counterexample, one click from the front door, and it was the
+   very fixture used earlier in the same increment.
 
-<details>
-<summary>The two Sev-1 candidates in full, for anyone re-reading the ledger entries</summary>
-
-1. **RESOLVED — but not where the screen kept pointing, and that is the transferable part.** The
-   Sev-1 screen filed `compare.ts`'s missing `landed` gate three times over eight days. Run 9 ruled
-   it **latent rather than reachable**; I re-derived that independently and **run 9 was right**:
-   `components/LoftApp.tsx:533` withholds the stored comparison from any edited design, and the edit
-   needed to stop a flight landing is exactly that edit. Measured: 115 stored runs, 6 unlanded, all
-   6 already gated by `hasPropulsion`. **The reachable defect was a third sentinel nobody had
-   enumerated** — `deploymentVelocity` is 0 when nothing opened, and a flight with nothing out lands
-   fine, so it clears every gate the landing pair trips. `rocksimTestRocket1.rkt [E6-2]`, unedited,
-   published *"RockSim 33.4 m/s · Loft 0.0 m/s · −100%"* and reported that design's mean absolute
-   error as **48.74%** where its comparable metrics disagree by **42.33%** — the fault made Loft look
-   *worse* than it is, on the accuracy page. **The lesson: the screen read the code correctly every
-   time and never asked whether a user could get there.** Reachability is the first question, not the
-   last one.
-2. **ALSO RESOLVED — and it took one reading, because there was no gate in front of it.** A bare
-   `Altitude` header matches `isAltitudeHeader` and yields `unitHint: null`, and the path from there
-   is "a flyer uploads a CSV" with no `edited` flag or propulsion guard anywhere in it. Both pickers
-   showed Loft's guess exactly as they show a stated unit, and the altitude guess is between two
-   while the SPEED guess is between four. Fixed by marking the assumption at each picker and putting
-   a caution on the number that names what it would cost, rather than withholding — the flyer may
-   well have the right unit, and the house precedent for a value resting on a default is
-   `descentWhy`'s caution, not a blank. **Contrast the two candidates deliberately when you next read
-   a Sev-1 filing:** one was unreachable behind two unrelated rules and took an hour to disprove; the
-   other was reachable by construction and took a minute to confirm. Reachability is cheap to ask and
-   it is the question that separates them.
-
-</details>
-
-**PR #155 AND #156 ARE BOTH MERGED.** #155 is live (`23659a5`, deploy confirmed by fetching
-`/docs/methods` on loft.fusionspace.co); #156 squashed to `4d1512f` after CI ran green on both jobs.
-Its sibling, `nrdptel/fusionspace-debrief#170`, is merged.
-
-1. **#156's CI silence resolved itself and the cause is worth keeping.** No run fired for `0ba149d`,
-   `7346ff1` or `9d55c8b`; the cause was that `main` had moved under #155's squash, leaving the PR
-   un-mergeable — GitHub cannot build a merge commit for a `pull_request` event, so it produces no
-   run at all rather than a failing one. Merging `origin/main` into the branch started a run
-   immediately. **A PR with no CI run at all is a merge-conflict symptom, not a CI outage.**
-2. **P13 is 3 of 3 in Loft and its `done when` is met**; what remains is widening the shared span,
-   which the mechanism now makes a routine change. `lib/design-shared.test.ts` holds §4, §6, §7, §8 and
-   §10 to one digest in BOTH repos. §1, §2, §3 and §11 are next: they differ only in clauses one copy
-   has taken and the other has not.
-3. **R12's mass override SHIPPED on the parachute slot; the remaining kinds are the same shape.**
-   `parachuteMass` is a bag key, an applier, a readback, a control and an undo label — the whole
-   vertical slice — and the caption beside it names whose figure is being flown. **The next kinds are
-   a copy of this, not a design problem**: nose cone and body tube are the two with real demand after
-   the canopy. What CANNOT be copied is a universal per-part override: `aimEditsAt` returns the FIRST
-   matching slot and a green test forbids one kind routing to two, so a universal target cannot be a
-   peer slot — it needs the keyed bag the flat `GeometryEdits` cannot express, which is its own
-   milestone. **Read `chuteTargetId` in `applyDimensionEdits` before adding the next one**: every
-   field aimed by a slot must be listed in that condition or the applier silently falls back to
-   "the largest/primary part", which is right on a one-of-a-kind design and wrong the moment there
-   are two. That bug was live in this increment until a pre-push read of the diff, and the
-   dual-deploy case that catches it is in `edit.test.ts`.
+**The pre-push agent review earned its place twice this run** — five findings on the mass override,
+all real, three on surfaces already pushed, including a one-way door the fix itself introduced. Do
+not skip it.
 
 ## Read this first
 

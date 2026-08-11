@@ -43,6 +43,7 @@ import {
 import type { Rocket, RocketComponent } from "../model/types";
 import {
   applyGeometryEdits,
+  statedAirframeMass,
   moveTarget,
   moveSlots,
   canAddStage,
@@ -583,6 +584,113 @@ suite("real-design corpus", () => {
     expect(massless, "fittings a real design flies with no mass at all").toEqual([]);
   }, 300_000);
 
+  /** **A stated weight is never ADDED to a design that already states one for the whole airframe.**
+   *
+   *  A RASAero `.CDX1` states one launch weight and no per-part masses, so its adapter mints a single
+   *  point mass that already contains the nose and the tube. The airframe mass controls shipped on
+   *  2026-08-10 wrote an `overrideMass` on either without checking, so the flyer's figure was ADDED to
+   *  a total that already included it: measured on the bundled RASAero sample, 500 g typed on the cone
+   *  took dry mass 1.567 kg → 2.067 kg — exactly 500 g of double count — and on the corpus's larger
+   *  `.CDX1` it moved apogee 1,083 m → 996 m and the margin 1.92 → 2.23 cal, with the breakdown still
+   *  reading "Airframe (stated launch weight)" beside it. A flyer sizes a motor, a chute and a margin
+   *  off those.
+   *
+   *  Found by the opening fan-out's Sev-1 screen, which drove the bundled sample rather than reading
+   *  the code — and the increment it caught was the one that had deliberately MADE these controls
+   *  render on RASAero designs, on the reasoning that a scale is the only source there. The reasoning
+   *  was right about the need and wrong about the arithmetic.
+   *
+   *  `statedAirframeMass` is the guard, and it is the same one `primaryMassObject` and
+   *  `removalRefusal` already applied to that lump — written twice in this file and skipped by the
+   *  third caller, which is why it is exported now rather than written a fourth time. */
+  it("never adds a stated part weight to a design that states one weight for the whole airframe", async () => {
+    const doubled: string[] = [];
+    let lumped = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      if (!statedAirframeMass(doc.rocket)) continue;
+      lumped++;
+      const base = dryMassProperties(doc.rocket).mass;
+      for (const [what, edit] of [
+        ["nose", { noseMass: 0.5 }],
+        ["body tube", { bodyTubeMass: 0.5 }],
+      ] as const) {
+        const after = dryMassProperties(applyGeometryEdits(doc.rocket, edit)).mass;
+        if (Math.abs(after - base) > 1e-9)
+          doubled.push(
+            `${shortName(f.name)}: a stated ${what} weight moved dry mass ${base.toFixed(4)} → ` +
+              `${after.toFixed(4)} kg on a design whose whole weight is one lump that already contains it`,
+          );
+      }
+    }
+    console.log(
+      `lumped-airframe designs across ${files.length} design files: ${lumped} stating one weight for ` +
+        `the whole airframe, ${doubled.length} of them double-counting a stated part weight`,
+    );
+    expect(
+      lumped,
+      "no design states its weight as one lump — the double-count case is untested",
+    ).toBeGreaterThan(0);
+    expect(doubled, "designs where a stated part weight is added to a weight that already includes it").toEqual([]);
+  }, 300_000);
+
+  /** **A vehicle that weighs nothing never reaches a flyer with a balance point — and the reason is
+   *  not the one it looks like.**
+   *
+   *  Measured 2026-08-11: `Three-stage rocket.CDX1`, an in-the-wild RASAero design in this corpus,
+   *  imports with `dryMass` and `liftoffMass` of exactly **0 kg** — the format states weights per part
+   *  and that file states none — and `run.result.staticMarginCal` for it is **6.32 cal**. Read off the
+   *  result object that looks like a confident, comfortably-stable figure for a rocket with no mass.
+   *
+   *  **It reaches no surface, and asking that question is the whole point of this case.** That design
+   *  has no motor assigned at all, so `hasPropulsion` is false, so `motorsComplete` is false, and
+   *  every one of the six registered margin surfaces withholds on exactly that flag. A first pass at
+   *  this filed it as a Sev-1 and added `result.liftoffMass > 0` to the predicate; the negative
+   *  control then refused to fail, which is precisely what a guard that changes nothing looks like,
+   *  and the extra condition was reverted. `MAINTAINING.md` is explicit that a speculative guard
+   *  firing on zero real files is worse than nothing, and `HANDOFF.md` records the same trap from the
+   *  other side: the screen can read the code correctly every time and never ask whether a user can
+   *  get there.
+   *
+   *  So this asserts the RELATIONSHIP rather than a guard — massless implies withheld — and it is
+   *  worth keeping because the route to breaking it is one change wide: give that design a motor
+   *  that resolves, whether by an adapter fix or a corpus re-cut, and a 6.32 cal margin computed from
+   *  zero mass reaches every surface at once. It fails then, and it says why. */
+  it("never lets a design that weighs nothing reach a surface with a loaded figure", async () => {
+    const published: string[] = [];
+    let massless = 0;
+    let flown = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      let run;
+      try {
+        run = runFromDocument(doc, {});
+      } catch {
+        continue; // no motor configuration to fly at all — a different case, covered elsewhere
+      }
+      flown++;
+      if (run.result.liftoffMass > 0) continue;
+      massless++;
+      if (run.motorsComplete)
+        published.push(
+          `${shortName(f.name)}: liftoff mass 0 kg and motorsComplete true — a static margin of ` +
+            `${run.result.staticMarginCal.toFixed(2)} cal computed from no mass would reach every ` +
+            `margin surface. Withhold it on the loaded-figure predicate rather than per surface.`,
+        );
+    }
+    console.log(
+      `loaded-figure reachability across ${files.length} design files: ${flown} flown, ` +
+        `${massless} weighing nothing at liftoff, ${published.length} of those reaching a surface`,
+    );
+    expect(flown, "no design flew, so this asserted nothing").toBeGreaterThan(0);
+    expect(
+      massless,
+      "no design in the corpus weighs nothing at liftoff — the case this guards is gone, so either " +
+        "the corpus was re-cut or an importer started inventing a mass; re-derive before deleting",
+    ).toBeGreaterThan(0);
+    expect(published, "designs that weigh nothing and still reach a surface with a loaded figure").toEqual([]);
+  }, 300_000);
+
   /** **The flyer's own scale reading lands on the airframe of every real design.**
    *
    *  The nose cone and the body tube were the last airframe kinds with no mass control: measured over
@@ -598,6 +706,7 @@ suite("real-design corpus", () => {
    *  examined nothing must not read like one that passed. */
   it("puts the flyer's own weight on every real design's nose cone and body tube", async () => {
     const wrong: string[] = [];
+    let lumpedSkipped = 0;
     // **The second half, and it is the one a green gate would otherwise hide.** Where an assembly
     // states one weight for itself and everything in it, a part inside contributes nothing of its
     // own — so a mass typed on that part changes no flight, and the panel withholds the control and
@@ -618,6 +727,15 @@ suite("real-design corpus", () => {
     for (const f of files) {
       const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
       const rocket = doc.rocket;
+      // **A design whose whole weight is ONE lump is the case where this control is correctly
+      // refused, not the case where it must land.** Its adapter's single point mass already contains
+      // the cone and the tube, so writing an override on either would ADD to a figure that includes
+      // it — which is what the sibling case below asserts, and what this one must therefore skip.
+      // Counted rather than silently passed over, so a corpus re-cut cannot empty both populations.
+      if (statedAirframeMass(rocket)) {
+        lumpedSkipped++;
+        continue;
+      }
       const base = dryMassProperties(rocket).mass;
       const masses = massByComponent(rocket);
       let hereSubsumed = 0;
@@ -692,7 +810,8 @@ suite("real-design corpus", () => {
     }
     console.log(
       `stated airframe weights across ${files.length} design files: ${cones} nose cone(s) and ` +
-        `${tubes} body tube(s) aimable, ${multiTube} design(s) carrying more than one tube`,
+        `${tubes} body tube(s) aimable, ${multiTube} design(s) carrying more than one tube, ` +
+        `${lumpedSkipped} design(s) skipped for stating one weight for the whole airframe`,
     );
     expect(subsumedMismatch, "parts where the two answers to 'is this mass counted elsewhere' disagree").toEqual([]);
     console.log(

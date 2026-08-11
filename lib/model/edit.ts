@@ -2397,6 +2397,25 @@ function internalGeometryEdit(
   return { id: target.id, length, outerRadius, innerRadius, mass };
 }
 
+/** The point mass that IS this design's whole stated weight, when it has one — the lump a RASAero
+ *  `.CDX1` becomes, because that format states one launch weight and no per-part masses.
+ *
+ *  **Exported because a third place needed it and skipped it.** `primaryMassObject` already refuses to
+ *  aim at this lump and `removalRefusal` already refuses to delete it, both in this file — and the
+ *  airframe mass controls added on 2026-08-10 wrote straight past both. On such a design the nose
+ *  cone's own weight is already inside that figure, so a weight typed on the cone is ADDED to a total
+ *  that already contains it: measured on the bundled RASAero sample, typing 500 g into *Nose mass*
+ *  took dry mass 8.265 kg → 8.765 kg and apogee 1,083 m → 996 m, an 8% drop off a rocket 500 g
+ *  heavier than it is, with the breakdown still reading "Airframe (stated launch weight) 8.265 kg"
+ *  beside it. A flyer sizes a motor, a chute and a margin off that.
+ *
+ *  A guard written three times in three places is a guard that will be missed a fourth time. */
+export function statedAirframeMass(rocket: Rocket): RocketComponent | undefined {
+  return flattenRocket(rocket)
+    .map((p) => p.component)
+    .find((c) => c.kind === "masscomponent" && c.standsForAirframe);
+}
+
 /** Put the flyer's own weight on the one component `id` names, and say it was theirs.
  *
  *  Written as `overrideMass` because the outer airframe has no mass field of its own: `lib/sim/mass.ts`
@@ -4007,12 +4026,26 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // already resolve through; the tube through the `bodyTubeId` aim, which is what `bodyLength` and
   // the tube pick resolve through — so on a design carrying several tubes the weight lands on the
   // one the length field beside it is holding, rather than on whatever the fallback finds.
+  //
+  // **And neither is written at all on a design whose weight is ONE lump.** A RASAero `.CDX1` states
+  // one launch weight and no per-part masses, so its adapter mints a single point mass that already
+  // contains the cone and the tube; an override on either is ADDED to that figure rather than
+  // replacing it. Measured on the bundled RASAero sample: 500 g typed on the cone took dry mass
+  // 1.567 kg → 2.067 kg, exactly 500 g of double count, and on the corpus's larger `.CDX1` it moved
+  // apogee 1,083 m → 996 m. The panel withholds the control on such a design and says why — this is
+  // the same refusal at the applier, because the edit bag is persisted and replayed
+  // (`lib/session.ts`), so a saved session or a swept axis can carry the key with no panel involved.
+  // `primaryMassObject` and `removalRefusal` have both refused this same lump all along.
+  const lumpedAirframe = statedAirframeMass(rocket) !== undefined;
   const noseMassId =
-    edits.noseMass !== undefined && Number.isFinite(edits.noseMass) && edits.noseMass >= 0
+    !lumpedAirframe && edits.noseMass !== undefined && Number.isFinite(edits.noseMass) && edits.noseMass >= 0
       ? primaryNose(rocket)?.id
       : undefined;
   const bodyMassId =
-    edits.bodyTubeMass !== undefined && Number.isFinite(edits.bodyTubeMass) && edits.bodyTubeMass >= 0
+    !lumpedAirframe &&
+    edits.bodyTubeMass !== undefined &&
+    Number.isFinite(edits.bodyTubeMass) &&
+    edits.bodyTubeMass >= 0
       ? primaryBodyTube(rocket, edits.bodyTubeId)?.id
       : undefined;
   const nosePickMaterial: Material | undefined = nosePick?.material
