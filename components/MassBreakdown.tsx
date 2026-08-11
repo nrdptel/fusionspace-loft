@@ -88,7 +88,7 @@ export default function MassBreakdown({
         </span>
         <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
       </summary>
-      <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
+      <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
         {/* The rows arrive heaviest-first, which is the reading this panel is FOR, so that stays the
             initial sort — but a flyer checking an import against a build sheet wants the part order or
             the station order too, and could not have either. The dry total is a `tfoot`, so it stays

@@ -36,7 +36,8 @@ work, and a queue containing only the first can only ever ship the first.
   2026-08-11.** This paragraph is the baton — the file says so four lines below — and a stale baton
   sends the next run hunting for work that is done. Both were found by an agent reading the file
   against itself rather than by anyone re-reading their own edit. **The next unstarted P milestone is
-  P14**, written this run because the track had otherwise run dry.
+  P14** ("the checks that can only see what they already know"), written this run because the track
+  had otherwise run dry; increment 1 of 3 shipped the same day.
 
 **A run takes the next unstarted milestone from EACH track, and ships both.** Not one or the other.
 Start with whichever is smaller so something lands early, then take the other. If a run has time for
@@ -5241,6 +5242,79 @@ alone**, and (iii) is last. Otherwise this repeats `P10`'s failure mode: a miles
 half-done on a permission no session controls. One divergence is a direct contradiction rather than a
 gap and needs a decision rather than a merge: the sibling's §5 defines `Chip` and `ChipButton`, and
 Loft's copy records `Chip` as deleted on 2026-08-04 with the reason.
+
+---
+
+## P14 — The checks that can only see what they already know
+
+**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-11.
+
+**Written 2026-08-11 because the P-track had run dry** — P13 met its *done when*, and P10's remaining
+increment is a repository SETTING no session can edit. `MAINTAINING.md` says extending the track IS
+the work in that case, so this is that increment plus the first slice of what it named.
+
+**Outcome.** The design system's instruments stop reporting green over the class they were never told
+to look for. Every §9 count of 0 means "there are none", not "there are none of the two we listed".
+
+**The measurement that decided it, 2026-08-11.** An audit agent was handed `DESIGN.md` and the
+component tree and asked for divergences the EXISTING checks cannot see. All seven §9 greps read at
+target — radius 0, off-scale spacing 0, arbitrary spacing 0, off-scale type 0, hand-rolled `<select>`
+0, adoption 22/31, card treatments 3 — and the tree still held these:
+
+- **§2 defines exactly two border pairs, says *"Two, deliberately"*, and NOTHING checked it.** Radius,
+  spacing, type, `<select>`, chart and focus were all ratcheted; the one token §2 calls the
+  readability signal had no instrument at all. Measured when one was finally pointed at it: **8 uses
+  of 3 unsanctioned values** — `border-zinc-100` x6, `-400` x1, `-600` x1 — plus one genuinely
+  mismatched pair. Six of the eight were ONE treatment: every table body row in the app, from
+  `components/DataTable.tsx`, pairing a third light value against the hairline dark, so the same rule
+  was a different rung in light than in dark, in the file that draws every table in the product.
+- **`lib/design-system.test.ts`'s `DATA_SURFACES` is a hand-typed two-name allowlist**
+  (`MassBreakdown`, `DataTable`), so the missing-empty-state ratchet can only ever find the two
+  surfaces somebody already fixed — every data surface added since is exempt by construction. Three
+  real vanishes it cannot see: `GeometryInspector.tsx:653`, `FlightViz.tsx:38` (a hole where the
+  flight path was, against `components/ui.tsx:922`'s rule for `Figure` stating exactly this) and
+  `ParameterSweep.tsx:344`, which is the primary surface of `/sweep`.
+- **`e2e/touch.spec.ts` counts the `title` ATTRIBUTE, so `HOVER_ONLY_FLOOR = 0` measures the wrong
+  thing.** `components/RocketDiagram.tsx` states eleven gestures in SVG `<title>` CHILD elements,
+  which render the identical native tooltip a phone cannot reach and have a 0x0 rect the walk skips.
+  The ratchet reads green over the one surface §8 was written for.
+
+**This is the same class error §9 already records about itself twice** — the radius grep naming one
+literal while seven off-system radii stood, and the spacing grep matching named steps so an arbitrary
+value was invisible rather than off-scale. Both were found by pointing a *general* instrument at the
+tree. Every item above is that same shape, which is why they are one milestone and not three defects.
+
+**Increment 1 — the border tokens, 2026-08-11.** `offSystemBorder` enumerates every `border-zinc-*`
+and subtracts §2's four, in the shape the radius check already uses; a second check asserts the two
+pairs are used AS pairs, because fixing only the light half of `border-zinc-100 dark:border-zinc-800`
+reaches a count of 0 with the rule still a different rung in each theme. All nine divergences
+converted: six table and divider rules to the hairline light, the you-are-here chip to the control
+pair, and `ServiceWorker`'s toast off a hairline-light/control-dark mismatch. Both counts are **0**.
+
+**The pairing check was noisy first, and that is worth recording.** Scanning by LINE reported five
+violations of which three were false: one line carrying two elements' classes, and
+`SectionNav.tsx:60`'s `border-zinc-200 … hover:border-zinc-300 … dark:border-zinc-800`, which is the
+hairline resting and the control on hover — exactly right. It reads one class string at a time now,
+counts only RESTING tokens, and skips any string where the pairing cannot be attributed. A check that
+fires wrongly is one somebody disables, so it fires only where the answer is unambiguous; the one it
+does report is real.
+
+**Done when** all three instruments above are general rather than enumerative, each pinned by its own
+check at 0, and `DESIGN.md` §9 states each in the readable form beside the executable one:
+
+1. **Borders** — every `border-zinc-*` minus §2's four, at 0, plus the pairing assertion. **DONE.**
+2. **The five states** — `DATA_SURFACES` derived rather than hand-listed, so a new data surface is in
+   scope the day it lands, with the three known vanishes given real empty states.
+3. **Hover-only states** — the touch walk counts the SVG `<title>` element as well as the attribute,
+   and the eleven gestures it then finds are stated somewhere a phone can reach.
+
+**Size.** 3 increments, one per instrument. Each is independently shippable and each lands its own
+check, so a run that gets one done has moved a real count.
+
+**Notes.** Increment 3 will move `HOVER_ONLY_FLOOR` off 0 before it can return to 0 — that is the
+ratchet working, not a regression, and the number goes up in the same commit that makes the
+instrument honest. `MAINTAINING.md`'s rule that a §9 count moving the wrong way is fixed before the
+run ends assumes the instrument was already right; say which case it is in the commit message.
 
 ---
 

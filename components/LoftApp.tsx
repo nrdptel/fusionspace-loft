@@ -4208,7 +4208,7 @@ function ConditionsControls({
         <span>Conditions {scenario === "today" && weather ? "· today" : "· as designed"}</span>
         <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
       </summary>
-      <div className="space-y-4 border-t border-zinc-100 px-4 py-4 dark:border-zinc-800">
+      <div className="space-y-4 border-t border-zinc-200 px-4 py-4 dark:border-zinc-800">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <NumberField
             label={`Rail length (${lenU})`}
