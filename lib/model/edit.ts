@@ -2054,9 +2054,31 @@ function withCatalogNose(
   return children === c.children ? c : { ...c, children };
 }
 
-function withAirframeMaterial(c: RocketComponent, material: Material): RocketComponent {
-  const children = c.children.length ? c.children.map((ch) => withAirframeMaterial(ch, material)) : c.children;
-  if (c.kind === "nosecone" || c.kind === "bodytube" || c.kind === "transition") {
+/** **`statedByFile` is the set of parts a lumped design's weight already accounts for, and they are
+ *  skipped.** On a format that states one launch weight and no per-part masses, the adapter leaves
+ *  every shell massless deliberately — `lib/sim/mass.ts` reads `c.material?.density ?? 0` — so the
+ *  stated figure is the whole of it. Handing those parts a density computes a second airframe and adds
+ *  it on top, and a RASAero tube states no wall thickness either, so `ri = max(0, ro - (thickness ??
+ *  ro))` is 0 and each one is flown as a SOLID rod.
+ *
+ *  Measured on the bundled RASAero sample, whose stated weight is 8.2649 kg: picking cardboard took
+ *  dry mass to **15.1164 kg** and fibreglass to **25.5895 kg** — a tripling — moving the stability
+ *  margin from 3.06 to 4.1 cal through a live, enabled select one click from the front door. A flyer
+ *  picking their airframe stock is doing the most ordinary thing on the surface, and on the one format
+ *  that names no material at all it is the likeliest thing to do.
+ *
+ *  An EMPTY set leaves every part eligible, which is what every design that states its masses per part
+ *  passes — so this changes nothing on 32 of the 35 corpus designs. A part the flyer authored is never
+ *  in the set, so it takes the material and its weight, which is the whole point of choosing stock. */
+function withAirframeMaterial(
+  c: RocketComponent,
+  material: Material,
+  statedByFile: ReadonlySet<string>,
+): RocketComponent {
+  const children = c.children.length
+    ? c.children.map((ch) => withAirframeMaterial(ch, material, statedByFile))
+    : c.children;
+  if ((c.kind === "nosecone" || c.kind === "bodytube" || c.kind === "transition") && !statedByFile.has(c.id)) {
     return { ...c, material, children };
   }
   return children === c.children ? c : { ...c, children };
@@ -3749,8 +3771,12 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
     ),
     edits.moved,
   );
+  // On a design that states its masses per part this is EMPTY, so every guard keyed on it is inert
+  // and 32 of the 35 corpus designs are untouched. On a lumped one it names exactly the parts whose
+  // weight the stated figure already carries.
+  const statedByFile: ReadonlySet<string> = statedAirframeMass(built) ? fromFile : new Set<string>();
   return fitAddedInternalParts(
-    applyDimensionEdits(built, stripPerPartMassOnLumpedAirframe(built, withoutRemovedAims(edits), fromFile)),
+    applyDimensionEdits(built, stripPerPartMassOnLumpedAirframe(built, withoutRemovedAims(edits), fromFile), statedByFile),
     edits.added,
   );
 }
@@ -4042,7 +4068,7 @@ function withoutRemovedAims(edits: GeometryEdits): GeometryEdits {
 }
 
 /** The dimension half of the edit bag, applied to a design whose removals have already been taken out. */
-function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
+function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits, statedByFile: ReadonlySet<string>): Rocket {
   if (!hasGeometryEdits(edits)) return rocket;
   // Resolve which components the length edits target, once, from the pristine design.
   const lengths = new Map<string, number>();
@@ -4223,7 +4249,7 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   const editOne = (c: RocketComponent): RocketComponent => {
     let geo = editComponent(c, edits, lengths, finShift, finTargetIds, mountTargetIds);
     if (finish) geo = withFinish(geo, finish);
-    if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial);
+    if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial, statedByFile);
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
     if (pickedTubeId && pickedWall > 0)
       geo = withCatalogTube(geo, pickedTubeId, pickedWall, pickedMaterial, picked?.mass);

@@ -1891,6 +1891,23 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             unreachableMassObjects: unreachableMassObjectCount(designBase),
             finish: primaryFinish(designBase),
             airframeMaterial: primaryAirframeMaterial(designBase),
+            // **Named when the design's stated whole-airframe weight already carries every shell the
+            // material select would touch.** On such a design the adapter leaves those parts massless
+            // on purpose, so a density handed to them computes a second airframe on top of the stated
+            // one — 8.2649 kg to 25.5895 kg on fibreglass, on the bundled RASAero sample. Undefined
+            // the moment a shell the flyer AUTHORED is in the tree, because that one is genuinely
+            // theirs to choose stock for. `lib/model/edit.ts`'s `withAirframeMaterial` skips exactly
+            // the same parts, and the two must agree or this offers a control the applier ignores.
+            airframeMaterialLumped: (() => {
+              if (!doc || !statedAirframeMass(designBase)) return undefined;
+              const fromFile = new Set(flattenRocket(doc.rocket).map((p) => p.component.id));
+              const shells = flattenRocket(designBase).filter(
+                (p) => p.component.kind === "nosecone" || p.component.kind === "bodytube" || p.component.kind === "transition",
+              );
+              return shells.length && shells.every((p) => fromFile.has(p.component.id))
+                ? statedAirframeMass(designBase)?.name
+                : undefined;
+            })(),
             // The recovery readbacks take the picked canopy, so the diameter a field shows to edit
             // FROM is the canopy the resize is written TO. 17 of the 35 corpus designs carry more
             // than one — every dual-deploy design does — and the drogue was unreachable on all.
@@ -1966,6 +1983,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             unreachableMassObjects: 0,
             finish: undefined,
             airframeMaterial: undefined,
+            airframeMaterialLumped: undefined,
             mainParachuteDiameter: undefined,
             mainParachuteMass: undefined,
             mainParachuteMassFrom: undefined,
@@ -2723,6 +2741,9 @@ function DesignEditor({
     unreachableMassObjects: number;
     finish?: SurfaceFinish;
     airframeMaterial?: string;
+    /** The stated whole-airframe weight that already carries every shell the material select would
+     *  touch, when there is one — so the control is withheld rather than left silently inert. */
+    airframeMaterialLumped?: string;
     mainParachuteDiameter?: number;
     mainParachuteMass?: number;
     mainParachuteMassFrom?: MassProvenance;
@@ -4041,6 +4062,14 @@ function DesignEditor({
                       value={edits.airframeMaterial ?? ""}
                       onChange={(e) => onEdit({ airframeMaterial: e.target.value || undefined })}
                       className="mt-1 w-full"
+                      /* **The same refusal the mass fields make, by the same route and for the same
+                         reason.** A stated whole-airframe weight already carries the shell, whatever
+                         it is made of, so handing those parts a density computes a second airframe
+                         and adds it on top: on the bundled RASAero sample, 8.2649 kg became
+                         15.1164 kg on cardboard and 25.5895 kg on fibreglass, moving the margin
+                         3.06 → 4.1 cal through a live select. Withheld rather than silently inert,
+                         because a control that does nothing must not look as though it does. */
+                      disabled={designDims.airframeMaterialLumped !== undefined}
                     >
                       <option value="">
                         As designed{designDims.airframeMaterial ? ` (${designDims.airframeMaterial})` : ""}
@@ -4051,6 +4080,11 @@ function DesignEditor({
                         </option>
                       ))}
                     </Select>
+                    {designDims.airframeMaterialLumped !== undefined && (
+                      <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
+                        {lumpedAirframeHint(designDims.airframeMaterialLumped, "the airframe's own shell")}
+                      </span>
+                    )}
                   </label>
                 )}
               </div>

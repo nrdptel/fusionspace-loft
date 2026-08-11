@@ -1663,6 +1663,36 @@ describe("the aim registry is the one list", () => {
     expect(stripPerPartMassOnLumpedAirframe(perPart, normal, new Set())).toBe(normal);
   });
 
+  /** **The material select is the OTHER route to the same double-count, and it is the larger one.**
+   *
+   *  A format that states one launch weight and no per-part masses leaves every shell massless on
+   *  purpose — `lib/sim/mass.ts` reads `c.material?.density ?? 0` — so the stated figure is the whole
+   *  of it. Handing those parts a density computes a second airframe and adds it on top, and a
+   *  RASAero tube states no wall thickness either, so each is flown as a SOLID rod. Measured on the
+   *  bundled sample before the fix, against a stated 8.2649 kg: cardboard **15.1164 kg**, plywood
+   *  14.9207, kraft-phenolic 17.5634, blue tube 20.6955, carbon 23.6319, fibreglass **25.5895** — a
+   *  tripling — and in the running app the stability margin moved 3.06 → 4.1 cal through a live,
+   *  enabled select one click from the front door.
+   *
+   *  Picking your airframe stock is the most ordinary thing on that surface, and on the one format
+   *  that names no material at all it is the likeliest thing a flyer does. */
+  it("gives a lumped design's own shells no material weight, and an authored shell its own", async () => {
+    const doc = await importDesign(new Uint8Array(readFileSync(resolve("public/samples/demo-rasaero.CDX1"))));
+    const rocket = doc.rocket;
+    expect(statedAirframeMass(rocket)).toBeDefined();
+    const base = dryMassProperties(rocket).mass;
+    for (const key of ["cardboard", "plywood", "kraft-phenolic", "bluetube", "carbon", "fibreglass"]) {
+      const after = dryMassProperties(applyGeometryEdits(rocket, { airframeMaterial: key })).mass;
+      expect(after, `${key} added a second airframe to a design that states its whole weight`).toBeCloseTo(base, 9);
+    }
+    // The control: on a design that states its masses per part, the material still moves the mass —
+    // otherwise this would pass by having broken the feature everywhere.
+    const perPart = await load("demo-dual-deploy.ork");
+    const perPartBase = dryMassProperties(perPart).mass;
+    const perPartAfter = dryMassProperties(applyGeometryEdits(perPart, { airframeMaterial: "fibreglass" })).mass;
+    expect(perPartAfter, "the material edit stopped working on a normal design").not.toBeCloseTo(perPartBase, 6);
+  });
+
   /** **A part the flyer AUTHORED is not inside a weight the file stated before it existed**, so the
    *  refusal must be about the part and not about the design.
    *

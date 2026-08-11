@@ -6605,12 +6605,21 @@ test.describe("Loft", () => {
       await expect(field, `${name} must refuse a weight that would be added to a stated total`).toBeDisabled();
       expect(await field.getAttribute("placeholder"), `${name} must advertise no figure`).toBeNull();
     }
-    // And it says WHY, naming the figure that already contains the part — once per withheld field,
+    // **The material select is the other route to the same double-count, and it is the larger one.**
+    // A shell this design's stated weight already carries has no material by construction, so handing
+    // it a density computes a second airframe on top: 8.2649 kg became 25.5895 kg on fibreglass, and
+    // in this very app the margin moved 3.06 → 4.1 cal through a live select.
+    await expect(
+      page.getByLabel("Airframe material"),
+      "the material select must refuse a stock that would weigh the airframe twice",
+    ).toBeDisabled();
+
+    // And it says WHY, naming the figure that already contains the part — once per withheld control,
     // rather than once on the surface, because a flyer reads the hint under the control they clicked.
     await expect(
       page.getByText(/states one weight for the whole airframe/),
-      "every withheld field must name the stated weight it would be added to",
-    ).toHaveCount(3);
+      "every withheld control must name the stated weight it would be added to",
+    ).toHaveCount(4);
   });
 
   /** **The other half of the lumped-airframe refusal, and the half a design-wide guard got wrong.**
