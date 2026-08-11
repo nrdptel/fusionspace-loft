@@ -25,15 +25,17 @@ in the code and unreachable in the product. The Sev-1 (the canopy and fitting ma
 fixed and merged. What follows is what was NOT taken.*
 
 **The design-system checks can only see what they already know, which is the theme of this fan-out.**
-- **`lib/design-system.test.ts` has NO border-token check at all**, and `DESIGN.md` §2 defines exactly
-  two borders and says "Two, deliberately". Measured across `components/` and `app/`:
-  `border-zinc-100` x6, `-200` x6, `-300` x12, `-400` x1, `-600` x1, `-700` x12, `-800` x11 — so
-  **four values beyond the two the file sanctions**. Radius, spacing, type, `<select>`, chart and
-  focus are all ratcheted; the token §2 calls the readability signal is not. `components/DataTable.tsx:261`
-  sets every table body row in the app (7 files) to `border-zinc-100 dark:border-zinc-800` — a third
-  light value against the hairline dark, so the pair is mismatched between themes; `:287` then spells
-  the `<tfoot>` rule with the CONTROL token 26 lines away. Also `components/SectionNav.tsx:59`
-  (`border-zinc-400 dark:border-zinc-600`, a fourth pair, nowhere else in the tree).
+- ~~**`lib/design-system.test.ts` has NO border-token check at all**~~ — **RESOLVED the same run, by
+  `P14` increment 1.** Filed and cleared in one session, which is why it is struck rather than
+  deleted: the measurement is what made the milestone, and a future run reading this file needs to
+  see that the ledger's own entry was the evidence. `DESIGN.md` §2 defines exactly two borders and
+  says "Two, deliberately", and nothing read that sentence. Measured across `components/` and `app/`:
+  `border-zinc-100` x6, `-400` x1, `-600` x1 — **8 uses of 3 values beyond the four the file
+  sanctions** — plus one genuinely mismatched pair in `components/ServiceWorker.tsx`. Six of the
+  eight were one treatment: `components/DataTable.tsx:261` set every table body row in the app to
+  `border-zinc-100 dark:border-zinc-800`, a third light value against the hairline dark, so the same
+  rule was a different rung in light than in dark. Now `offSystemBorder` at **0** plus a pairing
+  check, and all nine converted.
 - **`lib/design-system.test.ts:774`'s `DATA_SURFACES` is a hand-typed two-name allowlist**
   (`MassBreakdown`, `DataTable`), so the missing-empty-state ratchet can only ever find the two
   surfaces someone already fixed — every data surface added since is exempt by construction. Three

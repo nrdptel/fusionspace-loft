@@ -88,7 +88,7 @@ and the reason every lens was told to trace reachability first.
 - **Four cores**, so the workflow concurrency cap is 2 and a fan-out of six lenses takes ~70 minutes.
   Dispatch it and do the baseline gate beside it rather than waiting.
 
-## This run — four increments
+## This run — seven increments
 
 **Read the `where` column as of the moment this file was written and check `git log` rather than
 trusting it.**
@@ -100,6 +100,9 @@ trusting it.**
 | 2 | Sev-1 (self-inflicted, caught by the pre-push review): the refusal is keyed on the PART, so a part the flyer authors is still weighable | `76ea836`, PR #169 |
 | 3 | Sev-1: the airframe MATERIAL select weighed the airframe twice — 8.2649 → 25.5895 kg on fibreglass | `bc5e65c`, PR #169 |
 | 4 | P14/1: the border tokens `DESIGN.md` said were only two — a check, a pairing check, nine conversions | `1c37264`, PR #169 |
+| 5 | R12/11: `cgFrom` — the balance point says whose figure it is | `7529e12`, PR #169 |
+| 6 | R12/11 cont.: the CG mark is cleared with the number it describes (5 real designs) | `11acf69`, PR #169 |
+| 7 | R12/11 cont.: the RASAero lump's stated CG is marked, and a census this repo published is corrected | `dc06762`, PR #169 |
 
 Also in #169: two stale `ROADMAP.md` state lines corrected (the P-track baton said P13 was unstarted
 while P13 was shipped; P10 said "1 of 2" while its own body recorded increment 2 shipped), the
@@ -110,6 +113,10 @@ while P13 was shipped; P10 said "1 of 2" while its own body recorded increment 2
 was 8), card treatments **3** (its recorded floor), off-scale spacing **0**, `rounded-lg` **0**,
 arbitrary spacing **1** (the sanctioned device inset), hover-only states **0** (and see P14/3 — that
 number is measuring the wrong thing).
+
+**The pre-push review found something on every one of the three diffs it was given**, including a
+regression the whole gate had blessed and a census this repo had published in four places. Two of its
+findings I had independently reproduced first; two I had not. Budget for it.
 
 ## The corpus, stated plainly
 
