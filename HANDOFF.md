@@ -4,153 +4,125 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**NOTHING IS IN FLIGHT. Two pull requests merged and deployed this run, one commit on the branch
-awaiting its own PR, no open Sev-1.** Start from `ROADMAP.md`.
+**FOUR increments are on `claude/ultracode-maintenance-3dsn8p` behind PR #169, plus PR #168 merged at
+the top of the run. Check whether #169 landed before assuming anything below is live.** Nothing else
+is in flight and there is no unreproduced Sev-1.
 
-- **R-track: R12's mass override is DONE on every kind it can reach, and the twin is the next slice.**
-  The nose cone and the body tube shipped this run (13 body-tube and 10 nose-cone non-Loft masses
-  across the corpus — **not** the 26 the previous handoff recorded for the cone; re-measured twice,
-  it is 10). What is left on `COMPETITION.md` row 41(d) is **`overrideCGx`**: carried end to end
-  already — `lib/ork/adapt.ts:316`, `lib/rkt/adapt.ts:583`, honoured in `lib/sim/mass.ts:66`, exported
-  at `lib/ork/export.ts:141` — with no control anywhere, on **12 `<overridecg>` across 5 of 27 `.ork`
-  plus `<KnownCG>` on 67 of 67 `.rkt` parts**. It is the exact twin of what just shipped: same five
-  pieces, a different field. **Take it first.** After it, motor overhang (imported, flown, exported,
-  no control, **35 across 27 of 27 `.ork`**) and cluster scale/rotation (**parsed by nothing, 31 of
-  each across 22 of 27, destroyed on every round trip**).
-- **P-track: P10 increment 3 is the repo SETTINGS half and is owner-blocked; the next real pick is
-  the touch contract.** `DESIGN.md` §8 says the count of controls under 44 px must be zero and it is
-  not, and the cause is one line: **`lib/ui-tokens.ts:28`'s `TOUCH_TARGET` sets `min-h-11` and no
-  width**, so ~40 call sites get half a guarantee. Fixing the token will move counts across the whole
-  app, which is why it wants its own increment and its own before/after measurement. The docs jump
-  strip is the worst single surface: 34 px chips, and at 412x915 `/docs/faq` shows **1 of 27 links**.
+Where the two tracks stand, measured this run:
 
-**Four things this run learned that outlast any of its increments.**
+- **R-track: R12 is at increment 12, and the lumped-airframe family is now closed.** Three Sev-1s of
+  one shape were fixed: the canopy and fitting mass fields, and the airframe MATERIAL select, all
+  adding weight to a design that already states its whole weight. The guard is one table now
+  (`PER_PART_MASS_FIELDS` in `lib/model/edit.ts`), whose expected keys `lib/model/edit.test.ts`
+  derives from `AIM_SLOTS`' own targets — so a seventh mass field fails the build rather than
+  double-counting. **The next R slice is measured and waiting: `overrideCGx`.** It is the exact twin
+  of the mass override — carried end to end, honoured over the computed CG at `lib/sim/mass.ts:66`,
+  exported — with no control anywhere. 12 `<overridecg>` on 5 `.ork` files, 67 `<KnownCG>` and 26
+  `<UseKnownCG>1` across the `.rkt`. Same five pieces, different field, and the same lumped-airframe
+  question to answer on the way in. `COMPETITION.md` row 45 names it.
+- **P-track: P14 is new and is at increment 1 of 3.** P13 met its *done when* and P10's remaining
+  increment is a repository SETTING no session can edit, so the track had run dry and extending it
+  was the work. P14 is "the checks that can only see what they already know". Increment 1 (border
+  tokens) shipped. **Increments 2 and 3 are both measured and ready to start**: `DATA_SURFACES` in
+  `lib/design-system.test.ts` is a hand-typed two-name allowlist, so the missing-empty-state ratchet
+  can only find surfaces somebody already fixed (three real vanishes it cannot see are named in
+  `ROADMAP.md`); and `e2e/touch.spec.ts` counts the `title` ATTRIBUTE, so `HOVER_ONLY_FLOOR = 0`
+  is blind to eleven SVG `<title>` CHILD elements in `components/RocketDiagram.tsx`.
 
-1. **Reachability is the first question, and I got it wrong once in the same run I quoted the rule.**
-   A corpus probe found `Three-stage rocket.CDX1` importing at **0 kg** with
-   `result.staticMarginCal = 6.32 cal`, and I filed it as a Sev-1 and shipped a guard. The negative
-   control then refused to fail — the design has no motor assigned, so `motorsComplete` was already
-   false and every margin surface already withheld it. Reverted. **Read the figure through the gate
-   the app applies, not off the result object.**
-2. **A filed ledger entry that names its own fix is not a fix.** The CSV unit defect sat in
-   `BACKLOG.md` from 2026-08-05 — both broken tables named by file, `csvLabel` named as the
-   mechanism — for six days, on a live site, in the file the session-start list says to read. What
-   moved it was an agent measuring the screen against the clipboard. Several sessions passed over it
-   correctly under the quota rule, because nobody had classified it Sev-1. It reads like tidy-up in a
-   ledger and like a wrong number on the product.
-3. **A check can hold a false claim IN PLACE.** `e2e/first-run.spec.ts` asserted the landing page
-   names five import formats, with a comment explaining "because RocketPy and SpaceCAD import too".
-   Neither imports. That is why the false claim survived four months on the front door. A check that
-   asserts a capability the code lacks converts the fix into a regression.
-4. **The corpus is not every real design.** A docblock written this run said a case "does not arise on
-   any real design", measured over the 35-file corpus and asserted of everything —
-   `fixtures/demo-quirks.ork` is the counterexample, one click from the front door, and it was the
-   very fixture used earlier in the same increment.
+**Three things this run learned that are worth more than any one of its increments:**
 
-**The pre-push agent review earned its place twice this run** — five findings on the mass override,
-all real, three on surfaces already pushed, including a one-way door the fix itself introduced. Do
-not skip it.
+1. **A guard written per-field is wrong the day it ships, and it took three rounds here to stop
+   writing them.** The same defect was fixed for the nose and tube (#166), then for the canopy and
+   fitting, then for the material select — each time by the increment that happened to be looking at
+   those fields. The fix that finally held was *deleting* the per-field guards and putting one
+   registry-driven refusal at a choke point. When you find yourself adding a fourth copy of a
+   condition, the condition is in the wrong place.
+2. **A check written in the same increment as the code it pins can only encode that increment's
+   belief.** It catches regressions against yesterday's understanding and is silent about whether the
+   understanding is true. Every check written for the lumped-airframe guard asked whether an
+   *imported* part could be double-counted; not one asked whether an *authored* part could still be
+   weighed — so the whole gate stayed green while the first version of the fix broke authoring
+   outright on the one format where authoring needs it most. The pre-push review is what found it.
+3. **An e2e negative control that is not rebuilt cannot fail, and it looks exactly like one that
+   passed.** Playwright serves `out/`. This was already in the previous run's handoff as a general
+   warning; it is now in `MAINTAINING.md` under *This repo, concretely*, with the negative-control
+   case spelled out, because a handoff is rewritten every session and this cost a wrong conclusion
+   before I caught it. Every e2e control is `revert → rebuild → run → restore → rebuild`.
 
 ## Read this first
 
-**The pre-push agent review is worth more than the gate, and this run is the strongest evidence yet.**
-Over three fully green gates it found: an exporter minting a component id TWICE (7 freeform fin sets
-on 6 corpus designs went out under a fabricated hash); a new model field riding `structuredClone` onto
-parts Loft invents and then into the flyer's file; a `DESIGN.md` exception that bought a permanent
-carve-out for **zero pixels** (CSS clamps a corner radius to what its edge can hold, so on a 12x8 px
-chip every radius at or above 4 px renders as 4 px); a design-system check that could not see the one
-file holding the control radius for every button in the app; and **seven wrong provenance marks** on
-the mass work, three of them claims the design file does not support. Not one is visible in a passing
-suite. Give it the diff and nothing else, and ask it to refute.
+**The pre-push agent review earned its keep again, and this time it caught a regression the entire
+gate had blessed.** Given the diff and nothing else, three independent lenses returned nine findings;
+the one that mattered was that keying the new refusal on the DESIGN rather than the PART greyed out
+the Mass field on a component the flyer had just authored — a part the file's stated weight provably
+cannot contain. Lint, 1242 unit tests, the build and 263 e2e tests were all green with that in place.
+Give it the diff, ask it to refute, and read what comes back before pushing.
 
-**`add_repo` with `access: "push"` for `nrdptel/fusionspace-debrief` SUCCEEDS.** The previous run
-recorded it as refused and parked the whole design-system reconciliation on the owner; it was never
-blocked. Attach the sibling FIRST whenever `DESIGN.md` moves.
+**The opening fan-out's Sev-1 lens independently found the same canopy double-count I found by
+probing, with identical numbers** (apogee 1083.1 → 996.2 m, mass 8.2649 → 8.7649 kg). Two independent
+routes to one defect is a strong signal; a finding only one route reaches deserves reproduction before
+it becomes an increment. 24 findings were filed across six lenses and **14 were refuted**, most for
+being real in the code and unreachable in the product — which is this repo's documented failure mode
+and the reason every lens was told to trace reachability first.
 
-**A check can name one literal and read green over the whole class it was written to catch.** §9's
-radius grep named the middle radius; with it at 0, the tree held seven off-system radii, five of them
-one hand-rolled treatment. Enumerate the class and SUBTRACT what is allowed. And read the right text:
-over raw source a class pattern reads English prose (18 hits across the docs routes); over `class="…"`
-attributes only it cannot see a class composed through `cx(…)`, which is how every primitive here
-writes its own. String literals with comments stripped is the answer.
+## The environment, measured 2026-08-11 (run 12)
 
-**Do not trust a quick corpus measurement taken with `execSync`.** A first count of the author notes
-returned 23 across 11 files and was wrong: node's default 1 MB `maxBuffer` silently truncated the
-larger designs. The real figure is 40 across 18, which is what the repo already said.
+- **`node_modules` is NOT installed at session start.** `npm test` printed `sh: 1: vitest: not found`
+  and the compound command still reported exit 0 — a false all-clear of exactly the shape this repo
+  keeps paying for. Run `npm install` first and read the suite's own summary line, never a wrapper's
+  exit code.
+- **The Playwright browser is ABSENT and it looks like a broken baseline.** `@playwright/test` is
+  1.61.1 and manages chromium-**1228**; `/opt/pw-browsers` had only **1194**. `npx playwright install
+  chromium` fetched it in about a minute through the proxy. Both are now present, so do not point
+  `PW_EXECUTABLE_PATH` at the older one. This is paid for every session until it is in the
+  environment's setup script, which is the owner's fix to make.
+- **The fixtures repo IS attached** at `/home/user/loft-fixtures`, so the corpus is real without a
+  token: symlink its per-tool directories into `corpus/` and the suite reports **35 present**.
+- **The clone is SHALLOW** — `git rev-parse --is-shallow-repository` is true, so any commit count is a
+  window, not the record.
+- **Git identity arrives as the harness vendor's default** (`Claude <noreply@anthropic.com>`), which
+  the zero-trace invariant forbids. Set it per-repo before the first commit; commits sign correctly
+  once set (`git cat-file commit HEAD | grep gpgsig`).
+- **The harness appends an attribution footer to the PR body.** It did on #169. Read the body back
+  after posting and strip it — it is a zero-trace breach on a public artifact.
+- **Four cores**, so the workflow concurrency cap is 2 and a fan-out of six lenses takes ~70 minutes.
+  Dispatch it and do the baseline gate beside it rather than waiting.
 
-## The environment, measured 2026-08-09/10 (run 9)
+## This run — four increments
 
-- **Both fixture and sibling repos are reachable.** `loft-fixtures` is on disk at session start;
-  linking its five per-tool directories into `corpus/` gives the suite its full **35 fixtures**, and
-  the sweep names that count in its own test name.
-- `npx playwright install chromium` was needed again — **seventh consecutive run**, one minute and
-  114 MB. It belongs in the environment's setup script. Parked for the owner.
-- The clone is SHALLOW; any commit count is a window, not the record.
-- Git identity arrives as the harness vendor's default and must be set per-repo before the first
-  commit. Commits sign correctly once it is.
-- `test.yml` fires on `pull_request` and on a push to `main`, not on a working-branch push — and see
-  point 1 above: it did not fire for PR #156 at all.
-- The e2e suite still needs two shards on this sandbox (127 + 126). **One flake this run**, recorded
-  rather than waved through: `depth.spec.ts`'s *"desktop: the workspace spine stays within 820px of
-  the top"* failed once inside a full shard-1 run and then passed three times — alone, as a whole
-  file, and in a repeat of the same full shard. Filed in `BACKLOG.md`; the failure message names the
-  route and the pixel figure, so the next occurrence is worth capturing rather than re-running.
-- **Playwright serves the BUILT `out/`, not the sources — so the gate's order is load-bearing and
-  editing between `npm run build` and `npm run test:e2e` silently tests the previous build.**
-  `playwright.config.ts:38` runs `npx serve` over `out/`. Cost me one confused debugging round on a
-  new e2e case that failed with the element genuinely absent from the page while the source rendering
-  it was correct. It fails in the safe direction here (a stale pass is a stale FAIL for new
-  assertions) but the reverse — editing a fix and re-running e2e without rebuilding — would report
-  green on code that was never served. Rebuild before every e2e run you intend to believe.
-
-## This run — fifteen increments
-
-**Read the `where` column as of the moment this file was written, and check `git log` rather than
-trusting it.** The last row is always "in flight": the commit that would mark it merged is the one
-being merged, so this table cannot ever say every row landed. Everything above the last row was
-merged AND confirmed live on `loft.fusionspace.co`, not merely merged.
+**Read the `where` column as of the moment this file was written and check `git log` rather than
+trusting it.**
 
 | # | what | where |
 |---|---|---|
-| 1 | The notes a design file carries survive Loft — 81 across 22 of the 35 designs | merged `23659a5` |
-| 2 | Sev-1: a rail button imported at 0 kg on all 9 in the corpus | merged `23659a5` |
-| 3 | The queue's state; P13 opened because the P-track had run dry | merged `23659a5` |
-| 4 | P13/1 — `DESIGN.md` is read by the gate | merged `23659a5` |
-| 5 | P13/2+3 — a `Swatch` primitive, a radius rule the gate can see, one digest over both repos | merged `4d1512f` |
-| 6 | R12/7 — the parts table says which masses the design stated | merged `4d1512f` |
-| 7 | The validation table stops scoring a sentinel — one live row, and the headline error it moved | merged `d0c81cd` |
-| 8 | A flight log's unit says whether the file named it or Loft guessed | merged `a8e5df7` |
-| 9 | R12/8 — a canopy can be given the mass it was weighed at | merged `2d66012` |
-| 10 | The linter runs the 61 rules everyone assumed it was running | merged `43dae0f` |
-| 11 | P/row 31 — the airframe stays on screen while you work in another workspace | merged `f98a59f` |
-| 12 | R12/9 — the internal structure takes a weighed mass, on the slot with the largest gap | merged `a1428b1` |
-| 13 | The identify line says where a mass came from — the last surface that did not | merged `2797bca` |
-| 14 | The mass breakdown says it too, and the describer moves out of the component that owned it | merged `9a24554` |
-| 15 | A CSV can carry what its table said — the validation export names what it withheld | in flight |
+| 0 | PR #168 merged: the lumped-airframe guard for the nose and tube, from the previous run | merged `abdfe60` |
+| 1 | Sev-1: the canopy and fitting mass fields double-counted on a lumped design; one registry-driven refusal replaces two per-field guards | `26ebf51`, PR #169 |
+| 2 | Sev-1 (self-inflicted, caught by the pre-push review): the refusal is keyed on the PART, so a part the flyer authors is still weighable | `76ea836`, PR #169 |
+| 3 | Sev-1: the airframe MATERIAL select weighed the airframe twice — 8.2649 → 25.5895 kg on fibreglass | `bc5e65c`, PR #169 |
+| 4 | P14/1: the border tokens `DESIGN.md` said were only two — a check, a pairing check, nine conversions | `1c37264`, PR #169 |
 
-Verified against production, not just against `main`: `/docs/validation` serves increment 7's
-sentinel paragraph, `/docs/methods` serves increment 9's canopy-mass section, and increment 8's
-*"the file's header does not name a unit"* is present in the deployed JS chunk. Deploy fires on push
-to `main` and was confirmed by fetching the live site, not assumed from a green merge.
+Also in #169: two stale `ROADMAP.md` state lines corrected (the P-track baton said P13 was unstarted
+while P13 was shipped; P10 said "1 of 2" while its own body recorded increment 2 shipped), the
+`MAINTAINING.md` e2e-rebuild note, `COMPETITION.md` row 45, and ten verified fan-out findings filed in
+`BACKLOG.md`.
 
-**Increment 7 is the one to read if you read one.** It is the only one that came from *reproducing* a
-filed claim rather than from the queue, it overturned two of this repo's own prior conclusions (run
-9's "latent" ruling stands; the Sev-1 screen's three filings pointed at the wrong metric), and it is
-pinned by a corpus census that names the single row it changes. `lib/sim/withheld.ts` is new and is
-where a reason for a withheld figure now lives for every surface.
+**§9 counts at the end of the run:** off-system radius **0**, off-system border **0** (new this run,
+was 8), card treatments **3** (its recorded floor), off-scale spacing **0**, `rounded-lg` **0**,
+arbitrary spacing **1** (the sanctioned device inset), hover-only states **0** (and see P14/3 — that
+number is measuring the wrong thing).
 
 ## The corpus, stated plainly
 
-**35 design files**, and every check added this run asserts its own denominator so a re-cut cannot
-leave one passing on nothing: 81 author notes, 332 stated component ids, 54 external fittings, 108
-stated masses / 60 from the source tool / 401 Loft's own, and 332 parts compared by id across a round
-trip.
+35 design files, present and real this run — the suite names its own count. The sweep prints
+`lumped-airframe designs across 35 design files: 3 stating one weight for the whole airframe, 0
+double-counts across 6 per-part mass fields`, driven off the registry rather than a hand-written pair.
 
 ## What is waiting on the owner
 
-Two entries in `OWNER-NOTES.md`'s *Awaiting the owner*: the Playwright browser in the setup script
-(seven runs), and the repository-page settings. A third was ANSWERED by measurement this run — push
-access to the sibling — and is marked as such rather than deleted.
+Unchanged from the previous run, plus nothing new. `OWNER-NOTES.md` *Awaiting the owner* carries the
+repository-settings half of P10, the Playwright browser in the setup script, auto-merge, and the two
+harness-versus-zero-trace questions (the attribution footer and the commit identity). **10 open notes,
+all carrying verdicts dated 2026-08-08; none is `(pending)`.**
 
 ## The previous run (2026-08-08, earlier the same day)
 
