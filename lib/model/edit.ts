@@ -1915,6 +1915,13 @@ function withCatalogTube(
       massFrom: publishedMass !== undefined && publishedMass > 0 ? ("flyer" as const) : undefined,
       overrideMass: publishedMass !== undefined && publishedMass > 0 ? publishedMass : undefined,
       overrideCGx: undefined,
+      // **The mark goes with the number.** Clearing `overrideCGx` and leaving `cgFrom` behind claims
+      // the design stated a balance point that is now Loft's own computation — reproduced on 5 real
+      // corpus designs (`03.Three-stage.ork`, `Cherokee-E-5055.ork`, `EscapeVelocity.ork`,
+      // `rocksimTestRocket1.rkt`, `TubeFins1.rkt`), where the breakdown went on reading "stated by
+      // the design" beside a figure the file no longer supplies. The same shape as the four wrong
+      // mass marks the review caught on the increment that added `massFrom`.
+      cgFrom: undefined,
       children,
     };
   }
@@ -1972,6 +1979,13 @@ function withCatalogParachute(c: RocketComponent, id: string, p: PickedParachute
       // waiting on the one kind where it is the majority.
       overrideMass: undefined,
       overrideCGx: undefined,
+      // **The mark goes with the number.** Clearing `overrideCGx` and leaving `cgFrom` behind claims
+      // the design stated a balance point that is now Loft's own computation — reproduced on 5 real
+      // corpus designs (`03.Three-stage.ork`, `Cherokee-E-5055.ork`, `EscapeVelocity.ork`,
+      // `rocksimTestRocket1.rkt`, `TubeFins1.rkt`), where the breakdown went on reading "stated by
+      // the design" beside a figure the file no longer supplies. The same shape as the four wrong
+      // mass marks the review caught on the increment that added `massFrom`.
+      cgFrom: undefined,
       children,
     };
   }
@@ -2048,15 +2062,44 @@ function withCatalogNose(
       massFrom: p.mass !== undefined && p.mass > 0 ? ("flyer" as const) : undefined,
       overrideMass: p.mass !== undefined && p.mass > 0 ? p.mass : undefined,
       overrideCGx: undefined,
+      // **The mark goes with the number.** Clearing `overrideCGx` and leaving `cgFrom` behind claims
+      // the design stated a balance point that is now Loft's own computation — reproduced on 5 real
+      // corpus designs (`03.Three-stage.ork`, `Cherokee-E-5055.ork`, `EscapeVelocity.ork`,
+      // `rocksimTestRocket1.rkt`, `TubeFins1.rkt`), where the breakdown went on reading "stated by
+      // the design" beside a figure the file no longer supplies. The same shape as the four wrong
+      // mass marks the review caught on the increment that added `massFrom`.
+      cgFrom: undefined,
       children,
     };
   }
   return children === c.children ? c : { ...c, children };
 }
 
-function withAirframeMaterial(c: RocketComponent, material: Material): RocketComponent {
-  const children = c.children.length ? c.children.map((ch) => withAirframeMaterial(ch, material)) : c.children;
-  if (c.kind === "nosecone" || c.kind === "bodytube" || c.kind === "transition") {
+/** **`statedByFile` is the set of parts a lumped design's weight already accounts for, and they are
+ *  skipped.** On a format that states one launch weight and no per-part masses, the adapter leaves
+ *  every shell massless deliberately — `lib/sim/mass.ts` reads `c.material?.density ?? 0` — so the
+ *  stated figure is the whole of it. Handing those parts a density computes a second airframe and adds
+ *  it on top, and a RASAero tube states no wall thickness either, so `ri = max(0, ro - (thickness ??
+ *  ro))` is 0 and each one is flown as a SOLID rod.
+ *
+ *  Measured on the bundled RASAero sample, whose stated weight is 8.2649 kg: picking cardboard took
+ *  dry mass to **15.1164 kg** and fibreglass to **25.5895 kg** — a tripling — moving the stability
+ *  margin from 3.06 to 4.1 cal through a live, enabled select one click from the front door. A flyer
+ *  picking their airframe stock is doing the most ordinary thing on the surface, and on the one format
+ *  that names no material at all it is the likeliest thing to do.
+ *
+ *  An EMPTY set leaves every part eligible, which is what every design that states its masses per part
+ *  passes — so this changes nothing on 32 of the 35 corpus designs. A part the flyer authored is never
+ *  in the set, so it takes the material and its weight, which is the whole point of choosing stock. */
+function withAirframeMaterial(
+  c: RocketComponent,
+  material: Material,
+  statedByFile: ReadonlySet<string>,
+): RocketComponent {
+  const children = c.children.length
+    ? c.children.map((ch) => withAirframeMaterial(ch, material, statedByFile))
+    : c.children;
+  if ((c.kind === "nosecone" || c.kind === "bodytube" || c.kind === "transition") && !statedByFile.has(c.id)) {
     return { ...c, material, children };
   }
   return children === c.children ? c : { ...c, children };
@@ -2414,6 +2457,68 @@ export function statedAirframeMass(rocket: Rocket): RocketComponent | undefined 
   return flattenRocket(rocket)
     .map((p) => p.component)
     .find((c) => c.kind === "masscomponent" && c.standsForAirframe);
+}
+
+/** Every edit key that puts a flyer's own weight on ONE part, with the resolver that says WHICH part.
+ *
+ *  **One table, because the guard that governs these was written per-field and was incomplete the day
+ *  it shipped.** `statedAirframeMass` above already had two callers refusing the same lump; the mass
+ *  controls added a third and a fourth that walked past it, and the fix for those covered the nose and
+ *  the tube while the canopy went on double-counting in the shipped app. A table the applier reads is
+ *  the only version of this a new mass field cannot miss — adding `finMass` means adding a line here,
+ *  and `lib/model/edit.test.ts` derives the expected KEYS from `AIM_SLOTS`' own targets, so a field
+ *  that writes a weight without joining this table fails the build.
+ *
+ *  **The resolver is here rather than the key alone, because the refusal is about the PART and not
+ *  about the design.** The first version of this stripped every per-part weight from any design
+ *  carrying a lump, which is wrong in one direction that matters: a part the flyer AUTHORS cannot
+ *  possibly be inside a weight the file stated before it existed. Measured on the bundled RASAero
+ *  sample — add a mass object to a body tube, and it lands at the 0.045 kg default whose whole purpose
+ *  is that "the next keystroke replaces the starting weight"; with a design-wide strip that keystroke
+ *  did nothing and dry mass stayed at 8.3099 kg. Weighing an altimeter you just added is exactly what
+ *  a per-part weight is FOR on a format that states no per-part masses at all. */
+export const PER_PART_MASS_FIELDS: Readonly<
+  Record<string, (rocket: Rocket, edits: GeometryEdits) => string | undefined>
+> = {
+  noseMass: (r) => primaryNose(r)?.id,
+  bodyTubeMass: (r, e) => primaryBodyTube(r, e.bodyTubeId)?.id,
+  parachuteMass: (r, e) => primaryParachute(r, e.parachuteId)?.id,
+  massObjectMass: (r, e) => primaryMassObject(r, e.massObjectId)?.id,
+  internalMass: (r, e) => primaryInternalPart(r, e.internalId)?.id,
+  fittingMass: (r, e) => primaryFitting(r, e.fittingId)?.id,
+};
+
+/** The edit bag with a per-part weight removed where — and only where — that weight would be ADDED to
+ *  a figure that already contains the part it lands on.
+ *
+ *  `built` is the tree the dimension edits will run against (adds, stages, mounts and moves already
+ *  applied); `fromFile` is the id of every part that came out of the design FILE. A part in `built`
+ *  and not in `fromFile` is one the flyer authored, and a weight the file stated before that part
+ *  existed cannot contain it — so that weight is theirs to type. Deriving it from the two trees rather
+ *  than from the bag's own entries is what makes it right for `mountAdds` and `addedStages` too, which
+ *  build their components at apply time and carry no id anyone could enumerate.
+ *
+ *  Returns the bag unchanged on every design that states its masses per part, so this costs nothing on
+ *  the 32 of 35 corpus designs that do. */
+export function stripPerPartMassOnLumpedAirframe(
+  built: Rocket,
+  edits: GeometryEdits,
+  fromFile: ReadonlySet<string>,
+): GeometryEdits {
+  if (!statedAirframeMass(built)) return edits;
+  const keys = Object.keys(PER_PART_MASS_FIELDS).filter((k) => edits[k as keyof GeometryEdits] !== undefined);
+  if (!keys.length) return edits;
+  const doomed = keys.filter((k) => {
+    const target = PER_PART_MASS_FIELDS[k](built, edits);
+    // No target at all: nothing to double-count, and the applier drops it anyway. Left in place, so
+    // this function has exactly one job and the what-if predicates keep seeing what the flyer typed.
+    if (target === undefined) return false;
+    return fromFile.has(target);
+  });
+  if (!doomed.length) return edits;
+  const out = { ...edits };
+  for (const k of doomed) delete out[k as keyof GeometryEdits];
+  return out;
 }
 
 /** Put the flyer's own weight on the one component `id` names, and say it was theirs.
@@ -3675,17 +3780,24 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   //  - and FITTING the authored internal parts dead last, over the finished tree, because whether a
   //    coupler fits its tube is only answerable once every step above has run. See
   //    `fitAddedInternalParts` for the two gates this replaced and how they disagreed.
-  return fitAddedInternalParts(
-    applyDimensionEdits(
-      applyMoves(
-        applyRemovals(
-          applyMountAdds(applyAdds(applyAddedStages(applyMountAdds(rocket, edits.mountAdds), edits.addedStages), edits.added), edits.mountAdds),
-          edits.removedIds,
-        ),
-        edits.moved,
-      ),
-      withoutRemovedAims(edits),
+  // **Every id the design FILE brought**, captured before a single authored part joins the tree. It
+  // is what lets the lumped-airframe refusal below tell a part the stated weight already contains
+  // from one the flyer added afterwards, which that weight cannot possibly contain. Taken here
+  // because this is the only place both trees exist.
+  const fromFile: ReadonlySet<string> = new Set(flattenRocket(rocket).map((p) => p.component.id));
+  const built = applyMoves(
+    applyRemovals(
+      applyMountAdds(applyAdds(applyAddedStages(applyMountAdds(rocket, edits.mountAdds), edits.addedStages), edits.added), edits.mountAdds),
+      edits.removedIds,
     ),
+    edits.moved,
+  );
+  // On a design that states its masses per part this is EMPTY, so every guard keyed on it is inert
+  // and 32 of the 35 corpus designs are untouched. On a lumped one it names exactly the parts whose
+  // weight the stated figure already carries.
+  const statedByFile: ReadonlySet<string> = statedAirframeMass(built) ? fromFile : new Set<string>();
+  return fitAddedInternalParts(
+    applyDimensionEdits(built, stripPerPartMassOnLumpedAirframe(built, withoutRemovedAims(edits), fromFile), statedByFile),
     edits.added,
   );
 }
@@ -3977,7 +4089,7 @@ function withoutRemovedAims(edits: GeometryEdits): GeometryEdits {
 }
 
 /** The dimension half of the edit bag, applied to a design whose removals have already been taken out. */
-function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
+function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits, statedByFile: ReadonlySet<string>): Rocket {
   if (!hasGeometryEdits(edits)) return rocket;
   // Resolve which components the length edits target, once, from the pristine design.
   const lengths = new Map<string, number>();
@@ -4027,25 +4139,18 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // the tube pick resolve through — so on a design carrying several tubes the weight lands on the
   // one the length field beside it is holding, rather than on whatever the fallback finds.
   //
-  // **And neither is written at all on a design whose weight is ONE lump.** A RASAero `.CDX1` states
-  // one launch weight and no per-part masses, so its adapter mints a single point mass that already
-  // contains the cone and the tube; an override on either is ADDED to that figure rather than
-  // replacing it. Measured on the bundled RASAero sample: 500 g typed on the cone took dry mass
-  // 1.567 kg → 2.067 kg, exactly 500 g of double count, and on the corpus's larger `.CDX1` it moved
-  // apogee 1,083 m → 996 m. The panel withholds the control on such a design and says why — this is
-  // the same refusal at the applier, because the edit bag is persisted and replayed
-  // (`lib/session.ts`), so a saved session or a swept axis can carry the key with no panel involved.
-  // `primaryMassObject` and `removalRefusal` have both refused this same lump all along.
-  const lumpedAirframe = statedAirframeMass(rocket) !== undefined;
+  // Neither is written at all on a design whose weight is ONE lump, and that refusal is no longer
+  // spelled here: `stripPerPartMassOnLumpedAirframe` at the top of this function has already taken
+  // the key out of the bag, for all six mass fields rather than for these two. It is done at the
+  // applier and not only in the panel because the edit bag is persisted and replayed
+  // (`lib/session.ts`), so a saved session or a swept axis can carry the key in with no panel
+  // involved.
   const noseMassId =
-    !lumpedAirframe && edits.noseMass !== undefined && Number.isFinite(edits.noseMass) && edits.noseMass >= 0
+    edits.noseMass !== undefined && Number.isFinite(edits.noseMass) && edits.noseMass >= 0
       ? primaryNose(rocket)?.id
       : undefined;
   const bodyMassId =
-    !lumpedAirframe &&
-    edits.bodyTubeMass !== undefined &&
-    Number.isFinite(edits.bodyTubeMass) &&
-    edits.bodyTubeMass >= 0
+    edits.bodyTubeMass !== undefined && Number.isFinite(edits.bodyTubeMass) && edits.bodyTubeMass >= 0
       ? primaryBodyTube(rocket, edits.bodyTubeId)?.id
       : undefined;
   const nosePickMaterial: Material | undefined = nosePick?.material
@@ -4165,7 +4270,7 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   const editOne = (c: RocketComponent): RocketComponent => {
     let geo = editComponent(c, edits, lengths, finShift, finTargetIds, mountTargetIds);
     if (finish) geo = withFinish(geo, finish);
-    if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial);
+    if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial, statedByFile);
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
     if (pickedTubeId && pickedWall > 0)
       geo = withCatalogTube(geo, pickedTubeId, pickedWall, pickedMaterial, picked?.mass);

@@ -1769,7 +1769,7 @@ function StabilityTrimHint({
   // A degenerate airframe (no resolvable diameter) has no meaningful margin to trim — say nothing.
   if (!(r.stability.refRadius > 0) || !Number.isFinite(trim.currentMarginCal)) return null;
 
-  const box = "mt-3 border-t border-zinc-100 pt-3 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400";
+  const box = "mt-3 border-t border-zinc-200 pt-3 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400";
   const label = <span className="font-medium text-zinc-600 dark:text-zinc-300">Stability trim:</span>;
 
   // Thin margin: name the nose ballast, and the weight-free fin-aft move that reaches the same target.

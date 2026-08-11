@@ -550,6 +550,21 @@ strs() { grep -rohE '"[^"]*"' components app --include='*.tsx' \
 strs | grep -xE 'rounded(-(sm|md|lg|xl|2xl|3xl|full|none|\[[^]]+\]))?' \
      | grep -vxE 'rounded-(md|xl|full)' | wc -l                     # target: 0
 
+# border drift — every border-zinc token, MINUS §2's four (hairline 200/800, control 300/700).
+# Enumerate-and-subtract for the same reason the radius grep does it: a check listing known-bad
+# values passes the one nobody has thought of. Colour only — a SIDE utility (border-t, border-x)
+# says where the rule is drawn, which §2 does not govern.
+strs | grep -xE 'border-zinc-[0-9]{2,3}' \
+     | grep -vxE 'border-zinc-(200|800|300|700)' | wc -l            # target: 0
+
+# ...and the two pairs must be used AS pairs, which the count above cannot see. Every violation
+# found when this was first run was `border-zinc-100 dark:border-zinc-800` — an unsanctioned light
+# against a sanctioned dark — so fixing only the light half reaches 0 with the rule still a
+# different rung in each theme. `lib/design-system.test.ts` is the exact form: it reads one class
+# string at a time, counts RESTING tokens only (a hover: variant is a different state), and skips
+# a string holding more than one light or dark, where the pairing cannot be attributed.
+                                                                    # target: 0 mismatched pairs
+
 # card treatments hand-rolled instead of <Card>
 grep -roh 'rounded-xl border[a-z0-9:/ -]*' components \
   | sed 's/[[:space:]]*$//' | sort -u | wc -l                       # target: 1 (+ any named

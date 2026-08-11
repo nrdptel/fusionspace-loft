@@ -52,6 +52,9 @@ import {
   primaryParachutePart,
   aimsOf,
   AIM_SLOTS,
+  PER_PART_MASS_FIELDS,
+  statedAirframeMass,
+  stripPerPartMassOnLumpedAirframe,
   INERT_EDIT_FIELDS,
   primaryFinGroupIds,
   primaryFinSetPart,
@@ -1601,6 +1604,156 @@ describe("the aim registry is the one list", () => {
     // fire on a typed span, with a number where a component id belongs.
     expect(Object.keys(aims).sort()).toEqual(Object.keys(AIM_SLOTS).sort());
     for (const v of Object.values(aims)) expect(typeof v === "string" || v === undefined).toBe(true);
+  });
+
+  /** **Every field that writes a weight onto ONE part has to be in `PER_PART_MASS_FIELDS`**, because
+   *  that list is what the lumped-airframe refusal reads. A design that states one weight for the
+   *  whole airframe already contains every part, so a mass key missing from the list is a weight
+   *  ADDED to a figure that already includes it — which is exactly how `parachuteMass` and
+   *  `fittingMass` went on double-counting after the same guard was written for the nose and tube.
+   *
+   *  The naming convention is the mechanism: a key ending in `Mass` writes a mass. That is a weak
+   *  rule on its own, which is why the corpus sweep asserts the BEHAVIOUR over real files as well —
+   *  this case catches the omission at the point it is made, in the file where it is made. */
+  it("declares every per-part mass field, so the lumped-airframe refusal cannot miss one", () => {
+    // The aim registry's own targets are the authority on which value fields exist.
+    const aimedMassFields = Object.values(AIM_SLOTS)
+      .flatMap((def) => def.targets)
+      .filter((t) => t.endsWith("Mass"));
+    // The nose has no slot, so its mass field is named directly — the same exception `AIM_FIELDS`
+    // carries in `components/LoftApp.tsx`.
+    const expected = new Set([...aimedMassFields, "noseMass"]);
+    const declared = new Set<string>(Object.keys(PER_PART_MASS_FIELDS));
+    for (const f of expected) {
+      expect(declared.has(f), `${f} writes a per-part weight but PER_PART_MASS_FIELDS omits it`).toBe(true);
+    }
+    for (const f of declared) {
+      expect(expected.has(f), `PER_PART_MASS_FIELDS names ${f}, which no aim target and no exception provides`).toBe(
+        true,
+      );
+    }
+  });
+
+  /** The refusal itself, at the one choke point, on the BUNDLED RASAero sample rather than on a
+   *  hand-built lump — a real file of the format that causes this, reachable from the front door and
+   *  present in CI whether or not the private corpus is. Every key in the registry must come back out
+   *  of the bag; nothing else may be touched. */
+  it("strips every per-part weight from a lumped-airframe design, and nothing else", async () => {
+    const lumped = (await importDesign(new Uint8Array(readFileSync(resolve("public/samples/demo-rasaero.CDX1")))))
+      .rocket;
+    expect(statedAirframeMass(lumped), "the bundled RASAero sample no longer states one lumped weight").toBeDefined();
+    const perPart = await load("demo-dual-deploy.ork");
+    expect(statedAirframeMass(perPart), "the control design must state its masses per part").toBeUndefined();
+
+    const keys = Object.keys(PER_PART_MASS_FIELDS);
+    const bag = Object.fromEntries(keys.map((k) => [k, 0.5]));
+    const fileIds = new Set(flattenRocket(lumped).map((p) => p.component.id));
+    const stripped = stripPerPartMassOnLumpedAirframe(lumped, { ...bag, bodyLength: 0.4, finSpan: 0.05 }, fileIds);
+    // Only the fields that actually resolve to a part of the FILE are taken: this design carries no
+    // internal structure, so `internalMass` has no target and is left alone rather than swallowed.
+    for (const k of ["noseMass", "bodyTubeMass", "parachuteMass", "fittingMass"]) {
+      expect(stripped[k as keyof typeof stripped], `${k} survived the strip`).toBeUndefined();
+    }
+    // A dimension is not a weight: the refusal must not swallow the rest of the flyer's what-if.
+    expect(stripped.bodyLength).toBe(0.4);
+    expect(stripped.finSpan).toBe(0.05);
+    // And on a design that states its masses per part, the bag comes back untouched — by identity,
+    // so the common path allocates nothing.
+    const normal = { ...bag, bodyLength: 0.4 };
+    expect(stripPerPartMassOnLumpedAirframe(perPart, normal, new Set())).toBe(normal);
+  });
+
+  /** **The material select is the OTHER route to the same double-count, and it is the larger one.**
+   *
+   *  A format that states one launch weight and no per-part masses leaves every shell massless on
+   *  purpose — `lib/sim/mass.ts` reads `c.material?.density ?? 0` — so the stated figure is the whole
+   *  of it. Handing those parts a density computes a second airframe and adds it on top, and a
+   *  RASAero tube states no wall thickness either, so each is flown as a SOLID rod. Measured on the
+   *  bundled sample before the fix, against a stated 8.2649 kg: cardboard **15.1164 kg**, plywood
+   *  14.9207, kraft-phenolic 17.5634, blue tube 20.6955, carbon 23.6319, fibreglass **25.5895** — a
+   *  tripling — and in the running app the stability margin moved 3.06 → 4.1 cal through a live,
+   *  enabled select one click from the front door.
+   *
+   *  Picking your airframe stock is the most ordinary thing on that surface, and on the one format
+   *  that names no material at all it is the likeliest thing a flyer does. */
+  it("gives a lumped design's own shells no material weight, and an authored shell its own", async () => {
+    const doc = await importDesign(new Uint8Array(readFileSync(resolve("public/samples/demo-rasaero.CDX1"))));
+    const rocket = doc.rocket;
+    expect(statedAirframeMass(rocket)).toBeDefined();
+    const base = dryMassProperties(rocket).mass;
+    for (const key of ["cardboard", "plywood", "kraft-phenolic", "bluetube", "carbon", "fibreglass"]) {
+      const after = dryMassProperties(applyGeometryEdits(rocket, { airframeMaterial: key })).mass;
+      expect(after, `${key} added a second airframe to a design that states its whole weight`).toBeCloseTo(base, 9);
+    }
+    // The control: on a design that states its masses per part, the material still moves the mass —
+    // otherwise this would pass by having broken the feature everywhere.
+    const perPart = await load("demo-dual-deploy.ork");
+    const perPartBase = dryMassProperties(perPart).mass;
+    const perPartAfter = dryMassProperties(applyGeometryEdits(perPart, { airframeMaterial: "fibreglass" })).mass;
+    expect(perPartAfter, "the material edit stopped working on a normal design").not.toBeCloseTo(perPartBase, 6);
+  });
+
+  /** **A part the flyer AUTHORED is not inside a weight the file stated before it existed**, so the
+   *  refusal must be about the part and not about the design.
+   *
+   *  The first version of this guard stripped every per-part weight from any design carrying a lump,
+   *  and that broke authoring on exactly the format where authoring matters most: RASAero states no
+   *  per-part masses at all, so a flyer's own scale is the only possible source of one. Reproduced
+   *  before the fix on the bundled sample — add a mass object to a body tube and it lands at the
+   *  0.045 kg default whose stated purpose is that "the next keystroke replaces the starting weight";
+   *  that keystroke did nothing and dry mass stayed at 8.3099 kg, with the control greyed out.
+   *
+   *  Found by the pre-push agent review, which is the only thing that looked at it: the gate was
+   *  fully green, because every check written for this guard asked whether an IMPORTED part could be
+   *  double-counted and none asked whether an authored one could still be weighed. */
+  it("still weighs a part the flyer authored on a lumped-airframe design", async () => {
+    const doc = await importDesign(new Uint8Array(readFileSync(resolve("public/samples/demo-rasaero.CDX1"))));
+    const rocket = doc.rocket;
+    expect(statedAirframeMass(rocket)).toBeDefined();
+    const tube = flattenRocket(rocket).find((p) => p.component.kind === "bodytube")!;
+    const added = [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        kind: "masscomponent" as const,
+        after: tube.component.id,
+        length: 0,
+        name: "Altimeter bay",
+        mass: 0.045,
+      },
+    ];
+    const base = dryMassProperties(applyGeometryEdits(rocket, { added })).mass;
+    const weighed = dryMassProperties(applyGeometryEdits(rocket, { added, massObjectMass: 0.3 })).mass;
+    // The authored part's own default (0.045) is replaced by the typed weight (0.3), so the design
+    // gains exactly the difference. It must not gain zero, which is what a design-wide strip gave.
+    expect(weighed - base, "a weight typed on a part the flyer authored did not reach the flight").toBeCloseTo(
+      0.3 - 0.045,
+      9,
+    );
+    // And the imported cone on the SAME design is still refused, so this did not simply reopen it.
+    const cone = dryMassProperties(applyGeometryEdits(rocket, { added, noseMass: 0.5 })).mass;
+    expect(cone, "an imported part's weight is still added to the stated lump").toBeCloseTo(base, 9);
+  });
+
+  /** The behaviour the strip exists for, end to end and in the units a flyer reads: on the bundled
+   *  lumped design NO per-part weight may move the dry mass, and on a per-part design every one of
+   *  them that has a part to land on still must. The second half is the negative control — a strip
+   *  that refused everywhere would pass the first half alone. */
+  it("moves no mass on a lumped design, and still moves it on a per-part one", async () => {
+    const lumped = (await importDesign(new Uint8Array(readFileSync(resolve("public/samples/demo-rasaero.CDX1")))))
+      .rocket;
+    const lumpedBase = dryMassProperties(lumped).mass;
+    for (const k of Object.keys(PER_PART_MASS_FIELDS)) {
+      const after = dryMassProperties(applyGeometryEdits(lumped, { [k]: 0.5 })).mass;
+      expect(after, `${k} moved dry mass on a design whose whole weight is one lump`).toBeCloseTo(lumpedBase, 9);
+    }
+    const perPart = await load("demo-dual-deploy.ork");
+    const perPartBase = dryMassProperties(perPart).mass;
+    const landed = Object.keys(PER_PART_MASS_FIELDS).filter(
+      (k) => Math.abs(dryMassProperties(applyGeometryEdits(perPart, { [k]: 0.5 })).mass - perPartBase) > 1e-9,
+    );
+    // Not all six: this fixture carries no fitting and no internal structure to weigh. The point is
+    // that the strip is what silences them on the lumped file, not that they are inert everywhere.
+    expect(landed.length, "no per-part weight lands on a design that states its masses per part").toBeGreaterThan(0);
   });
 });
 

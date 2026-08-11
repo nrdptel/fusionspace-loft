@@ -44,6 +44,7 @@ import type { Rocket, RocketComponent } from "../model/types";
 import {
   applyGeometryEdits,
   statedAirframeMass,
+  PER_PART_MASS_FIELDS,
   moveTarget,
   moveSlots,
   canAddStage,
@@ -489,6 +490,111 @@ suite("real-design corpus", () => {
     expect(wrong, "masses whose stated marker disagrees with the file").toEqual([]);
   }, 300_000);
 
+  /** **The same question about the other number the mass model produces per part.**
+   *
+   *  Loft honours a stated CG in preference to its own geometry — that is what makes a nose cone with
+   *  lead in the tip fly the margin it actually has — and then printed the result on `MassBreakdown`'s
+   *  *CG from nose* column with no way to tell the design's claim from Loft's arithmetic. Measured
+   *  2026-08-11: **15 stated CGs across 8 of the 35 designs** (5 nose cones, 4 parachutes, 2 mass
+   *  objects and one each of transition, tube coupler, body tube and fin set), and stripping them moves the static
+   *  margin on **6 of the 7** — `rocksimTestRocket1.rkt` 4.243 → 5.254 cal and `Cherokee-E-5055.ork`
+   *  1.421 → 1.897 cal, both a real caliber of stability.
+   *
+   *  Asserted as a RELATIONSHIP rather than as golden counts, for the reason the mass case above
+   *  gives: the corpus can be re-cut and the numbers move, but "a part carrying a stated CG is marked
+   *  as stated, and nothing else claims one" is true of any corpus. */
+  it("says which of every real design's balance points the design itself stated", async () => {
+    let statedCg = 0;
+    let computedCg = 0;
+    const wrong: string[] = [];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      for (const p of flattenRocket(doc.rocket)) {
+        const c = p.component as {
+          kind: string;
+          name: string;
+          cgFrom?: string;
+          overrideCGx?: number;
+          standsForAirframe?: boolean;
+        };
+        if (c.cgFrom === "stated") statedCg++;
+        else computedCg++;
+        // The marker and the figure are set at the same place in every adapter, so on a file Loft did
+        // not write they must agree in BOTH directions — a stated CG that is unmarked is a reference
+        // value presented as Loft's own, and a mark with nothing behind it is a claim about a number
+        // the design never made.
+        //
+        // **"Behind it" is an override OR a stated placement, and the second is not a loophole.** A
+        // RASAero `.CDX1` states one launch weight and one CG and no per-part anything, so its adapter
+        // mints a zero-length mass component whose PLACEMENT is that balance point — there is no
+        // computed CG for an override to replace. Reading the invariant as "override only" would have
+        // forced that mark off the one design whose CG is most plainly the file's own, which is how
+        // the first version of this case left `Show-off.CDX1` crediting Loft with a figure it takes
+        // verbatim from `<SustainerCG>`. `standsForAirframe` is the exact and only such carrier.
+        const hasStatedFigure = c.overrideCGx !== undefined || c.standsForAirframe === true;
+        if (c.overrideCGx !== undefined && c.cgFrom !== "stated") {
+          wrong.push(`${shortName(f.name)}: ${c.kind} "${c.name}" states a CG and is not marked`);
+        }
+        if (c.cgFrom === "stated" && !hasStatedFigure) {
+          wrong.push(`${shortName(f.name)}: ${c.kind} "${c.name}" is marked as stating a CG and states none`);
+        }
+      }
+    }
+    console.log(
+      `CG provenance across ${files.length} design files: ${statedCg} stated by the design, ` +
+        `${computedCg} computed here`,
+    );
+    expect(statedCg, "no design stated a CG — this asserted nothing").toBeGreaterThan(0);
+    expect(computedCg, "every CG was attributed — the unmarked case asserted nothing").toBeGreaterThan(0);
+    expect(wrong, "balance points whose stated marker disagrees with the file").toEqual([]);
+  }, 300_000);
+
+  /** **A mark must not outlive the number it describes — and the case above cannot see that, because
+   *  it only ever looks at an IMPORT.**
+   *
+   *  A catalogue pick replaces a cone with a different one, so it clears `overrideCGx`: a 65.4 mm
+   *  balance measured on a 396.9 mm cone would otherwise be pinned onto the 233.7 mm one that
+   *  replaced it. The first version of `cgFrom` cleared the number at all three pick sites and left
+   *  the MARK at every one, so the breakdown went on reading *"stated by the design"* beside a figure
+   *  the design no longer supplies. Reproduced on **5 real corpus designs** before the fix.
+   *
+   *  This is the same shape as the four wrong mass marks the review caught on the increment that
+   *  added `massFrom`, which is why it is asserted over the EDIT path rather than trusted to a
+   *  reading: the invariant is "marked implies a figure behind it", and it has to hold after an edit
+   *  and not merely after a parse. */
+  it("never leaves a stated-CG mark on a design whose CG an edit has replaced", async () => {
+    // A real catalogued cone, in the shape `catalogNoseCone` takes. Its dimensions do not have to
+    // match any design: the point is that picking one clears the imported balance point.
+    const pick = {
+      manufacturer: "Estes",
+      partNumber: "PNC-70A",
+      shape: "ogive" as const,
+      length: 0.2337,
+      outerDiameter: 0.054,
+      shoulderDiameter: 0.052,
+      shoulderLength: 0.02,
+      mass: 0.12,
+    };
+    const stranded: string[] = [];
+    let picked = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const nose = primaryNose(doc.rocket);
+      if (!nose || (nose as { cgFrom?: string }).cgFrom !== "stated") continue;
+      picked++;
+      const after = applyGeometryEdits(doc.rocket, { catalogNoseCone: pick as never });
+      const c = flattenRocket(after).find((p) => p.component.id === nose.id)?.component as
+        | { overrideCGx?: number; cgFrom?: string }
+        | undefined;
+      if (c && c.cgFrom !== undefined && c.overrideCGx === undefined) {
+        stranded.push(`${shortName(f.name)}: nose is marked "${c.cgFrom}" with no stated CG behind it`);
+      }
+    }
+    console.log(`stated-CG marks across an edit: ${picked} design(s) whose nose states a CG, ${stranded.length} stranded`);
+    expect(picked, "no corpus design states a nose CG — this asserted nothing").toBeGreaterThan(0);
+    expect(stranded, "designs left claiming a stated CG after an edit replaced it").toEqual([]);
+  }, 300_000);
+
   /** **A round trip through Loft must not turn Loft's own arithmetic into the design's claim.**
    *
    *  The exporter writes a mass Loft COMPUTED as an explicit figure — that is what keeps a canopy's
@@ -507,24 +613,41 @@ suite("real-design corpus", () => {
     let compared = 0;
     for (const f of files) {
       const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      // **Both marks, because they ride the same export path and the same hazard.** The exporter
+      // writes an `<overridecg>` for a CG Loft is merely carrying, exactly as it writes an explicit
+      // mass — so a naive re-import would read every one as the design's own claim. `lib/ork/adapt.ts`
+      // takes no provenance of either kind from a file whose `creator` is Loft's own string.
       const before = new Map(
-        flattenRocket(doc.rocket).map((p) => [p.component.id, (p.component as { massFrom?: string }).massFrom]),
+        flattenRocket(doc.rocket).map((p) => [
+          p.component.id,
+          {
+            mass: (p.component as { massFrom?: string }).massFrom,
+            cg: (p.component as { cgFrom?: string }).cgFrom,
+          },
+        ]),
       );
       for (const p of flattenRocket((await importDesign(exportOrk(doc))).rocket)) {
         if (!before.has(p.component.id)) continue; // a minted id — a different question, asserted above
         compared++;
-        const was = before.get(p.component.id);
-        const now = (p.component as { massFrom?: string }).massFrom;
+        const was = before.get(p.component.id)!;
+        const now = {
+          mass: (p.component as { massFrom?: string }).massFrom,
+          cg: (p.component as { cgFrom?: string }).cgFrom,
+        };
         // Only a mark GAINED or CHANGED is laundering. Losing one is the conservative direction and
         // is what a Loft-written file does deliberately.
-        if (now !== undefined && now !== was) {
-          laundered.push(`${shortName(f.name)}: ${p.component.kind} "${p.component.name}" ${was ?? "unmarked"} → ${now}`);
+        for (const which of ["mass", "cg"] as const) {
+          if (now[which] !== undefined && now[which] !== was[which]) {
+            laundered.push(
+              `${shortName(f.name)}: ${p.component.kind} "${p.component.name}" ${which} ${was[which] ?? "unmarked"} → ${now[which]}`,
+            );
+          }
         }
       }
     }
-    console.log(`mass provenance across a round trip: ${compared} parts compared by id`);
+    console.log(`mass and CG provenance across a round trip: ${compared} parts compared by id`);
     expect(compared, "no part survived a round trip by id — this asserted nothing").toBeGreaterThan(100);
-    expect(laundered, "masses whose provenance a round trip through Loft invented or changed").toEqual([]);
+    expect(laundered, "provenance a round trip through Loft invented or changed").toEqual([]);
   }, 300_000);
 
   /** **No real design flies a fitting Loft could not weigh.**
@@ -605,27 +728,40 @@ suite("real-design corpus", () => {
    *  third caller, which is why it is exported now rather than written a fourth time. */
   it("never adds a stated part weight to a design that states one weight for the whole airframe", async () => {
     const doubled: string[] = [];
+    const moved = new Set<string>();
     let lumped = 0;
     for (const f of files) {
       const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
       if (!statedAirframeMass(doc.rocket)) continue;
       lumped++;
       const base = dryMassProperties(doc.rocket).mass;
-      for (const [what, edit] of [
-        ["nose", { noseMass: 0.5 }],
-        ["body tube", { bodyTubeMass: 0.5 }],
-      ] as const) {
-        const after = dryMassProperties(applyGeometryEdits(doc.rocket, edit)).mass;
-        if (Math.abs(after - base) > 1e-9)
+      // **Driven off `PER_PART_MASS_FIELDS` rather than a hand-written pair, and that is the whole
+      // repair.** The first version of this case listed the nose and the body tube — the two fields
+      // the increment beside it had just guarded — and passed for a day while `parachuteMass` and
+      // `fittingMass` went on adding a typed weight to a figure that already contained it. Measured
+      // 2026-08-11 before the fix: `Show-off.CDX1` took 0.4536 → 0.9536 kg on a 500 g canopy and its
+      // margin 12.81 → 9.28 cal; `Complex.Two-Stage.CDX1` took 1.1777 → 2.1777 kg on a fitting (the
+      // typed unit mass times its count) and its margin 1.78 → 1.29 cal.
+      //
+      // Reading the registry means a seventh mass field is covered the moment it is declared, and a
+      // field that writes a mass without being declared fails `lib/model/edit.test.ts`'s registry
+      // case instead of quietly double-counting here.
+      for (const key of Object.keys(PER_PART_MASS_FIELDS)) {
+        const after = dryMassProperties(applyGeometryEdits(doc.rocket, { [key]: 0.5 })).mass;
+        if (Math.abs(after - base) > 1e-9) {
+          moved.add(key);
           doubled.push(
-            `${shortName(f.name)}: a stated ${what} weight moved dry mass ${base.toFixed(4)} → ` +
+            `${shortName(f.name)}: a stated \`${key}\` weight moved dry mass ${base.toFixed(4)} → ` +
               `${after.toFixed(4)} kg on a design whose whole weight is one lump that already contains it`,
           );
+        }
       }
     }
     console.log(
       `lumped-airframe designs across ${files.length} design files: ${lumped} stating one weight for ` +
-        `the whole airframe, ${doubled.length} of them double-counting a stated part weight`,
+        `the whole airframe, ${doubled.length} double-counts across ` +
+        `${Object.keys(PER_PART_MASS_FIELDS).length} per-part mass fields` +
+        (moved.size ? ` (${[...moved].join(", ")})` : ""),
     );
     expect(
       lumped,

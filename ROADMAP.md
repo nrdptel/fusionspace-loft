@@ -27,9 +27,17 @@ work, and a queue containing only the first can only ever ship the first.
   line it summarises, or it becomes the most misleading sentence in the file.)*
 - **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
   shape, design system, first run, form factor, documentation, discoverability. **P1–P9 and P12
-  shipped** (P8 on 2026-08-09, P11 on 2026-08-09); **P10 is IN PROGRESS** with its remaining half
-  blocked on a repository SETTING no session can edit; **P13 is the next unstarted one**, and it was
-  written on 2026-08-09 because the track had otherwise run dry.
+  shipped** (P8 on 2026-08-09, P11 on 2026-08-09); **P10 is IN PROGRESS at 2 of 3** with its
+  remaining increment blocked on a repository SETTING no session can edit; **P13 is SHIPPED
+  (2026-08-09)**, its *done when* met in Loft.
+
+  **Corrected 2026-08-11: this line said "P13 is the next unstarted one" while P13's own Status said
+  3 of 3 shipped, and it said P10 was "1 of 2" while P10's body recorded increment 2 shipped on
+  2026-08-11.** This paragraph is the baton — the file says so four lines below — and a stale baton
+  sends the next run hunting for work that is done. Both were found by an agent reading the file
+  against itself rather than by anyone re-reading their own edit. **The next unstarted P milestone is
+  P14** ("the checks that can only see what they already know"), written this run because the track
+  had otherwise run dry; increment 1 of 3 shipped the same day.
 
 **A run takes the next unstarted milestone from EACH track, and ships both.** Not one or the other.
 Start with whichever is smaller so something lands early, then take the other. If a run has time for
@@ -2612,6 +2620,133 @@ this was live. Fixed on all six mass fields at once from one derived `massCarrie
 demonstrably does nothing must not sit there looking as though it does*. The field names the carrier
 in words rather than greying out silently.
 
+**Increment 11 — the balance point says whose figure it is, 2026-08-11.** The exact twin of increment
+7, on the other number the mass model produces per part. Loft honours a stated CG in preference to its
+own geometry — that is what makes a nose cone with lead in the tip fly the margin it actually has —
+and `MassBreakdown` printed the result on its *CG from nose* column with no way to tell the design's
+claim from Loft's arithmetic. **Measured over the corpus: 15 stated CGs across 8 of the 35 designs** —
+5 nose cones, 4 parachutes, 2 mass objects and one each of transition, tube coupler, body tube and fin set — and
+stripping them moves the static margin on **6 of the 7**, by up to a full caliber
+(`rocksimTestRocket1.rkt` 4.243 → 5.254 cal, `Cherokee-E-5055.ork` 1.421 → 1.897). `DESIGN.md` §6 asks
+a reference value to name its source, and a breakdown is nothing but reference values.
+
+`cgFrom` is the field, beside `massFrom` and reusing `MassProvenance` because it is the same question;
+`cgSourceLabel` joins `massSourceLabel` in `lib/mass-provenance.ts` rather than a second describer
+being written, for the reason that module already gives. **Only the `"stated"` branch arises today and
+the other two are deliberately absent** rather than written speculatively: no importer marks a CG as
+the source tool's, and nothing lets a flyer set one yet.
+
+**One honest negative: the round-trip guard does NOT fire, and that is measured rather than assumed.**
+`lib/ork/adapt.ts` refuses provenance from a file Loft wrote, which for MASS prevented 51 parts going
+unmarked → stated. Removing the same clause for CG leaves the round-trip case green, because
+`overrideXml` emits `<overridecg>` only where `overrideCGx` is already set and Loft never invents one.
+The clause is kept for symmetry and the comment says plainly that it is not load-bearing today — it
+becomes so the moment a flyer can SET a CG, which is the next slice from `COMPETITION.md` row 45.
+
+Pinned by `lib/corpus/sweep.test.ts`'s *says which of every real design's balance points the design
+itself stated* (asserted in both directions over all 35 files: a stated CG is marked, and no mark
+exists without an override behind it), by the round-trip case now checking both marks, and by an
+`e2e/smoke.spec.ts` case on a new committed fixture — `cg-stated.ork`, since the e2e job does not
+fetch the corpus and no bundled sample stated a CG. That case asserts the two marks are INDEPENDENT:
+the same design states the altimeter's mass and not its CG, so one column reads *stated by the design*
+and the other *Loft's own*, which a single provenance field reused for both numbers would fail.
+Negative controls: removing the mark reports four real designs by name; removing it and rebuilding
+fails the e2e case with *Received: "Nose cone0.084 kgLoft's own16%63 mmLoft's own"*.
+
+**And the increment's own review found a stale mark on 5 real designs, which is the most useful thing
+it produced.** All three catalogue-pick sites clear `overrideCGx` — a 65.4 mm balance measured on a
+396.9 mm cone must not be pinned onto the 233.7 mm one that replaced it — and the first version of
+`cgFrom` cleared the number at every one and the MARK at none. So picking a catalogued cone on
+`03.Three-stage.ork`, `Cherokee-E-5055.ork`, `EscapeVelocity.ork`, `rocksimTestRocket1.rkt` or
+`TubeFins1.rkt` left the breakdown reading *"stated by the design"* beside a figure the design no
+longer supplies. **The same shape as the four wrong mass marks the review caught on the increment that
+added `massFrom`** — a label put on a number nobody re-checked — and the corpus case written for this
+increment could not see it, because that case only ever looks at an IMPORT. A second case asserts the
+invariant over the EDIT path (*never leaves a stated-CG mark on a design whose CG an edit has
+replaced*, 5 designs exercised); its negative control reports all five by name.
+
+**Three more the review found after that, and one of them was a wrong number this file published.**
+- **The RASAero adapter was the third importer and was left out.** It marks its synthesised airframe
+  mass `"stated"` and never marked the CG, so `Show-off.CDX1` read *453.6 g · stated by the design ·
+  25.4 mm · Loft's own* — crediting the design with the weight and Loft with the balance point, from
+  two adjacent elements of the same file, where 25.4 mm IS `<SustainerCG>` converted. The mark rides
+  the same branch as the mass one, because it is the same arithmetic: `airframeMass` returns the
+  stated station untouched exactly when no motor could be weighed.
+- **Which made the new invariant too narrow, and widening it is the honest fix rather than an
+  exemption.** "Marked implies an override behind it" is an `.ork`/`.rkt`-shaped sentence; a RASAero
+  lump is a zero-length mass component whose PLACEMENT is the balance point, with no computed CG for
+  an override to replace. The invariant now reads "an override **or** `standsForAirframe`", which is
+  the exact and only such carrier.
+- **The census was wrong in both halves and is re-measured: 15 stated CGs across 8 of the 35
+  designs** — 5 nose cones, 4 parachutes, 2 mass objects, and one each of transition, tube coupler,
+  body tube and fin set. As first written it said 14 across 7 and then listed 13, omitting
+  `EscapeVelocity.ork`'s trapezoidal fin set — the one marked kind whose CG is a chordwise centroid
+  rather than a body-of-revolution one, so a reader auditing the kinds was pointed away from it. The
+  fifteenth is the RASAero lump above. Corrected in all four places that carried it.
+- **And the new e2e's column control could not fail.** It joined the header cells and asked for
+  "cg from", which the pre-existing *CG from nose* heading already satisfies — deleting the whole new
+  column left it green. Array containment per trimmed cell now, which is the repo's own pattern.
+
+**A flaky e2e, recorded so the next session does not diagnose it as a regression.**
+`e2e/rocketpy-selfhosted.spec.ts:254` failed once in a full shard-1 run and passed in isolation, on
+the clean baseline with this run's changes stashed, and on a re-run of the same shard (132 + 132 =
+264). It is unrelated to anything this increment touches.
+
+**Increment 10 — the same Sev-1 again, on the four fields the last fix did not reach, 2026-08-11.**
+`#168` stopped a stated part weight being ADDED to a design that states one weight for its whole
+airframe — and it stopped it on the nose and the body tube, which were the two fields that increment
+happened to be about. **The canopy went on double-counting, and it was live in the shipped app.**
+Measured on the bundled `demo-rasaero.CDX1`, one click from the front door: the *Canopy mass* control
+rendered **enabled**, and 500 g typed into it took dry mass **0.4536 → 0.9536 kg** on `Show-off.CDX1`
+and its stability margin **12.81 → 9.28 cal**; on `Complex.Two-Stage.CDX1` a fitting weight took
+**1.1777 → 2.1777 kg** (the typed unit mass times its count) and the margin **1.78 → 1.29 cal**. Ten
+double-counts across three designs and four fields, on designs nobody had edited.
+
+**The repair is not a fifth copy of the guard — it is the deletion of the per-field guard.** The two
+`!lumpedAirframe` clauses are gone; `stripPerPartMassOnLumpedAirframe` takes every per-part mass key
+out of the bag once, at the top of `applyDimensionEdits`, before any aim resolves. It reads
+`PER_PART_MASS_FIELDS`, and `lib/model/edit.test.ts` derives the expected contents of that list from
+`AIM_SLOTS`' own targets — so a seventh mass field that forgets to join it fails the build with
+*"`X` writes a per-part weight but PER_PART_MASS_FIELDS omits it"* rather than double-counting in
+silence. The panel half is one `lumpedAirframeHint` rather than six sentences, for the reason
+`carrierLabel` is one function.
+
+**This is the third time this exact defect has been filed, and the shape of the miss is the lesson.**
+Each fix covered the fields its own increment was looking at, and each shipped a check written in the
+same increment — which can only encode that increment's belief. The corpus case listed the nose and
+the tube by hand and passed for a day while two other fields were wrong; it is driven off the registry
+now. Pinned by `lib/corpus/sweep.test.ts` (all six fields x 35 designs), two cases in
+`lib/model/edit.test.ts` on the bundled RASAero sample, and `e2e/smoke.spec.ts`'s lumped-airframe case
+extended from two fields to three. Negative controls: dropping two keys from the registry reports
+them by name; disabling the strip reports all **10** real double-counts by design and field; reverting
+the canopy's panel guard fails the e2e case with *"Expected: disabled, Received: enabled"*.
+
+**And that last control only fires after a rebuild** — `playwright.config.ts` serves the built `out/`,
+so a source revert with no rebuild silently re-runs the previous bundle and the control "passes". It
+did, once, here. Recorded in `MAINTAINING.md`.
+
+**The pre-push review then found that the first version of this fix broke authoring, and it is the
+most useful thing this increment produced.** Keyed on the DESIGN, the refusal stripped every per-part
+weight from any design carrying a lump — including a weight typed on a part the flyer had just
+**added**, which a figure the file stated before that part existed cannot possibly contain. Reproduced
+on the bundled sample: add a mass object to a body tube, and it arrives at the 0.045 kg default whose
+whole purpose is that *"the next keystroke replaces the starting weight"*; that keystroke did nothing
+and dry mass stayed at **8.3099 kg**, with the control greyed out. RASAero is the format where this
+hurts most, because it states no per-part masses at all — a flyer's own scale is the only possible
+source of one there.
+
+**The gate was fully green through all of it.** Every check written for this guard asked whether an
+IMPORTED part could be double-counted; not one asked whether an authored part could still be weighed.
+So the refusal is keyed on the PART now: `applyGeometryEdits` captures every id the FILE brought
+before a single authored part joins the tree, and a target absent from that set is the flyer's own.
+Deriving it from the two trees rather than from the bag's entries is what makes it right for
+`mountAdds` and `addedStages` too, which build their components at apply time and carry no id to
+enumerate. `massCarriedBy` makes the same distinction the same way — six keys rather than one flag —
+because a panel that offers a control the applier ignores is the defect this whole family is about.
+Pinned by a new case in each of `lib/model/edit.test.ts` and `e2e/smoke.spec.ts`; the negative control
+(restoring the design-wide test) reports *"a weight typed on a part the flyer authored did not reach
+the flight: expected +0 to be close to 0.255"*.
+
 **Increment 9 — what the review found in increment 8, and a Sev-1 beside it, 2026-08-11.** The
 pre-push agent read on increment 8's diff returned five findings and all five were real; three were
 on surfaces already pushed. Every one is the same shape — *the control described a quantity that was
@@ -4782,7 +4917,13 @@ decided here. Build the token alignment without it.
 
 ## P10 (from ON-B2) — The repo page is a surface, and it goes stale like one
 
-**Status: IN PROGRESS** — increment 1 of 2 shipped 2026-08-08: the README describes what ships, and
+**Status: IN PROGRESS — 2 of 3 shipped.** Increment 2 landed 2026-08-11 (its entry is below);
+increment 3 is the repository SETTINGS half, which is not a file and which no session can edit, so it
+is parked on the owner and this milestone cannot close without them. *(Status line corrected
+2026-08-11: it read "increment 1 of 2" for a day after increment 2 shipped and after the size grew to
+3, contradicting this section's own body.)*
+
+Increment 1 shipped 2026-08-08: the README describes what ships, and
 two of its claims are now asserted against the code that makes them true. Pinned by
 `lib/version.test.ts`'s *names every design format the importer actually accepts* (which reads
 `ImportPanel`'s own `accept` list, so a new adapter fails the build until the README names it) and
@@ -5173,6 +5314,79 @@ alone**, and (iii) is last. Otherwise this repeats `P10`'s failure mode: a miles
 half-done on a permission no session controls. One divergence is a direct contradiction rather than a
 gap and needs a decision rather than a merge: the sibling's §5 defines `Chip` and `ChipButton`, and
 Loft's copy records `Chip` as deleted on 2026-08-04 with the reason.
+
+---
+
+## P14 — The checks that can only see what they already know
+
+**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-11.
+
+**Written 2026-08-11 because the P-track had run dry** — P13 met its *done when*, and P10's remaining
+increment is a repository SETTING no session can edit. `MAINTAINING.md` says extending the track IS
+the work in that case, so this is that increment plus the first slice of what it named.
+
+**Outcome.** The design system's instruments stop reporting green over the class they were never told
+to look for. Every §9 count of 0 means "there are none", not "there are none of the two we listed".
+
+**The measurement that decided it, 2026-08-11.** An audit agent was handed `DESIGN.md` and the
+component tree and asked for divergences the EXISTING checks cannot see. All seven §9 greps read at
+target — radius 0, off-scale spacing 0, arbitrary spacing 0, off-scale type 0, hand-rolled `<select>`
+0, adoption 22/31, card treatments 3 — and the tree still held these:
+
+- **§2 defines exactly two border pairs, says *"Two, deliberately"*, and NOTHING checked it.** Radius,
+  spacing, type, `<select>`, chart and focus were all ratcheted; the one token §2 calls the
+  readability signal had no instrument at all. Measured when one was finally pointed at it: **8 uses
+  of 3 unsanctioned values** — `border-zinc-100` x6, `-400` x1, `-600` x1 — plus one genuinely
+  mismatched pair. Six of the eight were ONE treatment: every table body row in the app, from
+  `components/DataTable.tsx`, pairing a third light value against the hairline dark, so the same rule
+  was a different rung in light than in dark, in the file that draws every table in the product.
+- **`lib/design-system.test.ts`'s `DATA_SURFACES` is a hand-typed two-name allowlist**
+  (`MassBreakdown`, `DataTable`), so the missing-empty-state ratchet can only ever find the two
+  surfaces somebody already fixed — every data surface added since is exempt by construction. Three
+  real vanishes it cannot see: `GeometryInspector.tsx:653`, `FlightViz.tsx:38` (a hole where the
+  flight path was, against `components/ui.tsx:922`'s rule for `Figure` stating exactly this) and
+  `ParameterSweep.tsx:344`, which is the primary surface of `/sweep`.
+- **`e2e/touch.spec.ts` counts the `title` ATTRIBUTE, so `HOVER_ONLY_FLOOR = 0` measures the wrong
+  thing.** `components/RocketDiagram.tsx` states eleven gestures in SVG `<title>` CHILD elements,
+  which render the identical native tooltip a phone cannot reach and have a 0x0 rect the walk skips.
+  The ratchet reads green over the one surface §8 was written for.
+
+**This is the same class error §9 already records about itself twice** — the radius grep naming one
+literal while seven off-system radii stood, and the spacing grep matching named steps so an arbitrary
+value was invisible rather than off-scale. Both were found by pointing a *general* instrument at the
+tree. Every item above is that same shape, which is why they are one milestone and not three defects.
+
+**Increment 1 — the border tokens, 2026-08-11.** `offSystemBorder` enumerates every `border-zinc-*`
+and subtracts §2's four, in the shape the radius check already uses; a second check asserts the two
+pairs are used AS pairs, because fixing only the light half of `border-zinc-100 dark:border-zinc-800`
+reaches a count of 0 with the rule still a different rung in each theme. All nine divergences
+converted: six table and divider rules to the hairline light, the you-are-here chip to the control
+pair, and `ServiceWorker`'s toast off a hairline-light/control-dark mismatch. Both counts are **0**.
+
+**The pairing check was noisy first, and that is worth recording.** Scanning by LINE reported five
+violations of which three were false: one line carrying two elements' classes, and
+`SectionNav.tsx:60`'s `border-zinc-200 … hover:border-zinc-300 … dark:border-zinc-800`, which is the
+hairline resting and the control on hover — exactly right. It reads one class string at a time now,
+counts only RESTING tokens, and skips any string where the pairing cannot be attributed. A check that
+fires wrongly is one somebody disables, so it fires only where the answer is unambiguous; the one it
+does report is real.
+
+**Done when** all three instruments above are general rather than enumerative, each pinned by its own
+check at 0, and `DESIGN.md` §9 states each in the readable form beside the executable one:
+
+1. **Borders** — every `border-zinc-*` minus §2's four, at 0, plus the pairing assertion. **DONE.**
+2. **The five states** — `DATA_SURFACES` derived rather than hand-listed, so a new data surface is in
+   scope the day it lands, with the three known vanishes given real empty states.
+3. **Hover-only states** — the touch walk counts the SVG `<title>` element as well as the attribute,
+   and the eleven gestures it then finds are stated somewhere a phone can reach.
+
+**Size.** 3 increments, one per instrument. Each is independently shippable and each lands its own
+check, so a run that gets one done has moved a real count.
+
+**Notes.** Increment 3 will move `HOVER_ONLY_FLOOR` off 0 before it can return to 0 — that is the
+ratchet working, not a regression, and the number goes up in the same commit that makes the
+instrument honest. `MAINTAINING.md`'s rule that a §9 count moving the wrong way is fixed before the
+run ends assumes the instrument was already right; say which case it is in the commit message.
 
 ---
 

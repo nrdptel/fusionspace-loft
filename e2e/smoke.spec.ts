@@ -6584,18 +6584,95 @@ test.describe("Loft", () => {
       const d = details.nth(i);
       if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
     }
-    for (const name of [/^Nose mass /, /^Body tube mass /]) {
+    // **THE CANOPY IS THE THIRD FIELD, and the first version of this case did not have it.** That
+    // version was written in the same increment as the guard it pins, so it could only encode that
+    // increment's belief — that the nose and the tube were the whole of it. This fixture carries a
+    // canopy as well, and it went on adding a typed weight to the stated total: measured on the
+    // corpus, 500 g typed there took `Show-off.CDX1` from 0.4536 to 0.9536 kg and its stability
+    // margin from 12.81 to 9.28 cal, on a design nobody had edited.
+    //
+    // The fitting is the fourth kind this design carries and it is deliberately NOT asserted here:
+    // `fittingUnitMass` returns undefined for a launch lug the file states no weight for, so the
+    // control never renders on a RASAero import and there is nothing on screen to refuse. Its guard
+    // is real and pinned elsewhere — the applier strips the key whatever the panel does, because a
+    // persisted edit bag replays through `lib/session.ts` with no panel involved — by the corpus
+    // sweep's own case over all six fields and by `lib/model/edit.test.ts`. Asserting it here would
+    // be asserting a control that does not exist.
+    for (const name of [/^Nose mass /, /^Body tube mass /, /^Canopy mass /]) {
       const field = page.getByLabel(name).first();
       // Present, so the flyer can see the question was considered rather than silently dropped.
       await expect(field, `${name} must still be offered on a design that states one weight`).toBeVisible();
       await expect(field, `${name} must refuse a weight that would be added to a stated total`).toBeDisabled();
       expect(await field.getAttribute("placeholder"), `${name} must advertise no figure`).toBeNull();
     }
-    // And it says WHY, naming the figure that already contains the part.
+    // **The material select is the other route to the same double-count, and it is the larger one.**
+    // A shell this design's stated weight already carries has no material by construction, so handing
+    // it a density computes a second airframe on top: 8.2649 kg became 25.5895 kg on fibreglass, and
+    // in this very app the margin moved 3.06 → 4.1 cal through a live select.
     await expect(
-      page.getByText(/states one weight for the whole airframe/).first(),
-      "the withheld field must name the stated weight it would be added to",
-    ).toBeVisible();
+      page.getByLabel("Airframe material"),
+      "the material select must refuse a stock that would weigh the airframe twice",
+    ).toBeDisabled();
+
+    // And it says WHY, naming the figure that already contains the part — once per withheld control,
+    // rather than once on the surface, because a flyer reads the hint under the control they clicked.
+    await expect(
+      page.getByText(/states one weight for the whole airframe/),
+      "every withheld control must name the stated weight it would be added to",
+    ).toHaveCount(4);
+  });
+
+  /** **The other half of the lumped-airframe refusal, and the half a design-wide guard got wrong.**
+   *  A stated launch weight contains every part the FILE brought — and cannot contain a part the
+   *  flyer adds afterwards. RASAero is precisely the format where that matters: it states no per-part
+   *  masses at all, so a flyer's own scale is the only possible source of one, and an altimeter bay
+   *  they just authored is the canonical thing to weigh.
+   *
+   *  A first pass at the refusal keyed it on the design and greyed this control out, which turned the
+   *  0.045 kg default — whose stated purpose is that "the next keystroke replaces the starting
+   *  weight" — into a number nothing could change. The gate was fully green: every check asked
+   *  whether an IMPORTED part could be double-counted, and none asked whether an authored one could
+   *  still be weighed. The pre-push agent review is what found it. */
+  test("a part the flyer adds to a lumped-airframe design can still be weighed", async ({ page }) => {
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const margin = async () => {
+      const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const asImported = await margin();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    await partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).first().click();
+    await page.getByRole("button", { name: /Add a mass inside this/ }).click();
+
+    // Live, not greyed — the stated weight predates this part by construction.
+    const massField = page.locator("label").filter({ hasText: /^Mass \(/ }).first().locator("input");
+    await expect(massField, "a part the flyer authored must be weighable on a lumped design").toBeEnabled();
+    await massField.fill("400");
+
+    // And the weight reaches the flight: the balance moves, which is what ballast is for.
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).not.toBe(asImported);
+
+    // Meanwhile the IMPORTED cone on the same design is still refused, so this did not reopen the
+    // double-count it was closing.
+    await page.getByRole("link", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+    await expect(
+      page.getByLabel(/^Nose mass /).first(),
+      "an imported part's weight is still refused on the same design",
+    ).toBeDisabled();
   });
 
   test("a removal the design's own stated weight swallows says so, before and after the click", async ({
@@ -7770,6 +7847,59 @@ test.describe("choosing a real commercial part", () => {
     // And the key is on the page, not in a hover — both halves, because both marks are on screen.
     await expect(page.getByText(/beside a mass means the design file states that figure/)).toBeVisible();
     await expect(page.getByText(/carried through rather than recomputed here/)).toBeVisible();
+  });
+
+  test("the mass & balance panel says which balance points the design stated", async ({ page }) => {
+    // **The twin of the case above, on the other number the mass model produces per part.** Loft
+    // honours a stated CG in preference to its own geometry — that is what makes a nose cone with
+    // lead in the tip fly the margin it actually has — and printed the result unmarked. Measured over
+    // the corpus: 14 stated CGs across 7 of the 35 designs, moving the static margin on 6 of them by
+    // up to a full caliber (`rocksimTestRocket1.rkt` 4.243 → 5.254 cal).
+    //
+    // `cg-stated.ork` is a committed fixture because the e2e job does not fetch the corpus, and no
+    // bundled sample stated a CG. It is `demo-stable.ork` with one `<overridecg>` on the nose at a
+    // quarter of its length — well forward of where a cone's shape puts it, which is what lead in the
+    // tip actually does.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/cg-stated.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30000 });
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.locator("summary", { hasText: /Mass & balance/ }).first().click();
+    const table = page.locator("table").filter({ hasText: "CG from nose" });
+    await expect(table).toBeVisible();
+
+    // **Per CELL, not over a joined string, and the difference is the whole assertion.** Joining the
+    // headers and asking for "cg from" is satisfied by the pre-existing *CG from nose* column, so the
+    // control could not fail: deleting the new column entirely left it green. Array containment on the
+    // trimmed cell text is the repo's own pattern for this and is exact.
+    const headings = (await table.locator("thead th").allInnerTexts()).map((t) =>
+      t.replace(/[▲▼]/g, "").trim().toLowerCase(),
+    );
+    expect(headings, "the breakdown gained no column naming where a balance point came from").toContain("cg from");
+
+    // The row is matched by NAME and then read, rather than by index: a column added ahead of this one
+    // would silently move the cell, and a positional assertion would then check the wrong number.
+    const nose = table.locator("tbody tr").filter({ hasText: "Nose cone" }).first();
+    await expect(nose, "the cone that states a CG must say the design stated it").toContainText(
+      "stated by the design",
+    );
+    // ...and the figure beside it is the STATED one (0.0625 m from the nose tip), not the ~2/3 of its
+    // length a cone's own geometry would give. That is the whole reason the mark is worth printing.
+    await expect(nose).toContainText("63 mm");
+
+    // The two marks are independent: this design states the altimeter's MASS and not its CG, so that
+    // row must say so in one column and "Loft's own" in the other. A single provenance field reused
+    // for both numbers would fail here.
+    const bay = table.locator("tbody tr").filter({ hasText: "Altimeter" }).first();
+    await expect(bay).toContainText("stated by the design");
+    const bayCells = await bay.locator("td").allInnerTexts();
+    expect(bayCells[bayCells.length - 1].trim(), "the altimeter's CG is Loft's own, unlike its mass").toBe(
+      "Loft's own",
+    );
   });
 
   test("prints only the half of the mass key a design actually needs", async ({ page }) => {

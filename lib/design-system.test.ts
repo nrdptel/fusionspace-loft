@@ -145,6 +145,23 @@ const BUDGET = {
    *  radius at or above 4 px renders as exactly 4 px, and `rounded-md` — already sanctioned — is
    *  pixel-identical. A budget of 1 with owner machinery behind it, for zero pixels. */
   offSystemRadius: 0,
+  /** Border colours that are not in the system at ALL — every `border-zinc-*` token, minus the four
+   *  §2 sanctions: `zinc-200`/`zinc-800` for `hairline` and `zinc-300`/`zinc-700` for `control`.
+   *
+   *  **§2 says "Two, deliberately" and until 2026-08-11 nothing checked it.** Radius, spacing, type,
+   *  `<select>`, chart and focus were all ratcheted; the one token that section calls the readability
+   *  signal — *"the control border is one step darker so an interactive edge is distinguishable"* —
+   *  had no instrument at all. Measured when one was finally pointed at it: **8 uses of 3 values the
+   *  file does not sanction**, `border-zinc-100` x6, `border-zinc-400` x1 and `border-zinc-600` x1.
+   *
+   *  Six of the eight were one treatment and they are the reason this matters more than it sounds:
+   *  every table body row in the app renders `border-zinc-100 dark:border-zinc-800` from
+   *  `components/DataTable.tsx`, which pairs a THIRD light value against the hairline dark — so the
+   *  same rule was a different weight in light mode than in dark, in the file that draws every table
+   *  in the product. The other two were a you-are-here chip on a fourth pair entirely.
+   *
+   *  At 0, so this is a guard rather than a ratchet: the next one to appear is hand-rolled. */
+  offSystemBorder: 0,
   /** Spacing written as an arbitrary value — `p-[13px]`, `gap-[18px]` — which §4 forbids outright and
    *  which `offScaleSpacing`'s named-step pattern cannot express at all.
    *
@@ -523,6 +540,56 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     expect(total, `off-system radii, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offSystemRadius);
     // No exemption, by owner or by value — which is the whole point of the round this took to reach.
     // An exception written into the binding document is a permanent cost; this one bought nothing.
+  });
+
+  it(`uses exactly ${BUDGET.offSystemBorder} border colours outside the system`, () => {
+    // §2 defines two border pairs and says "Two, deliberately" — and nothing read that sentence until
+    // this check existed. Written in the same shape as the radius check above, and for the reason
+    // that one's docblock gives: a check enumerating known-bad tokens passes the value nobody has
+    // thought of yet, so enumerate every `border-zinc-*` and SUBTRACT §2's four.
+    //
+    // Colour only. A side utility (`border-t`, `border-x`) says WHERE the rule is drawn, which §2
+    // does not govern — the same split the radius check makes between value and side. A bare
+    // `border` sets width, not colour, and inherits whatever the cascade gives it.
+    const BORDERS = /\bborder-zinc-[0-9]{2,3}\b/g;
+    const SANCTIONED = new Set(["border-zinc-200", "border-zinc-800", "border-zinc-300", "border-zinc-700"]);
+    const offSystem = (m: string) => !SANCTIONED.has(m);
+    const { total, byFile } = countMatches(uiCode, BORDERS, offSystem);
+    expect(total, `off-system border colours, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offSystemBorder);
+  });
+
+  /** **The two sanctioned pairs must also be USED as pairs**, which the count above cannot see.
+   *
+   *  Every violation found when the border check was first pointed at the tree was `border-zinc-100
+   *  dark:border-zinc-800` — a light value §2 does not sanction against the dark value it does. Fix
+   *  only the light half and the count reaches 0 while the rule is still a different rung in each
+   *  theme; §2's whole purpose is that an interactive edge reads as one without inspecting the
+   *  element, and a pair that changes rung between themes breaks exactly that.
+   *
+   *  **Deliberately conservative, because the first version of this was noisy and a noisy check gets
+   *  disabled.** Scanning by LINE reported `components/SectionNav.tsx:60` — `border-zinc-200 …
+   *  hover:border-zinc-300 … dark:border-zinc-800`, which is the hairline resting and the control on
+   *  hover, exactly right — and three more lines that simply carried two elements' classes. So this
+   *  reads ONE class string at a time, counts only RESTING tokens (a `hover:`/`focus:`/`group-*`
+   *  variant is a different state, not this element's edge), and skips any string holding more than
+   *  one light or more than one dark, where the pairing cannot be attributed. It fires only where the
+   *  answer is unambiguous, and the two it does fire on are real. */
+  it("never pairs one border rung with the other's dark half", () => {
+    const PAIR: Record<string, string> = { "border-zinc-200": "border-zinc-800", "border-zinc-300": "border-zinc-700" };
+    const mismatched: string[] = [];
+    for (const f of ui) {
+      if (f.path.endsWith(".css")) continue;
+      for (const m of stripComments(f.text).matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)) {
+        const s = (m[1] ?? m[2] ?? m[3] ?? "").replace(/\$\{[^}]*\}/g, " ");
+        // A resting token owns no variant prefix. `dark:` alone is the theme half of the same edge.
+        const light = [...s.matchAll(/(?:^|\s)(border-zinc-[0-9]{2,3})\b/g)].map((x) => x[1]);
+        const dark = [...s.matchAll(/(?:^|\s)dark:(border-zinc-[0-9]{2,3})\b/g)].map((x) => x[1]);
+        if (light.length !== 1 || dark.length !== 1) continue;
+        const want = PAIR[light[0]];
+        if (want && dark[0] !== want) mismatched.push(`${f.path}: ${light[0]} paired with dark:${dark[0]}`);
+      }
+    }
+    expect(mismatched, `border pairs that change rung between themes:\n${mismatched.join("\n")}`).toEqual([]);
   });
 
   it(`writes exactly ${BUDGET.arbitrarySpacing} arbitrary spacing value, and it is a device inset`, () => {

@@ -129,6 +129,16 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
 - **`out/` and `.next/` are NOT cleaned between builds**, so a stale chunk can outlive the source that
   produced it and a "did my change land?" grep over `out/` will lie. `rm -rf out .next` before any
   build whose output you are about to measure.
+  - **And the e2e suite serves `out/`, so a Playwright NEGATIVE CONTROL silently passes unless you
+    rebuild.** `playwright.config.ts`'s `webServer` runs `npx serve -c e2e-serve.json`, whose
+    `public` is `out/` — Playwright never compiles anything. Measured 2026-08-11: reverting a
+    component guard and re-running the case it pins reported **`1 passed`**, because the browser was
+    still being served the previous build. The same revert with `rm -rf out .next && npm run build`
+    in front of it failed correctly with *"Expected: disabled, Received: enabled"*. A control that
+    cannot fail proves nothing, and this one looks exactly like a control that passed — which is the
+    same false all-clear this file warns about for the corpus, arriving by a different road. **Every
+    e2e negative control is `revert → rebuild → run → restore → rebuild`.** A vitest control needs no
+    rebuild, which is part of why the trap is easy to walk into.
 - **Throwaway probes** are named `*-tmp.*` and gitignored. Check the glob covers the exact name you
   chose.
 

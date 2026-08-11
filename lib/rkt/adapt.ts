@@ -580,7 +580,16 @@ function parseComponent(
   // margin — instead of Loft's geometry estimate.
   if (comp && CG_OVERRIDABLE.has(comp.kind)) {
     const cg = cgOverrideM(node, (comp as { length?: number }).length ?? 0);
-    if (cg !== undefined) (comp as { overrideCGx?: number }).overrideCGx = cg;
+    if (cg !== undefined) {
+      (comp as { overrideCGx?: number }).overrideCGx = cg;
+      // **`"stated"` here, where the MASS on the same part is `"tool"`, and the difference is real
+      // rather than an inconsistency.** `cgOverrideM` returns a figure only when `<UseKnownCG>` is 1
+      // — RockSim's own word for "the user gave me this, do not compute it" — and it additionally
+      // refuses one that equals `<CalcCG>`. The mass path has no such gate to pass: every corpus
+      // `.rkt` carries `<UseKnownMass>` at 0, so all four fly RockSim's COMPUTED figure and are
+      // marked as the source tool's rather than as the design's.
+      (comp as { cgFrom?: MassProvenance }).cgFrom = "stated";
+    }
   }
   return comp;
 }

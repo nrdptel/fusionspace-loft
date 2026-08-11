@@ -258,7 +258,7 @@ export default function DataTable<R>({
               return (
               <tr
                 key={rowKey(row, i)}
-                className={cx("border-t border-zinc-100 dark:border-zinc-800", rowClass)}
+                className={cx("border-t border-zinc-200 dark:border-zinc-800", rowClass)}
                 {...rest}
               >
                 {columns.map((c, k) => {

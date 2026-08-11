@@ -664,7 +664,7 @@ export default function GeometryInspector({
           )}
         </h3>
       </div>
-      <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
+      <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
         {/* The design at a glance — always shown, so you see your rocket without hunting for it. */}
         <RocketDiagram
           rocket={rocket}
@@ -1088,7 +1088,7 @@ export default function GeometryInspector({
         )}
         {/* The part-by-part detail is opt-in — hover/focus a row and it lights up on the diagram. */}
         <details
-          className="group mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800"
+          className="group mt-3 border-t border-zinc-200 pt-3 dark:border-zinc-800"
           open={partsOpen}
           onToggle={(e) => setPartsOpen((e.currentTarget as HTMLDetailsElement).open)}
         >

@@ -313,7 +313,22 @@ function overrides(node: XmlNode): Partial<RocketComponent> {
     // file, because then the override may be Loft's own arithmetic. See `fileWrittenByLoft`.
     if (!fileWrittenByLoft) (out as { massFrom?: "stated" }).massFrom = "stated";
   }
-  if (oc !== undefined) (out as { overrideCGx?: number }).overrideCGx = parseNum(oc);
+  if (oc !== undefined) {
+    (out as { overrideCGx?: number }).overrideCGx = parseNum(oc);
+    // The same marker the weight above gets, for the same reason: an `<overridecg>` is the design
+    // stating where this part balances, Loft flies it in preference to its own geometry, and a
+    // surface printing that station must be able to say whose figure it is.
+    //
+    // **The `fileWrittenByLoft` clause is symmetry with the mass path, and it is NOT load-bearing
+    // today — measured, not assumed.** Removing it leaves the round-trip case green, because
+    // `overrideXml` emits `<overridecg>` only where `overrideCGx` is already set and Loft never
+    // invents one; the laundering the mass marker had to be guarded against (51 parts going unmarked
+    // → stated across the 27 `.ork` designs) has no equivalent here. It is kept because the day a
+    // flyer can SET a CG — the next slice from `COMPETITION.md` row 45 — the exporter starts writing
+    // a figure Loft is responsible for, and that is exactly when the two adapters diverging would
+    // become a live wrong claim rather than an unused clause.
+    if (!fileWrittenByLoft) (out as { cgFrom?: "stated" }).cgFrom = "stated";
+  }
   const subMass = childText(node, "overridesubcomponentsmass") ?? childText(node, "overridesubcomponents");
   if (subMass === "true") (out as { overrideSubcomponents?: boolean }).overrideSubcomponents = true;
   return out;
