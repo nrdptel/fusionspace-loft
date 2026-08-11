@@ -41,3 +41,26 @@ export function massSourceLabel(c: RocketComponent, hasOwnMass: boolean): string
   if (!hasOwnMass) return "—";
   return massSource(c)?.label ?? "Loft's own";
 }
+
+/** The words for where a part's BALANCE POINT came from — the same question as `massSourceLabel`
+ *  about the other number the mass model produces per part, so it lives beside it and shares its
+ *  vocabulary rather than inventing a second one.
+ *
+ *  **Loft already FLIES a stated CG and said nothing about it.** Measured 2026-08-11 over the
+ *  35-design corpus: 14 stated CGs across 7 designs — 5 nose cones (lead in the tip is the ordinary
+ *  reason), 4 parachutes, and one each of transition, tube coupler, body tube and mass object — and
+ *  honouring them moves the static margin on 6 of the 7, by up to a full caliber. `MassBreakdown`
+ *  printed a *CG from nose* figure for every one of them with no way to tell the design's claim from
+ *  Loft's arithmetic, which is exactly what the mass column looked like before `massFrom`.
+ *
+ *  Only "stated" arises today, and the other two branches are deliberately absent rather than
+ *  written speculatively: no importer marks a CG as the source tool's, and nothing lets a flyer set
+ *  one yet. When either lands it adds its branch here, and every surface reading this gets it. */
+export function cgSourceLabel(c: RocketComponent, hasOwnCg: boolean): string {
+  if (!hasOwnCg) return "—";
+  const from = (c as { cgFrom?: MassProvenance }).cgFrom;
+  if (from === "stated") return "stated by the design";
+  if (from === "tool") return "computed by the source tool";
+  if (from === "flyer") return "the figure you set";
+  return "Loft's own";
+}

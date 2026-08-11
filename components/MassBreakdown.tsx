@@ -3,7 +3,7 @@
 import type { Rocket } from "@/lib/model/types";
 import { structurePointMasses, combine, type PointMass } from "@/lib/sim/mass";
 import { flattenRocket } from "@/lib/model/geometry";
-import { massSourceLabel } from "@/lib/mass-provenance";
+import { cgSourceLabel, massSourceLabel } from "@/lib/mass-provenance";
 import { kgToLb, mToIn } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
@@ -58,21 +58,26 @@ export default function MassBreakdown({
     const c = p.componentId ? byId.get(p.componentId) : undefined;
     return c ? massSourceLabel(c, true) : "—";
   };
+  const cgProvenanceOf = (p: PointMass): string => {
+    const c = p.componentId ? byId.get(p.componentId) : undefined;
+    return c ? cgSourceLabel(c, true) : "—";
+  };
 
   const massUnit = units === "imperial" ? "lb" : "kg";
   const lenUnit = units === "imperial" ? "in" : "mm";
   const toMass = (kg: number) => (units === "imperial" ? kgToLb(kg) : kg);
   const toLen = (m: number) => (units === "imperial" ? mToIn(m) : m * 1000);
   const csv: CsvCell[][] = [
-    ["Component", `Mass (${massUnit})`, "Mass from", "% dry", `CG from nose (${lenUnit})`],
+    ["Component", `Mass (${massUnit})`, "Mass from", "% dry", `CG from nose (${lenUnit})`, "CG from"],
     ...rows.map((p): CsvCell[] => [
       p.source,
       round(toMass(p.mass), 4),
       provenanceOf(p),
       total.mass > 0 ? round((p.mass / total.mass) * 100, 1) : "",
       round(toLen(p.cg), 1),
+      cgProvenanceOf(p),
     ]),
-    ["Dry total", round(toMass(total.mass), 4), "", 100, round(toLen(total.cg), 1)],
+    ["Dry total", round(toMass(total.mass), 4), "", 100, round(toLen(total.cg), 1), ""],
   ];
 
   return (
@@ -142,6 +147,21 @@ export default function MassBreakdown({
               ),
             },
             { key: "cg", label: "CG from nose", sortValue: (p) => p.cg, cell: (p) => d.q(d.lengthMm(p.cg, units)) },
+            {
+              // **The same question as *Mass from*, about the other number on the row.** Loft honours
+              // a stated CG in preference to its own geometry and printed the result unmarked: 14
+              // across 7 of the 35 corpus designs, moving the static margin on 6 of them by up to a
+              // full caliber. A balance point is a reference value and section 6 asks one to name its
+              // source; a breakdown is nothing but reference values.
+              //
+              // A row with no `componentId` is a stage-level lump standing for a whole assembly, so
+              // there is no single part to attribute and it takes the same dash the mass column uses.
+              key: "cgFrom",
+              label: "CG from",
+              sortValue: (p) => cgProvenanceOf(p),
+              cell: (p) => <span className="text-zinc-500 dark:text-zinc-400">{cgProvenanceOf(p)}</span>,
+              csv: (p) => cgProvenanceOf(p),
+            },
           ]}
         />
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">

@@ -2620,6 +2620,44 @@ this was live. Fixed on all six mass fields at once from one derived `massCarrie
 demonstrably does nothing must not sit there looking as though it does*. The field names the carrier
 in words rather than greying out silently.
 
+**Increment 11 — the balance point says whose figure it is, 2026-08-11.** The exact twin of increment
+7, on the other number the mass model produces per part. Loft honours a stated CG in preference to its
+own geometry — that is what makes a nose cone with lead in the tip fly the margin it actually has —
+and `MassBreakdown` printed the result on its *CG from nose* column with no way to tell the design's
+claim from Loft's arithmetic. **Measured over the corpus: 14 stated CGs across 7 of the 35 designs** —
+5 nose cones, 4 parachutes, and one each of transition, tube coupler, body tube and mass object — and
+stripping them moves the static margin on **6 of the 7**, by up to a full caliber
+(`rocksimTestRocket1.rkt` 4.243 → 5.254 cal, `Cherokee-E-5055.ork` 1.421 → 1.897). `DESIGN.md` §6 asks
+a reference value to name its source, and a breakdown is nothing but reference values.
+
+`cgFrom` is the field, beside `massFrom` and reusing `MassProvenance` because it is the same question;
+`cgSourceLabel` joins `massSourceLabel` in `lib/mass-provenance.ts` rather than a second describer
+being written, for the reason that module already gives. **Only the `"stated"` branch arises today and
+the other two are deliberately absent** rather than written speculatively: no importer marks a CG as
+the source tool's, and nothing lets a flyer set one yet.
+
+**One honest negative: the round-trip guard does NOT fire, and that is measured rather than assumed.**
+`lib/ork/adapt.ts` refuses provenance from a file Loft wrote, which for MASS prevented 51 parts going
+unmarked → stated. Removing the same clause for CG leaves the round-trip case green, because
+`overrideXml` emits `<overridecg>` only where `overrideCGx` is already set and Loft never invents one.
+The clause is kept for symmetry and the comment says plainly that it is not load-bearing today — it
+becomes so the moment a flyer can SET a CG, which is the next slice from `COMPETITION.md` row 45.
+
+Pinned by `lib/corpus/sweep.test.ts`'s *says which of every real design's balance points the design
+itself stated* (asserted in both directions over all 35 files: a stated CG is marked, and no mark
+exists without an override behind it), by the round-trip case now checking both marks, and by an
+`e2e/smoke.spec.ts` case on a new committed fixture — `cg-stated.ork`, since the e2e job does not
+fetch the corpus and no bundled sample stated a CG. That case asserts the two marks are INDEPENDENT:
+the same design states the altimeter's mass and not its CG, so one column reads *stated by the design*
+and the other *Loft's own*, which a single provenance field reused for both numbers would fail.
+Negative controls: removing the mark reports four real designs by name; removing it and rebuilding
+fails the e2e case with *Received: "Nose cone0.084 kgLoft's own16%63 mmLoft's own"*.
+
+**A flaky e2e, recorded so the next session does not diagnose it as a regression.**
+`e2e/rocketpy-selfhosted.spec.ts:254` failed once in a full shard-1 run and passed in isolation, on
+the clean baseline with this run's changes stashed, and on a re-run of the same shard (132 + 132 =
+264). It is unrelated to anything this increment touches.
+
 **Increment 10 — the same Sev-1 again, on the four fields the last fix did not reach, 2026-08-11.**
 `#168` stopped a stated part weight being ADDED to a design that states one weight for its whole
 airframe — and it stopped it on the nose and the body tube, which were the two fields that increment

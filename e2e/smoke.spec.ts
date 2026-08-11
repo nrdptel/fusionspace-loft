@@ -7849,6 +7849,53 @@ test.describe("choosing a real commercial part", () => {
     await expect(page.getByText(/carried through rather than recomputed here/)).toBeVisible();
   });
 
+  test("the mass & balance panel says which balance points the design stated", async ({ page }) => {
+    // **The twin of the case above, on the other number the mass model produces per part.** Loft
+    // honours a stated CG in preference to its own geometry — that is what makes a nose cone with
+    // lead in the tip fly the margin it actually has — and printed the result unmarked. Measured over
+    // the corpus: 14 stated CGs across 7 of the 35 designs, moving the static margin on 6 of them by
+    // up to a full caliber (`rocksimTestRocket1.rkt` 4.243 → 5.254 cal).
+    //
+    // `cg-stated.ork` is a committed fixture because the e2e job does not fetch the corpus, and no
+    // bundled sample stated a CG. It is `demo-stable.ork` with one `<overridecg>` on the nose at a
+    // quarter of its length — well forward of where a cone's shape puts it, which is what lead in the
+    // tip actually does.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/cg-stated.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30000 });
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.locator("summary", { hasText: /Mass & balance/ }).first().click();
+    const table = page.locator("table").filter({ hasText: "CG from nose" });
+    await expect(table).toBeVisible();
+
+    const headings = (await table.locator("thead th").allInnerTexts()).join(" ").toLowerCase();
+    expect(headings, "the breakdown gained no column naming where a balance point came from").toContain("cg from");
+
+    // The row is matched by NAME and then read, rather than by index: a column added ahead of this one
+    // would silently move the cell, and a positional assertion would then check the wrong number.
+    const nose = table.locator("tbody tr").filter({ hasText: "Nose cone" }).first();
+    await expect(nose, "the cone that states a CG must say the design stated it").toContainText(
+      "stated by the design",
+    );
+    // ...and the figure beside it is the STATED one (0.0625 m from the nose tip), not the ~2/3 of its
+    // length a cone's own geometry would give. That is the whole reason the mark is worth printing.
+    await expect(nose).toContainText("63 mm");
+
+    // The two marks are independent: this design states the altimeter's MASS and not its CG, so that
+    // row must say so in one column and "Loft's own" in the other. A single provenance field reused
+    // for both numbers would fail here.
+    const bay = table.locator("tbody tr").filter({ hasText: "Altimeter" }).first();
+    await expect(bay).toContainText("stated by the design");
+    const bayCells = await bay.locator("td").allInnerTexts();
+    expect(bayCells[bayCells.length - 1].trim(), "the altimeter's CG is Loft's own, unlike its mass").toBe(
+      "Loft's own",
+    );
+  });
+
   test("prints only the half of the mass key a design actually needs", async ({ page }) => {
     // **The control for the case above, and it is what makes that one mean something.** A key for a
     // mark that is not on the page is noise on every design that computes all its own masses. The

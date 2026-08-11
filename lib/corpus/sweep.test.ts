@@ -490,6 +490,50 @@ suite("real-design corpus", () => {
     expect(wrong, "masses whose stated marker disagrees with the file").toEqual([]);
   }, 300_000);
 
+  /** **The same question about the other number the mass model produces per part.**
+   *
+   *  Loft honours a stated CG in preference to its own geometry — that is what makes a nose cone with
+   *  lead in the tip fly the margin it actually has — and then printed the result on `MassBreakdown`'s
+   *  *CG from nose* column with no way to tell the design's claim from Loft's arithmetic. Measured
+   *  2026-08-11: **14 stated CGs across 7 of the 35 designs** (5 nose cones, 4 parachutes, and one
+   *  each of transition, tube coupler, body tube and mass object), and stripping them moves the static
+   *  margin on **6 of the 7** — `rocksimTestRocket1.rkt` 4.243 → 5.254 cal and `Cherokee-E-5055.ork`
+   *  1.421 → 1.897 cal, both a real caliber of stability.
+   *
+   *  Asserted as a RELATIONSHIP rather than as golden counts, for the reason the mass case above
+   *  gives: the corpus can be re-cut and the numbers move, but "a part carrying a stated CG is marked
+   *  as stated, and nothing else claims one" is true of any corpus. */
+  it("says which of every real design's balance points the design itself stated", async () => {
+    let statedCg = 0;
+    let computedCg = 0;
+    const wrong: string[] = [];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      for (const p of flattenRocket(doc.rocket)) {
+        const c = p.component as { kind: string; name: string; cgFrom?: string; overrideCGx?: number };
+        if (c.cgFrom === "stated") statedCg++;
+        else computedCg++;
+        // The marker and the figure are set at the same place in both adapters, so on a file Loft did
+        // not write they must agree in BOTH directions — a stated CG that is unmarked is a reference
+        // value presented as Loft's own, and a mark with no override behind it is a claim about a
+        // number the design never made.
+        if (c.overrideCGx !== undefined && c.cgFrom !== "stated") {
+          wrong.push(`${shortName(f.name)}: ${c.kind} "${c.name}" states a CG and is not marked`);
+        }
+        if (c.cgFrom === "stated" && c.overrideCGx === undefined) {
+          wrong.push(`${shortName(f.name)}: ${c.kind} "${c.name}" is marked as stating a CG and states none`);
+        }
+      }
+    }
+    console.log(
+      `CG provenance across ${files.length} design files: ${statedCg} stated by the design, ` +
+        `${computedCg} computed here`,
+    );
+    expect(statedCg, "no design stated a CG — this asserted nothing").toBeGreaterThan(0);
+    expect(computedCg, "every CG was attributed — the unmarked case asserted nothing").toBeGreaterThan(0);
+    expect(wrong, "balance points whose stated marker disagrees with the file").toEqual([]);
+  }, 300_000);
+
   /** **A round trip through Loft must not turn Loft's own arithmetic into the design's claim.**
    *
    *  The exporter writes a mass Loft COMPUTED as an explicit figure — that is what keeps a canopy's
@@ -508,24 +552,41 @@ suite("real-design corpus", () => {
     let compared = 0;
     for (const f of files) {
       const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      // **Both marks, because they ride the same export path and the same hazard.** The exporter
+      // writes an `<overridecg>` for a CG Loft is merely carrying, exactly as it writes an explicit
+      // mass — so a naive re-import would read every one as the design's own claim. `lib/ork/adapt.ts`
+      // takes no provenance of either kind from a file whose `creator` is Loft's own string.
       const before = new Map(
-        flattenRocket(doc.rocket).map((p) => [p.component.id, (p.component as { massFrom?: string }).massFrom]),
+        flattenRocket(doc.rocket).map((p) => [
+          p.component.id,
+          {
+            mass: (p.component as { massFrom?: string }).massFrom,
+            cg: (p.component as { cgFrom?: string }).cgFrom,
+          },
+        ]),
       );
       for (const p of flattenRocket((await importDesign(exportOrk(doc))).rocket)) {
         if (!before.has(p.component.id)) continue; // a minted id — a different question, asserted above
         compared++;
-        const was = before.get(p.component.id);
-        const now = (p.component as { massFrom?: string }).massFrom;
+        const was = before.get(p.component.id)!;
+        const now = {
+          mass: (p.component as { massFrom?: string }).massFrom,
+          cg: (p.component as { cgFrom?: string }).cgFrom,
+        };
         // Only a mark GAINED or CHANGED is laundering. Losing one is the conservative direction and
         // is what a Loft-written file does deliberately.
-        if (now !== undefined && now !== was) {
-          laundered.push(`${shortName(f.name)}: ${p.component.kind} "${p.component.name}" ${was ?? "unmarked"} → ${now}`);
+        for (const which of ["mass", "cg"] as const) {
+          if (now[which] !== undefined && now[which] !== was[which]) {
+            laundered.push(
+              `${shortName(f.name)}: ${p.component.kind} "${p.component.name}" ${which} ${was[which] ?? "unmarked"} → ${now[which]}`,
+            );
+          }
         }
       }
     }
-    console.log(`mass provenance across a round trip: ${compared} parts compared by id`);
+    console.log(`mass and CG provenance across a round trip: ${compared} parts compared by id`);
     expect(compared, "no part survived a round trip by id — this asserted nothing").toBeGreaterThan(100);
-    expect(laundered, "masses whose provenance a round trip through Loft invented or changed").toEqual([]);
+    expect(laundered, "provenance a round trip through Loft invented or changed").toEqual([]);
   }, 300_000);
 
   /** **No real design flies a fitting Loft could not weigh.**
