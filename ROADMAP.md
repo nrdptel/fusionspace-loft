@@ -2624,8 +2624,8 @@ in words rather than greying out silently.
 7, on the other number the mass model produces per part. Loft honours a stated CG in preference to its
 own geometry — that is what makes a nose cone with lead in the tip fly the margin it actually has —
 and `MassBreakdown` printed the result on its *CG from nose* column with no way to tell the design's
-claim from Loft's arithmetic. **Measured over the corpus: 14 stated CGs across 7 of the 35 designs** —
-5 nose cones, 4 parachutes, and one each of transition, tube coupler, body tube and mass object — and
+claim from Loft's arithmetic. **Measured over the corpus: 15 stated CGs across 8 of the 35 designs** —
+5 nose cones, 4 parachutes, 2 mass objects and one each of transition, tube coupler, body tube and fin set — and
 stripping them moves the static margin on **6 of the 7**, by up to a full caliber
 (`rocksimTestRocket1.rkt` 4.243 → 5.254 cal, `Cherokee-E-5055.ork` 1.421 → 1.897). `DESIGN.md` §6 asks
 a reference value to name its source, and a breakdown is nothing but reference values.
@@ -2664,6 +2664,28 @@ added `massFrom`** — a label put on a number nobody re-checked — and the cor
 increment could not see it, because that case only ever looks at an IMPORT. A second case asserts the
 invariant over the EDIT path (*never leaves a stated-CG mark on a design whose CG an edit has
 replaced*, 5 designs exercised); its negative control reports all five by name.
+
+**Three more the review found after that, and one of them was a wrong number this file published.**
+- **The RASAero adapter was the third importer and was left out.** It marks its synthesised airframe
+  mass `"stated"` and never marked the CG, so `Show-off.CDX1` read *453.6 g · stated by the design ·
+  25.4 mm · Loft's own* — crediting the design with the weight and Loft with the balance point, from
+  two adjacent elements of the same file, where 25.4 mm IS `<SustainerCG>` converted. The mark rides
+  the same branch as the mass one, because it is the same arithmetic: `airframeMass` returns the
+  stated station untouched exactly when no motor could be weighed.
+- **Which made the new invariant too narrow, and widening it is the honest fix rather than an
+  exemption.** "Marked implies an override behind it" is an `.ork`/`.rkt`-shaped sentence; a RASAero
+  lump is a zero-length mass component whose PLACEMENT is the balance point, with no computed CG for
+  an override to replace. The invariant now reads "an override **or** `standsForAirframe`", which is
+  the exact and only such carrier.
+- **The census was wrong in both halves and is re-measured: 15 stated CGs across 8 of the 35
+  designs** — 5 nose cones, 4 parachutes, 2 mass objects, and one each of transition, tube coupler,
+  body tube and fin set. As first written it said 14 across 7 and then listed 13, omitting
+  `EscapeVelocity.ork`'s trapezoidal fin set — the one marked kind whose CG is a chordwise centroid
+  rather than a body-of-revolution one, so a reader auditing the kinds was pointed away from it. The
+  fifteenth is the RASAero lump above. Corrected in all four places that carried it.
+- **And the new e2e's column control could not fail.** It joined the header cells and asked for
+  "cg from", which the pre-existing *CG from nose* heading already satisfies — deleting the whole new
+  column left it green. Array containment per trimmed cell now, which is the repo's own pattern.
 
 **A flaky e2e, recorded so the next session does not diagnose it as a regression.**
 `e2e/rocketpy-selfhosted.spec.ts:254` failed once in a full shard-1 run and passed in isolation, on

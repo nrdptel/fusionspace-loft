@@ -148,10 +148,16 @@ interface ComponentBase {
    *  in the tip is the common case, and it is 5 of the 14 in the corpus.
    *
    *  Carried because Loft already FLIES this figure and said nothing about it. Measured 2026-08-11
-   *  over the 35-design corpus: **14 stated CGs across 7 designs** — 5 nose cones, 4 parachutes, and
-   *  one each of transition, tube coupler, body tube and mass object — and honouring them moves the
-   *  static margin on **6 of the 7**, by up to a full caliber (`rocksimTestRocket1.rkt` 4.243 →
-   *  5.254 cal, `Cherokee-E-5055.ork` 1.421 → 1.897). `MassBreakdown` prints a *CG from nose* column
+   *  over the 35-design corpus: **15 stated CGs across 8 of the 35 designs** — 5 nose cones, 4
+   *  parachutes, 2 mass objects and one each of transition, tube coupler, body tube and fin set — and
+   *  honouring the 14 that are `<overridecg>` overrides moves the static margin on **6 of their 7
+   *  designs**, by up to a full caliber (`rocksimTestRocket1.rkt` 4.243 → 5.254 cal,
+   *  `Cherokee-E-5055.ork` 1.421 → 1.897). The fifteenth is a RASAero lump, whose stated CG is its
+   *  placement rather than an override — see `lib/rasaero/adapt.ts`.
+   *
+   *  **Both halves of that census were wrong when first written and are corrected here**: the kind
+   *  list omitted the fin set while the total counted it, and the RASAero lump was not marked at all.
+   *  Found by a pre-push review reading the arithmetic rather than the sentence. `MassBreakdown` prints a *CG from nose* column
    *  for every part and marked none of them, which is the same defect the mass column had before
    *  `massFrom`: a reference value on the surface whose stated job is *did Loft read my rocket
    *  right?*, with no way to tell the design's claim from Loft's arithmetic. `DESIGN.md` §6 asks a

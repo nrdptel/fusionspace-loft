@@ -574,7 +574,16 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
       // which is that weight minus a 12,777.0 g N1000W. Only the branch where no motor could be
       // weighed places the stated weight unchanged, and only that one is marked. Found by the
       // pre-push review, which read the arithmetic rather than the label.
-      ...(mass === launchMass ? { massFrom: "stated" as const } : {}),
+      // **The CG rides the SAME branch, because it is the same arithmetic.** `airframeMass` returns
+      // `{ mass: launchMass, station: launchCG }` untouched when no motor could be weighed, and
+      // computes a moment-balanced station otherwise — so on exactly the branch where the weight is
+      // the file's own, the station is `<SustainerCG>` converted and nothing else. For a zero-length
+      // mass component the placement IS the balance point, so there is no `overrideCGx` to carry it;
+      // the mark belongs on the component all the same, because a surface printing that station has to
+      // say whose figure it is. `Show-off.CDX1` reads *453.6 g · stated by the design · 25.4 mm* and
+      // 25.4 mm is `<SustainerCG>1</SustainerCG>` — the panel credited the design with the weight and
+      // Loft with the balance point, from two adjacent elements of the same file.
+      ...(mass === launchMass ? { massFrom: "stated" as const, cgFrom: "stated" as const } : {}),
       standsForAirframe: true,
       children: [],
     };

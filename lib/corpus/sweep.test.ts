@@ -495,8 +495,8 @@ suite("real-design corpus", () => {
    *  Loft honours a stated CG in preference to its own geometry — that is what makes a nose cone with
    *  lead in the tip fly the margin it actually has — and then printed the result on `MassBreakdown`'s
    *  *CG from nose* column with no way to tell the design's claim from Loft's arithmetic. Measured
-   *  2026-08-11: **14 stated CGs across 7 of the 35 designs** (5 nose cones, 4 parachutes, and one
-   *  each of transition, tube coupler, body tube and mass object), and stripping them moves the static
+   *  2026-08-11: **15 stated CGs across 8 of the 35 designs** (5 nose cones, 4 parachutes, 2 mass
+   *  objects and one each of transition, tube coupler, body tube and fin set), and stripping them moves the static
    *  margin on **6 of the 7** — `rocksimTestRocket1.rkt` 4.243 → 5.254 cal and `Cherokee-E-5055.ork`
    *  1.421 → 1.897 cal, both a real caliber of stability.
    *
@@ -510,17 +510,32 @@ suite("real-design corpus", () => {
     for (const f of files) {
       const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
       for (const p of flattenRocket(doc.rocket)) {
-        const c = p.component as { kind: string; name: string; cgFrom?: string; overrideCGx?: number };
+        const c = p.component as {
+          kind: string;
+          name: string;
+          cgFrom?: string;
+          overrideCGx?: number;
+          standsForAirframe?: boolean;
+        };
         if (c.cgFrom === "stated") statedCg++;
         else computedCg++;
-        // The marker and the figure are set at the same place in both adapters, so on a file Loft did
+        // The marker and the figure are set at the same place in every adapter, so on a file Loft did
         // not write they must agree in BOTH directions — a stated CG that is unmarked is a reference
-        // value presented as Loft's own, and a mark with no override behind it is a claim about a
-        // number the design never made.
+        // value presented as Loft's own, and a mark with nothing behind it is a claim about a number
+        // the design never made.
+        //
+        // **"Behind it" is an override OR a stated placement, and the second is not a loophole.** A
+        // RASAero `.CDX1` states one launch weight and one CG and no per-part anything, so its adapter
+        // mints a zero-length mass component whose PLACEMENT is that balance point — there is no
+        // computed CG for an override to replace. Reading the invariant as "override only" would have
+        // forced that mark off the one design whose CG is most plainly the file's own, which is how
+        // the first version of this case left `Show-off.CDX1` crediting Loft with a figure it takes
+        // verbatim from `<SustainerCG>`. `standsForAirframe` is the exact and only such carrier.
+        const hasStatedFigure = c.overrideCGx !== undefined || c.standsForAirframe === true;
         if (c.overrideCGx !== undefined && c.cgFrom !== "stated") {
           wrong.push(`${shortName(f.name)}: ${c.kind} "${c.name}" states a CG and is not marked`);
         }
-        if (c.cgFrom === "stated" && c.overrideCGx === undefined) {
+        if (c.cgFrom === "stated" && !hasStatedFigure) {
           wrong.push(`${shortName(f.name)}: ${c.kind} "${c.name}" is marked as stating a CG and states none`);
         }
       }

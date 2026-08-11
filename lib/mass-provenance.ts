@@ -47,8 +47,9 @@ export function massSourceLabel(c: RocketComponent, hasOwnMass: boolean): string
  *  vocabulary rather than inventing a second one.
  *
  *  **Loft already FLIES a stated CG and said nothing about it.** Measured 2026-08-11 over the
- *  35-design corpus: 14 stated CGs across 7 designs — 5 nose cones (lead in the tip is the ordinary
- *  reason), 4 parachutes, and one each of transition, tube coupler, body tube and mass object — and
+ *  35-design corpus: 15 stated CGs across 8 designs — 5 nose cones (lead in the tip is the ordinary
+ *  reason), 4 parachutes, 2 mass objects and one each of transition, tube coupler, body tube and fin
+ *  set — and
  *  honouring them moves the static margin on 6 of the 7, by up to a full caliber. `MassBreakdown`
  *  printed a *CG from nose* figure for every one of them with no way to tell the design's claim from
  *  Loft's arithmetic, which is exactly what the mass column looked like before `massFrom`.

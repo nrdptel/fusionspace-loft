@@ -7872,7 +7872,13 @@ test.describe("choosing a real commercial part", () => {
     const table = page.locator("table").filter({ hasText: "CG from nose" });
     await expect(table).toBeVisible();
 
-    const headings = (await table.locator("thead th").allInnerTexts()).join(" ").toLowerCase();
+    // **Per CELL, not over a joined string, and the difference is the whole assertion.** Joining the
+    // headers and asking for "cg from" is satisfied by the pre-existing *CG from nose* column, so the
+    // control could not fail: deleting the new column entirely left it green. Array containment on the
+    // trimmed cell text is the repo's own pattern for this and is exact.
+    const headings = (await table.locator("thead th").allInnerTexts()).map((t) =>
+      t.replace(/[▲▼]/g, "").trim().toLowerCase(),
+    );
     expect(headings, "the breakdown gained no column naming where a balance point came from").toContain("cg from");
 
     // The row is matched by NAME and then read, rather than by index: a column added ahead of this one
