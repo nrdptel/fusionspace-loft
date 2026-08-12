@@ -113,7 +113,7 @@ import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption,
   bakeMotorSwap,
 } from "@/lib/motors/swap";
 import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
-import { massByComponent, statedMassHolder, statesOwnAssemblyMass } from "@/lib/sim/mass";
+import { localBodyCGx, massByComponent, statedCGReachesDesign, statedMassHolder, statesOwnAssemblyMass } from "@/lib/sim/mass";
 import { statedAirframeMass } from "@/lib/model/edit";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import {
@@ -242,8 +242,10 @@ interface Edits {
   noseLength?: number; // builder edit: nose-cone length (m)
   noseShape?: NoseShape; // builder edit: nose-cone contour
   noseMass?: number; // builder edit: what the nose cone weighs, as the flyer weighed it (kg)
+  noseCGx?: number; // builder edit: where the nose cone balances, from its own tip (m)
   bodyLength?: number; // builder edit: the picked body tube's length (m)
   bodyTubeMass?: number; // builder edit: what the picked tube weighs, as the flyer weighed it (kg)
+  bodyTubeCGx?: number; // builder edit: where the picked tube balances, from its own fore end (m)
   bodyDiameter?: number; // builder edit: the picked tube's outer diameter (m); scales the airframe to it
   catalogBodyTube?: PickedBodyTube; // builder edit: which catalogued part the two above came from
   catalogNoseCone?: PickedNoseCone; // builder edit: the published cone the nose fields came from
@@ -1734,6 +1736,37 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               const n = primaryNose(designBase);
               return n ? (massByComponent(designBase).get(n.id)?.mass ?? Number.NaN) : undefined;
             })(),
+            /** The nose cone's balance point as things stand — a station from its own TIP, which is
+             *  what the flyer measures and what `overrideCGx` means — plus the length that bounds it
+             *  and whether stating one would reach the design's own balance point at all.
+             *
+             *  `local` is the absolute station `massByComponent` reports minus the part's fore face,
+             *  because that table publishes *CG from nose* (an absolute figure across the whole
+             *  airframe) and this field is about one part. On a cone the two agree only when the cone
+             *  is the first thing on the rocket, which is the case that would have hidden the bug. */
+            noseCGx: (() => {
+              const n = primaryNose(designBase);
+              if (!n) return undefined;
+              return {
+                // `localBodyCGx`, NOT the part's reported CG. `overrideCGx` replaces the cone's BODY
+                // centroid and a shoulder is blended in aft of it, so the reported figure is not the
+                // quantity this box holds — offering it made the control non-idempotent on the 15
+                // corpus cones that carry a shoulder: typing the number already shown moved the
+                // design's CG and the part then read back a third number.
+                local: localBodyCGx(designBase, n.id) ?? Number.NaN,
+                length: n.length,
+                reaches: statedCGReachesDesign(designBase, n.id),
+              };
+            })(),
+            bodyTubeCGx: (() => {
+              const t = primaryBodyTube(designBase, edits.bodyTubeId);
+              if (!t) return undefined;
+              return {
+                local: localBodyCGx(designBase, t.id) ?? Number.NaN,
+                length: t.length,
+                reaches: statedCGReachesDesign(designBase, t.id),
+              };
+            })(),
             /** **Where a part's weight is already counted, on every field that offers to state one.**
              *
              *  OpenRocket lets an assembly state one figure for itself and everything in it, and 4 of
@@ -2609,7 +2642,7 @@ export type EditorAim = string;
 /** The value fields each aim owns, derived from the registry plus the nose's three. */
 const AIM_FIELDS: Readonly<Record<string, readonly string[]>> = {
   ...Object.fromEntries(Object.entries(AIM_SLOTS).map(([slot, def]) => [slot, def.targets])),
-  nose: ["noseLength", "noseShape", "noseMass", "catalogNoseCone"],
+  nose: ["noseLength", "noseShape", "noseMass", "noseCGx", "catalogNoseCone"],
 };
 
 /** Every field any aim owns — the set a property surface filters DOWN from. */
@@ -2675,6 +2708,9 @@ function DesignEditor({
     noseLength?: number;
     noseShape?: NoseShape;
     noseMass?: number;
+    /** A part's own balance point (m from its own fore end), the length that bounds it, and whether
+     *  stating one would reach the design's balance point at all — see `statedCGReachesDesign`. */
+    noseCGx?: { local: number; length: number; reaches: boolean };
     /** Per aim, the assembly whose STATED weight already covers that part — so its own mass field
      *  is a control that would demonstrably do nothing. Undefined where the part carries its own. */
     massCarriedBy: {
@@ -2705,6 +2741,7 @@ function DesignEditor({
     };
     bodyLength?: number;
     bodyTubeMass?: number;
+    bodyTubeCGx?: { local: number; length: number; reaches: boolean };
     bodyDiameter?: number;
     bodyTubePart?: AimedPart;
     unreachableBodyTubes: number;
@@ -3214,6 +3251,47 @@ function DesignEditor({
                       }
                     />
                   )}
+                  {/* **The balance point the flyer measured, beside the weight they measured.** Loft
+                      has honoured a stated CG since its first importer — 14 `overrideCGx` across 7
+                      corpus designs, moving the static margin on 6 of those 7 by up to 1.011 cal — and
+                      until now had no way to write one. `COMPETITION.md` row 45: OpenRocket's Override
+                      tab carries mass and CG together, and a flyer who balances a cone on a knife edge
+                      is doing the same measurement they did with the scale.
+
+                      Measured from the part's OWN fore end, which is what OpenRocket asks for, what
+                      `overrideCGx` means, and what a flyer can actually reach with a rule. Bounded by
+                      the part's length, unlike the weight beside it: a mass has no host to fit inside,
+                      a station does, and one off the end of the part cannot mean anything. */}
+                  {designDims.noseCGx !== undefined && (
+                    <NumberField
+                      label={`Nose balance (${spanU} from tip)`}
+                      value={toDispSpan(edits.noseCGx)}
+                      onChange={(v) => {
+                        const m = fromSpan(v);
+                        onEdit({ noseCGx: m !== undefined && m >= 0 ? m : undefined });
+                      }}
+                      min={0}
+                      // Display units, like every other bound in this panel: `max` is compared against
+                      // what the box holds, and the readback is metres. Passing 0.17 into a millimetre
+                      // field advertises — and enforces — a ceiling of 0.17 mm on a 170 mm cone.
+                      max={Number(toDispSpan(designDims.noseCGx.length))}
+                      // Disabled only while EMPTY, exactly as the mass fields are, and for the same
+                      // one-way-door reason: a typed value must stay clearable.
+                      disabled={!designDims.noseCGx.reaches && edits.noseCGx === undefined}
+                      hint={
+                        !designDims.noseCGx.reaches
+                          ? "This cone carries no weight of its own for a balance point to place — the design states its weight as a whole and gives the cone no material."
+                          : !Number.isFinite(designDims.noseCGx.local)
+                            ? "Where the cone's shell balances, measured from the tip. Loft has no figure of its own to show here — a shoulder, if the cone has one, is weighed separately."
+                            : "Where the cone's shell balances, measured from the tip. A shoulder, if it has one, is weighed separately — so this is not a knife-edge reading of the whole part."
+                      }
+                      placeholder={
+                        !designDims.noseCGx.reaches || !Number.isFinite(designDims.noseCGx.local)
+                          ? undefined
+                          : toDispSpan(designDims.noseCGx.local)
+                      }
+                    />
+                  )}
                   {designDims.bodyLength !== undefined && (
                     <NumberField
                       label={`Body length (${spanU})`}
@@ -3260,6 +3338,33 @@ function DesignEditor({
                         designDims.massCarriedBy.bodyTube || !Number.isFinite(designDims.bodyTubeMass)
                           ? undefined
                           : toDispMass(designDims.bodyTubeMass)
+                      }
+                    />
+                  )}
+                  {/* The tube's own balance point — the part alone, like the weight above it, so a
+                      section weighed and balanced with its fins on is not what this describes. */}
+                  {designDims.bodyTubeCGx !== undefined && (
+                    <NumberField
+                      label={`Body tube balance (${spanU} from its fore end)`}
+                      value={toDispSpan(edits.bodyTubeCGx)}
+                      onChange={(v) => {
+                        const m = fromSpan(v);
+                        onEdit({ bodyTubeCGx: m !== undefined && m >= 0 ? m : undefined });
+                      }}
+                      min={0}
+                      max={Number(toDispSpan(designDims.bodyTubeCGx.length))}
+                      disabled={!designDims.bodyTubeCGx.reaches && edits.bodyTubeCGx === undefined}
+                      hint={
+                        !designDims.bodyTubeCGx.reaches
+                          ? "This tube carries no weight of its own for a balance point to place — the design states its weight as a whole and gives the tube no material."
+                          : !Number.isFinite(designDims.bodyTubeCGx.local)
+                            ? "Where the bare tube balances, from its fore end. Loft has no figure of its own to show here."
+                            : "Where the bare tube balances, measured from its fore end. Not the built section — the fins, lugs and mount inside it are weighed separately."
+                      }
+                      placeholder={
+                        !designDims.bodyTubeCGx.reaches || !Number.isFinite(designDims.bodyTubeCGx.local)
+                          ? undefined
+                          : toDispSpan(designDims.bodyTubeCGx.local)
                       }
                     />
                   )}

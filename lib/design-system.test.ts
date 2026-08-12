@@ -94,6 +94,258 @@ function stripComments(text: string): string {
   );
 }
 
+/** Source with every string and template literal replaced by its own quote character repeated to its
+ *  own length — same offsets, no brace or paren inside a literal.
+ *
+ *  **Both source walks below read this, and an earlier draft had only one of them reading it.** A
+ *  brace or paren inside a literal unbalances a counting scan, and the two failure modes are not
+ *  symmetrical: `function Bar(label = "a(b") {` makes the paren walk run to end-of-file, so the
+ *  component drops out of the scan ENTIRELY and is silently exempt, while `const s = "}"` clips a
+ *  body before its `return null`. Both are the instrument reading green over the thing it exists to
+ *  find. The tree holds no such literal today — measured 2026-08-12, all 118 function bodies balance
+ *  either way — so this is a trap closed rather than a failure fixed, and the reason to close it is
+ *  that an inconsistency between two helpers is reintroduced by whoever edits only one. */
+function neutraliseLiterals(text: string): string {
+  return text.replace(/"[^"\n]*"|'[^'\n]*'|`(?:[^`\\]|\\.)*`/g, (lit) => lit[0].repeat(lit.length));
+}
+
+/** A source in two length-identical copies: `raw` keeps string contents and `scan` does not, and both
+ *  have their comments blanked at the same offsets.
+ *
+ *  Two things make this its own helper rather than a call to `stripComments`.
+ *
+ *  **`stripComments` cuts `//` to end of line inside string literals, and this check is the first
+ *  reader that can be silently harmed by it.** A component holding `const href = "//cdn/x";` on the
+ *  same line as `if (rows.length === 0) return null;` loses the guard before the scan sees it — the
+ *  surface is then counted as inspected and clean, which is the worst of the three ways to be wrong.
+ *  Literals are neutralised BEFORE comments are found here, so `//` inside one is not a comment.
+ *
+ *  **And every offset has to survive.** `stripComments` deletes, so a line number taken from its
+ *  output points at the wrong line and the two copies could not be sliced with one span. Everything
+ *  here blanks in place: same length, same lines, same offsets in both copies. */
+function scannableSource(text: string): { raw: string; scan: string } {
+  const neutral = neutraliseLiterals(text);
+  const blanks: [number, number][] = [];
+  for (const m of neutral.matchAll(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g)) blanks.push([m.index, m.index + m[0].length]);
+  const blank = (s: string) => {
+    const chars = [...s];
+    for (const [a, b] of blanks) for (let i = a; i < b; i++) if (chars[i] !== "\n") chars[i] = " ";
+    return chars.join("");
+  };
+  return { raw: blank(text), scan: blank(neutral) };
+}
+
+/** Every top-level `function Name(…) { … }` in a source, with its body — the unit the empty-state
+ *  check below reasons about.
+ *
+ *  **File granularity is the wrong unit for that check and component granularity is the right one.**
+ *  `ResultsView.tsx` renders four data surfaces and eight conditional hints; asking "does this FILE
+ *  contain `return null`" answers yes for both kinds and can only ever be noise. Asking it of a
+ *  component is answerable.
+ *
+ *  **Finding the body brace takes two skips, and the first draft did only one of them.** The obvious
+ *  `indexOf("{")` lands on the DESTRUCTURING pattern of `function X({ rocket }: { … })`, which is
+ *  every component in this tree — that draft matched 0 components in 21 files and reported a clean
+ *  sweep, the "compliance command that cannot fail" §9 keeps recording. Walking the parameter list to
+ *  its closing paren fixes that and leaves the identical failure one token to the right: a RETURN
+ *  TYPE may be braced too, so `function f(…): { v: number } {` hands back the type annotation as the
+ *  body. Two live cases when this was measured — `FlightViz`'s `placeLabels` (an 18-character "body"
+ *  against a real 667) and `ValidationPanel`'s `convert` (24 against 401) — neither of them a data
+ *  surface, so nothing was mis-reported; a component with a braced return type would have been
+ *  exempt without saying so.
+ *
+ *  Arrow-function components are deliberately out of scope: this tree declares its components with
+ *  `function`, and a pattern for both would be looser without covering anything that exists. If one
+ *  ever lands, the arrow-component assertion below goes red and says so. */
+function topLevelFunctions(text: string, raw: string): { name: string; line: number; body: string; scan: string }[] {
+  const out: { name: string; line: number; body: string; scan: string }[] = [];
+  /** The `}` matching the `{` at `from`, or -1. */
+  const matchBrace = (from: number): number => {
+    let depth = 0;
+    for (let i = from; i < text.length; i++) {
+      if (text[i] === "{") depth++;
+      else if (text[i] === "}" && --depth === 0) return i;
+    }
+    return -1;
+  };
+  // The generic clause matches a BALANCED angle group, not `<[^>]*>`: that stops at the first `>`, so
+  // `function Baz<T extends Record<string, number>>(…)` failed the following `\(` and dropped out of
+  // the scan without a word. `DataTable<R>` and `Segmented<T extends string>` survive it only because
+  // their type parameters happen to hold no angle brackets.
+  const re = /^(?:export\s+)?(?:default\s+)?function\s+([A-Za-z0-9_]+)\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\s*\(/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    let parens = 1;
+    let j = re.lastIndex;
+    for (; j < text.length && parens > 0; j++) {
+      if (text[j] === "(") parens++;
+      else if (text[j] === ")") parens--;
+    }
+    // Then the return type, if there is one. What PRECEDES a brace says whether it opens a type or
+    // the body: a type's brace follows a token the type is still being built from (`:` `|` `&` `,`
+    // `<` `(` `[` `=>`), the body's follows the end of one (`)` when there is no annotation, an
+    // identifier, `}`, `>`, `]`).
+    //
+    // Looking at what FOLLOWS instead is the rule this replaced, and it was wrong on the second case
+    // it met: `: { x: 1 } | React.ReactElement | null {` has the braced type followed by `|`, not by
+    // the body, so the annotation was handed back as the body again. Its control failed while the
+    // other four passed, which is the argument for writing the control before believing the fix.
+    // `=>` is the one two-character token here — `>` alone ends a generic (`Array<{ a: 1 }>`) and
+    // opens nothing.
+    let open = -1;
+    for (let guard = 0; guard < 16; guard++) {
+      open = text.indexOf("{", j);
+      if (open < 0) break;
+      let p = open - 1;
+      while (p >= 0 && /\s/.test(text[p])) p--;
+      const prev = text[p] ?? "";
+      const isType = ":|&,<([=".includes(prev) || (prev === ">" && text[p - 1] === "=");
+      if (!isType) break;
+      const end = matchBrace(open);
+      if (end < 0) break;
+      j = end + 1;
+    }
+    if (open < 0) continue;
+    const close = matchBrace(open);
+    const end = close < 0 ? text.length : close + 1;
+    // Neutralisation is LENGTH-PRESERVING, so the span found in the scan copy is the same span in
+    // the raw one. That matters: the content tests below must read the raw body, because
+    // `as="section"` is a string literal and the scan copy has replaced it with quote characters —
+    // the one container in §5's list that neutralisation would otherwise make invisible.
+    out.push({ name: m[1], line: text.slice(0, m.index).split("\n").length, body: raw.slice(open, end), scan: text.slice(open, end) });
+  }
+  return out;
+}
+
+/** Does the `{` at `at` open a FUNCTION body rather than a plain block?
+ *
+ *  Read BACKWARDS from the brace, matching the parameter list as a paren group, because the forward
+ *  question ("what does this look like?") has no bounded answer. The lookback-regex version this
+ *  replaces asked it with a 400-character window and `\([^()]*\)`, and both limits were reachable in
+ *  ordinary code: a nested `function pick(cb: (x: number) => string) {` has nested parens, and this
+ *  tree's destructured signatures routinely run past 400 characters. Each miss made a nested helper
+ *  read as an `if` block, so its `return null` was attributed to the component around it — a red gate
+ *  naming a defect that is not there, on a check whose neighbours record that firing wrongly is how a
+ *  check gets disabled.
+ *
+ *  The rule after the walk is one line: the token before the parameter list decides it. A reserved
+ *  block keyword (`if`, `for`, `while`, `switch`, `catch`, `for await`) means a block, and a
+ *  `return null` inside a block IS at the component's top level — that is the shape of four of the
+ *  five vanishes this check found. Anything else — `function`, a method shorthand, a call being
+ *  invoked — is a function. `=>` needs no paren walk at all. */
+function opensAFunction(s: string, at: number): boolean {
+  const BLOCK_KEYWORDS = new Set(["if", "for", "while", "switch", "catch", "with", "await"]);
+  let i = at - 1;
+  const skipBack = () => {
+    while (i >= 0 && /\s/.test(s[i])) i--;
+  };
+  skipBack();
+  if (s[i] === ">" && s[i - 1] === "=") return true;
+  // A return-type annotation can sit between the parameter list and the body. Step back over the
+  // type's own tokens — including a braced or generic one — until a `)` or something that is not
+  // type-shaped.
+  for (let guard = 0; guard < 16 && i >= 0; guard++) {
+    if (s[i] === ")") break;
+    if (s[i] === "}" || s[i] === ">" || s[i] === "]") {
+      const openers: Record<string, string> = { "}": "{", ">": "<", "]": "[" };
+      const close = s[i];
+      const opener = openers[close];
+      let depth = 0;
+      for (; i >= 0; i--) {
+        if (s[i] === close) depth++;
+        else if (s[i] === opener && --depth === 0) break;
+      }
+      i--;
+      skipBack();
+      continue;
+    }
+    if (/[A-Za-z0-9_$.|&:]/.test(s[i])) {
+      i--;
+      skipBack();
+      continue;
+    }
+    return false;
+  }
+  if (s[i] !== ")") return false;
+  let depth = 0;
+  for (; i >= 0; i--) {
+    if (s[i] === ")") depth++;
+    else if (s[i] === "(" && --depth === 0) break;
+  }
+  i--;
+  skipBack();
+  // Optional generic parameter list, e.g. `function Baz<T extends Record<string, number>>(…)`.
+  if (s[i] === ">") {
+    let d = 0;
+    for (; i >= 0; i--) {
+      if (s[i] === ">") d++;
+      else if (s[i] === "<" && --d === 0) break;
+    }
+    i--;
+    skipBack();
+  }
+  let end = i + 1;
+  while (i >= 0 && /[A-Za-z0-9_$]/.test(s[i])) i--;
+  const word = s.slice(i + 1, end);
+  if (BLOCK_KEYWORDS.has(word)) return false;
+  if (word === "") return false;
+  // `for await (…)` reads back as the identifier `await`, already excluded above; `else if (…)` reads
+  // back as `if`. A bare `(…) {` with no identifier is not something this tree writes.
+  skipBack();
+  end = i + 1;
+  while (i >= 0 && /[A-Za-z0-9_$]/.test(s[i])) i--;
+  return !BLOCK_KEYWORDS.has(s.slice(i + 1, end));
+}
+
+/** Does this function body contain a `return null` at ITS OWN top level — outside every callback,
+ *  IIFE and nested declaration inside it?
+ *
+ *  Without the distinction, `RocketDiagram`'s `return null` inside a `.map(…)` callback — one part
+ *  that draws nothing — reads identically to a `return null` that vanishes the whole drawing. They
+ *  are not the same defect and only one of them is one.
+ *
+ *  **A single scan, deliberately, because the obvious find-and-blank loop does not terminate.** The
+ *  first version replaced each nested body with a marker and re-scanned: the marker it wrote was
+ *  still preceded by the `=>` that had matched, so the pattern matched the replacement, and
+ *  `DataTable` blanked the same two characters five thousand times without converging. It was capped
+ *  at 40 passes, which turned an infinite loop into a SILENT one — the cap was reached, the deeper
+ *  callbacks were never blanked, and the check reported their `return null`s as top-level. A bound
+ *  that hides non-termination instead of exposing it is worse than no bound.
+ *
+ *  String and template literals are neutralised first, so a brace inside one cannot unbalance the
+ *  count. Each is replaced by its own quote character repeated to its own length, so the scan sees
+ *  the same offsets it would have.
+ *
+ *  **Known limit, stated rather than guarded against:** it reads the STATEMENT form, so
+ *  `return cond ? null : <X/>` and `return cond && <X/>` are invisible to it. Measured across
+ *  `components/` on 2026-08-12: seven `? null :` and not one of them is a component's return — every
+ *  one resolves a data value (a sort key, a station, a wind speed). A guard that fires on zero real
+ *  cases is the thing `MAINTAINING.md` calls worse than nothing; when the first real one lands, this
+ *  is the note that says where to widen. */
+function returnsNullAtTopLevel(s: string): boolean {
+  /** Nested-function depth. The component's own body is depth 0 — its opening brace is preceded by
+   *  nothing, so it is not counted as a nested one. */
+  let fnDepth = 0;
+  const kinds: boolean[] = [];
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === "{") {
+      const isFn = opensAFunction(s, i);
+      kinds.push(isFn);
+      if (isFn) fnDepth++;
+    } else if (ch === "}") {
+      if (kinds.pop()) fnDepth--;
+    } else if (fnDepth === 0 && ch === "r" && s.startsWith("return null", i) && !/[A-Za-z0-9_$]/.test(s[i + 11] ?? "")) {
+      // The trailing-character test is what `\breturn null\b` gave the version this replaced, and
+      // dropping it was a straight precision regression: `return nullable;`, `return nullish(x)` and
+      // `return nullSafe(rows)` all read as a vanish. On a hard `toEqual([])` gate that is a red
+      // suite naming a defect that does not exist, which is how a check gets disabled.
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Just the STRING LITERALS of a source — which is where a class token can actually be.
  *
  *  **A class-token pattern run over whole source text reads English prose as CSS.** Measured
@@ -402,16 +654,25 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  all, so they rendered under §8's 44 px minimum on a phone. That is what a copied treatment
    *  costs — the copy drifts, and it drifts where nobody re-measures. */
   Select: 4,
-  /** §5's `EmptyState`. One adopter, and it is the one that matters most: `DataTable` is "every table
-   *  in the app" (7 files), so this single branch is the empty state of all of them.
+  /** §5's `EmptyState`. Five adopters, and the first is still the one that matters most: `DataTable`
+   *  is "every table in the app" (7 files), so that single branch is the empty state of all of them.
    *
    *  `MassBreakdown` also stopped returning null. Stated precisely, because driving the app corrected
    *  the first version of this note: one corpus design (`Three-stage rocket.CDX1`, 1 of 35) produces
    *  an empty structural-mass set, but loaded through the UI it has no motor, so `ResultsView`
    *  withholds everything below its "No flight simulated" card and the panel is never reached. That
    *  change is defensive — a data surface with no branch that silently disappears — not a hole a
-   *  flyer was falling into. */
-  EmptyState: 1,
+   *  flyer was falling into.
+   *
+   *  **1 → 5 on 2026-08-12, and the four are what the vanish check found once it stopped reading a
+   *  hand-typed list of two file names.** `FlightViz`, `GeometryInspector`, `ParameterSweep` and
+   *  `RocketDiagram` each had a top-level `return null` that took a whole surface off the page:
+   *  the flight path, the design-geometry section, `/sweep`'s only panel, and the airframe drawing
+   *  that `AirframeStrip` keeps on screen across every route. Three were named in `ROADMAP.md`; the
+   *  general instrument found two the enumerative one could not, of which this is one. `PhaseTable`
+   *  is a fifth conversion that adds nothing here — its `DataTable` already carried the copy, and
+   *  the fix was deleting the guard that made it unreachable. */
+  EmptyState: 5,
   /** §5's `ErrorState`. One adopter today — the app's own error card, which carries both an import
    *  failure and a refused edit.
    *
@@ -833,26 +1094,126 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     // (`Three-stage rocket.CDX1` states no structural point masses), and its `empty` copy was
     // already written and provably unreachable behind the guard.
     //
-    // Scoped to the components that RENDER A DATASET, by name. A blanket "no `return null`" would be
-    // wrong and would fire constantly: most of the app's `return null`s are conditional ADVICE — a
-    // flutter hint, a stability-trim note, a booster-descent line — and a hint that does not apply
-    // must not render an empty box saying so. The distinction is whether the surface exists to show
-    // data a flyer came looking for.
-    const DATA_SURFACES = ["components/MassBreakdown.tsx", "components/DataTable.tsx"];
+    // The distinction that has to be drawn is whether the surface exists to show data a flyer came
+    // looking for. Most of this app's `return null`s are conditional ADVICE — a flutter hint, a
+    // stability-trim note, a booster-descent line — and a hint that does not apply must not render an
+    // empty box saying so. A blanket "no `return null`" would fire on all eleven of those.
+    //
+    // **This check used to draw that line with a two-name list, and that made it structurally unable
+    // to find anything.** `DATA_SURFACES` was `["components/MassBreakdown.tsx", "components/DataTable.tsx"]`
+    // — the two surfaces somebody had already fixed — so every data surface added since was exempt by
+    // construction and the count could only ever read 0. It is the same class error §9 records about
+    // the radius and spacing greps, and about the type-size one: an instrument that enumerates what
+    // it already knows about reads green over the class it was never told to look for. Pointed at the
+    // tree as a DERIVED rule it found five, of which `ROADMAP.md` had guessed three.
+    //
+    // **The rule: a data surface is a component that renders one of §5's DATA containers, or renders
+    // a dataset into one of its general containers.** The container is what makes it a surface a
+    // flyer navigated to rather than a line of advice that appeared beside one.
+    //
+    // **The containers split into two kinds, and an earlier draft required the dataset tell of
+    // both.** `DataTable`, `Figure` and `<table>` ARE a dataset — §5 puts all three under *Data*, and
+    // nothing renders one for a single value. The other three are shapes anything can take: `Panel`
+    // is the primitive itself, `<svg>` is every icon in the app, `Card as="section"` is any section.
+    // Those need a second tell before they mean data.
+    //
+    // Requiring it of all six cost real coverage, and the review that found it demonstrated the gap
+    // rather than argued it: `RocketpyCrossCheck`'s `Comparison` builds six solver-comparison rows as
+    // an array literal and renders them into a `DataTable`, and `MotorSweep` passes rows straight
+    // through — neither types `.map(` anywhere in its own body, so a `return null` added to either
+    // would have shipped green. That is the enumerate-what-we-know error one layer down: the old
+    // check exempted by NAME, and a spelling test exempts by VOCABULARY.
+    const STRONG: [string, RegExp][] = [
+      ["DataTable", /<DataTable[\s/>]/],
+      ["Figure", /<Figure[\s/>]/],
+      ["table", /<table[\s/>]/],
+    ];
+    const WEAK: [string, RegExp][] = [
+      ["Panel", /<Panel[\s/>]/],
+      ["svg", /<svg[\s/>]/],
+      ['Card as="section"', /<Card[^>]*as="section"/],
+    ];
+    // Several spellings, because a dataset arrives by more than one. Still a list, and still the
+    // narrower half of the rule — but it only ever decides the three weak containers.
+    const DATASET = /\.(?:map|flatMap|filter|slice|sort|entries)\(|Array\.from\(|\brows=|\bdata=|\bseries=|\bfor \(/;
+    const surfaces: string[] = [];
     const offenders: string[] = [];
-    for (const path of DATA_SURFACES) {
-      const f = components.find((x) => x.path === path);
-      expect(f, `${path} is not in the component set — the list above has gone stale`).toBeDefined();
-      const stripped = f!.text
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .split("\n")
-        .filter((l) => !/^\s*(\/\/|\*)/.test(l))
-        .join("\n");
-      if (/\breturn null\b/.test(stripped)) offenders.push(path);
+    for (const f of components.filter((x) => x.path.endsWith(".tsx"))) {
+      const { raw, scan } = scannableSource(f.text);
+      for (const fn of topLevelFunctions(scan, raw)) {
+        const strong = STRONG.some(([, re]) => re.test(fn.body));
+        if (!strong && !(WEAK.some(([, re]) => re.test(fn.body)) && DATASET.test(fn.body))) continue;
+        // Reported against the ORIGINAL file, not the comment-stripped copy `topLevelFunctions` read:
+        // `stripComments` deletes block comments outright, so its line numbers are short by however
+        // much docblock precedes the component — 46 lines on `AirframeStrip`. A failure message that
+        // points at the wrong line is a failure message a session has to distrust.
+        const found = f.text.search(new RegExp(`^(?:export\\s+)?(?:default\\s+)?function\\s+${fn.name}\\b`, "m"));
+        // Guarded, because `search` returns -1 and `slice(0, -1)` then answers with the file's LAST
+        // line — a plausible number pointing at the wrong place, which is the one outcome the lines
+        // above exist to prevent. An unresolvable name is a fact to state, not to round off.
+        expect(found, `${f.path}: cannot locate \`function ${fn.name}\` in the original source`).toBeGreaterThanOrEqual(0);
+        const at = f.text.slice(0, found).split("\n").length;
+        surfaces.push(`${f.path}:${at} ${fn.name}`);
+        if (returnsNullAtTopLevel(fn.scan)) offenders.push(`${f.path}:${at} ${fn.name}`);
+      }
     }
+    // How much of the tree the instrument can SEE — the number that was 2 before this check was
+    // derived, and that a future narrowing would quietly take back down.
+    //
+    // **Written `>=` and pinned AT the measured count, which makes it a ratchet like every other one
+    // in this file — say that rather than claim otherwise.** An earlier draft argued the `>=` bought
+    // room for a surface to be deleted without a red gate. At 22 of 22 it buys none, and pretending
+    // it does is worse than the exact form: a session meeting the failure would be told the
+    // instrument had gone blind when it had in fact done its job. If a surface is genuinely removed,
+    // lower this number in the same commit, with the reason — exactly as the treatment counts ask.
+    // The `>=` is kept only so that WIDENING the rule is not itself a failure.
+    //
+    // Two of the 22 are honest over-reach, named rather than carved out: `Footer` maps links into a
+    // layout that holds an `<svg>`, and `NoPropulsionNotice` is the "No flight simulated" card, which
+    // is advice in a `Panel`. Neither can vanish, both would be a hole if they did, and a carve-out
+    // list is how the version of this check that could not fail was built.
+    expect(surfaces.length, `data surfaces the instrument can see:\n  ${surfaces.join("\n  ")}`).toBeGreaterThanOrEqual(22);
     expect(
       offenders,
       `a data surface returns null instead of an empty state:\n  ${offenders.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("declares its components with the `function` keyword, which is what the check above can read", () => {
+    // `topLevelFunctions` reads `function Name(…)` and nothing else, so an arrow-function component
+    // would be invisible to the empty-state check rather than exempt from it — the silent kind of
+    // blindness, which is the whole subject of P14. This is the assertion that makes it loud.
+    //
+    // Scoped to a CapitalCamelCase name, which is React's own rule for what may appear in JSX:
+    // `const cx = (…) => …` and every hook and helper in this tree is an arrow and is not a
+    // component. The lowercase letter in the pattern is what excludes SCREAMING_CASE — an early draft
+    // flagged `PART_COLUMNS` and `MOTOR_GAP_SHORT`, both arrow-valued constants and neither a
+    // component. A check that fires wrongly is one somebody disables.
+    //
+    // **It matches the VALUE loosely on purpose, and an earlier draft matched only `= (…) =>`.**
+    // That draft was handed four vanishing surfaces written as `memo(…)`, `forwardRef(…)`, a generic
+    // arrow and a plain function expression, and stayed green on all four — while `topLevelFunctions`
+    // could not see them either. Two instruments, one blind spot, reading as coverage. The forms
+    // below are the ones a React component actually stops being a `function` declaration by; matching
+    // `const Name =` followed by anything function-shaped is deliberately wider than the list of
+    // shapes anyone has used, because that is the half that has already gone wrong twice.
+    //
+    // `export default (…) => …` is caught separately: it has no name to be CapitalCamelCase.
+    const arrows: string[] = [];
+    for (const f of components.filter((x) => x.path.endsWith(".tsx"))) {
+      const { scan } = scannableSource(f.text);
+      for (const m of scan.matchAll(
+        /^(?:export\s+)?const\s+([A-Z][A-Za-z0-9]*[a-z][A-Za-z0-9]*)\s*(?::[^=\n]*)?=\s*(?:async\s+)?(?:memo\s*\(|forwardRef\s*\(|function\b|<|\(|[A-Za-z0-9_$]+\s*=>)/gm,
+      )) {
+        arrows.push(`${f.path}: ${m[1]}`);
+      }
+      for (const m of scan.matchAll(/^export\s+default\s+(?:async\s+)?(?:\(|[A-Za-z0-9_$]+\s*=>|memo\s*\(|forwardRef\s*\()/gm)) {
+        arrows.push(`${f.path}: anonymous default export at offset ${m.index}`);
+      }
+    }
+    expect(
+      arrows,
+      `a component the empty-state check cannot see, because it is not a \`function\` declaration:\n  ${arrows.join("\n  ")}`,
     ).toEqual([]);
   });
 

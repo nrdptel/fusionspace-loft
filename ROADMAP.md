@@ -2586,6 +2586,96 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 13 — the flyer's own BALANCE POINT reaches the airframe, 2026-08-12.** `COMPETITION.md`
+row 45's next slice, and the exact twin of the mass override increments 8–11 built: `overrideCGx` has
+been parsed, honoured over the computed centroid and exported since the first importer, with no
+control anywhere. Two now — `noseCGx` and `bodyTubeCGx` — written by `withStatedCG` with
+`cgFrom: "flyer"` beside the number, applied LAST of everything so a station read off a knife edge
+beats a catalogue pick and a caliber scale, the same precedence the stated weights already have.
+Measured from the part's own fore end, which is what OpenRocket's override tab asks for, what
+`overrideCGx` means, and what a flyer can reach with a rule.
+
+**Three things are NOT the same as the weight's, and each one is why this was not a copy-paste.**
+
+1. **It is BOUNDED, where every stated weight is not.** A mass has no host to fit inside, so the only
+   thing wrong with one is a number that is not one. A balance point is a station on a part, and one
+   off the end of that part cannot mean anything — `MAINTAINING.md`'s safety posture is explicit that
+   such an input is refused or bounded rather than flown into a confident number. Clamped at the
+   applier against the length being WRITTEN, not the one that was measured, because the bag is
+   persisted and replayed and a pick can move the part's length underneath a station typed before it.
+   Driven over the corpus: **63 of the 70 parts are short enough for the bound to fire**, and a
+   metre typed into a 170 mm cone stores 170 mm.
+2. **`>= 0`, and zero is the case the field most exists for.** A cone with lead in the tip balances at
+   its own fore end, which is the commonest reason a real design states a CG at all. `> 0` would have
+   silently discarded it.
+3. **The refusal predicate is the SOLVER's answer, and reusing the mass model's would have been
+   wrong on three of the four lumped designs.** For a weight the hazard is a double-count and the
+   question is "does an ancestor already state this part's mass". For a CG there is nothing to add
+   to, so the hazard is a silent no-op — and the two do not coincide. On a *stage-level* override
+   (3 of 35) the lump's CG is recomputed from every subsumed part whenever the stage states no
+   `overrideCGx`, so a per-part CG **is live and does move the design's balance point** while a
+   per-part MASS on the same part is dead. `statedMassHolder` answers identically for that case and
+   for a component-level override where the opposite holds, so it would have greyed out a working
+   control. `statedCGReachesDesign` perturbs the part and asks the solver instead — two probes, at
+   each end, because a single one lands on the current station whenever the part already balances
+   there and a probe that changes nothing cannot tell a dead control from an unmoved one.
+
+**Pinned by a corpus case over all 35 designs. Its first draft was a TAUTOLOGY, and saying so is the
+most useful thing in this entry.** That draft recomputed `[0, len].some(probe moves the design CG)`
+and compared it with `statedCGReachesDesign` — which is that expression, term for term. It agreed on
+70 of 70 by construction, both failure branches were unreachable, and it was published here as
+"0 disagreements": a compliance check that cannot fail, written one increment after the milestone
+whose entire subject is compliance checks that cannot fail. It now asserts two things a different
+function answers: every REFUSED control is a part that produces no point mass at all (the reason the
+refusal actually gives), and every OFFERED control's placeholder is a FIXED POINT — committing the
+figure the box shows must not move the flight. **35 nose cones and 35 body tubes offered, 62 controls
+the flight answers to and 8 it does not, 63 bound to the part's own length, 57 fixed points, 5 live on
+a part a stage lump subsumes.** The fixed-point half fires on 15 real cones when reverted. Two unit
+cases pin the precedence (a station typed in the same edit as a catalogue pick survives it, where a
+*stale* one is still cleared) and the bound at both ends; an e2e case drives the control in the app
+and fails when the writer is neutered.
+
+**What the pre-push review caught, because none of it was visible from the diff alone.**
+
+- **`overrideCGx` sets the cone's SHELL centroid and a shoulder is blended in aft of it**, so the
+  part acts up to 133 mm behind the station stated, and offering the part's REPORTED CG as the
+  placeholder made the control non-idempotent: typing the number the box already showed moved the
+  design's CG on 15 of 57 live controls. The placeholder is now `localBodyCGx` — the station
+  `overrideCGx` actually replaces, recovered by inversion so there is one definition of the blend —
+  and the hint says the shoulder is weighed separately, as the tube's hint already said about fins.
+  **The remaining question is a semantic one and is filed rather than guessed at:** a flyer balancing
+  a cone on a knife edge measures the whole part, shoulder included, and OpenRocket's override tab
+  may mean that. Changing what `overrideCGx` means would re-fly every imported `<overridecg>` and
+  move the accuracy census, so it is its own increment with its own corpus run.
+- **`bodyTubeCGx` was not registered in `AIM_SLOTS`**, so a station measured on one tube survived that
+  tube's deletion and landed on the fallback — 23 of 35 designs migrate it, `FullScaleModelTH.rkt` by
+  235 mm of dry CG — and `designKey` left the key unchanged across a re-aim, so a sweep could present
+  one tube's answer as another's. Registered.
+- **`max` was passed in METRES to a millimetre field**, so a 170 mm cone advertised and *enforced* a
+  ceiling of 0.17 mm and `NumberField.commit` silently pulled every real entry to the tip. Caught by
+  self-review and by two lenses independently; the control was unusable on every design.
+- **The refusal's stated reason was false on all 8 cases it fires on.** It said the part's mass was
+  stated by an assembly that already fixes where it acts; measured, all 8 are RASAero shells for which
+  `statedMassHolder` is null — they are dead because the format gives them no material, so there is
+  no mass for a station to place. The same false reason had been copied to the docs page and to
+  `COMPETITION.md`; all three now say what is true.
+- **The `statedMassHolder` comparison in `lib/sim/mass.ts` was backwards in its first bullet.** Over
+  the 70 controls the two predicates disagree on **13**, not 5 — the 5 stage-lumped parts where the CG
+  is live and the mass is dead, *plus* 8 where `statedMassHolder` would have offered a control that
+  does nothing. The conclusion (do not reuse it) holds; the arithmetic behind it did not.
+- **The clamp dropped its upper bound when the target had no usable length**, storing a balance point
+  a thousand kilometres down a zero-length part. It refuses the write now: "I cannot bound this" must
+  not become "unbounded".
+
+The methods page gains the paragraph, and `cgSourceLabel`'s docblock loses the sentence saying
+nothing lets a flyer set one yet — it has carried the `"flyer"` branch since it was written.
+
+**The gap this leaves, and it is the next slice.** `GeometryInspector`'s parts table has a *Station*
+column (the part's fore face) and a *Mass from* column, and **no CG column and no CG provenance at
+all** — so the surface whose stated job is *did Loft read my rocket right?* is the one surface that
+cannot show a balance point or say whose it is. `MassBreakdown` is still the only per-part CG surface
+in the app.
+
 **Increment 8 — the flyer's own scale reading reaches the airframe, and stops lying where it cannot,
 2026-08-10.** `COMPETITION.md` row 41 named (d) — a universal mass override — as the cheapest and
 most useful thing left in that row, and the nose cone and the body tube were the two kinds it had
@@ -5319,7 +5409,9 @@ Loft's copy records `Chip` as deleted on 2026-08-04 with the reason.
 
 ## P14 — The checks that can only see what they already know
 
-**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-11.
+**Status: SHIPPED 2026-08-12** — all three increments landed; increment 1 on 2026-08-11, increments 2
+and 3 on 2026-08-12. All three instruments are general rather than enumerative, each pinned by its own
+check, and §9 states each in the readable form beside the executable one. The *done when* is met.
 
 **Written 2026-08-11 because the P-track had run dry** — P13 met its *done when*, and P10's remaining
 increment is a repository SETTING no session can edit. `MAINTAINING.md` says extending the track IS
@@ -5356,6 +5448,119 @@ literal while seven off-system radii stood, and the spacing grep matching named 
 value was invisible rather than off-scale. Both were found by pointing a *general* instrument at the
 tree. Every item above is that same shape, which is why they are one milestone and not three defects.
 
+**Increment 3 — the hover-only states the touch ratchet could not see, 2026-08-12.** `HOVER_ONLY_FLOOR`
+was 0 and had been blind twice over: `e2e/touch.spec.ts` read the `title` ATTRIBUTE, and its
+`width === 0 && height === 0` skip discarded an SVG `<title>` CHILD before the attribute test could
+run — a `<title>` element has no rect of its own. Both closed: the probe now reads
+`:scope > title` on any SVG element and attributes it to the PARENT, which is the thing with a rect
+and the thing a flyer would have to hover.
+
+**Pointed at a 390 px coarse pointer it found 4 where the file had predicted eleven, and the
+difference is the useful part.** Eleven `<title>` children exist in `components/RocketDiagram.tsx`,
+but `showFin` renders only one fin grip at a time on a coarse pointer, so four is what a phone
+actually carries: the fin-position grip, the nose-length grip, the body-diameter grip, and the mass
+marker naming an internal mass object. **A count predicted from the source and a count measured on
+the device are different numbers, and only one of them is the tell.**
+
+**The mass marker was relocated; the three grips were GATED, and the difference between those two
+is the judgement in this increment.** The marker's `<title>` carried an internal mass object's name —
+real information, nowhere else on the drawing — so it moved onto `role="img"` + `aria-label`, which
+reaches assistive tech on every form factor and costs no pixels. The grips' tooltips say *"Drag or
+use arrow keys to …"*, and on a coarse pointer that sentence adds nothing the control does not
+already show: the glyph drawn on the grip IS the drag arrow, and "use arrow keys" names a device that
+is not there. They render only where a pointer can hover them now.
+
+**Relocating those three onto the accessible name was tried first and is the wrong answer twice
+over.** A slider's name is announced on every focus AND every value change, so the instruction would
+be read out on each arrow key — and it broke `e2e/touch.spec.ts`'s orientation assertion, which keys
+grips by their exact `aria-label`. The repo's own precedent covers both cases and this increment used
+both halves of it: *where the tooltip carries something real, relocate it; where it restates what is
+already visible, drop it.*
+
+The number went **0 → 4 → 0** inside one commit, which is the shape this milestone's notes predicted
+and the reason the floor is a ratchet rather than a budget. Pinned by a control: restoring the
+`<title>` children takes it back to 3 and fails the assertion by name.
+
+**Increment 2 — the five states, and the two vanishes this file had not found, 2026-08-12.**
+`DATA_SURFACES` is gone. A data surface is now DERIVED: **a component that renders one of §5's DATA
+containers (`DataTable`, `Figure`, `<table>`), or renders a dataset into one of its general ones
+(`Panel`, `<svg>`, `Card as="section"`).** The container is what separates a surface a flyer navigated
+to from advice that appeared beside one; without it the check fires on all **eleven** conditional
+hints in the tree (the flutter hint, the stability-trim note, the booster descent line, the
+service-worker toast). The dataset tell is what stops `<svg>` matching every icon in the app and
+`Panel` matching the primitive itself.
+
+**The split between the two kinds is a correction, and it bought two surfaces.** The first draft
+demanded a literal `.map(` of all six containers, which exempted by VOCABULARY where the old list
+exempted by NAME — the same error one layer down. `RocketpyCrossCheck`'s `Comparison` builds six
+solver-comparison rows as an array literal and renders them into a `DataTable`; `MotorSweep` passes
+rows straight through. Neither types `.map(` in its own body, so a `return null` added to either would
+have shipped green — on the panel whose whole job is Loft-versus-RocketPy figures. Nothing renders a
+`DataTable`, a `Figure` or a `<table>` for a single value, so those three need no second tell at all.
+
+**Pointed at the tree it saw 22 surfaces and found 5 vanishes. This file had named 3.** The two it
+did not are the increment's argument for itself:
+
+- **`ResultsView.tsx`'s `PhaseTable`** returned null on an empty row set — and its `DataTable`'s
+  `empty` copy was already written, already required by the primitive, and provably unreachable
+  behind that guard. A comment beside it said so in as many words. That is the `MassBreakdown` defect
+  exactly, still standing, in the file P14 increment 1 had just edited. **And the copy behind the
+  guard was wrong**, which is what an unrenderable branch buys: it named a cause — "a design that
+  never sheds a stage flies as one" — that produces ONE phase and a one-row table, not an empty one.
+  A sentence nobody can see is a sentence nobody re-reads.
+- **`RocketDiagram`** returned null on an undrawable outline, which left `/design`'s drawing missing
+  under its heading and, on every other route, `AirframeStrip`'s sunken band standing empty with its
+  `Airframe` landmark and nothing inside it. `COMPETITION.md` row 31 is about keeping that picture on
+  screen, so the surface whose whole point is persistence had the failure mode of showing an empty band.
+
+All five converted. `EmptyState` adoption **1 → 5** (`PhaseTable` needed no new one — the fix was
+deleting the guard that made the existing copy unreachable, then correcting the copy). The strip
+variant of `RocketDiagram` gets a bare line rather than the card: it is a two-row band inside a
+`Card tone="sunken"` that already draws the container, and a card nested in it is the treatment §9's
+card count exists to measure.
+
+**Three of the five are DEFENSIVE, not holes a flyer was falling into — and the first draft of this
+entry said the opposite.** It sold `RocketDiagram` and `GeometryInspector` as "reachable, not
+hypothetical: where a scratch build starts and where R2's deletions can return it." Both halves are
+false, and the repo says so plainly: `newDesign()` (`lib/model/starter.ts`) ships a nose cone and a
+body tube, and `removalRefusal` (`lib/model/edit.ts`) refuses the removal that would leave a stage
+with none — *"This is the only body tube left…, and an airframe needs one."* `ParameterSweep`'s is the
+same shape: the panel renders only under `!staged && run.hasPropulsion`, and a design that flies has a
+tube whose length is itself an axis. What stays reachable is a malformed import, which is why
+`RocketDiagram`'s copy no longer tells anyone to add a part — on two of that branch's three conditions
+they already have one. **The conversions are still right** (§5 governs what a surface does when it has
+nothing, not how often that happens); the claim about how the app got there was not measured, and an
+overstated symptom in this file is what a later session sizes its risk from.
+
+**Two things about the instrument itself, both found by driving it rather than by reading it.**
+
+- **The obvious find-and-blank loop does not terminate, and its bound hid that.** To ask "is this
+  `return null` at the component's OWN top level" the nested callback bodies have to be excluded.
+  Replacing each with a marker and re-scanning does not work: the marker is still preceded by the
+  `=>` that matched it, so the pattern matches its own replacement — `DataTable` blanked the same two
+  characters 5,000 times without converging. It was capped at 40 passes, which turned an infinite
+  loop into a **silent** one: the cap was reached, the deeper callbacks were never excluded, and two
+  `return null`s inside `.map(…)` callbacks were reported as top-level. It is a single brace-matching
+  scan now. **A bound that hides non-termination instead of exposing it is worse than no bound.**
+- **The first version matched 0 components in 21 files and reported a clean sweep.** `indexOf("{")`
+  after a function signature lands on the DESTRUCTURING pattern of `function X({ rocket }: { … })`,
+  which is every component in this tree. It is the compliance command that cannot fail, arriving
+  inside the fix for compliance commands that cannot fail — the third time §9 has recorded that shape.
+
+**The surface count is a FLOOR, not an exact ratchet, and that is a deliberate departure** from the
+rule governing every other count in `lib/design-system.test.ts`. Those count drift, where each unit is
+a defect and the target is 0, so an exact number forces an improvement into the same commit as the
+work. This one counts how much of the tree the instrument can SEE, where more is better and a falling
+number means it has gone blind again. An exact assertion would make deleting a surface a red gate;
+a floor makes going blind one.
+
+Pinned by three controls, run and reverted: reintroducing a top-level `return null` fails the check;
+the two live `return null`s inside `.map(…)` callbacks keep it green; and a component added to
+`components/` **today** that maps rows into a `DataTable` and returns null fails it by name — which is
+this increment's *done when*, stated as an executable thing rather than an intention. A second
+assertion pins the reader itself: an arrow-function component would be invisible to it rather than
+exempt, so `components/` is asserted to declare its components with the `function` keyword.
+
 **Increment 1 — the border tokens, 2026-08-11.** `offSystemBorder` enumerates every `border-zinc-*`
 and subtracts §2's four, in the shape the radius check already uses; a second check asserts the two
 pairs are used AS pairs, because fixing only the light half of `border-zinc-100 dark:border-zinc-800`
@@ -5376,9 +5581,11 @@ check at 0, and `DESIGN.md` §9 states each in the readable form beside the exec
 
 1. **Borders** — every `border-zinc-*` minus §2's four, at 0, plus the pairing assertion. **DONE.**
 2. **The five states** — `DATA_SURFACES` derived rather than hand-listed, so a new data surface is in
-   scope the day it lands, with the three known vanishes given real empty states.
+   scope the day it lands, with the three known vanishes given real empty states. **DONE**, and it
+   delivered more than it promised: five vanishes rather than three, 20 surfaces in scope rather than
+   2, and the "new surface is in scope the day it lands" half proved by control rather than asserted.
 3. **Hover-only states** — the touch walk counts the SVG `<title>` element as well as the attribute,
-   and the eleven gestures it then finds are stated somewhere a phone can reach.
+   and the gestures it then finds are stated somewhere a phone can reach. **DONE.**
 
 **Size.** 3 increments, one per instrument. Each is independently shippable and each lands its own
 check, so a run that gets one done has moved a real count.

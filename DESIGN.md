@@ -570,6 +570,37 @@ grep -roh 'rounded-xl border[a-z0-9:/ -]*' components \
   | sed 's/[[:space:]]*$//' | sort -u | wc -l                       # target: 1 (+ any named
                                                                     # non-card primitive, see below)
 
+# a data surface that VANISHES instead of saying why — §5's "a surface with no empty state is not
+# finished". Two questions, and both have to be asked of a COMPONENT rather than of a file:
+# `ResultsView.tsx` holds four data surfaces and eight conditional hints, and "does this file
+# contain `return null`" answers yes for both kinds.
+#   1. Is it a data surface? — it renders one of §5's DATA containers (DataTable, Figure, <table>),
+#      or renders a dataset into one of its general ones (Panel, <svg>, Card as="section"). Nothing
+#      renders a table or a figure for a single value, so those three need no second test; the other
+#      three are shapes anything can take, and without one `<svg>` matches every icon in the app.
+#   2. Does it `return null` at its OWN top level? — outside every callback and IIFE. A `return null`
+#      inside a `.map(…)` is one row drawing nothing, which is not this defect.
+#
+# THERE IS NO SHELL FORM OF THIS ONE, and that is stated rather than approximated. Both questions
+# need brace matching, and a `grep -c 'return null'` prints a number unrelated to either target —
+# most of this app's `return null`s are conditional advice and are correct. A line in this block
+# whose output does not mean its target trains a session to distrust the block, which is the same
+# reflex §9 exists to fight. `lib/design-system.test.ts` is the only form:
+#
+#   npx vitest run lib/design-system.test.ts -t vanish
+
+# states a phone cannot reach — a tooltip is a hover, and a hover is a state a flyer at the pad
+# does not have. Counts BOTH forms: the `title` attribute and the SVG `<title>` CHILD element, which
+# renders the identical native tooltip and which an attribute-only scan cannot see. The child is
+# attributed to its PARENT — a `<title>` element has no rect of its own, so a probe that skips
+# zero-size elements discards it before it is ever tested. Driven at 390 px on a coarse pointer,
+# because half of these render only on one form factor.
+#
+#   npx playwright test -g "counts the states a flyer at the pad cannot reach"
+#                                                                    # target: 0
+#                                                                    # target: 0 offenders, and
+#                                                                    #         >= 22 surfaces SEEN
+
 # off-scale spacing — every spacing utility, minus the scale
 grep -rohE '\b((p|m)[xytblr]?|(gap|space)(-[xy])?)-[0-9]+\b' components app \
   | grep -vE -- '-(0|1|2|3|4|6|8|12)$' | wc -l                      # target: 0

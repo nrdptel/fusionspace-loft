@@ -704,6 +704,22 @@ export interface GeometryEdits {
    *  different cones. Written as `overrideMass`, which `lib/sim/mass.ts` honours over the figure it
    *  derives from the cone's contour and stock. Undefined leaves it. */
   noseMass?: number;
+  /** Where the design's nose cone actually BALANCES (m from its own fore end — its tip), as the
+   *  flyer found it on a knife edge.
+   *
+   *  The twin of `noseMass` and unaimed for the same reason. Written as `overrideCGx`, which
+   *  `lib/sim/mass.ts` honours over the centroid it derives from the cone's contour — the same field
+   *  `<overridecg>` and `<KnownCG>` already import into, and the same one `lib/ork/export.ts` writes
+   *  back out. Undefined leaves it.
+   *
+   *  **BOUNDED, where every stated weight here is not, and the difference is physical rather than
+   *  stylistic.** A mass has no host to fit inside, so the only thing wrong with one is a number that
+   *  is not one. A balance point does: it is a station on a part, and a station off the end of that
+   *  part cannot mean anything. `MAINTAINING.md`'s safety posture is explicit that an input which
+   *  cannot mean anything physically is refused or bounded rather than flown into a confident number,
+   *  so this is clamped into `[0, length]` at the applier, against the length the edit is actually
+   *  being applied to. */
+  noseCGx?: number;
   /** Nose-cone contour for the design's nose (drives nose pressure and wave drag). Chosen from the
    *  picker as a canonical instance of the shape. Undefined leaves it. */
   noseShape?: NoseShape;
@@ -721,6 +737,13 @@ export interface GeometryEdits {
    *  flag, so the second case does not arise on any real design — it is preserved rather than
    *  handled. Undefined leaves it. */
   bodyTubeMass?: number;
+  /** Where the body tube `bodyTubeId` names actually BALANCES (m from its own fore end), as the
+   *  flyer found it on a knife edge.
+   *
+   *  **The part alone**, exactly as `bodyTubeMass` is: `overrideSubcomponents` is neither set nor
+   *  cleared, so a stated balance point describes the tube and not the fins, lugs and mount inside
+   *  it. Bounded into `[0, length]` — see `noseCGx`. Undefined leaves it. */
+  bodyTubeCGx?: number;
   /** Target outer diameter (m) of the body tube `bodyTubeId` names. The whole outer airframe (nose
    *  base, every body tube, transitions and their shoulders) scales by the same factor to hit it,
    *  keeping the mould line faired — the "same design in a wider/narrower tube" what-if. Fins, the
@@ -1012,8 +1035,14 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     // `>= 0` on both airframe masses, as on every other stated weight in this bag: a part weighed at
     // nothing worth counting is a real answer, and the EMPTY field is what means "leave it alone".
     (e.noseMass !== undefined && e.noseMass >= 0) ||
+    // `>= 0` on both stated balance points too, and for a different reason than the masses': a CG at
+    // the part's own fore end is 0 and is a perfectly ordinary answer on a nose cone with lead in the
+    // tip, which is the commonest reason a real design states one at all. `> 0` would silently
+    // discard exactly the case the field exists for.
+    (e.noseCGx !== undefined && e.noseCGx >= 0) ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
     (e.bodyTubeMass !== undefined && e.bodyTubeMass >= 0) ||
+    (e.bodyTubeCGx !== undefined && e.bodyTubeCGx >= 0) ||
     (e.bodyDiameter !== undefined && e.bodyDiameter > 0) ||
     // A picked part now carries a WALL and a STOCK of its own, so it changes the flight even with
     // both dimension fields blank — it stopped being the pure provenance record it was when it
@@ -1320,7 +1349,7 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
   // and `bodyDiameter` do, which is the behaviour a flyer already understands.
   bodyTubeId: {
     kinds: ["bodytube"],
-    targets: ["bodyLength", "bodyDiameter", "catalogBodyTube", "bodyTubeMass"],
+    targets: ["bodyLength", "bodyDiameter", "catalogBodyTube", "bodyTubeMass", "bodyTubeCGx"],
     groupWide: ["bodyDiameter"],
   },
   transitionId: { kinds: ["transition"], targets: ["transitionLength", "transitionAftDiameter"] },
@@ -2536,6 +2565,38 @@ function withStatedMass(c: RocketComponent, id: string, mass: number): RocketCom
   if (c.id === id) return { ...c, overrideMass: mass, massFrom: "flyer" } as RocketComponent;
   if (!c.children.length) return c;
   return { ...c, children: c.children.map((k) => withStatedMass(k, id, mass)) };
+}
+
+/** Put the flyer's own balance point on the one component `id` names, and say it was theirs.
+ *
+ *  The twin of `withStatedMass`, and `cgFrom` moves with the number for exactly the reason `massFrom`
+ *  does: `MassBreakdown`'s *CG from* column already distinguishes a design's claim from Loft's
+ *  arithmetic, and a hand-typed station arriving there unmarked would be captioned "Loft's own" — a
+ *  claim about a calculation that never happened, on the one surface whose job is saying whose figure
+ *  each number is. `cgSourceLabel` has carried the `"flyer"` branch since it was written; this is
+ *  what makes it reachable.
+ *
+ *  **Clamped HERE, against the length being written rather than the length that was measured.** The
+ *  panel bounds the field too, but the bag is persisted and replayed (`lib/session.ts`) and a sweep
+ *  can drive an axis with no panel involved — and a caliber scale or a catalogue pick can move the
+ *  part's length underneath a station typed before it. The same argument `withInternalGeometry` makes
+ *  for re-asserting the bore at the point of writing: a bound that holds by construction beats one
+ *  that holds by an argument about the order of five transforms. */
+function withStatedCG(c: RocketComponent, id: string, cgx: number): RocketComponent {
+  if (c.id === id) {
+    const len = (c as { length?: number }).length;
+    // **No length, no bound, no write.** An earlier draft fell back to `Math.max(cgx, 0)` when the
+    // target had no usable length, which turns "I cannot bound this" into "unbounded" — the opposite
+    // of the posture the clamp exists to hold. Driven on a zero-length cone it stored a balance point
+    // a thousand kilometres down a part with no length, marked as the flyer's, straight into the
+    // design's CG and pitch inertia. The panel cannot reach that (the field is refused there), but the
+    // bag is persisted, replayed and swept with no panel involved, which is this function's whole
+    // reason for clamping here rather than only in the UI. Refusing is the honest failure.
+    if (len === undefined || !(len > 0)) return c;
+    return { ...c, overrideCGx: Math.min(Math.max(cgx, 0), len), cgFrom: "flyer" } as RocketComponent;
+  }
+  if (!c.children.length) return c;
+  return { ...c, children: c.children.map((k) => withStatedCG(k, id, cgx)) };
 }
 
 /** Apply that resolved edit to the one component it names. A bare setter — every bound was already
@@ -4153,6 +4214,14 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits, statedByFile:
     edits.bodyTubeMass !== undefined && Number.isFinite(edits.bodyTubeMass) && edits.bodyTubeMass >= 0
       ? primaryBodyTube(rocket, edits.bodyTubeId)?.id
       : undefined;
+  // The two stated balance points resolve through the same primaries as the weights beside them, so
+  // a CG and a mass typed in one sitting always describe the same part.
+  const noseCgId =
+    edits.noseCGx !== undefined && Number.isFinite(edits.noseCGx) && edits.noseCGx >= 0 ? primaryNose(rocket)?.id : undefined;
+  const bodyCgId =
+    edits.bodyTubeCGx !== undefined && Number.isFinite(edits.bodyTubeCGx) && edits.bodyTubeCGx >= 0
+      ? primaryBodyTube(rocket, edits.bodyTubeId)?.id
+      : undefined;
   const nosePickMaterial: Material | undefined = nosePick?.material
     ? { name: nosePick.material.name, density: nosePick.material.density, type: "bulk" }
     : undefined;
@@ -4295,6 +4364,13 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits, statedByFile:
     // weight would be silently overwritten by a pick made afterwards.
     if (noseMassId && edits.noseMass !== undefined) geo = withStatedMass(geo, noseMassId, edits.noseMass);
     if (bodyMassId && edits.bodyTubeMass !== undefined) geo = withStatedMass(geo, bodyMassId, edits.bodyTubeMass);
+    // The stated balance points after the weights, and last of everything, for the same reason the
+    // weights are last: all three catalogue picks CLEAR `overrideCGx` (a 65.4 mm balance measured on
+    // a 396.9 mm cone describes nothing once a different cone replaces it), and a caliber scale moves
+    // the geometry the centroid is derived from. A station the flyer read off a knife edge should
+    // survive both, and applied any earlier it would not.
+    if (noseCgId && edits.noseCGx !== undefined) geo = withStatedCG(geo, noseCgId, edits.noseCGx);
+    if (bodyCgId && edits.bodyTubeCGx !== undefined) geo = withStatedCG(geo, bodyCgId, edits.bodyTubeCGx);
     return geo;
   };
   const edited: Rocket = {

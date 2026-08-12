@@ -1298,6 +1298,23 @@ test("counts the states a flyer at the pad cannot reach, and holds the number do
           const r = el.getBoundingClientRect();
           if (r.width === 0 && r.height === 0) continue;
           const label = `<${el.tagName.toLowerCase()}> ${(el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 24)}`;
+          // **The SVG `<title>` CHILD, not just the `title` ATTRIBUTE.** They render the identical
+          // native tooltip and are equally unreachable on a phone — and this check could not see one
+          // of them for two reasons at once: it read the attribute only, and a `<title>` element has
+          // a 0x0 rect, so the `width === 0 && height === 0` skip above discarded it before the
+          // attribute test ran. Attributed to the PARENT, which is the thing with a rect and the
+          // thing a flyer would have to hover. `:scope > title` so a nested `<g>`'s tooltip is
+          // counted once, against the element that owns it.
+          const svgTitle = el.namespaceURI === "http://www.w3.org/2000/svg"
+            ? (el.querySelector(":scope > title")?.textContent ?? "")
+            : "";
+          if (svgTitle.trim()) {
+            const aria = el.getAttribute("aria-label") ?? "";
+            const norm = (x: string) => x.replace(/\s+/g, " ").trim().toLowerCase();
+            // An accessible name that already carries the sentence reaches every form factor, so the
+            // tooltip is a duplicate rather than a hover-only state.
+            if (!norm(aria).includes(norm(svgTitle))) out.push(`svg-title · ${label} · ${svgTitle.slice(0, 50)}`);
+          }
           const title = el.getAttribute("title");
           if (title && title.trim()) {
             const near = (el.closest("dd, li, p, div, section") as HTMLElement | null)?.innerText ?? "";

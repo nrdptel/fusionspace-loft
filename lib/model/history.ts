@@ -159,8 +159,12 @@ export const EDIT_ACTIONS: Readonly<Record<string, string>> = {
   noseLength: "the nose length",
   noseShape: "the nose shape",
   noseMass: "the nose cone's mass",
+  // "balance point" rather than "CG" in an undo label: the control is named for the acronym because
+  // the panel has a legend and a column beside it, and an undo menu has neither.
+  noseCGx: "the nose cone's balance point",
   bodyLength: "the body length",
   bodyTubeMass: "the body tube's mass",
+  bodyTubeCGx: "the body tube's balance point",
   bodyDiameter: "the body diameter",
   finish: "the surface finish",
   airframeMaterial: "the airframe material",
