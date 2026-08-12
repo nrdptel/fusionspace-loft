@@ -2670,11 +2670,55 @@ and fails when the writer is neutered.
 The methods page gains the paragraph, and `cgSourceLabel`'s docblock loses the sentence saying
 nothing lets a flyer set one yet — it has carried the `"flyer"` branch since it was written.
 
-**The gap this leaves, and it is the next slice.** `GeometryInspector`'s parts table has a *Station*
-column (the part's fore face) and a *Mass from* column, and **no CG column and no CG provenance at
-all** — so the surface whose stated job is *did Loft read my rocket right?* is the one surface that
-cannot show a balance point or say whose it is. `MassBreakdown` is still the only per-part CG surface
-in the app.
+**Increment 14 — the parts table says where each part balances, 2026-08-12.** The gap increment 13
+left, closed in the increment after it. The table published a *Station* — the part's FORE FACE, where
+it starts — and a *Mass*, and no balance point at all, so the surface whose stated job is *did Loft
+read my rocket right?* could show where every part begins and what it weighs and **not where any of
+it acts**, which is the number the static margin is built from. `MassBreakdown` had carried it since
+it shipped, one disclosure away; `COMPETITION.md` row 46 named the split.
+
+Two columns, mirroring the two beside them: **Balance** and **Balance from**, the second through the
+shared `cgSourceLabel` so this and `MassBreakdown` cannot drift into two vocabularies for one
+question. Both travel in the CSV, because a copied build sheet that says 984 g without saying who
+said so is the same wrong claim one screen further away — the argument *Mass from* already makes.
+
+**Absolute from the nose tip here, local to the part in the editor, and that difference is
+deliberate.** The per-part control takes a station from the part's own fore end because that is what a
+flyer measures with a rule; a table comparing parts down one airframe needs a single origin for all of
+them, and mixing the two in one row is how a build sheet lies. It matches `Station` beside it and
+`MassBreakdown`'s own column.
+
+A part carrying no mass of its own gets an em dash rather than its geometric middle — that would be a
+number nothing acts at, and the Mass cell beside it already says where the weight went. `cg` is
+genuinely optional on the record (a part subsumed by a stage lump is reported with no `cg` at all), so
+the narrowing is a binding rather than a `Number.isFinite` the compiler cannot see through.
+
+**The pre-push review found the increment repeating the exact mistake the increment before it warned
+about, and the check that should have caught it asserting nothing.** `Balance from` passed
+`ownsMass` — the MASS predicate — to `cgSourceLabel`'s `hasOwnCg`, and those two questions diverge
+precisely where `COMPETITION.md` row 46 says they do: on `EscapeVelocity.ork` the nose cone's weight
+is subsumed by a stage-level override while its stated `<overridecg>` is live, and stripping that one
+field moves the design's dry CG by 6.5 mm. The column whose only job is saying whose figure a station
+is printed "—" over a station Loft is flying and a design stated. There is a `hasOwnCg` beside
+`ownsMass` now, reading the record's own `cg`.
+
+And the e2e case's first draft asserted **nothing new**: `toContainText(/\d/)` against the whole row
+is satisfied by Station, and the provenance regex by the *Mass from* cell, both of which predate this
+change — so both new columns could have been deleted and it stayed green. **That is the third
+selector this run that looked right and tested nothing**, after a `columnheader` name that never
+matched an uppercased header and an apogee readout insensitive to the thing under test. It indexes
+the two cells by column now, and an em dash where the number belongs fails it.
+
+Two smaller ones taken: the CSV exported `Balance from nose (mm)` beside `Balance from`, two adjacent
+headers reading as one name truncated twice, so the provenance column exports as `Balance source`;
+and `PartSort` was laundering `"cg"` in through an `as` cast, leaving the component's own pre-sort
+switch with no branch for a column it offers.
+
+Pinned by an e2e case that reads the header ROW and the two new CELLS by column index on `/design`;
+renaming either column, or dashing a real figure, fails it by name. **The headers are uppercased by CSS and a sortable one carries its direction
+glyph, so `getByRole("columnheader", { name: "Balance", exact: true })` matches nothing while the
+column is plainly on screen** — worth recording, because that is the second selector this run that
+looked right and asserted nothing.
 
 **Increment 8 — the flyer's own scale reading reaches the airframe, and stops lying where it cannot,
 2026-08-10.** `COMPETITION.md` row 41 named (d) — a universal mass override — as the cheapest and

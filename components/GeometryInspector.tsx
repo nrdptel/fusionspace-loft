@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MassProvenance, Material, Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
-import { massSource, massSourceLabel } from "@/lib/mass-provenance";
+import { cgSourceLabel, massSource, massSourceLabel } from "@/lib/mass-provenance";
 import type { MotorMark } from "@/lib/sim/setup";
 import { mouldLineStep, internalSpanLabel, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
@@ -57,6 +57,15 @@ const PART_COLUMNS = (
     const m = masses.get(id);
     return !!m && !m.subsumedBy;
   };
+  /** Does this part have a BALANCE POINT of its own? **Not the same question as `ownsMass`, and the
+   *  increment before this one is where that was measured.** A part whose weight a stage-level lump
+   *  subsumes still contributes its station to that lump's recomputed CG — `COMPETITION.md` row 46
+   *  records the same divergence from the editor's side — so on `EscapeVelocity.ork` the nose cone's
+   *  mass is subsumed while its stated `<overridecg>` is live, and stripping that one field moves the
+   *  design's dry CG by 6.5 mm. Asking `ownsMass` printed "—" over a station Loft is flying and a
+   *  design stated. The record's `cg` is the honest test: it is present exactly when the mass model
+   *  produced a station for this part. */
+  const hasOwnCg = (id: string): boolean => masses.get(id)?.cg !== undefined;
   return [
   {
     key: "name",
@@ -208,6 +217,65 @@ const PART_COLUMNS = (
     csv: ({ p }) => massSourceLabel(p.component, ownsMass(p.component.id)),
   },
   {
+    key: "cg",
+    label: "Balance",
+    // **The parts table published a Station and a Mass and no balance point at all.** Station is the
+    // part's FORE FACE — where it starts — and a flyer reading "did Loft understand my rocket?" off
+    // this table could see where every part begins and what it weighs, and not where any of it acts.
+    // That is the number the static margin is built from. `MassBreakdown` has carried it since it
+    // shipped, one disclosure away, which is exactly the split `COMPETITION.md` row 46 named as this
+    // milestone's gap.
+    //
+    // Absolute, from the nose tip, matching `Station` beside it and `MassBreakdown`'s own column. The
+    // per-part control in the editor takes a station from the part's own fore end, because that is
+    // what a flyer measures with a rule; a TABLE comparing parts down the airframe needs one origin
+    // for all of them, and mixing the two in one row is how a build sheet lies.
+    sortValue: ({ p }) => masses.get(p.component.id)?.cg ?? Number.POSITIVE_INFINITY,
+    cell: ({ p }) => {
+      // **`cg` is optional on this record and that is not a formality.** A part subsumed by a
+      // stage-level override is reported as `{ mass: 0, subsumedBy }` with no `cg` at all, so the
+      // narrowing has to be a binding rather than a `Number.isFinite` call the compiler cannot see
+      // through — and an em dash is the right answer there anyway: a part carrying no mass of its own
+      // has no balance point, and printing its geometric middle would be a number nothing acts at.
+      // The Mass cell beside it already says where the weight went.
+      const cg = masses.get(p.component.id)?.cg;
+      if (cg === undefined || !hasOwnCg(p.component.id) || !Number.isFinite(cg)) {
+        return <span className="text-zinc-500 dark:text-zinc-400">—</span>;
+      }
+      return d.q(d.lengthMm(cg, units));
+    },
+    csvLabel: d.lengthMm(0, units).unit ? `Balance from nose (${d.lengthMm(0, units).unit})` : "Balance from nose",
+    csv: ({ p }) => {
+      const cg = masses.get(p.component.id)?.cg;
+      return cg === undefined || !hasOwnCg(p.component.id) || !Number.isFinite(cg) ? "" : csvQuantity(d.lengthMm(cg, units));
+    },
+  },
+  {
+    key: "cgFrom",
+    label: "Balance from",
+    // The twin of `Mass from`, and it exists for the identical reason: a bare station cannot say
+    // whether the design stated it, its own tool computed it, the flyer measured it, or Loft derived
+    // it from the shape and the stock. Those are four different claims. `cgSourceLabel` is the shared
+    // describer so this column and `MassBreakdown`'s cannot drift into two vocabularies for one
+    // question — which is the defect `lib/mass-provenance.ts` exists to prevent and records.
+    // **`ownsMass` is the WRONG predicate here, and the increment before this one is where that was
+    // measured.** `cgSourceLabel`'s second argument asks whether the part has a balance point of its
+    // own; the mass predicate asks whether it has a WEIGHT of its own, and the two diverge exactly
+    // where `COMPETITION.md` row 46 says they do. On `EscapeVelocity.ork` the nose cone's mass is
+    // subsumed by a stage-level override while its stated `<overridecg>` is live — stripping that one
+    // field moves the design's dry CG by 6.5 mm — so passing `ownsMass` printed "—" on a station Loft
+    // is flying and a design stated. Caught by the pre-push review, one increment after the roadmap
+    // entry warning about this same substitution.
+    cell: ({ p }) => (
+      <span className="text-zinc-600 dark:text-zinc-400">{cgSourceLabel(p.component, hasOwnCg(p.component.id))}</span>
+    ),
+    // "Balance source" in the CSV rather than the screen's "Balance from": the value column exports
+    // as `Balance from nose (mm)`, so two adjacent headers would have read as one name truncated
+    // twice. On screen `Balance` / `Balance from` is unambiguous; only the export needed the change.
+    csvLabel: "Balance source",
+    csv: ({ p }) => cgSourceLabel(p.component, hasOwnCg(p.component.id)),
+  },
+  {
     key: "dims",
     label: "Dimensions",
     cell: ({ p }) => describeDims(p.component, units),
@@ -227,7 +295,12 @@ const PART_COLUMNS = (
 /** How the parts table is ordered. "design" is the airframe's own order, nose to tail — the order a
  *  flyer reads their own rocket in, and the default. The rest sort a column, heaviest/longest first
  *  on the numeric ones, because that is the question being asked when you sort them. */
-type PartSort = "design" | "name" | "type" | "station" | "mass";
+// `"cg"` is here because the Balance column is sortable, and the `as PartSort` cast at the
+// `onSortChange` call site is what would otherwise launder a key this union does not know into the
+// component's own pre-sort — whose `switch` would then match nothing and silently collapse to design
+// order. Benign while `DataTable` re-sorts by the column's own `sortValue`, and exactly the kind of
+// dead branch an unsound cast hides; the union and the switch below are kept in step by hand.
+type PartSort = "design" | "name" | "type" | "station" | "mass" | "cg";
 
 /** Exported so the property surface's heading names a part exactly as the parts table and the
  *  identify line do. Two tables of the same nouns is how a panel's label and its own note drift
@@ -621,6 +694,11 @@ export default function GeometryInspector({
           return r.p.xFore;
         case "mass":
           return -(masses.get(r.p.component.id)?.mass ?? 0); // heaviest first
+        // A part with no balance point of its own sorts last, whichever way the column runs — the
+        // same place `compareCells` puts a non-finite value, so the pre-sort and `DataTable` agree
+        // rather than fighting over the em-dash rows.
+        case "cg":
+          return masses.get(r.p.component.id)?.cg ?? Number.POSITIVE_INFINITY;
       }
     };
     rows.sort((a, b) => {
