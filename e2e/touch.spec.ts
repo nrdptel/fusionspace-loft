@@ -1043,17 +1043,27 @@ test.describe("phone layout", () => {
         ns
           .map((n) => n.getBoundingClientRect())
           .filter((r) => r.width > 0 && r.height > 0)
-          .map((r) => Math.round(r.height)),
+          .map((r) => ({ w: Math.round(r.width), h: Math.round(r.height) })),
       );
 
     const nav = await sizes("footer nav a");
     expect(nav.length, "the footer has navigation links to measure").toBeGreaterThan(3);
-    expect(nav.filter((h) => h < 44), `footer nav link heights: ${nav.join(", ")}`).toEqual([]);
+    // **BOTH dimensions, and the height-only version of this line is what let two of them through.**
+    // §8 says "44 px minimum hit target … everywhere"; a target is an area, and a control 33 px
+    // across is not one however tall it is. Measured on an iPhone 13 viewport with a coarse pointer
+    // before this: `Docs` **33x44** and `v0.9.0` **41x44**, on all eight routes — 16 controls that
+    // satisfied this assertion, satisfied `TOUCH_TARGET`, and were a third of a target wide. The
+    // token only ever promised a height (`min-h-11`), so the check and the token were blind together.
+    const small = nav.filter((b) => b.w < 44 || b.h < 44).map((b) => `${b.w}x${b.h}`);
+    expect(small, `footer nav links under 44 px: ${small.join(", ")}`).toEqual([]);
 
     // The prose credits are deliberately untouched — growing them would put gaps in a sentence.
+    // Asserted on HEIGHT alone, because that is the dimension a line of prose can only have: a link
+    // inside a sentence carries WCAG's "inline in a block of text" exemption, and a wide one is
+    // simply a long phrase.
     const prose = await sizes("footer p a");
     expect(prose.length, "the footer has prose links to measure").toBeGreaterThan(0);
-    expect(prose.every((h) => h < 44), `prose link heights: ${prose.join(", ")}`).toBe(true);
+    expect(prose.every((b) => b.h < 44), `prose link heights: ${prose.map((b) => b.h).join(", ")}`).toBe(true);
   });
 
   test("the shelf's destructive control is a real target, not a sliver beside a big one", async ({ page }) => {

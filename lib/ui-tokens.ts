@@ -28,7 +28,14 @@
 export const TOUCH_TARGET = "pointer-coarse:min-h-11";
 
 /** The same 44 px minimum in BOTH directions, for a control whose text is one glyph — a zoom
- *  &minus;/+ clears the height minimum and still lands at 24 px wide, which is not a target. */
+ *  &minus;/+ clears the height minimum and still lands at 24 px wide, which is not a target.
+ *
+ *  **Not only for glyphs, which is what P15 measured.** A SHORT WORD misses the width floor exactly
+ *  as a glyph does, and `TOUCH_TARGET` alone says nothing about it: measured on an iPhone 13 viewport
+ *  with a coarse pointer, the footer's *Docs* rendered **33x44** and *v0.9.0* **41x44** on all eight
+ *  routes — 16 controls that satisfied both the token and the check while being a 33 px-wide tap
+ *  target. The rule is about the SIZE OF THE TARGET, not the shape of what is in it, so a standalone
+ *  control takes this and a control that fills a row takes `TOUCH_TARGET`. */
 export const TOUCH_TARGET_SQUARE = "pointer-coarse:min-h-11 pointer-coarse:min-w-11";
 
 /** Join class strings, dropping the empty ones so a caller can pass `undefined` without a stray space. */

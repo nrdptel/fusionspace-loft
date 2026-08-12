@@ -5641,6 +5641,67 @@ run ends assumes the instrument was already right; say which case it is in the c
 
 ---
 
+## P15 — A target is an area, not a height
+
+**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-12.
+
+**Written 2026-08-12 because the P-track had run dry again.** P14 shipped, P13 met its *done when*,
+and P10's remaining increment is a repository SETTING no session can edit. `MAINTAINING.md` says
+extending the track IS the work in that case, so this is that increment plus the first slice of what
+it named.
+
+**Outcome.** The 44 px touch contract means an AREA on every control, and the instruments that check
+it stop agreeing with each other about a rule neither of them fully states.
+
+**The measurement that decided it, 2026-08-12.** Driven on an iPhone 13 viewport with a real coarse
+pointer — which matters, and getting it wrong is recorded below — over eight routes:
+
+- **`TOUCH_TARGET` is `pointer-coarse:min-h-11`. A HEIGHT.** §8 says *"44 px minimum hit target on
+  `pointer: coarse`, everywhere"*, and the token every control in the app reaches for promises one
+  dimension of it. `TOUCH_TARGET_SQUARE` exists and its docblock scopes itself to a control *"whose
+  text is one glyph"* — but a short WORD misses the width floor exactly as a glyph does.
+- **And `e2e/touch.spec.ts` measures the same one dimension**, so the two were blind together. The
+  footer's *Docs* rendered **33x44** and *v0.9.0* **41x44**, on all **eight** routes — **16 controls**
+  that satisfied the token, satisfied the check, and were a third of a target across.
+- **80 controls fail one dimension or the other** across those eight routes, of which **16 fail WIDTH
+  only** — the population no existing assertion can see. The rest are height failures on surfaces the
+  suite does not walk (the brand link at 37x28, the skip link at 32x16, which is visually hidden until
+  focused and is a false positive to be excluded rather than fixed).
+
+**The first measurement of this was WRONG, and it is worth recording how.** A probe at a 390 px
+viewport with no `hasTouch`/`isMobile` reported **369** under-target elements and **238** controls —
+because `pointer-coarse:` does not apply to a fine pointer, so it measured a desktop layout squeezed
+into a phone's width. The real number is 80. A probe that does not reproduce the media query the
+token is written against is measuring a different app, and this file already records the same class of
+error twice about greps reading the wrong text.
+
+**Increment 1 — the footer's two narrow controls, and the assertion that could not see them,
+2026-08-12.** Both took `TOUCH_TARGET_SQUARE` with `justify-center`, so the added width grows around
+the label rather than stranding it. The footer case now measures BOTH dimensions on the nav row, and
+keeps HEIGHT-only on the prose credits — a link inside a sentence carries WCAG's *"inline in a block
+of text"* exemption and a wide one is simply a long phrase, so the two are different rules and are
+now written as two. Pinned by a control: reverting the *Docs* link to `TOUCH_TARGET` fails the
+assertion with `33x44` by name.
+
+**Done when** the width floor is asserted wherever the height floor is, on every route the suite
+walks; `TOUCH_TARGET`'s docblock states which of the two tokens a control takes and why; and the
+remaining width-only failures are zero, with any deliberate exemption named in this file rather than
+skipped.
+
+1. **The footer nav row** — both dimensions asserted, both controls converted. **DONE.**
+2. **The header, the import controls and `/design`** — the other three places `touch.spec.ts` counts
+   heights, widened to areas, with the brand link and the skip link exempted BY NAME rather than by
+   a filter nobody can find.
+3. **The docs routes** — `SectionNav`'s contents chips render 34 px tall and the suite never visits
+   those routes at all, so the count there is unmeasured rather than zero.
+
+**Size.** 3 increments. Each lands its own assertion, so a run that gets one has moved a real count.
+
+**Notes.** Increment 2 will raise counts before it lowers them, exactly as P14's increment 3 did.
+That is the ratchet working; the number goes up in the same commit that makes the instrument honest.
+
+---
+
 ## After R6 and P5 — extend this file yourself, in this order
 
 **Do not ask which of these to do, and do not fall back to the defect ledger because the list above
