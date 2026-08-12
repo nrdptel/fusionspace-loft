@@ -588,6 +588,16 @@ grep -roh 'rounded-xl border[a-z0-9:/ -]*' components \
 # reflex §9 exists to fight. `lib/design-system.test.ts` is the only form:
 #
 #   npx vitest run lib/design-system.test.ts -t vanish
+
+# states a phone cannot reach — a tooltip is a hover, and a hover is a state a flyer at the pad
+# does not have. Counts BOTH forms: the `title` attribute and the SVG `<title>` CHILD element, which
+# renders the identical native tooltip and which an attribute-only scan cannot see. The child is
+# attributed to its PARENT — a `<title>` element has no rect of its own, so a probe that skips
+# zero-size elements discards it before it is ever tested. Driven at 390 px on a coarse pointer,
+# because half of these render only on one form factor.
+#
+#   npx playwright test -g "counts the states a flyer at the pad cannot reach"
+#                                                                    # target: 0
 #                                                                    # target: 0 offenders, and
 #                                                                    #         >= 22 surfaces SEEN
 

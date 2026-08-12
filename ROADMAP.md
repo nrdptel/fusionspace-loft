@@ -5409,7 +5409,9 @@ Loft's copy records `Chip` as deleted on 2026-08-04 with the reason.
 
 ## P14 — The checks that can only see what they already know
 
-**Status: IN PROGRESS** — increments 1 and 2 of 3 shipped; 2026-08-11 and 2026-08-12.
+**Status: SHIPPED 2026-08-12** — all three increments landed; increment 1 on 2026-08-11, increments 2
+and 3 on 2026-08-12. All three instruments are general rather than enumerative, each pinned by its own
+check, and §9 states each in the readable form beside the executable one. The *done when* is met.
 
 **Written 2026-08-11 because the P-track had run dry** — P13 met its *done when*, and P10's remaining
 increment is a repository SETTING no session can edit. `MAINTAINING.md` says extending the track IS
@@ -5445,6 +5447,39 @@ target — radius 0, off-scale spacing 0, arbitrary spacing 0, off-scale type 0,
 literal while seven off-system radii stood, and the spacing grep matching named steps so an arbitrary
 value was invisible rather than off-scale. Both were found by pointing a *general* instrument at the
 tree. Every item above is that same shape, which is why they are one milestone and not three defects.
+
+**Increment 3 — the hover-only states the touch ratchet could not see, 2026-08-12.** `HOVER_ONLY_FLOOR`
+was 0 and had been blind twice over: `e2e/touch.spec.ts` read the `title` ATTRIBUTE, and its
+`width === 0 && height === 0` skip discarded an SVG `<title>` CHILD before the attribute test could
+run — a `<title>` element has no rect of its own. Both closed: the probe now reads
+`:scope > title` on any SVG element and attributes it to the PARENT, which is the thing with a rect
+and the thing a flyer would have to hover.
+
+**Pointed at a 390 px coarse pointer it found 4 where the file had predicted eleven, and the
+difference is the useful part.** Eleven `<title>` children exist in `components/RocketDiagram.tsx`,
+but `showFin` renders only one fin grip at a time on a coarse pointer, so four is what a phone
+actually carries: the fin-position grip, the nose-length grip, the body-diameter grip, and the mass
+marker naming an internal mass object. **A count predicted from the source and a count measured on
+the device are different numbers, and only one of them is the tell.**
+
+**The mass marker was relocated; the three grips were GATED, and the difference between those two
+is the judgement in this increment.** The marker's `<title>` carried an internal mass object's name —
+real information, nowhere else on the drawing — so it moved onto `role="img"` + `aria-label`, which
+reaches assistive tech on every form factor and costs no pixels. The grips' tooltips say *"Drag or
+use arrow keys to …"*, and on a coarse pointer that sentence adds nothing the control does not
+already show: the glyph drawn on the grip IS the drag arrow, and "use arrow keys" names a device that
+is not there. They render only where a pointer can hover them now.
+
+**Relocating those three onto the accessible name was tried first and is the wrong answer twice
+over.** A slider's name is announced on every focus AND every value change, so the instruction would
+be read out on each arrow key — and it broke `e2e/touch.spec.ts`'s orientation assertion, which keys
+grips by their exact `aria-label`. The repo's own precedent covers both cases and this increment used
+both halves of it: *where the tooltip carries something real, relocate it; where it restates what is
+already visible, drop it.*
+
+The number went **0 → 4 → 0** inside one commit, which is the shape this milestone's notes predicted
+and the reason the floor is a ratchet rather than a budget. Pinned by a control: restoring the
+`<title>` children takes it back to 3 and fails the assertion by name.
 
 **Increment 2 — the five states, and the two vanishes this file had not found, 2026-08-12.**
 `DATA_SURFACES` is gone. A data surface is now DERIVED: **a component that renders one of §5's DATA
@@ -5550,7 +5585,7 @@ check at 0, and `DESIGN.md` §9 states each in the readable form beside the exec
    delivered more than it promised: five vanishes rather than three, 20 surfaces in scope rather than
    2, and the "new surface is in scope the day it lands" half proved by control rather than asserted.
 3. **Hover-only states** — the touch walk counts the SVG `<title>` element as well as the attribute,
-   and the eleven gestures it then finds are stated somewhere a phone can reach.
+   and the gestures it then finds are stated somewhere a phone can reach. **DONE.**
 
 **Size.** 3 increments, one per instrument. Each is independently shippable and each lands its own
 check, so a run that gets one done has moved a real count.

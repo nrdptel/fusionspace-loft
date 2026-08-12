@@ -961,9 +961,11 @@ export default function RocketDiagram({
             } ${cursor}`}
             strokeWidth={1.4}
             {...hoverProps(m.id)}
-          >
-            <title>{m.label}</title>
-          </circle>
+            // Named rather than tooltipped, for the reason the grips are: a `<title>` child is a
+            // hover, and this marker is how a flyer finds a mass object on the drawing.
+            role="img"
+            aria-label={m.label}
+          />
         ))}
 
         {/* centre of pressure (aft of CG when stable) — draw first, so CG sits on top if they meet.
@@ -1003,6 +1005,7 @@ export default function RocketDiagram({
               label="Fin position"
               valueText={`${d.q(d.lengthMm(finStationNow, units))} from the nose`}
               title="Drag or use arrow keys to move the fins fore/aft"
+              coarse={coarse}
               current={finStationNow}
               lo={finLo}
               hi={finHi}
@@ -1022,6 +1025,7 @@ export default function RocketDiagram({
                 label="Fin sweep"
                 valueText={`${d.q(d.lengthMm(sweepNow, units))} of tip rake`}
                 title="Drag or use arrow keys to rake the fin tip fore/aft"
+                coarse={coarse}
                 current={sweepNow}
                 lo={sweepLo}
                 hi={sweepHi}
@@ -1041,6 +1045,7 @@ export default function RocketDiagram({
                 label="Fin root chord"
                 valueText={`${d.q(d.lengthMm(rootChordNow, units))} root chord`}
                 title="Drag or use arrow keys to lengthen or shorten the fin root"
+                coarse={coarse}
                 current={rootChordNow}
                 lo={rootLo}
                 hi={rootHi}
@@ -1060,6 +1065,7 @@ export default function RocketDiagram({
                 label="Fin tip chord"
                 valueText={`${d.q(d.lengthMm(tipChordNow, units))} tip chord`}
                 title="Drag or use arrow keys to lengthen or shorten the fin tip"
+                coarse={coarse}
                 current={tipChordNow}
                 lo={tipLo}
                 hi={tipHi}
@@ -1080,6 +1086,7 @@ export default function RocketDiagram({
                 label="Fin span"
                 valueText={`${d.q(d.lengthMm(spanNow, units))} semi-span`}
                 title="Drag up/down or use arrow keys to resize the fin span"
+                coarse={coarse}
                 current={spanNow}
                 lo={spanLo}
                 hi={spanHi}
@@ -1107,6 +1114,7 @@ export default function RocketDiagram({
             label="Nose length"
             valueText={`${d.q(d.lengthMm(noseLenNow, units))} long`}
             title="Drag or use arrow keys to lengthen or shorten the nose cone"
+            coarse={coarse}
             current={noseLenNow}
             lo={noseLo}
             hi={noseHi}
@@ -1136,6 +1144,7 @@ export default function RocketDiagram({
             label="Body length"
             valueText={`${d.q(d.lengthMm(bodyLenNow, units))} long`}
             title="Drag or use arrow keys to lengthen or shorten this body tube"
+            coarse={coarse}
             current={bodyLenNow}
             lo={bodyLenLo}
             hi={bodyLenHi}
@@ -1160,6 +1169,7 @@ export default function RocketDiagram({
             label="Mass position"
             valueText={`${d.q(d.lengthMm(massStationNow, units))} from the nose`}
             title="Drag or use arrow keys to slide this mass along the airframe"
+            coarse={coarse}
             current={massStationNow}
             lo={massLo}
             hi={massHi}
@@ -1183,6 +1193,7 @@ export default function RocketDiagram({
             label="Body diameter"
             valueText={`${d.q(d.lengthMm(bodyDiaNow, units))} diameter`}
             title="Drag up/down or use arrow keys to resize the body diameter"
+            coarse={coarse}
             current={bodyDiaNow}
             lo={diaLo}
             hi={diaHi}
@@ -1338,6 +1349,7 @@ function FinHandle({
   label,
   valueText,
   title,
+  coarse,
   current,
   lo,
   hi,
@@ -1370,6 +1382,8 @@ function FinHandle({
   label: string;
   valueText: string;
   title: string;
+  /** Whether the pointer is coarse — the tooltip below renders only where a pointer can hover it. */
+  coarse: boolean;
   current: number;
   lo: number;
   hi: number;
@@ -1619,7 +1633,21 @@ function FinHandle({
           {d.q(d.lengthMm(current, units))}
         </text>
       )}
-      <title>{title}</title>
+      {/* **The tooltip renders only where a pointer can hover it.** It is an SVG `<title>` CHILD,
+       *  which draws the identical native tooltip as the attribute and is equally unreachable on a
+       *  phone — and `e2e/touch.spec.ts` could not see it, twice over: it read the `title` ATTRIBUTE,
+       *  and its zero-rect skip discarded the `<title>` element before the test ran. Three of these
+       *  render on a coarse pointer, so a flyer at the pad had a 44 px control whose only explanation
+       *  was a hover they do not have.
+       *
+       *  Gated rather than relocated, and that is the narrower choice on purpose. Appending it to
+       *  `aria-label` was tried first: a slider's name is announced on every focus and every value
+       *  change, so the instruction would be read out on each arrow key — and it broke the orientation
+       *  assertion in `e2e/touch.spec.ts`, which keys grips by their exact name. What the sentence adds
+       *  on a coarse pointer is nothing the grip does not already show: the glyph drawn above is the
+       *  drag arrow, and "use arrow keys" names a device that is not there. On a mouse layout the
+       *  hover works and the sentence is worth having, so it stays. */}
+      {!coarse && <title>{title}</title>}
     </g>
   );
 }
