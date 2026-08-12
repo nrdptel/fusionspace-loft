@@ -54,9 +54,17 @@ export function massSourceLabel(c: RocketComponent, hasOwnMass: boolean): string
  *  printed a *CG from nose* figure for every one of them with no way to tell the design's claim from
  *  Loft's arithmetic, which is exactly what the mass column looked like before `massFrom`.
  *
- *  Only "stated" arises today, and the other two branches are deliberately absent rather than
- *  written speculatively: no importer marks a CG as the source tool's, and nothing lets a flyer set
- *  one yet. When either lands it adds its branch here, and every surface reading this gets it. */
+ *  **"flyer" arrives 2026-08-12**: the editor takes a balance point for the nose cone and the body
+ *  tube, written by `withStatedCG` with this mark beside the number for exactly the reason
+ *  `massFrom` is — without it a hand-typed station reaches the *CG from* column captioned "Loft's
+ *  own", a claim about a calculation that never happened, on the one surface whose job is saying
+ *  whose figure each number is. Measured across the 35-design corpus: 62 of the 70 nose-cone and
+ *  body-tube controls reach the flight and 8 do not, and the panel refuses those 8 rather than
+ *  taking a number that changes nothing.
+ *
+ *  "tool" remains unreached — no importer marks a CG as the source tool's — and its branch stays
+ *  written rather than removed, because the question it answers is the same one and the alternative
+ *  is a surface inventing a fourth word for it. */
 export function cgSourceLabel(c: RocketComponent, hasOwnCg: boolean): string {
   if (!hasOwnCg) return "—";
   const from = (c as { cgFrom?: MassProvenance }).cgFrom;

@@ -168,7 +168,19 @@ export default function Methods() {
         by the design, 60 carried from the source tool, 401 computed here. They are different claims
         and a bare number cannot tell them apart. The mark says what the FILE states, not that
         somebody weighed it — a design exported from Loft and reopened comes back with the masses
-        Loft computed written into it, and marked accordingly. The centre of gravity is mass-weighted;
+        Loft computed written into it, and marked accordingly.{" "}
+        <strong>You can state either figure yourself.</strong> The editor takes both a weight and a{" "}
+        <em>balance point</em>{" "}for the nose cone and the body tube — the number you read off a scale
+        and the one you find on a shell balance — and the mass &amp; balance breakdown marks those as yours,
+        distinct from the design&apos;s claim and from Loft&apos;s own arithmetic. (The parts table
+        marks a stated MASS; it carries no balance-point column yet.) A balance point is measured from
+        the part&apos;s own fore end, as OpenRocket&apos;s override tab asks for it, and is bounded by
+        that part&apos;s length: a station off the end of a part cannot mean anything, so it is
+        clamped rather than flown. A cone&apos;s shoulder is weighed
+        separately and sits behind the station you state, so this is the balance of the shell rather
+        than of the whole part. Where a stated balance point would not reach the flight at all — the
+        part carries no weight of its own for one to place — the field says so instead of accepting a
+        number that changes nothing. The centre of gravity is mass-weighted;
         pitch inertia is the sum of each part&apos;s own inertia plus a parallel-axis term.
         Propellant burns off over the flight, so mass and CG are time-varying.
       </p>

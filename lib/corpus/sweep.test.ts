@@ -63,7 +63,7 @@ import {
   fittingMaxOuterDiameter,
   fittingUnitMass,
 } from "../model/edit";
-import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
+import { dryMassProperties, localBodyCGx, massByComponent, statedCGReachesDesign, statedMassHolder } from "../sim/mass";
 
 const CORPUS_DIR = process.env.LOFT_CORPUS_DIR ?? resolve(process.cwd(), "corpus");
 const TOLERANCE_PCT = 12;
@@ -959,6 +959,132 @@ suite("real-design corpus", () => {
     expect(tubes, "no design carried a body tube, so this asserted nothing").toBeGreaterThan(0);
     expect(multiTube, "no design carried a second tube — the aim is untested without one").toBeGreaterThan(0);
     expect(wrong, "real designs where a flyer's stated airframe weight went astray").toEqual([]);
+  }, 300_000);
+
+  /** **The flyer's own balance point, on every real design's nose cone and body tube.**
+   *
+   *  The twin of the stated weight above, and it pins the three things that are NOT the same as the
+   *  weight's:
+   *
+   *  1. **It is bounded.** A mass has no host to fit inside; a station does, and one off the end of
+   *     the part cannot mean anything. Driven with a metre on parts that are centimetres long, the
+   *     stored figure must be the part's own length and never the number typed.
+   *  2. **It is marked.** `cgFrom: "flyer"` moves with the number, so `MassBreakdown`'s *CG from*
+   *     column cannot caption a hand-typed station "Loft's own" — the claim about a calculation that
+   *     never happened.
+   *  3. **The refusal predicate is the SOLVER's answer, not the mass model's.** `statedCGReachesDesign`
+   *     perturbs the part and asks whether the design's balance point moves. This asserts the panel's
+   *     answer against what the flight actually does, in both directions, on every real design: where
+   *     it says the control is live the design's CG must move, and where it says the control is dead
+   *     the design's CG must sit still. Reusing `statedMassHolder` here — the obvious shortcut —
+   *     would have greyed out a working control on the stage-override designs, where a per-part CG is
+   *     honoured while a per-part MASS on the same part is not. */
+  it("puts the flyer's own balance point on every real design's nose cone and body tube, and bounds it", async () => {
+    const wrong: string[] = [];
+    let cones = 0;
+    let tubes = 0;
+    let live = 0;
+    let dead = 0;
+    let clamped = 0;
+    let idempotent = 0;
+    let subsumedButLive = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const { rocket } = doc;
+      const baseCg = dryMassProperties(rocket).cg;
+      if (!Number.isFinite(baseCg)) continue;
+      const flatBefore = flattenRocket(rocket);
+      const nose = flatBefore.find((p) => p.component.kind === "nosecone")?.component;
+      const allTubes = flatBefore.filter((p) => p.component.kind === "bodytube").map((p) => p.component);
+      const aimed = allTubes[allTubes.length - 1];
+
+      for (const [part, bag] of [
+        [nose, (v: number) => ({ noseCGx: v })],
+        [aimed, (v: number) => ({ bodyTubeId: aimed?.id, bodyTubeCGx: v })],
+      ] as const) {
+        if (!part) continue;
+        const len = (part as { length: number }).length;
+        if (part === nose) cones++;
+        else tubes++;
+        const reaches = statedCGReachesDesign(rocket, part.id);
+        if (reaches) live++;
+        else dead++;
+
+        // A station a whole metre down a part that is centimetres long: the bound is what must
+        // decide the stored figure, not the number typed.
+        const over = applyGeometryEdits(rocket, bag(1));
+        const stored = flattenRocket(over).find((p) => p.component.id === part.id)!.component as {
+          overrideCGx?: number;
+          cgFrom?: string;
+        };
+        if (len < 1) {
+          clamped++;
+          if (stored.overrideCGx === undefined || Math.abs(stored.overrideCGx - len) > 1e-9)
+            wrong.push(`${shortName(f.name)}: a balance point past the end of a ${part.kind} was stored as ${stored.overrideCGx}, not clamped to ${len}`);
+        }
+        if (stored.cgFrom !== "flyer")
+          wrong.push(`${shortName(f.name)}: a stated ${part.kind} balance point is not marked as the flyer's`);
+
+        // **Checked against an INDEPENDENT fact, because the obvious check is a tautology.** The
+        // first draft recomputed `[0, len].some(probe moves the design CG)` and compared it with
+        // `statedCGReachesDesign` — which is that expression, term for term. It agreed on 70 of 70 by
+        // construction and both failure branches were unreachable: a compliance check that cannot
+        // fail, written one increment after the milestone whose whole subject is compliance checks
+        // that cannot fail.
+        //
+        // The independent fact is whether the part produces a structural point mass at all. A CG is
+        // a station for a mass to act at, so a part with no mass of its own has nothing for a stated
+        // station to move, and one with a mass of its own does. That is a different question asked of
+        // a different function, and it can disagree.
+        // Asserted one direction at a time, because the two directions are different claims and the
+        // first draft of this conflated them. A REFUSED control tells the flyer *this part carries no
+        // weight of its own for a balance point to place* — so the check is that the part produces no
+        // point mass at all, which is what that sentence means and is answered by a different
+        // function than the predicate under test. This is the assertion that would have caught the
+        // refusal's original wording, which named an assembly override that is not operating on any
+        // of the 8 real cases.
+        const entry = massByComponent(rocket).get(part.id);
+        if (!reaches && entry !== undefined)
+          wrong.push(
+            `${shortName(f.name)}: the ${part.kind}'s balance point is refused for carrying no weight, but it produces a point mass`,
+          );
+        // The other direction is deliberately NOT "offered ⇒ carries its own mass", which is false and
+        // is the most interesting thing here: a part subsumed by a STAGE-level lump has no mass of its
+        // own and its balance point is still live, because the lump's CG is recomputed from every
+        // subsumed part. A part subsumed by a COMPONENT-level override is skipped outright and is not.
+        // Counted rather than asserted, so the population is visible if a corpus re-cut empties it.
+        if (reaches && entry !== undefined && entry.subsumedBy !== undefined) subsumedButLive++;
+        // And the placeholder must be a FIXED POINT: committing the figure the box already shows
+        // cannot move the flight. This is what caught the shoulder blend — `overrideCGx` replaces the
+        // body centroid while the reported CG includes the shoulder, so offering the reported figure
+        // moved the design's CG on 15 of 57 live controls.
+        const shown = localBodyCGx(rocket, part.id);
+        if (reaches && shown !== undefined) {
+          const cg = dryMassProperties(applyGeometryEdits(rocket, bag(shown))).cg;
+          if (Number.isFinite(cg) && Math.abs(cg - baseCg) > 1e-6)
+            wrong.push(
+              `${shortName(f.name)}: typing the ${part.kind} placeholder back moved the design CG by ` +
+                `${((cg - baseCg) * 1000).toFixed(2)} mm — the box shows a number it does not hold`,
+            );
+          idempotent++;
+        }
+      }
+    }
+    console.log(
+      `stated balance points across ${files.length} design files: ${cones} nose cone(s) and ${tubes} body tube(s) ` +
+        `offered, ${live} control(s) the flight answers to and ${dead} it does not, ${clamped} bound to the part's own length, ` +
+        `${idempotent} whose shown figure is a fixed point, ${subsumedButLive} live on a part a stage lump subsumes`,
+    );
+    expect(cones, "no design carried a nose cone, so this asserted nothing").toBeGreaterThan(0);
+    expect(tubes, "no design carried a body tube, so this asserted nothing").toBeGreaterThan(0);
+    expect(clamped, "no part was short enough to test the bound").toBeGreaterThan(0);
+    expect(live, "no design offered a live balance-point control — the whole feature is untested").toBeGreaterThan(0);
+    expect(dead, "no design refused one — the refusal's stated reason is untested").toBeGreaterThan(0);
+    expect(
+      subsumedButLive,
+      "no subsumed-but-live part — the case that stops this reusing the mass model's predicate is untested",
+    ).toBeGreaterThan(0);
+    expect(wrong, "real designs where a flyer's stated balance point went astray").toEqual([]);
   }, 300_000);
 
   /** **Every note a real design file carries, read in and written back out unchanged.**

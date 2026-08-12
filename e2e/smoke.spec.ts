@@ -6557,6 +6557,59 @@ test.describe("Loft", () => {
     expect((await page.locator("body").innerText()).match(/Counted in /g)?.length ?? 0).toBe(0);
   });
 
+  test("a balance point the flyer measures moves the design's, and will not go past the end of the part", async ({
+    page,
+  }) => {
+    // **The control this milestone exists to add, driven rather than asserted.** `overrideCGx` has
+    // been parsed, honoured over the computed centroid and exported since Loft's first importer, and
+    // until now there was no way to write one — so this is the first test in the suite that can fail
+    // if the field stops reaching the flight.
+    //
+    // Three things at once, because they are one interaction: the field is there, the number lands on
+    // the flight, and a station past the end of the cone is refused rather than flown. The last is
+    // what makes this different from the weight beside it — a mass has no host to fit inside, a
+    // station does.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-single-deploy.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    // The CG readout, not apogee. A few millimetres of balance point on one cone moves the design's
+    // balance point and its stability margin; it does not move apogee to the nearest metre, which is
+    // dominated by mass and drag. Asserting on apogee would have been a control that cannot fail —
+    // it read 993 m either side — and this file has already paid for one of those.
+    const cg = page.getByText("CG (loaded)", { exact: true }).locator("xpath=following-sibling::*[1]");
+    await expect(cg).toBeVisible();
+    const before = await cg.textContent();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+
+    const field = page.getByLabel(/^Nose balance /).first();
+    await expect(field, "a cone whose own weight the design carries takes a balance point").toBeEnabled();
+    // The placeholder is the station Loft computes, so a blank field has something to mean.
+    await expect(field).toHaveAttribute("placeholder", /\d/);
+    const max = Number(await field.getAttribute("max"));
+    // In the field's OWN units. A bound quoted in metres on a millimetre field would read 0.17 here,
+    // which is the defect the self-review caught: the control would have refused every real station.
+    expect(max, "the bound is the cone's length in the units the box is in").toBeGreaterThan(1);
+
+    await field.fill("5");
+    await field.blur();
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(cg, "a stated balance point reaches the flight").not.toHaveText(before!);
+
+    // And the parts table says whose figure it is, rather than captioning it Loft's own.
+    await page.getByRole("link", { name: "Design" }).click();
+    await expect(page.getByText(/the figure you set/).first()).toBeVisible();
+  });
+
   test("a design that states one weight for the whole airframe says so, and takes no per-part weight", async ({
     page,
   }) => {

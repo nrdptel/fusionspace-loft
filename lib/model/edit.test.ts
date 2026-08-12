@@ -4093,6 +4093,67 @@ describe("a catalogued nose cone's published contour, shoulder and stock", () =>
     expect(nose(built2).overrideCGx).toBeUndefined();
   });
 
+  it("keeps a balance point the flyer typed THIS edit, even when the same edit picks a new cone", async () => {
+    // The case above is about a STALE mark: a station measured on a cone that has since been
+    // replaced describes nothing, so the pick clears it. This is the other direction, and the two
+    // are one line apart in the applier: a station typed in the SAME edit as the pick is a
+    // measurement of the cone now in hand, and it has to win.
+    //
+    // That is what makes the writers' position load-bearing rather than tidy. `withStatedCG` runs
+    // last of everything, after the pick has cleared the field and after a caliber scale has moved
+    // the geometry the centroid comes from — the same precedence `withStatedMass` already has, and
+    // for the same reason. Applied any earlier, the pick would silently delete a number the flyer
+    // had just read off a knife edge, which is the shape of a defect this file has already recorded
+    // twice on the mass side.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const n0 = nose(doc.rocket);
+    const built = applyGeometryEdits(doc.rocket, {
+      noseLength: SOLID.length,
+      noseShape: SOLID.shape,
+      catalogNoseCone: SOLID,
+      noseCGx: 0.02,
+    });
+    expect(nose(built).overrideCGx, "a station typed in the same edit as the pick").toBeCloseTo(0.02, 9);
+    expect(nose(built).cgFrom, "and marked as the flyer's, so no surface captions it Loft's own").toBe("flyer");
+    expect(nose(built).id, "the pick still happened").toBe(n0.id);
+  });
+
+  it("bounds a stated balance point to the part it is a station on", () => {
+    // A mass has no host to fit inside; a station does. `MAINTAINING.md`'s safety posture is explicit
+    // that an input which cannot mean anything physically is refused or bounded rather than flown
+    // into a confident number, and a balance point past the end of a nose cone is exactly that.
+    //
+    // Bounded at the APPLIER rather than only in the panel, because the bag is persisted and
+    // replayed (`lib/session.ts`) and a sweep drives an axis with no panel involved — and because a
+    // catalogue pick or a caliber scale can move the part's length underneath a station typed before
+    // it. The clamp reads the length being WRITTEN, not the one that was measured.
+    const rocket: Rocket = {
+      name: "t",
+      stages: [
+        {
+          name: "s",
+          components: [
+            { id: "n", name: "Nose", kind: "nosecone", shape: "ogive", length: 0.2, aftRadius: 0.03, children: [], placement: { method: "top", offset: 0 } },
+            { id: "b", name: "Tube", kind: "bodytube", length: 0.5, outerRadius: 0.03, children: [], placement: { method: "after", offset: 0 } },
+          ] as RocketComponent[],
+        },
+      ],
+      configurations: [],
+      referenceType: "maximum",
+    };
+    const at = (r: Rocket, id: string) =>
+      flattenRocket(r).find((p) => p.component.id === id)!.component as { overrideCGx?: number; cgFrom?: string };
+
+    expect(at(applyGeometryEdits(rocket, { noseCGx: 5 }), "n").overrideCGx, "past the tip end").toBeCloseTo(0.2, 9);
+    expect(at(applyGeometryEdits(rocket, { noseCGx: 0 }), "n").overrideCGx, "AT the tip is an ordinary answer — lead in the nose").toBe(0);
+    expect(at(applyGeometryEdits(rocket, { noseCGx: 0 }), "n").cgFrom, "and it is still the flyer's figure").toBe("flyer");
+    expect(at(applyGeometryEdits(rocket, { bodyTubeCGx: 9 }), "b").overrideCGx).toBeCloseTo(0.5, 9);
+    // Zero is a real station, so `hasGeometryEdits` must count it — `> 0` would silently discard the
+    // one case the field most exists for.
+    expect(hasGeometryEdits({ noseCGx: 0 }), "a balance point at the tip is an edit").toBe(true);
+    expect(hasGeometryEdits({ bodyTubeCGx: 0 })).toBe(true);
+  });
+
   it("refuses a shoulder length the applier would otherwise install", () => {
     // `withCatalogNose` reads `shoulderLength` as both the gate and the value, so the predicate has
     // to bound it. A replayed record carrying 1.5 m installed a collar longer than the rocket

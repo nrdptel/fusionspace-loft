@@ -392,6 +392,94 @@ export function statedMassHolder(rocket: Rocket, id: string): string | null {
   return null;
 }
 
+/** Would stating a balance point on the component `id` names actually move the DESIGN's balance
+ *  point — or is the control a no-op?
+ *
+ *  **The CG question is not the mass question, and answering it with `statedMassHolder` would have
+ *  been wrong on three of the four lumped corpus designs.** For a stated WEIGHT the hazard is a
+ *  double-count, and the predicate is "does an ancestor already state this part's mass". For a
+ *  stated CG there is nothing to add to, so the hazard is a silent no-op — and the two do not
+ *  coincide:
+ *
+ *  - *RASAero's airframe lump*: the shells carry no material, `componentPointMass` returns null, and
+ *    an `overrideCGx` on them reaches nothing. Dead — and `statedMassHolder` says the OPPOSITE. It
+ *    returns null for all 8 of these (nothing covers their mass, so offer the control), because the
+ *    mass side's refusal on RASAero does not come from it at all: it comes from `statedAirframeMass`
+ *    and `lumpFor` in the panel. An earlier draft of this docblock claimed the two agreed here; over
+ *    the 70 corpus controls they disagree on **13**, in both directions — the 5 below, plus these 8
+ *    where `statedMassHolder` would have offered a control that demonstrably does nothing.
+ *  - *A component-level whole-subtree override*: descendants are skipped outright below, so a CG on
+ *    a descendant is dead — but a CG on the CARRIER is honoured normally, where its mass field is
+ *    the one that must be refused. The two predicates point opposite ways on the same part.
+ *  - *A stage-level override* (3 of the 35 corpus designs): the lump's CG is recomputed from every
+ *    subsumed part whenever the stage states no `overrideCGx` of its own, so a per-part CG on a
+ *    subsumed part **is live and does move the design's balance point** — while a per-part MASS on
+ *    that same part is dead. `statedMassHolder` answers identically for this case and the one above,
+ *    so reusing it would have greyed out a control that demonstrably works.
+ *
+ *  So this is measured rather than argued: perturb the part's stated CG and see whether the design's
+ *  moves. Two probes, at each end of the part, because a single one lands on the current station
+ *  whenever the part already balances there — a probe that changes nothing cannot tell a dead
+ *  control from an unmoved one. This is the same "derive it from the solver rather than reason about
+ *  the tree" that `massCarriedBy` reached the long way round, and it costs two extra passes over a
+ *  tree the panel already walks several times per render. */
+/** The local station (m from the part's own fore end) that `overrideCGx` REPLACES — which is not the
+ *  same quantity as the part's reported CG, and the difference is what a placeholder must not get
+ *  wrong.
+ *
+ *  **`overrideCGx` sets the BODY's centroid, and a shoulder is then blended in aft of it.**
+ *  `componentPointMass` computes `bodyCg = xFore + overrideCg` and then returns
+ *  `(mass * bodyCg + shoulderMoment) / totalMass`, so on the 15 corpus nose cones that carry a
+ *  shoulder the part acts up to 133 mm behind the station the flyer stated. Offering the reported CG
+ *  as the placeholder made the control non-idempotent: typing the number the box already showed moved
+ *  the design's CG on 15 of 57 live controls, and the part then read back a third number again.
+ *
+ *  Recovered by inversion rather than by re-deriving the centroid, so there is one definition of the
+ *  blend and this cannot drift from it. The reported CG is affine in `overrideCGx` — slope
+ *  `mass / totalMass`, which is 1 with no shoulder — so two probes give the slope and the current
+ *  reported CG gives the station. Returns `undefined` where the part reports no CG at all (it carries
+ *  no structural mass of its own, or its mass is subsumed), because there is no figure to show. */
+export function localBodyCGx(rocket: Rocket, id: string): number | undefined {
+  const part = flattenRocket(rocket).find((p) => p.component.id === id);
+  const len = part ? (part.component as { length?: number }).length : undefined;
+  if (!part || len === undefined || !(len > 0)) return undefined;
+  const reported = massByComponent(rocket).get(id)?.cg;
+  if (reported === undefined || !Number.isFinite(reported)) return undefined;
+  const at = (cgx: number) => massByComponent(withOverrideCGx(rocket, id, cgx)).get(id)?.cg;
+  const lo = at(0);
+  const hi = at(len);
+  if (lo === undefined || hi === undefined || !Number.isFinite(lo) || !Number.isFinite(hi)) return undefined;
+  const slope = (hi - lo) / len;
+  if (!(Math.abs(slope) > 1e-12)) return undefined;
+  const local = (reported - lo) / slope;
+  return Number.isFinite(local) ? Math.min(Math.max(local, 0), len) : undefined;
+}
+
+/** One definition of "the same rocket with a different stated CG on one part", shared by the two
+ *  probes below so they cannot disagree about what they are perturbing. */
+function withOverrideCGx(rocket: Rocket, id: string, cgx: number): Rocket {
+  const rewrite = (c: RocketComponent): RocketComponent =>
+    c.id === id
+      ? ({ ...c, overrideCGx: cgx } as RocketComponent)
+      : c.children.length
+        ? { ...c, children: c.children.map(rewrite) }
+        : c;
+  return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: s.components.map(rewrite) })) };
+}
+
+export function statedCGReachesDesign(rocket: Rocket, id: string): boolean {
+  const part = flattenRocket(rocket).find((p) => p.component.id === id);
+  const len = part ? (part.component as { length?: number }).length : undefined;
+  if (!part || len === undefined || !(len > 0)) return false;
+  const base = dryMassProperties(rocket).cg;
+  if (!Number.isFinite(base)) return false;
+  for (const probe of [0, len]) {
+    const moved = dryMassProperties(withOverrideCGx(rocket, id, probe)).cg;
+    if (Number.isFinite(moved) && Math.abs(moved - base) > 1e-9) return true;
+  }
+  return false;
+}
+
 /** The dry structural point masses of the rocket (everything except the motor). Computed
  *  once per design; the motor is layered on per time step by the simulator.
  *

@@ -2586,6 +2586,96 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 13 — the flyer's own BALANCE POINT reaches the airframe, 2026-08-12.** `COMPETITION.md`
+row 45's next slice, and the exact twin of the mass override increments 8–11 built: `overrideCGx` has
+been parsed, honoured over the computed centroid and exported since the first importer, with no
+control anywhere. Two now — `noseCGx` and `bodyTubeCGx` — written by `withStatedCG` with
+`cgFrom: "flyer"` beside the number, applied LAST of everything so a station read off a knife edge
+beats a catalogue pick and a caliber scale, the same precedence the stated weights already have.
+Measured from the part's own fore end, which is what OpenRocket's override tab asks for, what
+`overrideCGx` means, and what a flyer can reach with a rule.
+
+**Three things are NOT the same as the weight's, and each one is why this was not a copy-paste.**
+
+1. **It is BOUNDED, where every stated weight is not.** A mass has no host to fit inside, so the only
+   thing wrong with one is a number that is not one. A balance point is a station on a part, and one
+   off the end of that part cannot mean anything — `MAINTAINING.md`'s safety posture is explicit that
+   such an input is refused or bounded rather than flown into a confident number. Clamped at the
+   applier against the length being WRITTEN, not the one that was measured, because the bag is
+   persisted and replayed and a pick can move the part's length underneath a station typed before it.
+   Driven over the corpus: **63 of the 70 parts are short enough for the bound to fire**, and a
+   metre typed into a 170 mm cone stores 170 mm.
+2. **`>= 0`, and zero is the case the field most exists for.** A cone with lead in the tip balances at
+   its own fore end, which is the commonest reason a real design states a CG at all. `> 0` would have
+   silently discarded it.
+3. **The refusal predicate is the SOLVER's answer, and reusing the mass model's would have been
+   wrong on three of the four lumped designs.** For a weight the hazard is a double-count and the
+   question is "does an ancestor already state this part's mass". For a CG there is nothing to add
+   to, so the hazard is a silent no-op — and the two do not coincide. On a *stage-level* override
+   (3 of 35) the lump's CG is recomputed from every subsumed part whenever the stage states no
+   `overrideCGx`, so a per-part CG **is live and does move the design's balance point** while a
+   per-part MASS on the same part is dead. `statedMassHolder` answers identically for that case and
+   for a component-level override where the opposite holds, so it would have greyed out a working
+   control. `statedCGReachesDesign` perturbs the part and asks the solver instead — two probes, at
+   each end, because a single one lands on the current station whenever the part already balances
+   there and a probe that changes nothing cannot tell a dead control from an unmoved one.
+
+**Pinned by a corpus case over all 35 designs. Its first draft was a TAUTOLOGY, and saying so is the
+most useful thing in this entry.** That draft recomputed `[0, len].some(probe moves the design CG)`
+and compared it with `statedCGReachesDesign` — which is that expression, term for term. It agreed on
+70 of 70 by construction, both failure branches were unreachable, and it was published here as
+"0 disagreements": a compliance check that cannot fail, written one increment after the milestone
+whose entire subject is compliance checks that cannot fail. It now asserts two things a different
+function answers: every REFUSED control is a part that produces no point mass at all (the reason the
+refusal actually gives), and every OFFERED control's placeholder is a FIXED POINT — committing the
+figure the box shows must not move the flight. **35 nose cones and 35 body tubes offered, 62 controls
+the flight answers to and 8 it does not, 63 bound to the part's own length, 57 fixed points, 5 live on
+a part a stage lump subsumes.** The fixed-point half fires on 15 real cones when reverted. Two unit
+cases pin the precedence (a station typed in the same edit as a catalogue pick survives it, where a
+*stale* one is still cleared) and the bound at both ends; an e2e case drives the control in the app
+and fails when the writer is neutered.
+
+**What the pre-push review caught, because none of it was visible from the diff alone.**
+
+- **`overrideCGx` sets the cone's SHELL centroid and a shoulder is blended in aft of it**, so the
+  part acts up to 133 mm behind the station stated, and offering the part's REPORTED CG as the
+  placeholder made the control non-idempotent: typing the number the box already showed moved the
+  design's CG on 15 of 57 live controls. The placeholder is now `localBodyCGx` — the station
+  `overrideCGx` actually replaces, recovered by inversion so there is one definition of the blend —
+  and the hint says the shoulder is weighed separately, as the tube's hint already said about fins.
+  **The remaining question is a semantic one and is filed rather than guessed at:** a flyer balancing
+  a cone on a knife edge measures the whole part, shoulder included, and OpenRocket's override tab
+  may mean that. Changing what `overrideCGx` means would re-fly every imported `<overridecg>` and
+  move the accuracy census, so it is its own increment with its own corpus run.
+- **`bodyTubeCGx` was not registered in `AIM_SLOTS`**, so a station measured on one tube survived that
+  tube's deletion and landed on the fallback — 23 of 35 designs migrate it, `FullScaleModelTH.rkt` by
+  235 mm of dry CG — and `designKey` left the key unchanged across a re-aim, so a sweep could present
+  one tube's answer as another's. Registered.
+- **`max` was passed in METRES to a millimetre field**, so a 170 mm cone advertised and *enforced* a
+  ceiling of 0.17 mm and `NumberField.commit` silently pulled every real entry to the tip. Caught by
+  self-review and by two lenses independently; the control was unusable on every design.
+- **The refusal's stated reason was false on all 8 cases it fires on.** It said the part's mass was
+  stated by an assembly that already fixes where it acts; measured, all 8 are RASAero shells for which
+  `statedMassHolder` is null — they are dead because the format gives them no material, so there is
+  no mass for a station to place. The same false reason had been copied to the docs page and to
+  `COMPETITION.md`; all three now say what is true.
+- **The `statedMassHolder` comparison in `lib/sim/mass.ts` was backwards in its first bullet.** Over
+  the 70 controls the two predicates disagree on **13**, not 5 — the 5 stage-lumped parts where the CG
+  is live and the mass is dead, *plus* 8 where `statedMassHolder` would have offered a control that
+  does nothing. The conclusion (do not reuse it) holds; the arithmetic behind it did not.
+- **The clamp dropped its upper bound when the target had no usable length**, storing a balance point
+  a thousand kilometres down a zero-length part. It refuses the write now: "I cannot bound this" must
+  not become "unbounded".
+
+The methods page gains the paragraph, and `cgSourceLabel`'s docblock loses the sentence saying
+nothing lets a flyer set one yet — it has carried the `"flyer"` branch since it was written.
+
+**The gap this leaves, and it is the next slice.** `GeometryInspector`'s parts table has a *Station*
+column (the part's fore face) and a *Mass from* column, and **no CG column and no CG provenance at
+all** — so the surface whose stated job is *did Loft read my rocket right?* is the one surface that
+cannot show a balance point or say whose it is. `MassBreakdown` is still the only per-part CG surface
+in the app.
+
 **Increment 8 — the flyer's own scale reading reaches the airframe, and stops lying where it cannot,
 2026-08-10.** `COMPETITION.md` row 41 named (d) — a universal mass override — as the cheapest and
 most useful thing left in that row, and the nose cone and the body tube were the two kinds it had

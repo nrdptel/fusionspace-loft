@@ -12,6 +12,138 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-12, from run 13 — the derived vanish check, the CG override, and their fan-outs.**
+
+*Zero Sev-1s survived adversarial verification. Two candidates were filed and both were refuted, so
+the ledger's Sev-1 count is **0** at the end of this run. What follows is what was NOT taken.*
+
+**RASAero: three stages of a multi-stage `.CDX1` read their weight and balance from `simNodes[0]`.**
+- **`lib/rasaero/adapt.ts:539` reads the airframe mass AND launch CG from `simNodes[0]` alone**, but a
+  `.CDX1` states Sustainer/Booster figures per sim node. `Complex.Two-Stage.CDX1` is the case. The
+  booster's stated weight and CG are pinned the same way at `:462` (`const firstSim = simNodes[0]`
+  feeding `planBooster`). **This reaches the published accuracy census**, which flies that design
+  under `configId sim1` while the airframe figures come from node 0 — so a census median is being
+  computed against a mismatch. Highest-value correctness item in the ledger; it is a physics change
+  and gets its own gate, its own corpus run and its own push.
+- **`lib/rasaero/adapt.ts:586` marks the airframe lump `cgFrom: "stated"` whenever no motor resolved**,
+  which claims the design stated a balance point that node 0 may not be stating for that stage. A
+  wrong provenance mark on the one column whose job is saying whose figure a number is.
+- **The two importers disagree about which kinds may carry a design-stated CG.** `lib/rkt/adapt.ts:262`
+  restricts `CG_OVERRIDABLE` to nosecone/bodytube/transition; `lib/ork/adapt.ts` accepts any component.
+  One of the two is wrong and neither cites a source for the restriction.
+- **`<overridesubcomponentscg>` is never read** (`lib/ork/adapt.ts:332`). Loft reads
+  `overridesubcomponentsmass` into one boolean and applies it to both, so a file that overrides an
+  assembly's mass but *not* its CG is flown as if it overrode both. `app/docs/limitations/page.tsx`
+  already states this outright, so it is documented rather than hidden — but it is still wrong.
+
+**Controls that forget, from the tenth-use walk. Each is a standing assumption a mature tool keeps.**
+- **`components/MonteCarlo.tsx:155` — the Waiver ceiling is `useState(0)`** while all six dispersion
+  sigma inputs beside it use `usePersistedNumber`. Reproduced: set impulse sigma 7 and ceiling 1000,
+  reload — impulse comes back, the ceiling is empty. A club waiver is the definition of a standing
+  assumption, and losing it removes the "chance over the ceiling" readout, the one line on that panel
+  that is a go/no-go input rather than a curiosity.
+- **`components/LoftApp.tsx:1656` — `saveSession` writes no `weather` and no `scenario`**, and
+  `loadDoc` resets both (`:639-640`), so a flight flown on today's forecast reverts to the design's
+  stored wind on reload — under a restore card reading "Picked up where you left off … with any
+  what-ifs you had set." Switching to Today also discards the typed `windSpeed` and `launchAltitude`
+  (`:2258`), so the reload loses both the forecast and the numbers it replaced. Drift is the
+  recovery-area number and a phone reclaiming a backgrounded tab at the pad is this product's scenario.
+- **`components/LoftApp.tsx:4154` — the launch site is `useState("")`**, never persisted, no
+  recent-sites list, and geocode silently takes `places[0]`.
+- **`components/GeometryInspector.tsx:470` — the Parts disclosure and its sort order are plain
+  `useState`**, so both reset on every load, unlike the motor sweep's sort which is persisted.
+- **`components/LoftApp.tsx:431` — `units` is `useState("metric")`** and restored only from a saved
+  session; it is never a standing per-browser preference the way the theme is.
+- **`components/LoftApp.tsx:889` — `renameDesign` calls `setDoc` directly** instead of routing through
+  `commitWhatIf`, so a rename never enters the undo history. The one edit path in the app that cannot
+  be undone.
+
+**Capability gaps the tenth-use walk names, each a `COMPETITION.md` row rather than a defect.**
+- **No way to supply a thrust curve.** The bundled catalogue is 108 `.eng` files; a design flying any
+  motor outside it is unflyable, with no control anywhere accepting an `.eng`/`.rse`, while the
+  on-screen copy tells the flyer to "track down the exact curve". Cesaroni/Loki/AMW reloads dominate
+  HPR and only 24/7/1 are bundled. OpenRocket and RockSim both load user curve files.
+- **`lib/motors/swap.ts:64` filters swap options strictly to the design's own casing**, and both the
+  swap picker and the motor sweep are gated on it, so no motor of another casing is reachable.
+- **`components/ParameterSweep.tsx:23` — sweep range and resolution are hard-coded** (`RANGE_LO 0.5`,
+  `RANGE_HI 1.75`, `STEPS 25`) with no control for min, max or step.
+- **`components/MonteCarlo.tsx:40` — `SAMPLES = 300` and `SEED = 0x10f7` are compile-time constants**,
+  so the run count cannot be raised and every re-run of one design returns the identical answer.
+- **`components/ResultsView.tsx:720` — the `/flight` summary has no Copy and no CSV**, while every
+  table in the app gets both free from `DataTable`. It is the product's primary answer, 14 tiles.
+
+**Touch, from the phone walk at 390 px. `e2e/touch.spec.ts` passes, so these are all outside what it
+counts.**
+- **`components/SectionNav.tsx:57` — the docs contents chips render 34 px tall**, against §8's 44.
+- **`components/Footer.tsx:51` — footer nav links clear 44 px in HEIGHT only**: "Docs" measures 33x44,
+  "v0.9.0" 40x44. `TOUCH_TARGET` is `pointer-coarse:min-h-11` with no width partner.
+- **Two inline links are far under target**: `ResultsView.tsx:1439` "how these are computed" at
+  136x16, and `:614` "where it's weak" at 99x20.
+- **`components/GeometryInspector.tsx:1095` and `:750` promise gestures a phone does not have** —
+  "drag the tube's aft edge to lengthen it" and "Point at a part … to identify it", both ungated.
+- **Route depth past §8's two-screen rule**, measured at 390x664: the fin-position grip at 2.41
+  screens, `/flight`'s Plots at 3.54 and Total thrust at 5.22, `/design`'s Mass & balance disclosure
+  at 7.83. `/docs/limitations` renders **63.99 screens**, `/docs/methods` 51.27, `/docs/validation`
+  33.39.
+- **`components/SectionNav.tsx:31` — the sticky chips strip is 2,072 px of chips in a 366 px window**
+  on `/docs/methods`, scrolled horizontally with no affordance saying so.
+
+**Design-system divergences the §9 counts cannot see** (all seven counts read at target; these are
+what an audit agent found beside them).
+- **`app/globals.css:95` — an UNLAYERED `border-radius: 3px`** on every `:focus-visible` ring, against
+  §2's "three, and no exceptions". Unlayered, so it beats the utilities.
+- **Four hand-rolled `<details>` disclosures across four files** where §5 declares a `Disclosure`
+  primitive (`MassBreakdown.tsx:84` and three others).
+- **`components/LoftApp.tsx:4326` — the app's only network failure renders as a bare `<p>`**, not
+  `ErrorState`, so it names neither the thing that failed nor the way forward.
+- **`app/docs/validation/page.tsx:501` — a raw `<table>`** where §5 says "every table is `DataTable`":
+  not sortable, not copyable, no sticky header.
+- **`components/MotorSweep.tsx:245` — the empty result is hand-rolled** as a `Card tone="sunken"`
+  rather than `EmptyState`. The nearest miss to what P14 increment 2 just fixed, and outside its rule
+  because it is a hand-rolled treatment rather than a `return null`.
+- **The "with your edits" pill is byte-identical at `MassBreakdown.tsx:89` and
+  `GeometryInspector.tsx:664`**, and the card heading is hand-rolled at both.
+- **`text-[11px]` outside §3's "axis ticks and diagram annotations only"** at `LoftApp.tsx:2598`
+  (`FIELD_LABEL`, every field label in the editor), `RocketpyCrossCheck.tsx:335` (a traceback) and
+  `ParameterSweep.tsx:386/403` (the two Selects that drive the sweep).
+
+**Left open by the CG-override increment, each measured by the pre-push review.**
+- **What `overrideCGx` MEANS on a part with a shoulder is unsettled, and it is a semantic question
+  rather than a bug.** It replaces the cone's shell centroid; the shoulder's mass is then added at its
+  own station and blended in, so the part acts up to **133 mm** behind the station stated (`rocket.ork`
+  457.00 → 590.29 mm; `Airstart timing.ork` 266.70 → 377.73; 15 corpus cones carry a shoulder). A
+  flyer balancing a cone on a knife edge measures the whole part, shoulder included, and OpenRocket's
+  override tab may mean that too. The increment made the control self-consistent (the placeholder is
+  now the station the field actually holds, and the hint says the shoulder is separate) rather than
+  guessing: changing the meaning re-flies every imported `<overridecg>` and moves the published
+  accuracy census, so it is its own increment with its own corpus run. Note the existing asymmetry —
+  `overrideMass` suppresses the shoulder entirely, so stating a WEIGHT already makes the part's CG
+  consistent and stating a CG alone does not.
+- **Export → reopen loses the `"flyer"` mark on both mass and CG.** `exportOrk` writes `<overridecg>`
+  and `<overridemass>`, and the importer suppresses provenance on a file Loft wrote, so the number
+  survives and `cgSourceLabel`/`massSourceLabel` come back "Loft's own" — a caption saying Loft
+  computed a figure the flyer measured. Pre-existing on mass; the CG control makes it reachable for
+  the balance point too. The fix is a mark the exporter can write and the importer can read back.
+- **`statedCGReachesDesign` costs three whole-rocket mass solves per call and the panel makes two.**
+  Measured over the corpus: median 0.589 ms for the pair, worst **60.9 ms**
+  (`openrocket-repo-rasaero-threestage`, 35 parts) against 14.8 ms for a single bare
+  `dryMassProperties`. It sits inside the `designDims` memo, so it is paid on every part pick and on
+  every keystroke in the Body diameter field — a stutter on the phone-at-the-pad use §8 is written
+  for. Memoise per (design, part) or derive the answer analytically from the mass model.
+- **The panel's bound reads `designBase` while the applier clamps against the length being written.**
+  A flyer who stretches the cone as a what-if and then measures the stretched part cannot type its
+  balance point: the field still advertises the pristine length. Same shape as several other
+  what-if-versus-pristine readbacks in that panel.
+
+**Housekeeping.**
+- **`npx tsc --noEmit` reports 28 errors, all in test files, all pre-existing** (measured 2026-08-12
+  against `main` and against this branch — identical counts). `npm run build` typechecks app code
+  only, so the gate never sees them. Either bring the test files under the gate or say in
+  `CONTRIBUTING.md` that they are deliberately outside it.
+- **Running subagents concurrently with the e2e suite on this 4-core sandbox produces a spurious
+  failure that looks real.** `smoke.spec.ts:4247` ("works offline after an online visit") failed once
+  under contention and passed alone and in a clean shard re-run. Not a flaky test — a starved one.
+
 **Filed 2026-08-09, from run 7 — the internal-structure milestone and its fan-out.**
 
 **Filed 2026-08-09, from run 8 — the fitting Sev-1s, the docs chunk, and the opening fan-out.**
