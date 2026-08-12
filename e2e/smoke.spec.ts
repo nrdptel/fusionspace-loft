@@ -6557,6 +6557,47 @@ test.describe("Loft", () => {
     expect((await page.locator("body").innerText()).match(/Counted in /g)?.length ?? 0).toBe(0);
   });
 
+  test("the parts table says where each part balances, and whose figure that is", async ({ page }) => {
+    // **The table published a Station and a Mass and no balance point at all**, so the surface whose
+    // stated job is *did Loft read my rocket right?* could show where every part begins and what it
+    // weighs and not where any of it acts — which is the number the static margin is built from.
+    // `MassBreakdown` carried it one disclosure away; `COMPETITION.md` row 46 named the split.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-single-deploy.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    // Scoped to the table that holds the parts rather than to "the first table": `/design` renders
+    // the mass & balance breakdown as well, and both are `DataTable`s.
+    // Read off the header ROW rather than by accessible name: the headers are uppercased by CSS and
+    // a sortable one carries its direction glyph, so `{ name: "Balance", exact: true }` matches
+    // nothing while the column is plainly there. `<th>` also covers the row headers (each part's
+    // name), which is why this reads the first row rather than every `th` on the page.
+    const table = page.getByRole("table").filter({ hasText: /Station/i }).first();
+    const headers = (await table.getByRole("row").first().locator("th").allInnerTexts()).map((t) =>
+      t.replace(/[▲▼]/g, "").trim(),
+    );
+    expect(headers, `parts table headers: ${headers.join(" | ")}`).toContain("BALANCE");
+    expect(headers).toContain("BALANCE FROM");
+
+    // **Scoped to the two new CELLS by column index, because the row-level version asserted nothing.**
+    // Its first draft read `toContainText(/\d/)` and a provenance regex against the whole row — both
+    // satisfied by Station, Mass and the Mass from cell, all of which predate this change, so both
+    // columns could have been deleted and it stayed green. That is the third selector this run that
+    // looked right and tested nothing, which is why this one indexes.
+    const iBalance = headers.indexOf("BALANCE");
+    const iSource = headers.indexOf("BALANCE FROM");
+    const cells = table.getByRole("row").filter({ hasText: /Nose/ }).first().locator("td, th");
+    // The cone is the first part, so its balance is a real station in the flyer's units — not an em
+    // dash, and not the 0 its Station reads.
+    await expect(cells.nth(iBalance)).toHaveText(/^\s*[\d,]+(\.\d+)?\s*(mm|in)?\s*$/);
+    await expect(cells.nth(iSource)).toHaveText(/Loft's own|stated by the design|computed by the source tool|the figure you set/);
+  });
+
   test("a balance point the flyer measures moves the design's, and will not go past the end of the part", async ({
     page,
   }) => {

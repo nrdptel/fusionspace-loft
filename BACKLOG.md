@@ -107,6 +107,26 @@ what an audit agent found beside them).
   (`FIELD_LABEL`, every field label in the editor), `RocketpyCrossCheck.tsx:335` (a traceback) and
   `ParameterSweep.tsx:386/403` (the two Selects that drive the sweep).
 
+**What the parts table's new Balance column REVEALED — a real modelling artifact on 3 corpus
+designs, found by publishing a number that had only ever been computed.**
+- **A mass object's balance point can land outside the rocket**, because `componentPointMass` takes
+  `cgLocal = (c.length ?? 0) / 2` and a RockSim shock cord imports as a mass object carrying the
+  CORD's full length rather than an axial extent. Census over all 35 designs: **4 published balance
+  figures sit aft of the airframe's own tail, on 3 designs.** Worst is `FullScaleModelTH.rkt`'s
+  "Shock Cord" — `length` 6,340 mm, station 2,274 mm, **balance 5,444 mm on a 3,213 mm rocket**,
+  2,231 mm past the tail, labelled "Loft's own" with no caveat, and sorting last so it reads as the
+  aft-most part. `TubeFins1.rkt` is the same shape at 899 mm on a 629 mm rocket. The figure is real —
+  it biases that design's dry CG by 10.40 mm — but it is a model artifact rather than a place
+  anything acts. The fix is in the mass model (a packed cord's mass acts where it is packed, not at
+  half its deployed length), not in the column. **Pre-existing and invisible until the column
+  published it, which is the column doing its job.**
+- **A nose cone's or transition's balance can fall past its own aft face**, because the shoulder
+  moment is blended in. `rocket.ork` has two transitions reading **station 914 mm · L 13 mm ·
+  balance 996 mm** — 69.3 mm behind a 12.7 mm part, because a 152.4 mm shoulder dominates the moment.
+  Two parts of the 481 that show a figure. Same root as the CG-override shoulder question above, and
+  it should be settled in the same increment: three columns of one row that a flyer reads together
+  currently describe an impossibility, on the surface built to rule import errors out.
+
 **Left open by the CG-override increment, each measured by the pre-push review.**
 - **What `overrideCGx` MEANS on a part with a shoulder is unsettled, and it is a semantic question
   rather than a bug.** It replaces the cone's shell centroid; the shoulder's mass is then added at its
