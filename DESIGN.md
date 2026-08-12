@@ -570,6 +570,27 @@ grep -roh 'rounded-xl border[a-z0-9:/ -]*' components \
   | sed 's/[[:space:]]*$//' | sort -u | wc -l                       # target: 1 (+ any named
                                                                     # non-card primitive, see below)
 
+# a data surface that VANISHES instead of saying why — §5's "a surface with no empty state is not
+# finished". Two questions, and both have to be asked of a COMPONENT rather than of a file:
+# `ResultsView.tsx` holds four data surfaces and eight conditional hints, and "does this file
+# contain `return null`" answers yes for both kinds.
+#   1. Is it a data surface? — it renders one of §5's DATA containers (DataTable, Figure, <table>),
+#      or renders a dataset into one of its general ones (Panel, <svg>, Card as="section"). Nothing
+#      renders a table or a figure for a single value, so those three need no second test; the other
+#      three are shapes anything can take, and without one `<svg>` matches every icon in the app.
+#   2. Does it `return null` at its OWN top level? — outside every callback and IIFE. A `return null`
+#      inside a `.map(…)` is one row drawing nothing, which is not this defect.
+#
+# THERE IS NO SHELL FORM OF THIS ONE, and that is stated rather than approximated. Both questions
+# need brace matching, and a `grep -c 'return null'` prints a number unrelated to either target —
+# most of this app's `return null`s are conditional advice and are correct. A line in this block
+# whose output does not mean its target trains a session to distrust the block, which is the same
+# reflex §9 exists to fight. `lib/design-system.test.ts` is the only form:
+#
+#   npx vitest run lib/design-system.test.ts -t vanish
+#                                                                    # target: 0 offenders, and
+#                                                                    #         >= 22 surfaces SEEN
+
 # off-scale spacing — every spacing utility, minus the scale
 grep -rohE '\b((p|m)[xytblr]?|(gap|space)(-[xy])?)-[0-9]+\b' components app \
   | grep -vE -- '-(0|1|2|3|4|6|8|12)$' | wc -l                      # target: 0

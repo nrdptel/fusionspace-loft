@@ -15,7 +15,7 @@ import type { CatalogPart } from "@/lib/components/db";
 import RocketDiagram from "./RocketDiagram";
 import DataTable, { type Column } from "./DataTable";
 import PartPicker from "./PartPicker";
-import { Button, Card, Popover } from "./ui";
+import { Button, Card, EmptyState, Popover } from "./ui";
 
 type PartRow = { p: ReturnType<typeof flattenRocket>[number]; i: number };
 
@@ -650,20 +650,54 @@ export default function GeometryInspector({
     return { text: d.q(d.mass(m.mass, units)), muted: false };
   };
 
-  if (parts.length === 0) return null;
+  /** The section's own heading row, shared by the empty state and the full surface.
+   *
+   *  Extracted when the empty state landed, rather than copied into it. The alternative — a second
+   *  `Card`/`h3` pair spelled out in the early return — is precisely the "just this once" that
+   *  `DESIGN.md` §9's card-treatment count exists to measure, and it would have read as a twelfth
+   *  variant of a treatment the system already owns. */
+  const heading = (
+    <div className="flex items-center justify-between px-4 py-3">
+      <h3 className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        Design geometry
+        {edited && (
+          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+            with your edits
+          </span>
+        )}
+      </h3>
+    </div>
+  );
+
+  // **A design with no components says so under its own heading.** `DESIGN.md` §5: a data surface
+  // without an empty state is not finished, and this one used to `return null` — taking the whole
+  // "Design geometry" section, the drawing and the parts table off `/design` at once, with nothing
+  // left to say a design had been loaded at all.
+  //
+  // **Not reachable through the editor, and the first version of this comment said it was.** The
+  // claim was that R2's deletions could empty a design; `removalRefusal` (`lib/model/edit.ts`)
+  // refuses the removal that leaves a stage with no body tube, and `newDesign()` starts with one.
+  // What can still produce it is a file that parses into no components at all. The branch stays —
+  // §5's rule is about what the surface does when it has nothing, not about how often that happens —
+  // but the honest record is that this is defensive rather than a hole a flyer was falling into.
+  //
+  // The copy names IMPORT and nothing else on purpose. Every add-part control on this surface hangs
+  // off `selectedId`, and with no parts there is nothing to select, so an empty state saying "add a
+  // nose cone" would name an action that is not on the page — the dead end `EmptyState`'s own
+  // docblock says to omit rather than invent.
+  if (parts.length === 0)
+    return (
+      <Card as="section" pad={false}>
+        {heading}
+        <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <EmptyState what="No components were read from this design, so there is nothing to measure. Import a design file that carries an airframe and every part appears here with its dimensions and mass." />
+        </div>
+      </Card>
+    );
 
   return (
     <Card as="section" pad={false}>
-      <div className="flex items-center justify-between px-4 py-3">
-        <h3 className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Design geometry
-          {edited && (
-            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
-              with your edits
-            </span>
-          )}
-        </h3>
-      </div>
+      {heading}
       <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
         {/* The design at a glance — always shown, so you see your rocket without hunting for it. */}
         <RocketDiagram

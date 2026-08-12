@@ -15,7 +15,7 @@ import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import type { UnitSystem } from "@/lib/display";
-import { Figure, Panel, Select } from "./ui";
+import { EmptyState, Figure, Panel, Select } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -340,8 +340,30 @@ export default function ParameterSweep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, axisKey, axisAimId, designKey, ballisticConditionsKey]);
 
-  // A design with no editable dimension (no fins, nose, or body tube) has nothing to sweep.
-  if (axes.length === 0) return null;
+  // **A design with no editable dimension (no fins, nose, or body tube) has nothing to sweep — and
+  // says so instead of taking the workspace's primary surface off the page.** `DESIGN.md` §5: a data
+  // surface without an empty state is not finished, and this one used to `return null`.
+  //
+  // **Defensive, not a hole a flyer was falling into — stated because the first version of this
+  // comment claimed the second.** This panel renders only under `!staged && run.hasPropulsion`
+  // (`ResultsView.tsx`), and a design that flies has a motor mount inside a body tube, whose length is
+  // itself an axis; the ballast axis is pushed for any propelled baseline besides. So `axes.length === 0`
+  // and "the panel is on screen" have not been shown to coincide. §5's rule is about what a surface
+  // does when it has nothing, which is worth getting right whether or not today's call sites can
+  // reach it.
+  //
+  // The STATIC form of `Panel` — no `run`, no `what`. A Run button over a panel with nothing to run
+  // is the "control that demonstrably does nothing" `NumberField`'s own docblock rules out, and §5
+  // allows one primary per surface precisely so it means something when it is there.
+  if (axes.length === 0)
+    return (
+      <Panel label="Parameter sweep" title="Sweep a parameter">
+        <EmptyState
+          className="mt-3"
+          what="This design has no dimension Loft can sweep. Add a nose cone, a body tube or a fin set on the design workspace and each one becomes an axis here."
+        />
+      </Panel>
+    );
 
   return (
     <Panel

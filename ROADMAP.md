@@ -5319,7 +5319,7 @@ Loft's copy records `Chip` as deleted on 2026-08-04 with the reason.
 
 ## P14 — The checks that can only see what they already know
 
-**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-11.
+**Status: IN PROGRESS** — increments 1 and 2 of 3 shipped; 2026-08-11 and 2026-08-12.
 
 **Written 2026-08-11 because the P-track had run dry** — P13 met its *done when*, and P10's remaining
 increment is a repository SETTING no session can edit. `MAINTAINING.md` says extending the track IS
@@ -5356,6 +5356,86 @@ literal while seven off-system radii stood, and the spacing grep matching named 
 value was invisible rather than off-scale. Both were found by pointing a *general* instrument at the
 tree. Every item above is that same shape, which is why they are one milestone and not three defects.
 
+**Increment 2 — the five states, and the two vanishes this file had not found, 2026-08-12.**
+`DATA_SURFACES` is gone. A data surface is now DERIVED: **a component that renders one of §5's DATA
+containers (`DataTable`, `Figure`, `<table>`), or renders a dataset into one of its general ones
+(`Panel`, `<svg>`, `Card as="section"`).** The container is what separates a surface a flyer navigated
+to from advice that appeared beside one; without it the check fires on all **eleven** conditional
+hints in the tree (the flutter hint, the stability-trim note, the booster descent line, the
+service-worker toast). The dataset tell is what stops `<svg>` matching every icon in the app and
+`Panel` matching the primitive itself.
+
+**The split between the two kinds is a correction, and it bought two surfaces.** The first draft
+demanded a literal `.map(` of all six containers, which exempted by VOCABULARY where the old list
+exempted by NAME — the same error one layer down. `RocketpyCrossCheck`'s `Comparison` builds six
+solver-comparison rows as an array literal and renders them into a `DataTable`; `MotorSweep` passes
+rows straight through. Neither types `.map(` in its own body, so a `return null` added to either would
+have shipped green — on the panel whose whole job is Loft-versus-RocketPy figures. Nothing renders a
+`DataTable`, a `Figure` or a `<table>` for a single value, so those three need no second tell at all.
+
+**Pointed at the tree it saw 22 surfaces and found 5 vanishes. This file had named 3.** The two it
+did not are the increment's argument for itself:
+
+- **`ResultsView.tsx`'s `PhaseTable`** returned null on an empty row set — and its `DataTable`'s
+  `empty` copy was already written, already required by the primitive, and provably unreachable
+  behind that guard. A comment beside it said so in as many words. That is the `MassBreakdown` defect
+  exactly, still standing, in the file P14 increment 1 had just edited. **And the copy behind the
+  guard was wrong**, which is what an unrenderable branch buys: it named a cause — "a design that
+  never sheds a stage flies as one" — that produces ONE phase and a one-row table, not an empty one.
+  A sentence nobody can see is a sentence nobody re-reads.
+- **`RocketDiagram`** returned null on an undrawable outline, which left `/design`'s drawing missing
+  under its heading and, on every other route, `AirframeStrip`'s sunken band standing empty with its
+  `Airframe` landmark and nothing inside it. `COMPETITION.md` row 31 is about keeping that picture on
+  screen, so the surface whose whole point is persistence had the failure mode of showing an empty band.
+
+All five converted. `EmptyState` adoption **1 → 5** (`PhaseTable` needed no new one — the fix was
+deleting the guard that made the existing copy unreachable, then correcting the copy). The strip
+variant of `RocketDiagram` gets a bare line rather than the card: it is a two-row band inside a
+`Card tone="sunken"` that already draws the container, and a card nested in it is the treatment §9's
+card count exists to measure.
+
+**Three of the five are DEFENSIVE, not holes a flyer was falling into — and the first draft of this
+entry said the opposite.** It sold `RocketDiagram` and `GeometryInspector` as "reachable, not
+hypothetical: where a scratch build starts and where R2's deletions can return it." Both halves are
+false, and the repo says so plainly: `newDesign()` (`lib/model/starter.ts`) ships a nose cone and a
+body tube, and `removalRefusal` (`lib/model/edit.ts`) refuses the removal that would leave a stage
+with none — *"This is the only body tube left…, and an airframe needs one."* `ParameterSweep`'s is the
+same shape: the panel renders only under `!staged && run.hasPropulsion`, and a design that flies has a
+tube whose length is itself an axis. What stays reachable is a malformed import, which is why
+`RocketDiagram`'s copy no longer tells anyone to add a part — on two of that branch's three conditions
+they already have one. **The conversions are still right** (§5 governs what a surface does when it has
+nothing, not how often that happens); the claim about how the app got there was not measured, and an
+overstated symptom in this file is what a later session sizes its risk from.
+
+**Two things about the instrument itself, both found by driving it rather than by reading it.**
+
+- **The obvious find-and-blank loop does not terminate, and its bound hid that.** To ask "is this
+  `return null` at the component's OWN top level" the nested callback bodies have to be excluded.
+  Replacing each with a marker and re-scanning does not work: the marker is still preceded by the
+  `=>` that matched it, so the pattern matches its own replacement — `DataTable` blanked the same two
+  characters 5,000 times without converging. It was capped at 40 passes, which turned an infinite
+  loop into a **silent** one: the cap was reached, the deeper callbacks were never excluded, and two
+  `return null`s inside `.map(…)` callbacks were reported as top-level. It is a single brace-matching
+  scan now. **A bound that hides non-termination instead of exposing it is worse than no bound.**
+- **The first version matched 0 components in 21 files and reported a clean sweep.** `indexOf("{")`
+  after a function signature lands on the DESTRUCTURING pattern of `function X({ rocket }: { … })`,
+  which is every component in this tree. It is the compliance command that cannot fail, arriving
+  inside the fix for compliance commands that cannot fail — the third time §9 has recorded that shape.
+
+**The surface count is a FLOOR, not an exact ratchet, and that is a deliberate departure** from the
+rule governing every other count in `lib/design-system.test.ts`. Those count drift, where each unit is
+a defect and the target is 0, so an exact number forces an improvement into the same commit as the
+work. This one counts how much of the tree the instrument can SEE, where more is better and a falling
+number means it has gone blind again. An exact assertion would make deleting a surface a red gate;
+a floor makes going blind one.
+
+Pinned by three controls, run and reverted: reintroducing a top-level `return null` fails the check;
+the two live `return null`s inside `.map(…)` callbacks keep it green; and a component added to
+`components/` **today** that maps rows into a `DataTable` and returns null fails it by name — which is
+this increment's *done when*, stated as an executable thing rather than an intention. A second
+assertion pins the reader itself: an arrow-function component would be invisible to it rather than
+exempt, so `components/` is asserted to declare its components with the `function` keyword.
+
 **Increment 1 — the border tokens, 2026-08-11.** `offSystemBorder` enumerates every `border-zinc-*`
 and subtracts §2's four, in the shape the radius check already uses; a second check asserts the two
 pairs are used AS pairs, because fixing only the light half of `border-zinc-100 dark:border-zinc-800`
@@ -5376,7 +5456,9 @@ check at 0, and `DESIGN.md` §9 states each in the readable form beside the exec
 
 1. **Borders** — every `border-zinc-*` minus §2's four, at 0, plus the pairing assertion. **DONE.**
 2. **The five states** — `DATA_SURFACES` derived rather than hand-listed, so a new data surface is in
-   scope the day it lands, with the three known vanishes given real empty states.
+   scope the day it lands, with the three known vanishes given real empty states. **DONE**, and it
+   delivered more than it promised: five vanishes rather than three, 20 surfaces in scope rather than
+   2, and the "new surface is in scope the day it lands" half proved by control rather than asserted.
 3. **Hover-only states** — the touch walk counts the SVG `<title>` element as well as the attribute,
    and the eleven gestures it then finds are stated somewhere a phone can reach.
 

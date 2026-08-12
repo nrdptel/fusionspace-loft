@@ -2204,16 +2204,20 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
     };
   });
 
-  if (rows.length === 0) return null;
-
   return (
     <Panel label="Flight phases" title="Flight phases">
       {/* `COMPETITION.md` row 25 calls this table a lead no competitor offers — and until it took the
           primitive, its numbers could not leave the page at all. Phases are in flight order and that
           IS the meaning of the table, so the Phase column is deliberately the only sortable one: it
-          restores the order after a flyer has sorted by another. Rows are never empty here — the
-          component returns null above when there are none — but `empty` is required by the primitive,
-          so it says what would fill it. */}
+          restores the order after a flyer has sorted by another.
+
+          **This component used to `return null` above when `rows` was empty, and the comment here
+          used to say that made `empty` unreachable.** Both are gone. The guard was the last thing
+          standing between a flyer and a panel that vanishes: the primitive's `empty` copy was already
+          written, already required, and provably never rendered — which is the exact shape of the
+          `MassBreakdown` defect that made this rule a rule. Deleting the guard costs nothing on any
+          reachable path (`staged` gates this whole component, and a staged flight has phases) and
+          means the surface can no longer disappear from under its own heading. */}
       <DataTable
         className="mt-3"
         rows={rows}
@@ -2221,7 +2225,12 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
         exportName={rocket.name || "design"}
         exportSuffix="flight-phases"
         caption="Each phase of the staged flight, in order"
-        empty="This flight has no phases to table — a design that never sheds a stage flies as one."
+        // Says only what is true of an empty row set. The copy this replaces — "a design that never
+        // sheds a stage flies as one" — named a cause that cannot produce this state: a staged design
+        // that never sheds still yields ONE phase, which is a one-row table with its own note below.
+        // It was written while a `return null` above made it unrenderable, and reviewing the copy is
+        // what a guard like that stops anyone from doing.
+        empty="No phase boundaries came back from this flight. A staged flight that reaches a separation tables each phase here."
         columns={[
           {
             key: "phase",
@@ -2303,7 +2312,12 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
           },
         ]}
       />
-      {rows.length === 1 ? (
+      {/* Both notes explain the TABLE's columns, so neither may render when the table has been
+          replaced by its empty state — a legend for columns that are not on screen is the same
+          reads-as-broken surface this file's empty states exist to remove. Guarded here rather than
+          by the `return null` that used to sit above the whole component, which took the panel with
+          it. */}
+      {rows.length === 0 ? null : rows.length === 1 ? (
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           This design has more than one stage but nothing separated: the stack flew whole. A stage is
           shed when <em>its own</em> motor finishes burning, so either no lower stage ever lit — see any

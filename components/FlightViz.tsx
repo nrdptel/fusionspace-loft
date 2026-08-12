@@ -5,7 +5,7 @@ import type { FlightResult } from "@/lib/sim/simulate";
 import { mToFt } from "@/lib/units";
 import type { UnitSystem } from "@/lib/display";
 import { useMeasuredWidth } from "./LineChart";
-import { Swatch } from "./ui";
+import { EmptyState, Swatch } from "./ui";
 
 /** Flight-path visualization: altitude vs down-range distance, coloured by phase (boost →
  *  coast → descent), with the key events marked. It's the "where does it go" picture that a
@@ -35,7 +35,20 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
   const unit = units === "imperial" ? "ft" : "m";
 
   const traj = result.trajectory;
-  if (traj.length < 2) return null;
+  // **A flight with nothing to draw says so, rather than leaving a hole under its own heading.**
+  // `DESIGN.md` §5: a data surface without an empty state is not finished. This one sits inside the
+  // "Flight path" panel, so returning null left the heading standing over an empty box —
+  // indistinguishable from a render that failed, which is the version of the empty state that teaches
+  // nothing.
+  //
+  // **The copy names the CONDITION and stops.** Its first draft ended "A flight that leaves the pad
+  // plots its arc here", which is the same false-cause claim the zero-range note twenty lines below
+  // spends a paragraph refusing: a vehicle that never leaves the rail still returns a full trajectory
+  // — the solver integrates it sitting there — so a short sample list says nothing about whether it
+  // flew. A prediction tool stating a physical cause it cannot know is the thing this file already
+  // litigated once.
+  if (traj.length < 2)
+    return <EmptyState what="This flight came back with fewer than two recorded positions, so there is no path to draw." />;
 
   const xs = traj.map((p) => conv(p.x));
   const ys = traj.map((p) => conv(p.altitude));

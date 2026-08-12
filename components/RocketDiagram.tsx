@@ -17,7 +17,7 @@ import {
 import { flattenRocket } from "@/lib/model/geometry";
 import type { MotorMark } from "@/lib/sim/setup";
 import { useMeasuredWidth } from "./LineChart";
-import { Button, Segmented, Swatch } from "./ui";
+import { Button, EmptyState, Segmented, Swatch } from "./ui";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -245,7 +245,36 @@ export default function RocketDiagram({
   const showFin = (f: FinField) => !coarse || activeFin === f;
 
   const o = rocketOutline(rocket);
-  if (!(o.length > 0) || !(o.maxExtent > 0) || o.body.length < 2) return null;
+  // **A design with no drawable outline says so rather than leaving a hole where the airframe was.**
+  // `DESIGN.md` §5: a data surface without an empty state is not finished, and this one is the
+  // picture of the rocket — the thing `AirframeStrip` exists to keep on screen while a flyer works
+  // somewhere else (`COMPETITION.md` row 31). Returning null left `/design`'s drawing missing under
+  // its heading, and on every other route left the strip's sunken band standing empty with its
+  // `Airframe` landmark intact and nothing inside it.
+  //
+  // **Not reachable through the editor today, and the first version of this comment claimed it was.**
+  // `newDesign()` (`lib/model/starter.ts`) ships a nose cone AND a body tube, so a scratch build's
+  // outline is never short; `removalRefusal` (`lib/model/edit.ts`) refuses the removal that would
+  // leave a stage with no tube, in as many words. What remains reachable is a malformed import — a
+  // part with zero length or zero radius trips `o.length`/`o.maxExtent` on a design that has all its
+  // components. That is why the copy below cannot tell anyone to add a part: on two of this branch's
+  // three conditions they already have one.
+  //
+  // The strip gets a bare LINE of text rather than the `EmptyState` card: it is a band two rows tall
+  // sitting inside a `Card tone="sunken"` that already draws the container, so a second bordered card
+  // nested in it is the treatment §9's card count measures. It also carries a different sentence,
+  // because the strip is persistent chrome on `/flight`, `/sweep` and `/validate` and its own
+  // docblock calls it "a reminder, not a second editor" — an instruction to fix the design, rendered
+  // three routes away from the only place it can be followed, is a dead end rather than an action.
+  if (!(o.length > 0) || !(o.maxExtent > 0) || o.body.length < 2) {
+    return variant === "strip" ? (
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        This design has no drawable airframe — its parts have no length or width to scale.
+      </p>
+    ) : (
+      <EmptyState what="This design has no drawable airframe: its parts carry no length or width for the drawing to scale. Give the nose cone and body tube a length and a diameter below and the scale side-view appears here." />
+    );
+  }
 
   // The strip stays horizontal whatever the device is doing — see `variant`.
   const vertical = variant !== "strip" && coarse && portrait;
