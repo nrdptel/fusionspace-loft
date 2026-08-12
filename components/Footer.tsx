@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import { REPO_URL, SIBLING_TOOLS, THRUSTCURVE_URL, OPENROCKET_URL, NEW_ISSUE_URL } from "@/lib/links";
 import { VERSION, RELEASED } from "@/lib/version";
 import { observancesForDate } from "@/lib/observances";
@@ -48,7 +48,14 @@ export default function Footer() {
             GitHub
           </a>
           <Dot />
-          <Link href="/docs" className={`inline-flex items-center hover:text-zinc-800 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}>
+          {/* `TOUCH_TARGET_SQUARE`, not `TOUCH_TARGET`: this word is four characters and rendered
+              33x44 on a coarse pointer — the height floor met, the target still a third of one
+              across. `justify-center` so the added width grows around the label rather than
+              stranding it at the left edge. */}
+          <Link
+            href="/docs"
+            className={`inline-flex items-center justify-center hover:text-zinc-800 dark:hover:text-zinc-200 ${TOUCH_TARGET_SQUARE}`}
+          >
             Docs
           </Link>
           <Dot />
@@ -71,7 +78,7 @@ export default function Footer() {
           <Link
             href="/docs/changelog"
             aria-label={`Version ${VERSION}, released ${RELEASED} — see what changed`}
-            className={`inline-flex items-center font-medium tabular-nums hover:text-zinc-800 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}
+            className={`inline-flex items-center justify-center font-medium tabular-nums hover:text-zinc-800 dark:hover:text-zinc-200 ${TOUCH_TARGET_SQUARE}`}
           >
             v{VERSION}
           </Link>
