@@ -4,12 +4,15 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Everything this run is in PR #174 and NOTHING has reached production.** Verified by fetching the
-deployed site, not inferred: `loft.fusionspace.co/docs/methods` still carries the sentence this run
-corrected ("…the balance of the shell rather than of the whole part", 2 occurrences) and none of the
-replacement. `main` is at `99b5134`; the branch is at `5dc33be`, four commits ahead. **Merging #174
-on green is all that is needed** — and under SHIPPED-MEANS-REACHABLE the whole run counts as
-**pending, not shipped**, until that happens. No pull request was open at session start.
+**PR #174 is MERGED and everything this run did is LIVE.** `main` is at `ab0a5b2`; nothing is in
+flight and no pull request is open. Confirmed on the deployed site rather than inferred from a green
+merge — `loft.fusionspace.co/docs/methods` now carries the corrected sentence (2 occurrences) and
+none of the old one, the deployed stylesheet carries the `md:` wordmark rule that had been shipping
+inert, and `/docs` serves the touch token on the wordmark and all six contents chips. **Nothing is
+pending.** No pull request was open at session start either.
+
+**Start by reading `OWNER-NOTES.md`, then take the next unstarted milestone on each track** — the two
+named below.
 
 Where the two tracks stand, measured this run:
 
@@ -17,7 +20,7 @@ Where the two tracks stand, measured this run:
   is at increment 1 of 3** — *the gate cannot see what the browser actually got*. Increments 2 and 3
   are written up and measured: selectors the suite names that the markup no longer carries, and the
   inverse of increment 1 (a stylesheet rule generated from prose rather than from a component, which
-  this run proved is reachable — twice).
+  this run proved is reachable — twice). **P16 increment 2 is the next P slice.**
 - **R-track: R12 is at increment 15.** What a stated CG and a stated WEIGHT mean on a part with a
   shoulder, settled from OpenRocket's source. **The next R slice** is `localBodyCGx`'s inversion,
   which is now the identity (slope 1) — 30 lines and two whole-rocket mass solves per call that exist
