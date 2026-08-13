@@ -1109,8 +1109,41 @@ test.describe("phone layout", () => {
         const box = await links.nth(i).boundingBox();
         const label = (await links.nth(i).innerText()).trim();
         expect(box!.height, `${route}: "${label}" is ${Math.round(box!.height)} px tall`).toBeGreaterThanOrEqual(44);
+        expect(box!.width, `${route}: "${label}" is ${Math.round(box!.width)} px wide`).toBeGreaterThanOrEqual(44);
       }
     }
+  });
+
+  test("the in-page contents chips are targets too, on every docs route", async ({ page }) => {
+    // **P15 increment 3, and the gap was one `aria-label` wide.** The case above asserts
+    // `nav[aria-label="Docs sections"]` — the CROSS-ROUTE list — and reads as though the docs routes
+    // were covered. The IN-PAGE contents nav beside it, `SectionNav`'s "Jump to a section of this
+    // page", was measured by nothing at all: **34 px tall on all six routes, 57 controls**, the
+    // largest single group of under-target controls left in the walk. Two navigations on one page,
+    // one asserted and one invisible, is the shape this milestone keeps finding.
+    //
+    // All SIX routes, including `/docs/changelog`, which the case above does not visit. Both
+    // dimensions, per this milestone. Counted as well as measured, so a nav that rendered no chips
+    // cannot pass by being empty — the failure mode the case above guards with its `toBe(5)`.
+    let seen = 0;
+    for (const route of ROUTES.filter((r) => r.startsWith("/docs")).concat("/docs/changelog")) {
+      await page.goto(route);
+      const nav = page.getByRole("navigation", { name: "Jump to a section of this page" });
+      if ((await nav.count()) === 0) continue; // a page short enough not to need one
+      const links = nav.getByRole("link");
+      const n = await links.count();
+      expect(n, `${route}: contents chips`).toBeGreaterThan(0);
+      for (let i = 0; i < n; i++) {
+        const box = await links.nth(i).boundingBox();
+        const label = (await links.nth(i).innerText()).trim();
+        expect(box!.height, `${route}: "${label}" is ${Math.round(box!.height)} px tall`).toBeGreaterThanOrEqual(44);
+        expect(box!.width, `${route}: "${label}" is ${Math.round(box!.width)} px wide`).toBeGreaterThanOrEqual(44);
+        seen++;
+      }
+    }
+    // The population itself is asserted: if `SectionNav` ever stops rendering, or the label is
+    // reworded, this case would otherwise pass by measuring nothing at all.
+    expect(seen, "contents chips measured across the docs section").toBeGreaterThan(40);
   });
 
   test("the footer's navigation links are targets, not 16 px of text", async ({ page }) => {

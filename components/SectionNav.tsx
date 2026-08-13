@@ -1,7 +1,7 @@
 "use client";
 
 import { useCurrentSection } from "./useCurrentSection";
-import { cx } from "@/lib/ui-tokens";
+import { cx, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 
 export function SectionNav({
   label,
@@ -53,8 +53,21 @@ export function SectionNav({
                 // is, which is exactly what the token means. A screen reader then says "current
                 // location" on the one chip that is, and nothing on the rest.
                 {...(here ? { "aria-current": "location" as const } : {})}
+                // **`TOUCH_TARGET_SQUARE`, added by P15 increment 3.** These chips rendered
+                // **34 px tall on all six docs routes** — `px-3 py-1.5` plus a `text-sm` line box —
+                // and nothing in the suite measured them: the docs touch case asserts
+                // `nav[aria-label="Docs sections"]`, the cross-route list, while this is the
+                // in-page one. 57 under-target navigation controls across the six routes, the
+                // largest single group left anywhere in the walk, on a `sticky` strip a reader taps
+                // repeatedly while working through a long page at the pad.
+                //
+                // SQUARE rather than the height-only token, per `TOUCH_TARGET`'s own rule: these are
+                // standalone controls whose width is the section's name. The narrowest today is
+                // *Drag* at 58 px, so the width floor changes nothing now — which is the point of a
+                // floor, because the next short section name is one heading away.
                 className={cx(
                   "inline-flex shrink-0 items-center rounded-md border px-3 py-1.5 font-medium transition",
+                  TOUCH_TARGET_SQUARE,
                   here
                     ? "border-zinc-300 bg-zinc-100 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                     : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100",

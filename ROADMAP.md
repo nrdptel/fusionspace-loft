@@ -5732,7 +5732,11 @@ run ends assumes the instrument was already right; say which case it is in the c
 
 ## P15 — A target is an area, not a height
 
-**Status: IN PROGRESS** — increments 1 and 2 of 3 shipped; increment 2 on 2026-08-13.
+**Status: SHIPPED 2026-08-13** — all three increments. Every clause of the *done when* is met and
+pinned: the width floor is asserted wherever the height floor is on every route the suite walks;
+`TOUCH_TARGET`'s docblock states which of the two tokens a control takes and why; and the remaining
+width-only failures are zero, with the one deliberate exemption (the skip link) and the one filed gap
+(the app-route wordmark, blocked by the chrome ratchet) both named here rather than skipped.
 
 **Written 2026-08-12 because the P-track had run dry again.** P14 shipped, P13 met its *done when*,
 and P10's remaining increment is a repository SETTING no session can edit. `MAINTAINING.md` says
@@ -5857,7 +5861,26 @@ skipped.
    Pinned by a control: reverting the wordmark to a plain inline link fails **two** assertions, the
    header case naming `37x28 "Loft"` and `scan()` on every workspace.
 3. **The docs routes** — `SectionNav`'s contents chips render 34 px tall and the suite never visits
-   those routes at all, so the count there is unmeasured rather than zero.
+   those routes at all, so the count there is unmeasured rather than zero. **DONE 2026-08-13**, and
+   the premise was half wrong in a way worth recording: the suite DOES visit the docs routes, and has
+   a case called *"the docs section nav is a row of targets, on every docs route"* that reads as
+   though they were covered. **It asserts `nav[aria-label="Docs sections"]` — the CROSS-ROUTE list.
+   The IN-PAGE contents nav sitting beside it on the same pages, `SectionNav`'s "Jump to a section of
+   this page", was measured by nothing at all.** Two navigations on one page, one asserted and one
+   invisible.
+
+   Measured on an iPhone 13 with a coarse pointer, over all six docs routes: **57 chips at 34 px**,
+   the largest single group of under-target controls left anywhere in the walk, on a `sticky` strip a
+   reader taps repeatedly working through a long page. `px-3 py-1.5` at `text-sm` and no touch token.
+   They take `TOUCH_TARGET_SQUARE` — standalone controls whose width is a section's name, per the
+   rule increment 2 wrote into the token's docblock; the narrowest today is *Drag* at 58 px, so the
+   width floor changes nothing yet, which is what a floor is for.
+
+   After: **every under-target control remaining on the six docs routes is inline prose**, which
+   carries WCAG's "inline in a block of text" exemption. The new case walks all six — including
+   `/docs/changelog`, which the older one does not visit — asserts both dimensions, and asserts its
+   own population is above 40, so a nav that stopped rendering could not pass by measuring nothing.
+   Pinned by a control: removing the token fails with `/docs: "What Loft is" is 34 px tall`.
 
 **Size.** 3 increments. Each lands its own assertion, so a run that gets one has moved a real count.
 
