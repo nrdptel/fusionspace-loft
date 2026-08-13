@@ -13,13 +13,18 @@ import { buttonClass, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 export default function SiteHeader({ compact = false }: { compact?: boolean }) {
   // **This string stays a plain literal, and that is not style.** Tailwind v4 extracts candidates
   // from raw source text, so a class sitting immediately before a `${` interpolation boundary is not
-  // extracted. Writing this inline as `…md:text-3xl${compact ? … : ""}` shipped `md:text-3xl` in the
+  // extracted. Writing this inline against an interpolation boundary shipped that utility in the
   // served `class` attribute with **no rule behind it** — this file is the only use of that utility
   // in the tree, so the rule was never generated and the desktop wordmark silently dropped from 30 px
   // to 20 px on every route. The gate did not see it: `npm run build` succeeds, every test passes,
   // and the class is present in the HTML. Caught by reading the stylesheet back
-  // (`grep 'md\:text-3xl' out/_next/static/chunks/*.css` → 0 while `md\:px-6` → 1). Keep the
+  // (grep the built stylesheet for its rule → 0, against `md\:px-6` → 1 as a control). Keep the
   // interpolation out of the literal.
+  //
+  // **This comment does not spell the class out, and that is load-bearing.** Tailwind scans prose as
+  // readily as code, so naming it here would REGENERATE it and hide the very defect being described.
+  // That happened twice while this was being verified and nearly retracted a correct diagnosis as
+  // unreproducible. `scripts/check-classes.mjs` now fails the build on it either way.
   const WORDMARK = "text-xl font-semibold tracking-tight text-zinc-900 hover:opacity-80 dark:text-zinc-100 md:text-3xl";
   const name = (
     // The wordmark measured **37x28** on an iPhone 13 with a coarse pointer, on every route, and

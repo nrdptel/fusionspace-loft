@@ -29,6 +29,13 @@
 @source not "../**/*.md";
 @source not "../**/*.test.ts";
 @source not "../**/*.test.tsx";
+/* Build and check SCRIPTS, for the same reason and a sharper instance of it. Nothing under
+   `scripts/` renders markup, so none of it can legitimately contribute a utility — but its docblocks
+   describe them at length, and prose generates classes just as code does. Measured 2026-08-13: a
+   postbuild check written to catch a class shipping with NO rule behind it named the offending class
+   in its own docblock, which regenerated the rule and made the defect unreproducible. Two attempts
+   to reproduce it failed, and a correct diagnosis was nearly retracted. */
+@source not "../scripts/**";
 
 /* Dark mode = class override + OS fallback. `dark:` utilities apply when:
    (a) an ancestor has the `.dark` class (an explicit Dark choice, set by the

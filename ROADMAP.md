@@ -5889,6 +5889,75 @@ That is the ratchet working; the number goes up in the same commit that makes th
 
 ---
 
+## P16 — The gate cannot see what the browser actually got
+
+**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-13.
+
+**Written 2026-08-13 because P15 shipped and the P-track went dry, and because this run produced the
+evidence for it rather than an argument for it.** `MAINTAINING.md` says extending the track IS the
+work in that case; this is that increment plus the first slice of what it named.
+
+**Outcome.** The gate compares what the app SERVES against what it PROMISED, on the axes where a
+green suite currently proves nothing. P14 made three instruments general rather than enumerative;
+this milestone is about a different blindness — instruments that read the SOURCE and never the
+artifact.
+
+**The measurement that decided it, and it is this run's own failure.** A one-character change in
+`components/SiteHeader.tsx` put a class immediately before a `${` interpolation boundary. Tailwind
+v4 extracts candidates from raw source text, so it stopped seeing the literal; the header is the
+only use of that utility in the tree, so **the rule was never generated and the class shipped in the
+served `class` attribute with nothing behind it.** The desktop wordmark dropped from 30 px to 20 px
+on every route.
+
+**What passed while that was true:** `npm run lint` (0 errors), `npm test` (1254 tests),
+`npm run build` (succeeded), `npm run test:e2e` (268 tests) — including the cases that measure that
+exact header, because they run at a phone viewport where the `md:` variant does not apply. It was
+found by an agent reading the stylesheet, not by anything in the gate.
+
+**Increment 1 — every served class has a rule, 2026-08-13.** `scripts/check-classes.mjs`, wired into
+`postbuild` beside the three checks already there. It collects the class selectors the built
+stylesheet DEFINES — scanning selector context only, and unescaping as it reads — then walks every
+served document and fails on any class token that is not among them. Collect-then-subtract rather
+than escape-each-token-and-grep, so the escaping rules live in one place. Pinned by a control:
+restoring the interpolation boundary fails the build with `md:` ... `3xl` named, exit 1.
+
+**Two things it found about itself before it found anything about the app, and both are recorded
+because each nearly produced a false result:**
+
+1. **It cried wolf on its first run.** CSS has two escape forms and it handled one. A class may not
+   begin with a digit unescaped, so Tailwind writes the app's `2xl` max-width utility with a HEX
+   escape terminated by a space; read as literal characters that yields "32", and the script
+   confidently reported a rule-less class whose rule was three characters away. A checker that is
+   wrong on its first run is worse than no checker.
+2. **Naming a class in prose REGENERATES it, and that masked the defect during verification.** Two
+   attempts to reproduce the original bug failed, and a correct diagnosis was nearly retracted as
+   unreproducible — because the fix's own explanatory comment named the class, and then this
+   script's docblock named it again, each quietly recreating the rule whose absence was the bug.
+   `MAINTAINING.md` records this hazard for markdown and `app/globals.css` excludes `*.md` and test
+   files for it; it applies to every scanned file. **`@source not "../scripts/**"` is added** —
+   nothing under `scripts/` renders markup, so none of it can legitimately contribute a utility,
+   while all of it describes them at length.
+
+**Done when** the gate fails on a served class with no rule (**done**); on a served `id` or
+`aria-label` that a test selector names but the markup no longer carries; and on a stylesheet rule
+generated from prose rather than from a component, which is the inverse of increment 1 and the one
+the two findings above say is reachable.
+
+2. **Selectors that no longer resolve.** The suite is full of `getByRole(… { name })` and `#id`
+   selectors; a renamed label makes a case pass by matching nothing wherever the assertion is a
+   count-or-absence. Enumerate the names the suite asserts and check the export carries them.
+3. **Rules generated from prose.** The inverse of increment 1: a class in the stylesheet that no
+   component asks for. `MAINTAINING.md` records 2,617 bytes of exactly this, removed on 2026-08-08
+   by the `@source not` globs, with no check to stop it returning.
+
+**Size.** 3 increments. Each lands its own check and its own control.
+
+**Notes.** Increment 1 asserts a count of 6,163 class uses against 500 selectors; those numbers are
+printed rather than asserted, deliberately — the check's claim is "none missing", and pinning the
+totals would make every legitimate utility addition a failure.
+
+---
+
 ## After R6 and P5 — extend this file yourself, in this order
 
 **Do not ask which of these to do, and do not fall back to the defect ledger because the list above
