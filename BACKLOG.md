@@ -193,6 +193,18 @@ below it. Two corrections to what was already filed here:
 *Zero Sev-1s survived adversarial verification. Two candidates were filed and both were refuted, so
 the ledger's Sev-1 count is **0** at the end of this run. What follows is what was NOT taken.*
 
+**PARTLY ADDRESSED 2026-08-13 — the silence is fixed; the model change is not, and is filed below.**
+A `.CDX1` states the stack's weight and balance PER SIMULATION and Loft's model has one airframe, so
+there is no "right node" to read — the correct figure depends on which configuration is being flown.
+**Measured: 2 of the 4 corpus RASAero designs disagree with themselves** (`Complex.Two-Stage.CDX1`
+4.06 lb at 35.96 in against 3.97 at 35.72 — 41 g and 6 mm; `Show-off.CDX1` the same pound at 1 in
+against 2 in, a full inch of balance point). Loft flew simulation 1's figures under every
+configuration and said nothing. It now says so, names the figures actually live, and stays quiet on
+the two designs whose simulations agree — pinned both ways in `lib/rasaero/adapt.test.ts`.
+**Still open: making the airframe mass configuration-dependent**, which is a model change (one
+`MassComponent` cannot hold two values) and wants its own increment. Until it lands, switching
+configuration on a RASAero import changes the motors and not the airframe, and the flyer is told.
+
 **RASAero: three stages of a multi-stage `.CDX1` read their weight and balance from `simNodes[0]`.**
 - **`lib/rasaero/adapt.ts:539` reads the airframe mass AND launch CG from `simNodes[0]` alone**, but a
   `.CDX1` states Sustainer/Booster figures per sim node. `Complex.Two-Stage.CDX1` is the case. The

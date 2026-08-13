@@ -540,6 +540,40 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
   const launchMass = first ? n(first, "SustainerLaunchWt", 0) * LB : 0;
   const launchCG = first ? n(first, "SustainerCG", 0) * IN : 0;
   const total = stackLength(components);
+
+  // **A `.CDX1` states the stack's weight and balance PER SIMULATION, and Loft's model has one
+  // airframe.** So the two figures above are simulation 0's, and they are flown under EVERY
+  // configuration the file offers — including ones whose own stated weight is different. Switching
+  // configuration swaps the motors and silently leaves the airframe where it was.
+  //
+  // Measured across the corpus 2026-08-13: **2 of the 4 RASAero designs disagree between their own
+  // simulations.** `Complex.Two-Stage.CDX1` states 4.06 lb at 35.96 in against 3.97 lb at 35.72 in —
+  // 41 g and 6 mm — and `Show-off.CDX1` states the same pound at 1 in against 2 in, a full inch of
+  // balance point. Those are the numbers a flyer sizes ballast and reads static margin against, so a
+  // silent substitution is the "wrong or unlabelled number on a surface a flyer would act on" that
+  // `MAINTAINING.md` ranks first.
+  //
+  // **The honest fix is to say so, not to pick a different node.** There is no right node: the
+  // correct weight depends on which configuration is being flown, and one mass component cannot hold
+  // two values. Making the airframe mass configuration-dependent is a model change and is filed in
+  // `BACKLOG.md`. Until then this names the disagreement and which simulation's figures are live.
+  const statedPerSim = simNodes.map((s) => ({
+    mass: n(s, "SustainerLaunchWt", 0) * LB,
+    cg: n(s, "SustainerCG", 0) * IN,
+  }));
+  const differing = statedPerSim.filter(
+    (s, i) => i > 0 && (Math.abs(s.mass - launchMass) > 1e-9 || Math.abs(s.cg - launchCG) > 1e-9),
+  ).length;
+  if (launchMass > 0 && differing > 0) {
+    const lb = (kg: number) => (kg / LB).toFixed(2);
+    const inch = (m: number) => (m / IN).toFixed(2);
+    warnings.push(
+      `This file states a different launch weight or balance point for ${differing === 1 ? "another of its simulations" : `${differing} of its other simulations`}. ` +
+        `Loft flies one airframe, so every configuration here uses simulation 1's figures — ` +
+        `${lb(launchMass)} lb at ${inch(launchCG)} in. Choosing another configuration changes the motors and not the airframe.`,
+    );
+  }
+
   if (launchMass > 0) {
     const raw = first ? (childText(first, "SustainerEngine") ?? "") : "";
     const { designation, manufacturer } = parseEngineName(raw);
