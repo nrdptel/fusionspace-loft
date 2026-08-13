@@ -24,7 +24,38 @@
  *  flyer who turns the phone sideways to read the diagram loses the touch contract entirely.
  *
  *  Desktop is unchanged and that is checked, not assumed: a 1280 px viewport reports `pointer: fine`,
- *  so the floor does not apply there any more than `sm:` did. */
+ *  so the floor does not apply there any more than `sm:` did.
+ *
+ *  **WHICH OF THE TWO TOKENS A CONTROL TAKES — the rule, stated here because this is the one most
+ *  call sites reach for by default and the default is the narrower promise.** This token is a HEIGHT
+ *  and says nothing whatever about width:
+ *
+ *  - **A control that FILLS ITS ROW takes this one.** Its width is structural — `w-full`, a grid
+ *    cell, a flex child that grows — so no token needs to defend it, and asserting a width floor on
+ *    it would assert something the layout already guarantees. Every `NumberField` input and `Select`
+ *    in the design editor is this shape.
+ *  - **A STANDALONE control takes `TOUCH_TARGET_SQUARE`.** If its width is set by the length of the
+ *    word inside it, the word is the only thing standing between it and a 24 px target — and a short
+ *    word fails exactly as a glyph does. The footer's *Docs* at **33x44** and the wordmark at
+ *    **37x28** were both this shape, and both satisfied this token while being a third of a target
+ *    across.
+ *
+ *  The distinction is about the SIZE OF THE TARGET, not the shape of what is in it. When in doubt a
+ *  control is standalone: `TOUCH_TARGET_SQUARE` is a floor, not a fixed size, so applying it to a
+ *  control that was already wide enough changes nothing and costs nothing.
+ *
+ *  **The one deliberate exemption is INLINE PROSE**, and it is a WCAG rule rather than a concession:
+ *  a link inside a sentence carries the "inline in a block of text" exemption from 2.5.8, because
+ *  its box is its line height and padding it would break the paragraph it lives in. The footer's
+ *  prose credits, the docs' cross-references and `app/docs/page.tsx`'s inline *FAQ* link (31x21) are
+ *  all this.
+ *
+ *  **How `e2e/touch.spec.ts` actually draws that line: by POSITIVE SCOPE, not by an ancestry test.**
+ *  Each case names the region it measures — `nav[aria-label="Docs sections"]`, `footer nav a`,
+ *  `footer p a` — so prose is exempt by never being selected rather than by a rule that recognises
+ *  it. Know that before relying on it: a new STANDALONE control in an unscoped region is not caught
+ *  either, which is the residual hole P15's increment 3 exists to close. Do not read this as "the
+ *  suite understands prose" — it does not. */
 export const TOUCH_TARGET = "pointer-coarse:min-h-11";
 
 /** The same 44 px minimum in BOTH directions, for a control whose text is one glyph — a zoom

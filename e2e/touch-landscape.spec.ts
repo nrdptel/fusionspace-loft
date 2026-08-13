@@ -27,7 +27,18 @@ const EXEMPT = [
   // to 44 px without breaking the line it sits in. The footer's and the docs nav's links are NOT
   // exempt and are asserted by `touch.spec.ts`; these are prose.
   "inline-prose-link",
-  // A heading that happens to link home, not a control to hit — `touch.spec.ts` exempts it too.
+  // The wordmark, and this entry is a KNOWN GAP rather than an exemption. It renders 37x28 on the
+  // app routes and is short of `DESIGN.md` §8; what blocks the fix is `e2e/depth.spec.ts`'s 1060 px
+  // phone chrome cap, which the 16 px it costs would breach on all four workspaces (measured
+  // 2026-08-13: baseline 1055, with the fix 1071). `ROADMAP.md` P15 and `BACKLOG.md` carry it.
+  //
+  // **It is matched by LABEL here, and `touch.spec.ts` no longer does that.** P15 increment 2
+  // replaced the sibling filter with `header h1 > a`, because keying an exemption on a control's own
+  // visible label silently un-exempts it when the label is reworded and silently exempts anything
+  // else that comes to share it. This file's exclusion list is label-keyed by construction — every
+  // entry in it is a string — so converting this one properly means changing the list's shape, which
+  // is its own increment and is filed. Left label-keyed, deliberately and visibly, rather than
+  // quietly.
   "Loft",
   // Visually hidden until focused, and its own size is not a touch surface.
   "Skip to content",

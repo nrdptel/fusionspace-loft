@@ -12,6 +12,152 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-13, from run 14's PRE-PUSH REVIEW — three findings against my own increment, two of
+them defects that predate it.**
+
+- `app/layout.tsx:104` — **the focused skip link paints with NO padding.**
+  `.focus\:not-sr-only:focus` sets `padding:0` at specificity (0,2,0), which outranks `.px-4`/`.py-2`
+  at (0,1,0), so the indigo bar renders as a bare `text-sm` line box. Repro: `grep -o
+  '\.focus\\:not-sr-only:focus{[^}]*}' out/_next/static/chunks/*.css`. Keyboard-only, so not a touch
+  finding — but it is the first thing a screen-reader or keyboard user sees, and it is unstyled.
+  Found while trying to state its focused size; the size could not be measured because the padding it
+  was supposed to include is not applied.
+- `components/SiteHeader.tsx` — **the app-route wordmark is 37x28, short of `DESIGN.md` §8, and
+  BLOCKED rather than exempt.** The 16 px that fixes it puts the workspace spine at 1071 px against
+  `e2e/depth.spec.ts`'s 1060 px cap (baseline 1055 — headroom is 5 px, not the 49 px two stale
+  comments implied; both now corrected). Needs 16 px found elsewhere in the shared chrome, which is
+  its own increment. **The docs-route wordmark is fixed and asserted.**
+- `e2e/touch-landscape.spec.ts:31` — **the label-keyed `"Loft"` exemption that P15 increment 2
+  deleted from `touch.spec.ts` still lives here**, and the whole `EXEMPT` list is label-keyed by
+  construction (every entry is a string), so converting one entry means changing the list's shape.
+  The defect — an exemption that a rename silently transfers to the wrong control — survives one file
+  over. Left visible with a comment rather than quietly.
+
+**Filed 2026-08-13, from run 14 — the opening fan-out's six lenses.**
+
+*Six lenses: two Sev-1 screens, two milestone recons, a design-system audit and a competitive probe.
+**No Sev-1 survived** — the strongest candidate (`PartPicker`'s parts list as a one-way door, which
+`BACKLOG.md` itself called "the strongest single candidate") was REFUTED: the "Close the parts list"
+toggle precedes the list in DOM order, so one Shift+Tab from the search field exits. The missing
+Escape and the ~1,089 uncapped rows are real and stay filed; the one-way door is not.*
+
+**Self-unmounting controls drop the keyboard user's place — four instances, one defect, one fix.**
+- The shape: a control that removes itself on activation, so focus falls to `<body>` and the next Tab
+  restarts at the top of a ~4-screen workspace. `useReturnFocus` (`components/ui.tsx:985`) exists for
+  exactly this and has ONE adopter (`Panel`).
+- `components/PartPicker.tsx:585` — **"Use" unmounts the Card containing the focused button.** The
+  catalogue pick is R8's headline path. Repro: `/design` → click a body tube → "Choose a body tube" →
+  Tab to any row's "Use" → Enter → next Tab starts at the page's first link.
+- `components/GeometryInspector.tsx:894` — **"Remove <part>" unmounts itself on press**, in both
+  branches (selection clears, or the refusal replaces the Button with an amber span). The app's most
+  destructive control drops focus at the moment Undo matters most, and Undo is 3 screens up.
+- `components/GeometryInspector.tsx:925` — **"Move toward the tail" is rendered only while
+  `canMove(id,1)`**, so the last nudge in a sequence deletes the button under the pointer. Worse than
+  the others because nudging is inherently repeated. `:913` is the mirror image at the nose.
+- `components/GeometryInspector.tsx:1138` — **"Remove <stage>"**, same defect on a coarser act;
+  `:1102` ("Remove the mount on …") is the third instance.
+
+**Numbers that disagree across two surfaces, or that an export strips the caveat from.**
+- `components/ResultsView.tsx:83` — **the flight-data CSV exports dynamic pressure in raw Pa in BOTH
+  unit systems** while the card renders kPa or psi. The column header is honest ("Pa"), so this is a
+  surface-pair disagreement rather than an unlabelled number: 41.2 kPa on screen, 41200 in the file,
+  and ~6895x adrift for an imperial reader. `csvQuantity`'s own doctrine in that file is "derived
+  from the SAME `Quantity` the cell renders".
+- `components/ResultsView.tsx:1844` — **the recovery-sizing hint prints Cd·A in m² on an imperial
+  page**, beside a canopy diameter that IS converted: "roughly 0.35 m² Cd·A — about a 24.0 in canopy".
+  Same gap `ValidationPanel.tsx:41` already documents as shipped (max acceleration at 108.4 m/s² on an
+  imperial page), on the line a flyer sizes a canopy from.
+- `components/MonteCarlo.tsx:231` — **the panel header states `{SAMPLES}` (300) unconditionally**
+  while every band, percentile and the waiver exceedance are computed over `result.n`, which is lower
+  whenever a sample is dropped (`!hasPropulsion`, `!physicallyPossible`). The caption at `:588` states
+  the real count, so the panel carries two counts and the smaller one denominates "Chance over
+  ceiling".
+- `components/MonteCarlo.tsx:783` and `components/ResultsView.tsx:61` — **neither the dispersion CSV
+  nor the flight-data CSV carries the extrapolation caveat** the panel above them renders, though
+  every sample already carries `s.extrapolated` and `lib/csv.ts:withPreamble` exists verbatim for
+  this. Both sweeps added exactly this column for exactly this reason. 9 of 109 stored corpus sims go
+  transonic.
+- `components/MassBreakdown.tsx:70` — **the mass & balance CSV does not say it describes the EDITED
+  airframe**, nor carry the `massAbsorbed`/`massHeldBy` warnings shown beside it. The "with your
+  edits" badge is on-screen-only.
+- `components/MotorSweep.tsx:280` — **sweep CSV rounds to 1 dp where the cells beside it render 0 dp**
+  ("1,235 m" on screen, "1234.6" in the file). `MonteCarlo.tsx:797` does the same with apogee.
+- `lib/motors/eng.ts:56` — **`Math.floor(Math.log2(I / 1.25))` puts an impulse landing exactly on a
+  band edge one class too high**: 2.5 N·s reads "B" when NAR class A is 1.26–2.50. The class letter is
+  what a flyer takes to an RSO. Measure-zero in practice and errs conservative, which is why it is
+  filed rather than fixed on sight.
+- `components/DragCrossCheck.tsx:57` — handles only `storedStatus === "outdated"`; `notsimulated` /
+  `loaded` / `external` fall through uncaveated while the prose asserts "This file carries {tool}'s
+  own per-step flight". **UNREACHABLE on the shipped corpus and samples** — no `.ork` there pairs a
+  non-uptodate status with `<datapoint>` rows — so it is reachable only with a flyer's own file.
+  `ValidationPanel` one panel away calls the shared `storedCaveat(status, tool)`.
+
+**Design-system divergence the §9 counts cannot see** (every §9 count is AT target — see the run's
+report — so these are the ones no instrument is watching).
+- `components/*.tsx` — **`text-[11px]` is a de-facto seventh type size at 33 uses**, ~12 of them
+  outside §3's stated scope (axis ticks and diagram annotations), and §9's type grep matches NAMED
+  sizes only so it reads 0 forever. `DataTable.tsx:200` renders the header row of all seven tables at
+  it; `LoftApp.tsx:2630-2631` puts every workspace field label below caption size.
+- `components/*.tsx` — **§2 ships three text roles; the tree holds 136 off-rung uses**
+  (`-300`x63, `-700`x35, `-800`x19, `-200`x18, `-50`x1), and §9 has **no text-colour grep at all**,
+  only a border one. `lib/ui-tokens.ts:71`'s `secondary` Button is itself off all three.
+- `app/globals.css:95` — **`border-radius: 3px` on the global focus ring**, a fourth radius as a raw
+  declaration. Same "wrong text" blindness §9 records for `.eqn`; lines 223 and 247 were corrected and
+  95 was missed.
+- `lib/design-system.test.ts:884` — **the card-treatment regex is `[a-z0-9 /-]*` where `DESIGN.md`
+  §9 states `[a-z0-9:/ -]*`** — no `:` — so two cards differing only after `dark:` count as one. The
+  executable copy is weaker than the document it ratchets.
+- `lib/design-system.test.ts:440` — **`uiAdopters: 21` while the tree is at 22 of 31.** A
+  `toBeGreaterThanOrEqual` floor that has gone stale stops ratcheting silently, which is the one
+  failure mode that file's own comment names.
+- `app/docs/validation/page.tsx:501` — **a raw `<table>` for the RocketPy-vs-Loft Δ cross-check**,
+  where §5 says "every table is this one" (`DataTable`). It cannot sort, copy, or say why a run is
+  missing, and it is the most decision-grade table in the docs.
+- `components/MassBreakdown.tsx:89` + `components/GeometryInspector.tsx:742` + `MotorSweep.tsx:324` +
+  `ResultsView.tsx:1449` — **four token/pill treatments at three radii**, two of them byte-identical
+  strings in different files. §5 says the second arrival is the trigger to extract a primitive.
+- `app/layout.tsx:104` — the skip link **hand-rolls the primary button** where `buttonClass({variant:
+  "primary"})` exists and every other nav anchor uses it.
+- `components/ui.tsx:340,362` and `components/SectionNav.tsx:59` — **a fourth and fifth surface level**
+  (`bg-zinc-100`, `dark:bg-zinc-700`) where §2 ships three "and no more"; there is no surface-token
+  grep in §9.
+- `components/RocketpyCrossCheck.tsx:330` — hand-rolled `<details>`/`<summary>` where `Disclosure`
+  takes exactly this; unlike `ResultsView:1503` it has no stated reason it cannot.
+- `components/MassBreakdown.tsx:85` — a `<summary>` carrying **neither touch token**, clearing 44 px
+  only because `py-3` plus a 20 px line-height happens to sum to it. `ui.tsx:1253` exists so a summary
+  need not rely on that.
+
+**Controls that forget** (all verified still true this run; the first was re-verified by name).
+- `components/MonteCarlo.tsx:155` — the **waiver ceiling** is `useState(0)` beside six
+  `usePersistedNumber` sigmas at `:130-135`, and is the only one of the panel's seven inputs with no
+  `loft.pref.*` key. It is the one go/no-go input on the panel. Already filed at `BACKLOG.md:1687`;
+  re-verified 2026-08-13.
+- `components/GeometryInspector.tsx:544` (parts-table sort), `components/LoftApp.tsx:4259` (launch
+  site + fetched weather/scenario), `components/PartPicker.tsx:274-276` (search, vendor, "fits only"),
+  `components/LoftApp.tsx:640` (undo history cleared on load while the edit bag survives),
+  `components/LoftApp.tsx:892` (design rename bypasses `commitWhatIf`, so it is off the undo stack),
+  `components/LoftApp.tsx:433` (`units` rides only inside SavedSession, which `reset()` clears) — all
+  already filed; listed here so one run's verification covers them.
+
+**`<overridecg>` / `<overridemass>` — SETTLED against OpenRocket's source, and the census claim in
+`HANDOFF.md` was wrong.** Taken as this run's R-track increment; see `ROADMAP.md` R12 and the entry
+below it. Two corrections to what was already filed here:
+- **The CG-override blend cannot move the published census**, contrary to `HANDOFF.md:27` and
+  `BACKLOG.md:138`. 0 of the 12 `.ork` `<overridecg>` elements sit on a shouldered part *without* an
+  `<overridemass>`, and an `<overridemass>` already suppressed the blend. Both `.rkt` CG overrides are
+  shouldered noses that also take `overrideMass` from `<CalcMass>`. All 14 are inert to it.
+- **The defect that DOES move the census is the MASS path, not the CG path** — `lib/sim/mass.ts:204`.
+  Three live corpus cones fly a nose CG too far forward, which is dry CG and static margin.
+- `lib/ork/adapt.ts:332` — **`<overridesubcomponentscg>` is read by nothing** (only the mass flag is).
+  All 8 occurrences in the corpus are `false`, so it is harmless today and a file setting it `true`
+  would be silently mis-flown.
+- `lib/model/edit.ts:2596` — the `[0, len]` clamp on a flyer-stated CG **may refuse a legal OpenRocket
+  value**: a transition with a fore shoulder has its shoulder-inclusive centroid at negative x, and
+  OpenRocket applies no clamp. 2 corpus transitions carry fore shoulders. Low severity, but the clamp
+  becomes a real bound once the field means the whole part.
+
+---
+
 **Filed 2026-08-12, from run 13 — the derived vanish check, the CG override, and their fan-outs.**
 
 *Zero Sev-1s survived adversarial verification. Two candidates were filed and both were refuted, so

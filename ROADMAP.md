@@ -5643,7 +5643,7 @@ run ends assumes the instrument was already right; say which case it is in the c
 
 ## P15 — A target is an area, not a height
 
-**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-12.
+**Status: IN PROGRESS** — increments 1 and 2 of 3 shipped; increment 2 on 2026-08-13.
 
 **Written 2026-08-12 because the P-track had run dry again.** P14 shipped, P13 met its *done when*,
 and P10's remaining increment is a repository SETTING no session can edit. `MAINTAINING.md` says
@@ -5691,7 +5691,82 @@ skipped.
 1. **The footer nav row** — both dimensions asserted, both controls converted. **DONE.**
 2. **The header, the import controls and `/design`** — the other three places `touch.spec.ts` counts
    heights, widened to areas, with the brand link and the skip link exempted BY NAME rather than by
-   a filter nobody can find.
+   a filter nobody can find. **DONE 2026-08-13**, and it landed one exemption rather than two.
+
+   **The hole was not where increment 1 predicted, and finding that was most of the increment.**
+   The prediction was that the three height-only assertions were the gap. Measured on an iPhone 13
+   with a real coarse pointer, on all six static routes plus the four workspaces: the width-only
+   population those assertions could not see is **zero** — increment 1 drained it — and the two
+   controls failing width fail HEIGHT too, so a height check already had standing to catch them and
+   did not. The actual gap is a fourth place: `scan()`, the one assertion that measures both
+   dimensions, matched `button, input, select, summary, nav[aria-label="Workspace"] a` and **no
+   `header a` at all**. The header's four anchors are on every route and were area-measured nowhere.
+   `header a` is in that selector now.
+
+   **The brand link is FIXED on the docs routes and EXEMPT on the app, and arriving at that split is
+   the part worth reading.** It rendered **37x28** everywhere. The first attempt gave it
+   `TOUCH_TARGET_SQUARE` unconditionally, on the reasoning that the 16 px of header depth it costs
+   (`/` 96 → 112, `/docs` 76 → 92) fitted inside "49 px of headroom" — a figure taken from a comment
+   in `components/SiteHeader.tsx` dated to an older measurement. **It did not fit. `e2e/depth.spec.ts`
+   failed on all four workspace routes with the spine at 1071 px against its 1060 px cap.** Measured
+   fresh: the baseline spine is **1055 px**, so the real headroom is **5 px**. The comment was not
+   wrong on its own date; the chrome grew between them, and quoting it instead of measuring is the
+   error — `MAINTAINING.md` names this exact failure and it still happened, which is why the number
+   is now annotated at the line that produced it.
+
+   So the split is: **the docs section gets the target; the app is a KNOWN GAP, filed.** It is not an
+   exemption and this file does not call it one.
+
+   - **Docs routes — it takes the target.** It is the header's only route back into the app, on all
+     six docs routes, and those routes carry no workspace spine, so the 16 px is not metered.
+   - **App routes — it stays 37x28, short of `DESIGN.md` §8, because the ratchet refuses the fix.**
+     Widening a cap to admit a regression is what a ratchet exists to prevent. The gap is recorded
+     here and in `BACKLOG.md` rather than dressed up as a decision.
+
+   **Two justifications for calling the app side EXEMPT were drafted, written into three files as
+   measured fact, and both were REFUTED by the pre-push review. They are recorded so that no later
+   run re-derives them:**
+
+   1. *"WCAG 2.5.8's Equivalent exception applies, because ← Import another reaches the same place."*
+      **False twice over.** `components/LoftApp.tsx`'s router effect runs
+      `router.replace(workspacePath(lastWorkspace.current))` whenever a design is open, so `/` bounces
+      straight back to the workspace — the wordmark reaches the import screen from nowhere that a
+      design is loaded. And `← Import another` is `reset()`: it clears the doc, the edits, the undo
+      history and the session. *Equivalent* requires the **same function**, and a destructive reset is
+      not the same function as a navigation.
+   2. *"2.5.8 is the governing criterion."* **It is not.** 2.5.8 is the 24x24 AA floor, which 37x28
+      already clears unaided; the 44 px figure this repo works to is **2.5.5 (AAA)**, as
+      `lib/ui-tokens.ts` has always said. Citing 2.5.8 to excuse a 2.5.5 failure is vacuous.
+
+   **The exclusion is keyed `header h1 > a`.** The wordmark is the page heading on the app and is not
+   one in the docs section, so this names it without naming its label. The first draft used
+   `closest("h1")` across the whole population — which would exempt any future control placed inside
+   any heading — replacing a too-narrow filter with a too-wide one.
+
+   **The skip link IS the one true exemption, and it is now an assertion rather than an absence.** It
+   is `sr-only` at rest and exempt because the contract is scoped to `pointer: coarse` while this
+   control is reachable by Tab and by nothing else. Its case asserts it stays keyboard-only, so the
+   exemption fails the day its reason stops being true — a different claim from the old "it is
+   offscreen", which would equally have excused a control merely scrolled out of view.
+
+   **Its assertion could not fail, and the review caught that too.** It read
+   `toHaveClass(/\bsr-only\b/)`, which also matches the `focus:not-sr-only` in the same attribute
+   (`\b` treats the `-` before `sr` as a boundary), so it stayed green with the leading `sr-only`
+   deleted — an unfailable check guarding an exemption, one increment after P14, whose entire subject
+   is checks that cannot fail. It is `classList.contains("sr-only")` now. A drafted claim that the
+   link measures "33x36 focused" was also removed rather than corrected: `focus:not-sr-only:focus`
+   sets `padding:0` at a higher specificity than `px-4 py-2`, so the number was never measured and
+   could not have been. **That padding collapse is a real defect** — the focused skip bar paints with
+   no padding at all — and is filed.
+
+   **The inline-prose rule is now written where a call site will find it**, in `TOUCH_TARGET`'s own
+   docblock rather than only in a spec comment: a link inside a sentence carries WCAG 2.5.8's
+   "inline in a block of text" exemption, and the suite draws that line by STRUCTURE, never by
+   naming controls. `app/docs/page.tsx:46`'s inline *FAQ* link (31x21) is the case that fixed the
+   wording — it is prose, not a chip, and padding it would break the sentence it lives in.
+
+   Pinned by a control: reverting the wordmark to a plain inline link fails **two** assertions, the
+   header case naming `37x28 "Loft"` and `scan()` on every workspace.
 3. **The docs routes** — `SectionNav`'s contents chips render 34 px tall and the suite never visits
    those routes at all, so the count there is unmeasured rather than zero.
 
@@ -5753,6 +5828,24 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-13 — the wordmark takes the touch target on the docs routes and an exemption on the app,
+  rather than one answer everywhere.** P15's increment 2 was written as "the brand link and the skip
+  link exempted BY NAME". **Taken: split it by context.** On the docs section the wordmark is the
+  only link back into the app — enumerated, not assumed: every `<a href>` on `/docs` and
+  `/docs/methods` yields `["/"]` — so it gets `TOUCH_TARGET_SQUARE`, and those routes carry no
+  workspace spine to charge the 16 px against. On the app it stays **37x28 and short of `DESIGN.md`
+  §8** — recorded as a filed GAP, not an exemption. **Rejected: give it the target everywhere** —
+  tried first, and `e2e/depth.spec.ts` refused it: the spine went to **1071 px** against a **1060 px**
+  cap on all four workspaces. The headroom is **5 px** (baseline 1055), not the 49 px implied by a
+  stale comment this session quoted instead of measuring — the exact failure `MAINTAINING.md` names
+  under *Measure, don't remember*. **Rejected: call the app side exempt under WCAG 2.5.8's
+  *Equivalent* exception** — drafted, and refuted at pre-push review: `/` bounces back to the open
+  workspace via `router.replace`, and **← Import another** is `reset()`, a destructive act rather than
+  the same function; 2.5.8 is also the 24x24 AA floor, which 37x28 already clears, where this repo
+  works to 2.5.5's 44 px. **Rejected: keep the depth by hanging the target off negative margin** —
+  that hand-rolls a treatment to defeat a measurement. Desktop reports `pointer: fine` and is
+  untouched at 37x28. Reversing this is one ternary.
 
 - **2026-08-10 — the persistent airframe strip is a DESKTOP affordance, and the phone keeps its
   screens.** Driven at 390x664 the strip put the sweep's first answer 2.13 screens down, past
