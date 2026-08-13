@@ -12,6 +12,32 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-13, from the SECOND pre-push review — against the physics increment, before it
+shipped.** All the code findings are fixed in that same increment; what is left here is what was
+measured and deliberately not taken.
+
+- `lib/rkt/adapt.ts:274` — **`cgOverrideM` rejects a RockSim `KnownCG` past the body's length**, a
+  bound that meant "outside the part" under the old shell semantics and is now slightly too tight: a
+  shouldered nose can legitimately balance behind its base. **Not widened**, because both `.rkt` CG
+  overrides in the corpus pass it comfortably, so the change would fire on zero real files while
+  weakening the guard that rejects RockSim's cached-not-measured values — a failure a real file has
+  actually shown. Wants a fixture that exhibits the case first.
+- `lib/sim/mass.ts` — **`ownInertia` is the geometric shell's `m·L²/12` about mid-length while the
+  returned `cg` is the shoulder-inclusive centroid**, and `combine()` parallel-axis-shifts it as
+  though it were about that `cg`; with `overrideMass` set the inertia also still uses the geometric
+  shell mass rather than the stated one. Pre-existing and widened slightly by the CG correction.
+  **Pitch inertia only — it does not reach static margin**, which is why it is filed rather than
+  fixed alongside a change that had to stay one function wide.
+- `lib/samples.test.ts` — **a bundled sample's stability moved with nothing recording it**:
+  `public/samples/demo-rocksim.rkt` goes static margin 4.9566 → 4.9188 cal. The suite prints margins
+  but pins only a band, so a shipped sample's number can move silently. A per-sample pinned figure is
+  the fix.
+- `lib/sim/mass.ts` — **the CG-override branch is exercised by no real file.** 14 `overrideCGx`
+  elements across corpus, fixtures and samples, and **0** of them sit on a shouldered part without an
+  `overrideMass`, so only synthetic unit tests cover the branch. It is the branch that moves margin
+  UP (CG forward, reporting MORE stable), which is the unsafe direction to be wrong in. Wants a
+  corpus fixture.
+
 **Filed 2026-08-13, from run 14's PRE-PUSH REVIEW — three findings against my own increment, two of
 them defects that predate it.**
 
@@ -146,8 +172,12 @@ below it. Two corrections to what was already filed here:
   `BACKLOG.md:138`. 0 of the 12 `.ork` `<overridecg>` elements sit on a shouldered part *without* an
   `<overridemass>`, and an `<overridemass>` already suppressed the blend. Both `.rkt` CG overrides are
   shouldered noses that also take `overrideMass` from `<CalcMass>`. All 14 are inert to it.
-- **The defect that DOES move the census is the MASS path, not the CG path** — `lib/sim/mass.ts:204`.
-  Three live corpus cones fly a nose CG too far forward, which is dry CG and static margin.
+- **The defect that DOES move real designs is the MASS path, not the CG path** — `lib/sim/mass.ts:204`.
+  **FIXED 2026-08-13** (R12 increment 15), together with the CG path, since both are one rule read off
+  `RocketComponent.getCG()`. Measured: 4 of 35 corpus designs move dry CG, all aft, 1.43–4.32 mm, with
+  no mass change on any of them. **And the census does NOT move** — all twelve published medians are
+  byte-identical before and after, so the "moves the published accuracy census" claim in `HANDOFF.md`
+  and in the 2026-08-12 entry below is wrong for BOTH paths, not just the CG one.
 - `lib/ork/adapt.ts:332` — **`<overridesubcomponentscg>` is read by nothing** (only the mass flag is).
   All 8 occurrences in the corpus are `false`, so it is harmless today and a file setting it `true`
   would be silently mis-flown.
@@ -274,6 +304,14 @@ designs, found by publishing a number that had only ever been computed.**
   currently describe an impossibility, on the surface built to rule import errors out.
 
 **Left open by the CG-override increment, each measured by the pre-push review.**
+- **RESOLVED 2026-08-13 (R12 increment 15). It was NOT unsettled, and it was a bug — two of them.**
+  OpenRocket's `RocketComponent.getCG()` settles it in four lines: a stated CG replaces the whole
+  part's centroid, shoulders included, and a stated MASS keeps the geometric (shoulder-inclusive)
+  centroid and rescales the weight only. Loft got both wrong, in opposite directions. The entry below
+  is left in full because its measurements are sound and only its conclusion was wrong — but note
+  three things it asserts that are false: this was not a semantic question, "the hint says the
+  shoulder is separate" is no longer what the app says, and **it does not move the published accuracy
+  census** (all twelve medians byte-identical; 4 of 35 designs move dry CG by 1.43–4.32 mm).
 - **What `overrideCGx` MEANS on a part with a shoulder is unsettled, and it is a semantic question
   rather than a bug.** It replaces the cone's shell centroid; the shoulder's mass is then added at its
   own station and blended in, so the part acts up to **133 mm** behind the station stated (`rocket.ork`

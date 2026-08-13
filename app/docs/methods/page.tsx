@@ -156,11 +156,26 @@ export default function Methods() {
         would otherwise be silently dropped. A fitting&apos;s mass is counted once per
         instance, so a pair of rail buttons weighs twice what one does and changing that count in the
         editor moves the mass and the parasitic drag together; the editor states the mass of one of
-        them, and a mass stated in the design file scales the same way. An explicit
+        them, and a mass stated in the design file scales the same way.
+      </p>
+
+      <DocsH3>What a stated weight or balance point replaces</DocsH3>
+      <p>
+        An explicit{" "}
         <code>&lt;overridemass&gt;</code>{" "}or <code>&lt;overridecg&gt;</code> in the design always
         wins; when it is flagged to override <em>all subcomponents</em> — a section weighed as a
         whole — that one figure stands in for the section and everything inside it, rather than
-        being added to the parts&apos; own computed masses.{" "}<strong>The parts table says which is which.</strong> A
+        being added to the parts&apos; own computed masses.{" "}
+        <strong>
+          On a single part, a stated balance point describes the whole of it, shoulder included
+        </strong>
+        , and a stated weight moves none of it: the part keeps the balance point its geometry gives
+        it — shoulder counted — and only its weight is replaced. That is what the two fields mean in
+        the format, and it is what a knife-edge reading of the part in your hand measures, so the
+        number you write is the number you took. (A section weighed as a <em>whole</em>{" "}is the other
+        case and does move its own balance point: one figure replaces the section&apos;s parts, so it
+        is placed at the carrier&apos;s own centroid rather than at the mass-weighted centre of the
+        parts it stands in for.){" "}<strong>The parts table says which is which.</strong> A
         mass the design file states outright — an OpenRocket override, a RockSim{" "}
         <code>KnownMass</code> — is marked, and so is one carried through from the source tool&apos;s
         own calculation rather than recomputed here; an unmarked mass is Loft&apos;s, derived from the
@@ -174,11 +189,12 @@ export default function Methods() {
         and the one you find on a shell balance — and the mass &amp; balance breakdown marks those as yours,
         distinct from the design&apos;s claim and from Loft&apos;s own arithmetic. (The parts table
         marks a stated MASS; it carries no balance-point column yet.) A balance point is measured from
-        the part&apos;s own fore end, as OpenRocket&apos;s override tab asks for it, and is bounded by
-        that part&apos;s length: a station off the end of a part cannot mean anything, so it is
-        clamped rather than flown. A cone&apos;s shoulder is weighed
-        separately and sits behind the station you state, so this is the balance of the shell rather
-        than of the whole part. Where a stated balance point would not reach the flight at all — the
+        the part&apos;s own fore end, as OpenRocket&apos;s override tab asks for it, and describes the
+        WHOLE part — a cone&apos;s shoulder included. So the figure to state is a knife-edge reading
+        of the part as it sits in your hand, and on a cone whose shoulder carries much of its weight
+        that balance point can sit behind the cone&apos;s own base; the field allows for it. It is
+        still bounded by the part that physically exists, shoulder and all: a station off the end of
+        that cannot mean anything, so it is clamped rather than flown. Where a stated balance point would not reach the flight at all — the
         part carries no weight of its own for one to place — the field says so instead of accepting a
         number that changes nothing. The centre of gravity is mass-weighted;
         pitch inertia is the sum of each part&apos;s own inertia plus a parallel-axis term.

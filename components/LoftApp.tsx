@@ -11,7 +11,7 @@ import { Button, Card, ErrorState, NumberField, Segmented, Select } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
-import { flattenRocket } from "@/lib/model/geometry";
+import { flattenRocket, statedCGBounds } from "@/lib/model/geometry";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import { storedTag } from "@/lib/validation/stored-status";
 import {
@@ -1748,13 +1748,24 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               const n = primaryNose(designBase);
               if (!n) return undefined;
               return {
-                // `localBodyCGx`, NOT the part's reported CG. `overrideCGx` replaces the cone's BODY
-                // centroid and a shoulder is blended in aft of it, so the reported figure is not the
-                // quantity this box holds — offering it made the control non-idempotent on the 15
-                // corpus cones that carry a shoulder: typing the number already shown moved the
-                // design's CG and the part then read back a third number.
+                // `localBodyCGx` still, though the reason has changed and shrunk. It used to be
+                // required: `overrideCGx` replaced the cone's BODY centroid and a shoulder was
+                // blended in aft of it, so the reported CG was a third quantity and offering it as
+                // the placeholder made the control non-idempotent on the 15 corpus cones with a
+                // shoulder. **That blend is gone** — a stated CG now replaces the whole part's
+                // centroid, shoulder included, which is what OpenRocket's `<overridecg>` has always
+                // meant — so the reported CG and this box hold the SAME quantity and the inversion
+                // has slope 1. It is kept because it still returns `undefined` for a part that
+                // reports no CG of its own (no structural mass, or subsumed by a stage lump), which
+                // is the case the placeholder must not guess at. Collapsing it to a direct reading
+                // would have to reproduce that guard, and is filed rather than done here.
                 local: localBodyCGx(designBase, n.id) ?? Number.NaN,
-                length: n.length,
+                // The whole PART's extent, shoulder included — not `n.length`. The hint below tells
+                // the flyer to type a knife-edge reading of the part in their hand, and on a
+                // shouldered cone that reading can sit aft of the body: 20 of the 804 catalogued
+                // cones are that shape. A `max` of the body length would advertise, and enforce, a
+                // ceiling below the number the surface just asked for.
+                max: statedCGBounds(n)?.max ?? n.length,
                 reaches: statedCGReachesDesign(designBase, n.id),
               };
             })(),
@@ -1763,7 +1774,9 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               if (!t) return undefined;
               return {
                 local: localBodyCGx(designBase, t.id) ?? Number.NaN,
-                length: t.length,
+                // A body tube has no shoulder, so this is its length — via the shared bound, so the
+                // two controls cannot drift apart on what a stated CG is allowed to be.
+                max: statedCGBounds(t)?.max ?? t.length,
                 reaches: statedCGReachesDesign(designBase, t.id),
               };
             })(),
@@ -2710,7 +2723,7 @@ function DesignEditor({
     noseMass?: number;
     /** A part's own balance point (m from its own fore end), the length that bounds it, and whether
      *  stating one would reach the design's balance point at all — see `statedCGReachesDesign`. */
-    noseCGx?: { local: number; length: number; reaches: boolean };
+    noseCGx?: { local: number; max: number; reaches: boolean };
     /** Per aim, the assembly whose STATED weight already covers that part — so its own mass field
      *  is a control that would demonstrably do nothing. Undefined where the part carries its own. */
     massCarriedBy: {
@@ -2741,7 +2754,7 @@ function DesignEditor({
     };
     bodyLength?: number;
     bodyTubeMass?: number;
-    bodyTubeCGx?: { local: number; length: number; reaches: boolean };
+    bodyTubeCGx?: { local: number; max: number; reaches: boolean };
     bodyDiameter?: number;
     bodyTubePart?: AimedPart;
     unreachableBodyTubes: number;
@@ -3274,7 +3287,7 @@ function DesignEditor({
                       // Display units, like every other bound in this panel: `max` is compared against
                       // what the box holds, and the readback is metres. Passing 0.17 into a millimetre
                       // field advertises — and enforces — a ceiling of 0.17 mm on a 170 mm cone.
-                      max={Number(toDispSpan(designDims.noseCGx.length))}
+                      max={Number(toDispSpan(designDims.noseCGx.max))}
                       // Disabled only while EMPTY, exactly as the mass fields are, and for the same
                       // one-way-door reason: a typed value must stay clearable.
                       disabled={!designDims.noseCGx.reaches && edits.noseCGx === undefined}
@@ -3282,8 +3295,8 @@ function DesignEditor({
                         !designDims.noseCGx.reaches
                           ? "This cone carries no weight of its own for a balance point to place — the design states its weight as a whole and gives the cone no material."
                           : !Number.isFinite(designDims.noseCGx.local)
-                            ? "Where the cone's shell balances, measured from the tip. Loft has no figure of its own to show here — a shoulder, if the cone has one, is weighed separately."
-                            : "Where the cone's shell balances, measured from the tip. A shoulder, if it has one, is weighed separately — so this is not a knife-edge reading of the whole part."
+                            ? "Where the whole cone balances, measured from the tip — shoulder included. Loft has no figure of its own to show here."
+                            : "Where the whole cone balances, measured from the tip. Shoulder included, so a knife-edge reading of the part as it sits in your hand is the figure to type."
                       }
                       placeholder={
                         !designDims.noseCGx.reaches || !Number.isFinite(designDims.noseCGx.local)
@@ -3352,7 +3365,7 @@ function DesignEditor({
                         onEdit({ bodyTubeCGx: m !== undefined && m >= 0 ? m : undefined });
                       }}
                       min={0}
-                      max={Number(toDispSpan(designDims.bodyTubeCGx.length))}
+                      max={Number(toDispSpan(designDims.bodyTubeCGx.max))}
                       disabled={!designDims.bodyTubeCGx.reaches && edits.bodyTubeCGx === undefined}
                       hint={
                         !designDims.bodyTubeCGx.reaches

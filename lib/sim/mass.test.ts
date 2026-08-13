@@ -151,6 +151,76 @@ describe("nose/transition shoulder mass", () => {
   it("no shoulder ⇒ no change", () => {
     expect(massOf(noseBase({ aftShoulderLength: 0 }))).toBeCloseTo(massOf(noseBase()), 9);
   });
+
+  /** **What an override MEANS on a part with a shoulder** — OpenRocket's rule, and both branches of
+   *  it were wrong here until 2026-08-13. Read off `RocketComponent.getCG()` (release-24.12):
+   *
+   *      if (cgOverridden)   return getOverrideCG().setWeight(getMass());   // = getComponentCG().setX(overrideCGX)
+   *      if (massOverridden) return getComponentCG().setWeight(getMass());
+   *      return getComponentCG();
+   *
+   *  …and `getComponentCG()` is shoulder-INCLUSIVE (`Transition.calculateProperties()` sums
+   *  `foreCap + foreShoulder + trans + aftShoulder + aftCap` into one centroid).
+   *
+   *  These assert from FIRST PRINCIPLES rather than by recomputing the implementation's own
+   *  expression. The first needs no arithmetic at all — a stated station must be reported back
+   *  unchanged, whatever the geometry is — and the second is a hand-computed two-body centroid whose
+   *  inputs are the cone's own dimensions. Neither can pass by construction if the blend returns. */
+  describe("what an override means on a shouldered part", () => {
+    const SH = { aftShoulderRadius: 0.0119, aftShoulderLength: 0.02, aftShoulderThickness: 0.0022 };
+    const props = (n: NoseCone) =>
+      dryMassProperties({ name: "t", stages: [{ name: "s", components: [n] }], configurations: [], referenceType: "maximum" });
+
+    it("a stated CG is the WHOLE part's CG — the shoulder is not blended in aft of it", () => {
+      // The strongest form of the claim, and it needs no model of the shoulder: whatever station the
+      // flyer states, the part must report exactly that. Under the old blend this came back up to
+      // 133 mm aft of the stated figure, which is what made the control non-idempotent.
+      for (const stated of [0.0, 0.02, 0.05, 0.1]) {
+        const withShoulder = props(noseBase({ ...SH, overrideCGx: stated }));
+        expect(withShoulder.cg, `stated CG ${stated} m must be reported back unchanged`).toBeCloseTo(stated, 9);
+      }
+      // And it must not depend on the shoulder at all — same stated station, no shoulder, same CG.
+      expect(props(noseBase({ overrideCGx: 0.03 })).cg).toBeCloseTo(props(noseBase({ ...SH, overrideCGx: 0.03 })).cg, 9);
+    });
+
+    it("a stated MASS keeps the shoulder-inclusive balance point and rescales the weight only", () => {
+      const stated = 0.25; // kg, deliberately unlike the geometric mass
+      const overridden = props(noseBase({ ...SH, overrideMass: stated }));
+
+      // The weight is the stated one…
+      expect(overridden.mass).toBeCloseTo(stated, 9);
+
+      // …and the balance point is the two-body centroid of shell and collar, computed HERE from the
+      // cone's own dimensions rather than read back out of the code under test.
+      //
+      // **The first draft of this asserted `overridden.cg ≈ props(noseBase(SH)).cg` and the pre-push
+      // review killed it**: both sides are the same `componentCg` expression, so it held for any
+      // centroid formula whatever — the tautology shape P14 exists to stop, written one increment
+      // after the milestone about checks that cannot fail, in a docblock claiming first principles.
+      //
+      // The shell's own mass and centroid come from the NO-shoulder, NO-override case, which is a
+      // different question to a different branch and is itself pinned by the three tests above. The
+      // collar is hand-computed: a hollow tube of the shoulder's radius and wall, centred half its
+      // length below the cone's base.
+      const bare = props(noseBase());
+      const { aftShoulderRadius: r, aftShoulderLength: L, aftShoulderThickness: t } = SH;
+      const ri = r - t;
+      const mCollar = Math.PI * (r * r - ri * ri) * L * MAT2.density;
+      const cgCollar = 0.1 + L / 2; // cone length + half the collar, from the tip
+      const expected = (bare.mass * bare.cg + mCollar * cgCollar) / (bare.mass + mCollar);
+      expect(overridden.cg, "the shoulder-inclusive centroid, computed independently").toBeCloseTo(expected, 9);
+
+      // And it is strictly aft of where the bare shell alone balances — the assertion the old code
+      // failed, which placed the whole stated mass at the shell centroid.
+      expect(overridden.cg, "the shoulder must pull the balance point aft").toBeGreaterThan(bare.cg);
+    });
+
+    it("a stated CG wins over a stated mass, as OpenRocket's precedence has it", () => {
+      const both = props(noseBase({ ...SH, overrideMass: 0.25, overrideCGx: 0.04 }));
+      expect(both.cg).toBeCloseTo(0.04, 9);
+      expect(both.mass).toBeCloseTo(0.25, 9);
+    });
+  });
 });
 
 describe("elliptical fin mass CG", () => {

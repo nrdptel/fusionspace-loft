@@ -1575,8 +1575,8 @@ at 112 kg/m³:
 | | before | after |
 |---|---|---|
 | dry mass | 600.2 g | 525.6 g |
-| CG | 572.5 mm | 456.9 mm |
-| static margin | 4.065 cal | 2.712 cal |
+| CG | 572.5 mm | 457.1 mm |
+| static margin | 4.065 cal | 2.7095 cal |
 | apogee | 992.79 m | 1043.84 m |
 | max velocity | 205.2 m/s | 225.1 m/s |
 
@@ -2585,6 +2585,95 @@ would put a number on screen that no file asked for.
 
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
+
+**Increment 15 — what a stated CG and a stated WEIGHT actually mean on a part with a shoulder,
+2026-08-13.** `HANDOFF.md` named this as the next R slice and framed it as one defect on the CG path
+that would "re-fly every imported `<overridecg>` and move the published accuracy census". **It is two
+defects, they are on opposite paths, and the census does not move.** All three corrections came from
+reading OpenRocket's own source rather than from reasoning about the format.
+
+**The rule, quoted rather than inferred** — `RocketComponent.getCG()`, release-24.12:
+
+```java
+if (cgOverridden)   return getOverrideCG().setWeight(getMass());   // getOverrideCG() = getComponentCG().setX(overrideCGX)
+if (massOverridden) return getComponentCG().setWeight(getMass());
+return getComponentCG();
+```
+
+…and `getComponentCG()` is shoulder-INCLUSIVE: `Transition.calculateProperties()` sums
+`foreCapCG + foreShoulderCG + transCG + aftShoulderCG + aftCapCG` into a single centroid. So a
+shoulder is *inside* a component's CG, never something blended in afterwards.
+
+Both of Loft's branches were wrong, in opposite directions:
+
+1. **A stated CG was treated as the SHELL's centroid, with the shoulder blended in aft of it.** The
+   part acted up to **133 mm** behind the station the flyer stated, and the control was
+   non-idempotent — typing back the figure the box already showed moved the design's CG.
+2. **A stated MASS dropped the shoulder from the CG entirely**, placing the whole stated weight at
+   the shell centroid. This is the one that reaches real files, and it is dry CG — what static margin
+   is measured from. The old comment's reasoning ("a stated component mass already includes it") is
+   true of the MASS and says nothing about the CG; skipping the block dropped the moment as well.
+
+**Measured on the corpus, both sides of the change: 4 of 35 designs move, all AFT, and not one gram
+of mass moves on any of them** — the signature of a CG-only correction.
+`Punisher Apprentice.ork` +4.32 mm, `Simulation scripting.ork` +2.17 mm, `The Red Hunter.ork`
++1.95 mm, `rocksimTestRocket2.rkt` +1.43 mm. Aft means Loft had been reporting these four as *more*
+stable than they are.
+
+**The published accuracy census is byte-identical before and after** — all twelve medians unchanged.
+`HANDOFF.md:27` and `BACKLOG.md` both said this change would move it; they were wrong, and the entries
+are corrected. The reason is that 0 of the 12 `.ork` `<overridecg>` elements sit on a shouldered part
+*without* an `<overridemass>` (which already suppressed the blend), and a 1–4 mm CG shift does not
+reach apogee or velocity at the census's resolution.
+
+**Pinned by three assertions in `lib/sim/mass.test.ts`, argued from first principles rather than by
+recomputing the implementation** — the P14 lesson about checks that cannot fail. The strongest needs
+no arithmetic at all: whatever station the flyer states, the part must report exactly that back.
+Negative control: restoring the blend fails two of the three, reporting a stated CG of 0 as 29.5 mm
+and putting a stated mass's balance point 11.5 mm too far forward.
+
+**Living docs moved in the same change**, because the behaviour made three of their sentences untrue:
+the methods page now says a stated balance point describes the whole part, shoulder included, and a
+stated weight moves none of it; and the two nose-CG tooltips said "a shoulder is weighed separately —
+so this is not a knife-edge reading of the whole part", which was the old semantics stated to the
+flyer. A knife-edge reading of the whole part IS now the figure to type, and they say so.
+
+**The pre-push review found that the first draft of this increment REINTRODUCED the exact
+non-idempotency it set out to remove, and that is the most useful thing in it.** Redefining
+`overrideCGx` as the whole part's centroid made `[0, length]` the wrong bound — a shouldered cone can
+genuinely balance behind its own base, and a transition with a fore shoulder fore of its datum — but
+all three clamps still held the body's length: `localBodyCGx` (read), `withStatedCG` (write) and the
+field's own `max`. Measured: `rocket.ork` carries two **12.70 mm** transitions whose 152.4 mm
+shoulders hold ~92% of their mass and which balance at **81.96 mm**; the panel was handed 12.70. So
+the placeholder stopped being a fixed point, which is the one property that control exists to have.
+`lib/model/geometry.ts`'s new `statedCGBounds` is the bound now — the part that physically exists,
+shoulder and all — and all three sites share it.
+
+**The corpus sweep's idempotency guard could not have caught it, and the reason generalises.** It
+drives the two panel controls over real design files, and **0 of the 35** carry a cone of that shape.
+The **catalogue** does — a cone pick is one click from the front door — so the new check runs all 854
+catalogued cones through the pick, reads the placeholder and commits it. Negative control: restoring
+the body-only bound reports *"the shown balance point is not a fixed point on 11 cone(s)"*. It also
+asserts its own population is non-empty, because the failure mode of a bound is to clamp the
+interesting cases out of existence and pass by testing nothing.
+
+**Three claims written in the first draft were false and are corrected rather than quietly dropped:**
+the mass-override CG test asserted `overridden.cg ≈ props(noseBase(SH)).cg` — the same expression on
+both sides, so it held for any centroid formula whatever, under a docblock claiming first principles;
+the methods page gained a correct sentence while keeping a contradicting one twenty lines later in the
+same paragraph; and "a stated weight moves none of it" is false for the *override all subcomponents*
+flag, which does move a section's balance point. All three are fixed, and the published BNC-55D2
+measurement this change invalidates (CG 456.9 → **457.1** mm, margin 2.712 → **2.7095** cal) is
+updated in `COMPETITION.md` row 2, this file's own table, and the test's docblock.
+
+**Not taken, and filed:** `localBodyCGx`'s inversion collapses to the identity now that the slope is
+1, and 30 lines plus two whole-rocket mass solves per call become ceremony. It is kept because it
+still returns `undefined` for a part that reports no CG of its own, which the placeholder must not
+guess at; collapsing it means reproducing that guard, and that is its own increment. Also filed:
+`lib/rkt/adapt.ts`'s `cgOverrideM` still rejects a `KnownCG` past the body's length, which is now
+slightly too tight — left alone because both `.rkt` overrides in the corpus pass it comfortably, so
+widening it would fire on zero real files while weakening the guard that rejects RockSim's
+cached-not-measured values.
 
 **Increment 13 — the flyer's own BALANCE POINT reaches the airframe, 2026-08-12.** `COMPETITION.md`
 row 45's next slice, and the exact twin of the mass override increments 8–11 built: `overrideCGx` has
