@@ -430,6 +430,61 @@ export function statedMassHolder(rocket: Rocket, id: string): string | null {
   return null;
 }
 
+/** The local station (m from the part's own fore end) that `overrideCGx` REPLACES.
+ *
+ *  **This used to be a different quantity from the part's reported CG, and since 2026-08-13 it is
+ *  not.** `overrideCGx` set the BODY's centroid and `componentPointMass` blended a shoulder in aft of
+ *  it, so on the 15 corpus nose cones with a shoulder the part acted up to 133 mm behind the station
+ *  the flyer stated. Offering the reported CG as the placeholder therefore made the control
+ *  non-idempotent: typing back the number the box already showed moved the design's CG on 15 of 57
+ *  live controls, and the part read back a third number again.
+ *
+ *  **The blend is gone** — a stated CG replaces the whole part's centroid, shoulder included, which
+ *  is what OpenRocket's `<overridecg>` has always meant (`RocketComponent.getCG()`). So the only
+ *  thing left between the reported CG and this figure is the datum: the parts table publishes an
+ *  absolute station across the whole airframe, and `overrideCGx` is measured from the part's own fore
+ *  face. Subtracting `xFore` is the whole conversion.
+ *
+ *  It was recovered by INVERSION until 2026-08-13 — two probe solves that set `overrideCGx` to each
+ *  end of the part and read the slope back out — which was the right shape while the blend existed
+ *  and there was a slope other than 1 to find. `componentPointMass` now reads
+ *  `overrideCg !== undefined ? p.xFore + overrideCg : componentCg`, so the probes could only ever
+ *  recover slope 1 and intercept `xFore`. Measured across all 35 corpus designs before the change:
+ *  372 parts where either form returns a figure, **0 disagreements**, worst difference 4.4e-16 m —
+ *  one ULP, and no part where one form returns a station and the other returns nothing.
+ *
+ *  Returns `undefined` where the part reports no CG at all — it carries no structural mass of its
+ *  own, or its mass is subsumed by an ancestor's whole-assembly override — because there is no figure
+ *  to show. That guard is the `reported === undefined` line, which is the same guard it always was;
+ *  the probes never contributed it. */
+export function localBodyCGx(rocket: Rocket, id: string): number | undefined {
+  const part = flattenRocket(rocket).find((p) => p.component.id === id);
+  const len = part ? (part.component as { length?: number }).length : undefined;
+  if (!part || len === undefined || !(len > 0)) return undefined;
+  const reported = massByComponent(rocket).get(id)?.cg;
+  if (reported === undefined || !Number.isFinite(reported)) return undefined;
+  const local = reported - part.xFore;
+  // **Bounded by the whole PART, not by its body** — the same correction as `withStatedCG`'s, and
+  // this is the site where getting it wrong was visible. `[0, len]` could not express the quantity
+  // this function returns: on `rocket.ork`'s two 12.70 mm transitions the whole-part centroid is
+  // 81.96 mm, and clamping handed the panel 12.70 for a part balancing at 81.96 — reintroducing the
+  // non-idempotent placeholder this control exists not to have.
+  const b = statedCGBounds(part.component) ?? { min: 0, max: len };
+  return Number.isFinite(local) ? Math.min(Math.max(local, b.min), b.max) : undefined;
+}
+
+/** One definition of "the same rocket with a different stated CG on one part", shared by the two
+ *  probes below so they cannot disagree about what they are perturbing. */
+function withOverrideCGx(rocket: Rocket, id: string, cgx: number): Rocket {
+  const rewrite = (c: RocketComponent): RocketComponent =>
+    c.id === id
+      ? ({ ...c, overrideCGx: cgx } as RocketComponent)
+      : c.children.length
+        ? { ...c, children: c.children.map(rewrite) }
+        : c;
+  return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: s.components.map(rewrite) })) };
+}
+
 /** Would stating a balance point on the component `id` names actually move the DESIGN's balance
  *  point — or is the control a no-op?
  *
@@ -461,60 +516,6 @@ export function statedMassHolder(rocket: Rocket, id: string): string | null {
  *  control from an unmoved one. This is the same "derive it from the solver rather than reason about
  *  the tree" that `massCarriedBy` reached the long way round, and it costs two extra passes over a
  *  tree the panel already walks several times per render. */
-/** The local station (m from the part's own fore end) that `overrideCGx` REPLACES — which is not the
- *  same quantity as the part's reported CG, and the difference is what a placeholder must not get
- *  wrong.
- *
- *  **This used to be a different quantity from the reported CG, and since 2026-08-13 it is not.**
- *  `overrideCGx` set the BODY's centroid and `componentPointMass` blended a shoulder in aft of it, so
- *  on the 15 corpus nose cones with a shoulder the part acted up to 133 mm behind the station the
- *  flyer stated. Offering the reported CG as the placeholder therefore made the control
- *  non-idempotent: typing back the number the box already showed moved the design's CG on 15 of 57
- *  live controls, and the part read back a third number again.
- *
- *  **The blend is gone** — a stated CG replaces the whole part's centroid, shoulder included, which
- *  is what OpenRocket's `<overridecg>` has always meant (`RocketComponent.getCG()`). So the slope
- *  this function recovers is now 1 and the station it returns is the one the flyer typed.
- *
- *  Recovered by inversion rather than by re-deriving the centroid, so there is one definition of the
- *  blend and this cannot drift from it. The reported CG is affine in `overrideCGx` — slope
- *  `mass / totalMass`, which is 1 with no shoulder — so two probes give the slope and the current
- *  reported CG gives the station. Returns `undefined` where the part reports no CG at all (it carries
- *  no structural mass of its own, or its mass is subsumed), because there is no figure to show. */
-export function localBodyCGx(rocket: Rocket, id: string): number | undefined {
-  const part = flattenRocket(rocket).find((p) => p.component.id === id);
-  const len = part ? (part.component as { length?: number }).length : undefined;
-  if (!part || len === undefined || !(len > 0)) return undefined;
-  const reported = massByComponent(rocket).get(id)?.cg;
-  if (reported === undefined || !Number.isFinite(reported)) return undefined;
-  const at = (cgx: number) => massByComponent(withOverrideCGx(rocket, id, cgx)).get(id)?.cg;
-  const lo = at(0);
-  const hi = at(len);
-  if (lo === undefined || hi === undefined || !Number.isFinite(lo) || !Number.isFinite(hi)) return undefined;
-  const slope = (hi - lo) / len;
-  if (!(Math.abs(slope) > 1e-12)) return undefined;
-  const local = (reported - lo) / slope;
-  // **Bounded by the whole PART, not by its body** — the same correction as `withStatedCG`'s, and
-  // this is the site where getting it wrong was visible. `[0, len]` could not express the quantity
-  // this function now recovers: on `rocket.ork`'s two 12.70 mm transitions the whole-part centroid is
-  // 81.96 mm, and clamping handed the panel 12.70 for a part balancing at 81.96 — reintroducing the
-  // non-idempotent placeholder this control exists not to have.
-  const b = statedCGBounds(part.component) ?? { min: 0, max: len };
-  return Number.isFinite(local) ? Math.min(Math.max(local, b.min), b.max) : undefined;
-}
-
-/** One definition of "the same rocket with a different stated CG on one part", shared by the two
- *  probes below so they cannot disagree about what they are perturbing. */
-function withOverrideCGx(rocket: Rocket, id: string, cgx: number): Rocket {
-  const rewrite = (c: RocketComponent): RocketComponent =>
-    c.id === id
-      ? ({ ...c, overrideCGx: cgx } as RocketComponent)
-      : c.children.length
-        ? { ...c, children: c.children.map(rewrite) }
-        : c;
-  return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: s.components.map(rewrite) })) };
-}
-
 export function statedCGReachesDesign(rocket: Rocket, id: string): boolean {
   const part = flattenRocket(rocket).find((p) => p.component.id === id);
   const len = part ? (part.component as { length?: number }).length : undefined;

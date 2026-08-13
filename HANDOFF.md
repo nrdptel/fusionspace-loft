@@ -21,10 +21,12 @@ Where the two tracks stand, measured this run:
   are written up and measured: selectors the suite names that the markup no longer carries, and the
   inverse of increment 1 (a stylesheet rule generated from prose rather than from a component, which
   this run proved is reachable — twice). **P16 increment 2 is the next P slice.**
-- **R-track: R12 is at increment 15.** What a stated CG and a stated WEIGHT mean on a part with a
-  shoulder, settled from OpenRocket's source. **The next R slice** is `localBodyCGx`'s inversion,
-  which is now the identity (slope 1) — 30 lines and two whole-rocket mass solves per call that exist
-  only for a guard the direct reading would have to reproduce.
+- **R-track: R12 is at increment 16** (run 15). Increment 15 settled what a stated CG and a stated
+  WEIGHT mean on a part with a shoulder, from OpenRocket's source; increment 16 removed
+  `localBodyCGx`'s two probe solves, which that left as the identity. **The next R slice** is the
+  live-but-blank stated-CG control on a part a STAGE lump subsumes — `localBodyCGx` returns
+  `undefined` there, the field renders enabled with an empty box, and the corpus fixed-point check
+  skips exactly that population (`subsumedButLive = 5`, counted and not asserted).
 - **One unqueued defect increment shipped**, against four queued ones, so the one-in-four quota is
   spent for this run and is clear for the next. It was the ledger's highest-value correctness item —
   and it was misfiled: a `.CDX1` states weight and balance PER SIMULATION while Loft's model has one

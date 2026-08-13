@@ -2586,6 +2586,48 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 16 — the two probe solves the panel was paying for on every keystroke, 2026-08-13.**
+Increment 15 filed this and said why it was not taken then: `localBodyCGx` recovered the station a
+flyer had stated by INVERTING two whole-rocket mass solves, which was the right shape while a shoulder
+blend meant there was a slope other than 1 to find. That blend went in increment 15.
+`componentPointMass` now reads `overrideCg !== undefined ? p.xFore + overrideCg : componentCg`, so the
+probes could only ever recover slope 1 and intercept `xFore`, and the conversion is a subtraction: the
+parts table publishes an absolute station, this control holds one measured from the part's own fore
+face, and the datum is the whole difference.
+
+**Measured before the change rather than argued** — all 35 corpus designs, every part where either
+form returns a figure: **372 parts, 0 disagreements, worst difference 4.4e-16 m** (one ULP), and no
+part where one form returns a station and the other returns nothing. So no number moves on any
+surface; the filed reason for keeping it — that the inversion supplied the `undefined` guard — was
+wrong, and the guard is the `reported === undefined` line it always was.
+
+**What a flyer gets is speed on the panel's hot path.** `localBodyCGx` sits inside the `designDims`
+memo, so both controls are recomputed on every part pick and every keystroke in a geometry field.
+Timed over the corpus, the pair per render: **median 0.585 → 0.182 ms, worst 96.9 → 29.6 ms**
+(`03.Three-stage.ork`, 35 parts) — 3.2× and 3.3×. The old form was slow enough that the probe
+harness timed out at vitest's 5 s default while the new one finished inside it. `BACKLOG.md`'s
+neighbouring entry — `statedCGReachesDesign` at three solves per call, worst 60.9 ms — is the larger
+remaining half of the same stutter and is untouched here, deliberately: it decides whether a control
+is OFFERED, so deriving it analytically can change what the panel shows and wants its own increment.
+
+**Pinned by two new assertions in `lib/sim/mass.test.ts`**, one per kind the panel offers the control
+on: a shouldered transition hung 400 mm down the airframe, and a body tube behind a 120 mm cone —
+which is the REACHABLE path, since `LoftApp.tsx` offers this control on a nose and a body tube and
+never on a transition. No other case in that file calls `localBodyCGx` at all, so nothing else covers
+the datum. Two independent negative controls, both re-run against the final diff: dropping the
+`- part.xFore` fails both cases (0.08 against 0 on the transition, 0.32 against 0.2 on the tube), and
+reintroducing the shoulder blend in `componentPointMass` fails the transition with 0.027 against 0
+and takes two of increment 15's assertions with it.
+
+**The pre-push review is why that pins anything, and what it caught is worth more than the increment.**
+The first draft also asserted that the unstated reading lands inside the part — which the
+`statedCGBounds` clamp guarantees whatever the datum is, so it could not fail. A pass-by-construction
+assertion, inside a test whose own docblock claimed it could not pass by construction, one milestone
+after P14 shipped about checks that cannot fail. It also caught the comment beside it stating a
+failure mode the clamp structurally forbids, a pointer aimed at the wrong end of this file, and
+**four dated claims written as 2026-08-14 while it was still the 13th** — none of which any of the
+four gates can see.
+
 **Increment 15 — what a stated CG and a stated WEIGHT actually mean on a part with a shoulder,
 2026-08-13.** `HANDOFF.md` named this as the next R slice and framed it as one defect on the CG path
 that would "re-fly every imported `<overridecg>` and move the published accuracy census". **It is two
@@ -2666,8 +2708,12 @@ flag, which does move a section's balance point. All three are fixed, and the pu
 measurement this change invalidates (CG 456.9 → **457.1** mm, margin 2.712 → **2.7095** cal) is
 updated in `COMPETITION.md` row 2, this file's own table, and the test's docblock.
 
-**Not taken, and filed:** `localBodyCGx`'s inversion collapses to the identity now that the slope is
-1, and 30 lines plus two whole-rocket mass solves per call become ceremony. It is kept because it
+**Not taken, and filed** — *the first of these was taken the next day as increment 16, ABOVE, and the
+reason recorded here for not taking it turned out to be wrong: the `undefined` guard is the
+`reported === undefined` line and never came from the probes at all. Left standing rather than
+rewritten, because what a run believed at the time is the record:* `localBodyCGx`'s
+inversion collapses to the identity now that the slope is 1, and 30 lines plus two whole-rocket mass
+solves per call become ceremony. It is kept because it
 still returns `undefined` for a part that reports no CG of its own, which the placeholder must not
 guess at; collapsing it means reproducing that guard, and that is its own increment. Also filed:
 `lib/rkt/adapt.ts`'s `cgOverrideM` still rejects a `KnownCG` past the body's length, which is now
@@ -2732,6 +2778,9 @@ and fails when the writer is neutered.
   design's CG on 15 of 57 live controls. The placeholder is now `localBodyCGx` — the station
   `overrideCGx` actually replaces, recovered by inversion so there is one definition of the blend —
   and the hint says the shoulder is weighed separately, as the tube's hint already said about fins.
+  *(Both halves of that sentence were overtaken later: increment 15 removed the blend and rewrote the
+  hint, and increment 16 removed the inversion. Left as written, because this entry is the record of
+  what the increment did on its date.)*
   **The remaining question is a semantic one and is filed rather than guessed at:** a flyer balancing
   a cone on a knife edge measures the whole part, shoulder included, and OpenRocket's override tab
   may mean that. Changing what `overrideCGx` means would re-fly every imported `<overridecg>` and

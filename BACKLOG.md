@@ -12,6 +12,112 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-13, from run 15's pre-push review of R12 increment 16.** Everything the review found
+in the diff itself is fixed in that commit; these were measured and deliberately not taken.
+
+- **A part a STAGE lump subsumes gets a stated-CG control that is live, enabled, and BLANK — and the
+  one check that would notice skips exactly that population.** `massByComponent` reports such a part
+  as `{mass: 0, subsumedBy: "⟨stage⟩"}` with no `cg`, so `localBodyCGx`'s `reported === undefined`
+  guard returns `undefined`, `LoftApp.tsx:1761` turns that into `Number.NaN`, and the field still
+  renders — `reaches` is true, because a per-part CG on a stage-subsumed part genuinely does move the
+  design's balance point, so the control is correctly NOT disabled. What is wrong is that it offers
+  no placeholder and no explanation for having none, on the one population where the figure is
+  genuinely unknowable from the part alone. `lib/corpus/sweep.test.ts:1080` guards its fixed-point
+  assertion on `shown !== undefined`, so it tests nothing here; its own census prints the size of the
+  gap and does not assert it — **62 live controls, 57 fixed points counted, `subsumedButLive = 5`**.
+  This is the next R slice: the honest answer is the lump's own station, labelled as the lump's.
+
+- **`localBodyCGx` still walks the tree twice per call**, and the 3.2× it just gained leaves another
+  ~2× sitting there: `flattenRocket(rocket).find(…)` to get the part, then `massByComponent(rocket)`
+  which walks it again through `structurePointMasses`. One walk that returns both would halve what is
+  left. Not taken with the increment that removed the probes, because that one moved no number and
+  this one changes the function's shape.
+- **`flattenRocket().find` takes the FIRST match while `massByComponent` is last-write-wins**, so the
+  two would read different components if any design ever carried a duplicate id. The two-probe form
+  was immune, because its baseline came out of the same map. Theoretical — 0 corpus designs have a
+  duplicate id, and the importers mint ids — but the immunity is genuinely gone, so it is written
+  down rather than assumed. A duplicate-id guard at import is the fix if one is ever wanted.
+
+**Filed 2026-08-13, from run 15's opening fan-out.** Each was reproduced against the named lines
+before filing; where a lens's finding was already in this file it was dropped rather than re-filed,
+and what is here is what was NOT already known. **No Sev-1 in the batch** — the two that read as one
+are argued down explicitly below, because "why this is not a Sev-1" is the part a later run would
+otherwise re-derive.
+
+- **Following an in-app docs link tears down the loaded design, and takes the undo stack, a finished
+  Monte-Carlo and a running RocketPy download with it.** `/docs/*` resolves through
+  `app/docs/layout.tsx`, not `app/(app)/layout.tsx`, so the route group's layout — and `LoftApp`
+  under it — unmounts. The design itself comes back from the saved session; three things do not,
+  because none is persisted: the undo/redo stack (`loadDoc` resets it and `saveSession` never writes
+  history), the Monte-Carlo result (`components/MonteCarlo.tsx:136`, plain `useState`) and the
+  RocketPy run (`components/RocketpyCrossCheck.tsx:98`). **`app/(app)/layout.tsx:9-20` states the
+  opposite as the load-bearing reason for its own shape** — "the imported design, its edits, its undo
+  stack, a running Monte-Carlo and a RocketPy cross-check all survive a navigation" — which is true
+  between the four workspace routes and false for the docs links the app deliberately plants beside
+  the numbers (`ResultsView.tsx:613`, `:1191`, `ValidationPanel.tsx:98`, and the footer strip on all
+  four routes). Worst case: start the RocketPy cross-check and, while its ~40 MB runtime downloads,
+  click "see how this is measured" one screen above it — the whole download and run is discarded with
+  no prompt. **Not filed as a Sev-1**, and the distinction is worth keeping: the flyer can go Back,
+  the design is still there and still edited, and the lost work is re-runnable at a cost. It is
+  destructive-without-warning rather than a state with no way back. `:1877` and `:593` file the
+  RELOAD variant, which a flyer chooses knowingly; this one is a single click on a link the app
+  itself placed next to the number that raised the question. **This is the strongest finding of the
+  run and it is P2's own *done when* not holding at the seam** — a P-track milestone, not a fix.
+- **Every solver warning string is hard-coded metric while the hints beneath them convert.** The
+  `Warning` record carries a message string and nothing else, and `lib/sim/simulate.ts` never sees
+  `UnitSystem`: hard-landing descent and arrival speed (`:1469`, `:1475`), fin flutter (`:1119`,
+  `:1120`, `:1127`, `:1133`), ballistic and no-deployment speeds (`:1397`, `:1431`, `:1445`), flat
+  leading face and diameter step in mm (`:1523`, `:1553`), booster terminal speed (`:1710`, `:1716`)
+  and rail-exit velocity (`:1750`). The cards render in the shared chrome on all four routes
+  (`ResultsView.tsx:531-544`) and the paragraph directly beneath does convert
+  (`ResultsView.tsx:1843`), so on one screen the firm-landing card reads "descends at about 9.2 m/s",
+  the Descent rate readout reads ~30 ft/s, and the sizing line reads "to land at about 16 ft/s
+  instead" — three readings of one quantity in two unit systems. **Not a Sev-1: the figure carries
+  its own unit**, so it is inconsistent rather than wrong or unlabelled. It is a `DESIGN.md` §6
+  violation ("the unit comes from the units context") across a whole class of strings, on the surface
+  a flyer sizes a parachute from. Two smaller instances of the same rule, both inside components that
+  already hold `units` and already convert their neighbours: `LoftApp.tsx:4447` prints the fetched
+  weather temperature as `°C` unconditionally between an imperial wind speed and field elevation, and
+  `ResultsView.tsx:1844` prints the recovery drag area as `m² Cd·A` in the same sentence as a ft/s
+  speed and an inch canopy.
+- **An import failure is announced roughly a thousand pixels below where the flyer is looking.**
+  `components/LoftApp.tsx:2095` renders `{error && <ErrorState/>}` AFTER the whole of
+  `<ImportPanel/>` (drop zone, shelf, eight sample chips, `WhyLoft`, `WhatItDoes`), and `ErrorState`
+  (`components/ui.tsx:838`) carries no `role="alert"` and no `aria-live`; nothing calls
+  `scrollIntoView` or moves focus. So picking a PDF by mistake reads on screen as the button doing
+  nothing — while `lib/ork/import.ts:80-109` has six carefully-worded, genuinely actionable messages
+  ready. `ImportPanel.tsx:136` identifies this exact hazard for the shelf-removal refusal and fixed
+  it there; the primary import path still has it. Nothing in the e2e suite asserts an import error is
+  reachable at all, and `toBeVisible` would not have caught it — which is P16's own subject.
+- **`MassBreakdown`'s CSV and Copy always come out heaviest-first, whatever the flyer sorted to.**
+  The table became sortable on all six columns, but the sort lives in `DataTable`'s uncontrolled
+  `ownSort` (`components/MassBreakdown.tsx:102` passes no `sort`/`onSortChange`), while `csv` is built
+  at `:70` from the fixed `[...points].sort((a,b) => b.mass - a.mass)` at `:51`. The panel's own
+  comment at `:98` names the workflow this breaks — a flyer checking an import against a build sheet
+  wanting station order — and `MotorSweep.tsx:520` states the rule verbatim: "the CSV must come out
+  in the order on SCREEN". The four tables that use `DataTable`'s own export get it right for free,
+  because `DataTable.tsx:163` builds `csvRows` from `sorted`. Nothing is misattributed; the flyer
+  sorted to get an order and gets a different one.
+- **Two latent items in the same file, neither reachable today.** `MassBreakdown.tsx:104` keys rows on
+  the SORTED index (`${p.source}-${i}`) — exactly what `PartPicker.tsx:829` documents as the thing
+  never to do — invisible only because those rows hold nothing focusable; and `:137`, `:163` define
+  `csv:` on two columns that can never run, since no `exportName` is passed, so adding one later
+  silently yields a two-column file.
+- **`ValidationPanel`'s Δ column hand-rolls a sign and a precision the codebase already owns.** The
+  sign comes from the raw value (`:192`) and the magnitude from the rounded one (`:193`), so a
+  pctError of 0.4 renders "+0%", -0.4 renders "0%", and an exact zero renders "+0%" — a direction
+  claimed where there is none, on the panel this repo calls the honest accuracy record.
+  `lib/display.ts:186`'s `changePercent` exists for precisely this and says so; `RocketpyCrossCheck.tsx:352`
+  one tab away uses it. Separately the cell renders at 0 decimals and the CSV exports at 1 (`:200`),
+  which is the two-sources-of-truth shape the panel's own `csvNumber` docblock (`:56`) rejects.
+- **The three analysis panels forget that they were open.** `MotorSweep.tsx:152`,
+  `ParameterSweep.tsx:263` and `MonteCarlo.tsx:125` hold open/closed in plain `useState(false)`, while
+  every choice INSIDE them is persisted — sort column, swept axis and metric, six dispersion sigmas.
+  So the app remembers how the flyer wants each sweep run but not that they run it. Only bites on
+  reload, since the panels stay mounted across workspace tabs. Same class as `:241`'s Parts
+  disclosure. Worth weighing before fixing: re-opening Monte-Carlo re-flies 300 flights, so the
+  cheaper shape is to persist the flag and still require the explicit Run.
+
 **Filed 2026-08-13, from the SECOND pre-push review — against the physics increment, before it
 shipped.** All the code findings are fixed in that same increment; what is left here is what was
 measured and deliberately not taken.
@@ -341,6 +447,11 @@ designs, found by publishing a number that had only ever been computed.**
   computed a figure the flyer measured. Pre-existing on mass; the CG control makes it reachable for
   the balance point too. The fix is a mark the exporter can write and the importer can read back.
 - **`statedCGReachesDesign` costs three whole-rocket mass solves per call and the panel makes two.**
+  *(Still open, and now the whole of this stutter rather than half of it: `localBodyCGx`'s two probe
+  solves went on 2026-08-13 in R12 increment 16, taking the pair's cost median 0.585 → 0.182 ms and
+  worst 96.9 → 29.6 ms. The figures below are this function's own and are unchanged. Its answer
+  decides whether the control is OFFERED at all, so deriving it analytically can change what the
+  panel shows — which is why it was not taken alongside a change that moved no number.)*
   Measured over the corpus: median 0.589 ms for the pair, worst **60.9 ms**
   (`openrocket-repo-rasaero-threestage`, 35 parts) against 14.8 ms for a single bare
   `dryMassProperties`. It sits inside the `designDims` memo, so it is paid on every part pick and on
