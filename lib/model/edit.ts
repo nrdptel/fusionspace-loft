@@ -10,7 +10,7 @@
 import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent,
   Stage, InnerTube, RingComponent, MinorComponent, MassProvenance,
 } from "./types";
-import { flattenRocket, aftOuterRadius, foreOuterRadius, nextTopLevel, maxBodyRadius } from "./geometry";
+import { flattenRocket, aftOuterRadius, foreOuterRadius, nextTopLevel, maxBodyRadius, statedCGBounds } from "./geometry";
 import { uniqueUuidFrom, uuidFrom } from "./id";
 import type { Positioned } from "./geometry";
 import { LOFT_AUTHORED_PARACHUTE_CD } from "../sim/recovery-defaults";
@@ -2080,7 +2080,7 @@ function withCatalogNose(
       ...(material ? { material } : {}),
       // **The replaced cone's own weighed figures are CLEARED, not kept**, and this was a defect
       // found by the pre-push review rather than by any test. `overrideMass` wins outright in
-      // `lib/sim/mass.ts` and additionally suppresses the shoulder, so a design whose nose carried
+      // `lib/sim/mass.ts`, so a design whose nose carried
       // one took the vendor's whole geometry and flew the OLD mass — measured on
       // `rocksimTestRocket1.rkt` (nose override 126.4 g): dry mass 387.736 g before the pick and
       // 387.736 g after, byte for byte, under a caption reading "Flying SEMROC BNC-70HAC".
@@ -2593,7 +2593,14 @@ function withStatedCG(c: RocketComponent, id: string, cgx: number): RocketCompon
     // bag is persisted, replayed and swept with no panel involved, which is this function's whole
     // reason for clamping here rather than only in the UI. Refusing is the honest failure.
     if (len === undefined || !(len > 0)) return c;
-    return { ...c, overrideCGx: Math.min(Math.max(cgx, 0), len), cgFrom: "flyer" } as RocketComponent;
+    // **Bounded by the whole PART, not by its body.** This read `[0, len]`, which was right while a
+    // stated CG meant the shell's centroid and wrong the moment it came to mean the whole part's
+    // (2026-08-13): a shouldered cone's real knife-edge balance point can sit aft of `len`, and a
+    // transition with a fore shoulder can balance fore of the datum. The field's own hint tells the
+    // flyer to type exactly that reading, so clamping it to the body silently stored a different
+    // station than the one they measured.
+    const b = statedCGBounds(c) ?? { min: 0, max: len };
+    return { ...c, overrideCGx: Math.min(Math.max(cgx, b.min), b.max), cgFrom: "flyer" } as RocketComponent;
   }
   if (!c.children.length) return c;
   return { ...c, children: c.children.map((k) => withStatedCG(k, id, cgx)) };

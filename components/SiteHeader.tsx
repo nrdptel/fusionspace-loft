@@ -2,7 +2,7 @@ import Link from "next/link";
 import { KOFI_URL } from "@/lib/links";
 import FusionSpaceBadge from "./FusionSpaceBadge";
 import ThemeToggle from "./ThemeToggle";
-import { buttonClass } from "@/lib/ui-tokens";
+import { buttonClass, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 
 /** Page header: the Fusion Space eyebrow over the product name on the left, a Ko-fi tip link,
  *  a Docs link and the theme toggle on the right. Mirrors the sibling tools' header.
@@ -11,11 +11,54 @@ import { buttonClass } from "@/lib/ui-tokens";
  *  home, and that page's own <h1> is its title. On the app itself nothing else names the page, so
  *  the product name IS the heading — a document whose outline starts at <h2> has no top. */
 export default function SiteHeader({ compact = false }: { compact?: boolean }) {
+  // **This string stays a plain literal, and that is not style.** Tailwind v4 extracts candidates
+  // from raw source text, so a class sitting immediately before a `${` interpolation boundary is not
+  // extracted. Writing this inline against an interpolation boundary shipped that utility in the
+  // served `class` attribute with **no rule behind it** — this file is the only use of that utility
+  // in the tree, so the rule was never generated and the desktop wordmark silently dropped from 30 px
+  // to 20 px on every route. The gate did not see it: `npm run build` succeeds, every test passes,
+  // and the class is present in the HTML. Caught by reading the stylesheet back
+  // (grep the built stylesheet for its rule → 0, against `md\:px-6` → 1 as a control). Keep the
+  // interpolation out of the literal.
+  //
+  // **This comment does not spell the class out, and that is load-bearing.** Tailwind scans prose as
+  // readily as code, so naming it here would REGENERATE it and hide the very defect being described.
+  // That happened twice while this was being verified and nearly retracted a correct diagnosis as
+  // unreproducible. `scripts/check-classes.mjs` now fails the build on it either way.
+  const WORDMARK = "text-xl font-semibold tracking-tight text-zinc-900 hover:opacity-80 dark:text-zinc-100 md:text-3xl";
   const name = (
-    <Link
-      href="/"
-      className="text-xl font-semibold tracking-tight text-zinc-900 hover:opacity-80 dark:text-zinc-100 md:text-3xl"
-    >
+    // The wordmark measured **37x28** on an iPhone 13 with a coarse pointer, on every route, and
+    // `e2e/touch.spec.ts` did not report it, because the header assertion excluded it by matching its
+    // own label text. P15's increment 2 is that pair: a control under target, and the filter that hid
+    // it.
+    //
+    // **It takes the target in the docs section and is a KNOWN, FILED GAP on the app.** The split is
+    // not a design preference; it is where a measurement stopped it.
+    //
+    //  - **`compact` (docs): it takes the target.** It is the only route back to the app in the
+    //    shared header, on all six docs routes, and those routes carry no workspace spine — so the
+    //    16 px it costs is not metered by anything.
+    //  - **Not compact (the app): it stays 37x28, against `DESIGN.md` §8, because the depth ratchet
+    //    refuses the fix.** Applying the same token there put the workspace spine at **1071 px**
+    //    against `e2e/depth.spec.ts`'s **1060 px** phone cap, on all four workspace routes. The
+    //    headroom is **5 px** (baseline 1055) — not the 49 px a stale comment further down this file
+    //    still implies. Widening a ratchet to admit a regression is what a ratchet exists to prevent,
+    //    so the floor is not met here and that is recorded as a gap in `BACKLOG.md` and `ROADMAP.md`
+    //    rather than dressed up as an exemption.
+    //
+    // **Two justifications were tried for calling the app side exempt rather than blocked, and both
+    // were refuted — they are written down so they are not re-derived.** (1) *WCAG 2.5.8's
+    // "Equivalent" exception, on the grounds that ← Import another reaches the same place.* It does
+    // not: `LoftApp.tsx`'s router effect bounces `/` straight back to the last workspace whenever a
+    // design is open, and `← Import another` is `reset()`, which clears the doc, the edits, the undo
+    // history and the session. That is a destructive act, not this link's function, and *Equivalent*
+    // requires the same function. (2) *That 2.5.8 is the governing criterion at all.* It is not —
+    // 2.5.8 is the 24x24 AA floor, which 37x28 already clears; the 44 px figure this repo works to is
+    // **2.5.5 (AAA)**, as `lib/ui-tokens.ts` states.
+    //
+    // `inline-flex items-center` is load-bearing where it applies: `min-h`/`min-w` do nothing to an
+    // inline box, so the token alone would have reported 37x28 while looking applied.
+    <Link href="/" className={compact ? `${WORDMARK} inline-flex items-center justify-center ${TOUCH_TARGET_SQUARE}` : WORDMARK}>
       Loft
     </Link>
   );
@@ -85,7 +128,14 @@ export default function SiteHeader({ compact = false }: { compact?: boolean }) {
               Writing "Tip on Ko-fi" VISIBLY instead was measured and rejected too: it cost 63 px,
               wrapped the header on a 390 px phone and took the shared chrome from 1011 px to 1074,
               past the 1060 px cap every route's depth is built on. Recorded in `ROADMAP.md` under
-              decisions taken without the owner. */}
+              decisions taken without the owner.
+
+              **The 1011 px in the line above is that day's measurement and is no longer the
+              headroom.** Re-measured 2026-08-13 against the built export: the spine sits at
+              **1055 px**, so the cap leaves **5 px**, not 49. Nothing here is wrong — the chrome grew
+              between the two dates — but a later session read "1011" as current headroom, spent 16 px
+              of it on the wordmark, and only the depth ratchet caught it at 1071. Quote the ratchet,
+              not this line. */}
           Tip
         </a>
         <Link

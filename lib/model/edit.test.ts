@@ -99,7 +99,7 @@ import type {
 import { overallLength, maxBodyRadius } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
-import { dryMassProperties, massByComponent, statedMassHolder, statesOwnAssemblyMass } from "../sim/mass";
+import { dryMassProperties, localBodyCGx, massByComponent, statedMassHolder, statesOwnAssemblyMass } from "../sim/mass";
 import { isUuidShaped } from "./id";
 import { exportOrk } from "../ork/export";
 import { defaultPayloadStation } from "./edit";
@@ -3659,6 +3659,68 @@ describe("a catalogued nose cone's published contour, shoulder and stock", () =>
     };
   };
 
+  /** **The placeholder must be a FIXED POINT on EVERY catalogued cone, not just the corpus's.**
+   *
+   *  The corpus sweep already asserts this, and it could not have caught the defect this test exists
+   *  for: it drives real design files, and **0 of the 35 carry a cone whose whole-part balance point
+   *  sits behind its own base**. The catalogue does — 854 cones, and the shipped vendor geometry puts
+   *  some of their balance points into the shoulder. A cone pick is one click from the front door, so
+   *  that is the reachable population and this is where the check belongs.
+   *
+   *  What it caught, on the increment that introduced it: `overrideCGx` became the WHOLE part's
+   *  centroid, and both the read clamp (`localBodyCGx`) and the write clamp (`withStatedCG`) still
+   *  bounded it by the BODY's length. So the panel showed a balance point the part does not have, and
+   *  committing the figure the box already displayed moved the design's CG — the exact
+   *  non-idempotency the stated-CG control exists not to have, reintroduced by the change that
+   *  claimed to remove it. Bounds are `statedCGBounds` now, drawn around the part that physically
+   *  exists.
+   *
+   *  Mass properties only, no flight: 854 designs is cheap to weigh and expensive to fly. */
+  it("every catalogued cone's shown balance point is one the design actually flies at", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const all = partsOfKind("nosecone").filter(
+      (p) =>
+        p.outerDiameter !== undefined &&
+        p.length !== undefined &&
+        p.shape !== undefined &&
+        p.shoulderDiameter !== undefined &&
+        p.shoulderLength !== undefined,
+    );
+    expect(all.length, "the catalogue is present").toBeGreaterThan(500);
+
+    const moved: string[] = [];
+    let shouldered = 0;
+    let pastBase = 0;
+    for (const raw of all) {
+      const cone = pick((p) => p === raw);
+      if ((cone.shoulderLength ?? 0) > 0) shouldered++;
+      const built = applyGeometryEdits(doc.rocket, {
+        noseLength: cone.length,
+        noseShape: cone.shape,
+        catalogNoseCone: cone,
+      });
+      const id = nose(built).id;
+      const shown = localBodyCGx(built, id);
+      if (shown === undefined) continue;
+      if (shown > cone.length + 1e-9) pastBase++;
+      const before = dryMassProperties(built).cg;
+      const after = dryMassProperties(applyGeometryEdits(built, { noseCGx: shown })).cg;
+      if (Number.isFinite(before) && Number.isFinite(after) && Math.abs(after - before) > 1e-6)
+        moved.push(
+          `${cone.manufacturer} ${cone.partNumber}: shown ${(shown * 1000).toFixed(2)} mm on a ${((cone.length ?? 0) * 1000).toFixed(2)} mm cone moved the design CG by ${((after - before) * 1000).toFixed(3)} mm`,
+        );
+    }
+    // Stated so an empty population is visible rather than silently passing: if the catalogue ever
+    // stops shipping cones whose balance point sits behind their base, this check stops testing
+    // anything and the count says so.
+    // The direct claim first, so a real non-idempotency reports as one rather than as an empty
+    // population; the two counts below then catch the other failure mode, where a bound quietly
+    // clamps the interesting cones out of existence and the check above passes by testing nothing.
+    expect(moved.slice(0, 5), `the shown balance point is not a fixed point on ${moved.length} cone(s)`).toEqual([]);
+    expect(shouldered, "catalogued cones carrying a shoulder").toBeGreaterThan(100);
+    expect(pastBase, "cones balancing behind their own base — the population under test").toBeGreaterThan(0);
+  });
+
   /** A SOLID cone — 728 of the 854 are, and it is the case a tube can never be. */
   const SOLID = pick((p) => p.filled === true && p.shoulderLength !== undefined && p.shoulderLength > 0);
   /** One of the 126 that publish a wall instead. */
@@ -3952,7 +4014,9 @@ describe("a catalogued nose cone's published contour, shoulder and stock", () =>
     // Measured on `demo-single-deploy.ork`, whose nose is a 250 mm fibreglass ogive (1850 kg/m3,
     // 3 mm wall) on a 38.0 mm airframe. Picking SEMROC BNC-55D2 — an ogive, 39.95 mm at the base,
     // 76.2 mm long, SOLID balsa at 112 kg/m3 — takes the dry mass 600.2 g -> 525.6 g, the CG
-    // 572.5 mm -> 456.9 mm, the static margin 4.065 -> 2.712 cal, the apogee 992.79 -> 1043.84 m
+    // 572.5 mm -> 457.1 mm, the static margin 4.065 -> 2.7095 cal, the apogee 992.8 -> 1043.8 m
+    // (CG and margin re-measured 2026-08-13 with the corrected override semantics — a vendor's
+    // published cone weight now balances where the part's geometry says, shoulder included)
     // and max velocity 205.2 -> 225.1 m/s. A shorter, far lighter nose on a rocket that was already
     // over-stable: every number moves in the direction it should.
     const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
@@ -3972,7 +4036,18 @@ describe("a catalogued nose cone's published contour, shoulder and stock", () =>
     expect(f0.summary.apogee).toBeCloseTo(992.79, 1);
     expect(f1.summary.apogee).toBeCloseTo(1043.84, 1);
     expect(f0.staticMarginCal).toBeCloseTo(4.065, 3);
-    expect(f1.staticMarginCal).toBeCloseTo(2.712, 3);
+    // **2.712 → 2.7095 on 2026-08-13, and the 0.0025 cal is a correction rather than drift.**
+    // `withCatalogNose` writes the vendor's published weight as `overrideMass`, and every commercial
+    // cone plugs in on a shoulder — so this is the most reachable instance there is of the defect
+    // R12 increment 15 fixed: a stated mass used to drop the shoulder from the CG entirely and place
+    // the whole published weight at the SHELL centroid, forward of where the part balances.
+    // OpenRocket keeps the shoulder-inclusive centroid and rescales the weight only
+    // (`RocketComponent.getCG()`), which is what happens here now. The CG moves aft, so the margin
+    // falls: Loft was reporting this pick as very slightly MORE stable than it is. `f0` is untouched
+    // at 4.065 because the design's own cone carries no shoulder and no override, and `m1.mass`
+    // above is unchanged at 0.5256 because a CG fix moves no mass — the two together are what say
+    // this is the intended change and not a new one.
+    expect(f1.staticMarginCal).toBeCloseTo(2.7095, 3);
 
     // **The base is NOT scaled onto the airframe, and this is what makes that honest.** A 39.95 mm
     // cone on a 38.0 mm tube is a real mould-line step, and the flight already walks the airframe
@@ -4046,7 +4121,7 @@ describe("a catalogued nose cone's published contour, shoulder and stock", () =>
 
   it("does not fly the replaced cone's weighed mass or its measured CG", async () => {
     // **The pre-push review found this and it is the increment's Sev-1.** `overrideMass` wins
-    // outright in `lib/sim/mass.ts` and additionally suppresses the shoulder, so a design whose
+    // outright in `lib/sim/mass.ts`, so a design whose
     // nose carried one took the vendor's whole geometry and went on flying the OLD mass — under a
     // caption reading "Flying <vendor> <part>". Reproduced on `rocksimTestRocket1.rkt`, whose nose
     // is overridden to 126.438 g with a CG measured 65.4 mm from the tip of a 396.9 mm cone:

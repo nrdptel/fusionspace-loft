@@ -1575,8 +1575,8 @@ at 112 kg/m³:
 | | before | after |
 |---|---|---|
 | dry mass | 600.2 g | 525.6 g |
-| CG | 572.5 mm | 456.9 mm |
-| static margin | 4.065 cal | 2.712 cal |
+| CG | 572.5 mm | 457.1 mm |
+| static margin | 4.065 cal | 2.7095 cal |
 | apogee | 992.79 m | 1043.84 m |
 | max velocity | 205.2 m/s | 225.1 m/s |
 
@@ -2585,6 +2585,95 @@ would put a number on screen that no file asked for.
 
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
+
+**Increment 15 — what a stated CG and a stated WEIGHT actually mean on a part with a shoulder,
+2026-08-13.** `HANDOFF.md` named this as the next R slice and framed it as one defect on the CG path
+that would "re-fly every imported `<overridecg>` and move the published accuracy census". **It is two
+defects, they are on opposite paths, and the census does not move.** All three corrections came from
+reading OpenRocket's own source rather than from reasoning about the format.
+
+**The rule, quoted rather than inferred** — `RocketComponent.getCG()`, release-24.12:
+
+```java
+if (cgOverridden)   return getOverrideCG().setWeight(getMass());   // getOverrideCG() = getComponentCG().setX(overrideCGX)
+if (massOverridden) return getComponentCG().setWeight(getMass());
+return getComponentCG();
+```
+
+…and `getComponentCG()` is shoulder-INCLUSIVE: `Transition.calculateProperties()` sums
+`foreCapCG + foreShoulderCG + transCG + aftShoulderCG + aftCapCG` into a single centroid. So a
+shoulder is *inside* a component's CG, never something blended in afterwards.
+
+Both of Loft's branches were wrong, in opposite directions:
+
+1. **A stated CG was treated as the SHELL's centroid, with the shoulder blended in aft of it.** The
+   part acted up to **133 mm** behind the station the flyer stated, and the control was
+   non-idempotent — typing back the figure the box already showed moved the design's CG.
+2. **A stated MASS dropped the shoulder from the CG entirely**, placing the whole stated weight at
+   the shell centroid. This is the one that reaches real files, and it is dry CG — what static margin
+   is measured from. The old comment's reasoning ("a stated component mass already includes it") is
+   true of the MASS and says nothing about the CG; skipping the block dropped the moment as well.
+
+**Measured on the corpus, both sides of the change: 4 of 35 designs move, all AFT, and not one gram
+of mass moves on any of them** — the signature of a CG-only correction.
+`Punisher Apprentice.ork` +4.32 mm, `Simulation scripting.ork` +2.17 mm, `The Red Hunter.ork`
++1.95 mm, `rocksimTestRocket2.rkt` +1.43 mm. Aft means Loft had been reporting these four as *more*
+stable than they are.
+
+**The published accuracy census is byte-identical before and after** — all twelve medians unchanged.
+`HANDOFF.md:27` and `BACKLOG.md` both said this change would move it; they were wrong, and the entries
+are corrected. The reason is that 0 of the 12 `.ork` `<overridecg>` elements sit on a shouldered part
+*without* an `<overridemass>` (which already suppressed the blend), and a 1–4 mm CG shift does not
+reach apogee or velocity at the census's resolution.
+
+**Pinned by three assertions in `lib/sim/mass.test.ts`, argued from first principles rather than by
+recomputing the implementation** — the P14 lesson about checks that cannot fail. The strongest needs
+no arithmetic at all: whatever station the flyer states, the part must report exactly that back.
+Negative control: restoring the blend fails two of the three, reporting a stated CG of 0 as 29.5 mm
+and putting a stated mass's balance point 11.5 mm too far forward.
+
+**Living docs moved in the same change**, because the behaviour made three of their sentences untrue:
+the methods page now says a stated balance point describes the whole part, shoulder included, and a
+stated weight moves none of it; and the two nose-CG tooltips said "a shoulder is weighed separately —
+so this is not a knife-edge reading of the whole part", which was the old semantics stated to the
+flyer. A knife-edge reading of the whole part IS now the figure to type, and they say so.
+
+**The pre-push review found that the first draft of this increment REINTRODUCED the exact
+non-idempotency it set out to remove, and that is the most useful thing in it.** Redefining
+`overrideCGx` as the whole part's centroid made `[0, length]` the wrong bound — a shouldered cone can
+genuinely balance behind its own base, and a transition with a fore shoulder fore of its datum — but
+all three clamps still held the body's length: `localBodyCGx` (read), `withStatedCG` (write) and the
+field's own `max`. Measured: `rocket.ork` carries two **12.70 mm** transitions whose 152.4 mm
+shoulders hold ~92% of their mass and which balance at **81.96 mm**; the panel was handed 12.70. So
+the placeholder stopped being a fixed point, which is the one property that control exists to have.
+`lib/model/geometry.ts`'s new `statedCGBounds` is the bound now — the part that physically exists,
+shoulder and all — and all three sites share it.
+
+**The corpus sweep's idempotency guard could not have caught it, and the reason generalises.** It
+drives the two panel controls over real design files, and **0 of the 35** carry a cone of that shape.
+The **catalogue** does — a cone pick is one click from the front door — so the new check runs all 854
+catalogued cones through the pick, reads the placeholder and commits it. Negative control: restoring
+the body-only bound reports *"the shown balance point is not a fixed point on 11 cone(s)"*. It also
+asserts its own population is non-empty, because the failure mode of a bound is to clamp the
+interesting cases out of existence and pass by testing nothing.
+
+**Three claims written in the first draft were false and are corrected rather than quietly dropped:**
+the mass-override CG test asserted `overridden.cg ≈ props(noseBase(SH)).cg` — the same expression on
+both sides, so it held for any centroid formula whatever, under a docblock claiming first principles;
+the methods page gained a correct sentence while keeping a contradicting one twenty lines later in the
+same paragraph; and "a stated weight moves none of it" is false for the *override all subcomponents*
+flag, which does move a section's balance point. All three are fixed, and the published BNC-55D2
+measurement this change invalidates (CG 456.9 → **457.1** mm, margin 2.712 → **2.7095** cal) is
+updated in `COMPETITION.md` row 2, this file's own table, and the test's docblock.
+
+**Not taken, and filed:** `localBodyCGx`'s inversion collapses to the identity now that the slope is
+1, and 30 lines plus two whole-rocket mass solves per call become ceremony. It is kept because it
+still returns `undefined` for a part that reports no CG of its own, which the placeholder must not
+guess at; collapsing it means reproducing that guard, and that is its own increment. Also filed:
+`lib/rkt/adapt.ts`'s `cgOverrideM` still rejects a `KnownCG` past the body's length, which is now
+slightly too tight — left alone because both `.rkt` overrides in the corpus pass it comfortably, so
+widening it would fire on zero real files while weakening the guard that rejects RockSim's
+cached-not-measured values.
 
 **Increment 13 — the flyer's own BALANCE POINT reaches the airframe, 2026-08-12.** `COMPETITION.md`
 row 45's next slice, and the exact twin of the mass override increments 8–11 built: `overrideCGx` has
@@ -5643,7 +5732,11 @@ run ends assumes the instrument was already right; say which case it is in the c
 
 ## P15 — A target is an area, not a height
 
-**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-12.
+**Status: SHIPPED 2026-08-13** — all three increments. Every clause of the *done when* is met and
+pinned: the width floor is asserted wherever the height floor is on every route the suite walks;
+`TOUCH_TARGET`'s docblock states which of the two tokens a control takes and why; and the remaining
+width-only failures are zero, with the one deliberate exemption (the skip link) and the one filed gap
+(the app-route wordmark, blocked by the chrome ratchet) both named here rather than skipped.
 
 **Written 2026-08-12 because the P-track had run dry again.** P14 shipped, P13 met its *done when*,
 and P10's remaining increment is a repository SETTING no session can edit. `MAINTAINING.md` says
@@ -5691,14 +5784,177 @@ skipped.
 1. **The footer nav row** — both dimensions asserted, both controls converted. **DONE.**
 2. **The header, the import controls and `/design`** — the other three places `touch.spec.ts` counts
    heights, widened to areas, with the brand link and the skip link exempted BY NAME rather than by
-   a filter nobody can find.
+   a filter nobody can find. **DONE 2026-08-13**, and it landed one exemption rather than two.
+
+   **The hole was not where increment 1 predicted, and finding that was most of the increment.**
+   The prediction was that the three height-only assertions were the gap. Measured on an iPhone 13
+   with a real coarse pointer, on all six static routes plus the four workspaces: the width-only
+   population those assertions could not see is **zero** — increment 1 drained it — and the two
+   controls failing width fail HEIGHT too, so a height check already had standing to catch them and
+   did not. The actual gap is a fourth place: `scan()`, the one assertion that measures both
+   dimensions, matched `button, input, select, summary, nav[aria-label="Workspace"] a` and **no
+   `header a` at all**. The header's four anchors are on every route and were area-measured nowhere.
+   `header a` is in that selector now.
+
+   **The brand link is FIXED on the docs routes and EXEMPT on the app, and arriving at that split is
+   the part worth reading.** It rendered **37x28** everywhere. The first attempt gave it
+   `TOUCH_TARGET_SQUARE` unconditionally, on the reasoning that the 16 px of header depth it costs
+   (`/` 96 → 112, `/docs` 76 → 92) fitted inside "49 px of headroom" — a figure taken from a comment
+   in `components/SiteHeader.tsx` dated to an older measurement. **It did not fit. `e2e/depth.spec.ts`
+   failed on all four workspace routes with the spine at 1071 px against its 1060 px cap.** Measured
+   fresh: the baseline spine is **1055 px**, so the real headroom is **5 px**. The comment was not
+   wrong on its own date; the chrome grew between them, and quoting it instead of measuring is the
+   error — `MAINTAINING.md` names this exact failure and it still happened, which is why the number
+   is now annotated at the line that produced it.
+
+   So the split is: **the docs section gets the target; the app is a KNOWN GAP, filed.** It is not an
+   exemption and this file does not call it one.
+
+   - **Docs routes — it takes the target.** It is the header's only route back into the app, on all
+     six docs routes, and those routes carry no workspace spine, so the 16 px is not metered.
+   - **App routes — it stays 37x28, short of `DESIGN.md` §8, because the ratchet refuses the fix.**
+     Widening a cap to admit a regression is what a ratchet exists to prevent. The gap is recorded
+     here and in `BACKLOG.md` rather than dressed up as a decision.
+
+   **Two justifications for calling the app side EXEMPT were drafted, written into three files as
+   measured fact, and both were REFUTED by the pre-push review. They are recorded so that no later
+   run re-derives them:**
+
+   1. *"WCAG 2.5.8's Equivalent exception applies, because ← Import another reaches the same place."*
+      **False twice over.** `components/LoftApp.tsx`'s router effect runs
+      `router.replace(workspacePath(lastWorkspace.current))` whenever a design is open, so `/` bounces
+      straight back to the workspace — the wordmark reaches the import screen from nowhere that a
+      design is loaded. And `← Import another` is `reset()`: it clears the doc, the edits, the undo
+      history and the session. *Equivalent* requires the **same function**, and a destructive reset is
+      not the same function as a navigation.
+   2. *"2.5.8 is the governing criterion."* **It is not.** 2.5.8 is the 24x24 AA floor, which 37x28
+      already clears unaided; the 44 px figure this repo works to is **2.5.5 (AAA)**, as
+      `lib/ui-tokens.ts` has always said. Citing 2.5.8 to excuse a 2.5.5 failure is vacuous.
+
+   **The exclusion is keyed `header h1 > a`.** The wordmark is the page heading on the app and is not
+   one in the docs section, so this names it without naming its label. The first draft used
+   `closest("h1")` across the whole population — which would exempt any future control placed inside
+   any heading — replacing a too-narrow filter with a too-wide one.
+
+   **The skip link IS the one true exemption, and it is now an assertion rather than an absence.** It
+   is `sr-only` at rest and exempt because the contract is scoped to `pointer: coarse` while this
+   control is reachable by Tab and by nothing else. Its case asserts it stays keyboard-only, so the
+   exemption fails the day its reason stops being true — a different claim from the old "it is
+   offscreen", which would equally have excused a control merely scrolled out of view.
+
+   **Its assertion could not fail, and the review caught that too.** It read
+   `toHaveClass(/\bsr-only\b/)`, which also matches the `focus:not-sr-only` in the same attribute
+   (`\b` treats the `-` before `sr` as a boundary), so it stayed green with the leading `sr-only`
+   deleted — an unfailable check guarding an exemption, one increment after P14, whose entire subject
+   is checks that cannot fail. It is `classList.contains("sr-only")` now. A drafted claim that the
+   link measures "33x36 focused" was also removed rather than corrected: `focus:not-sr-only:focus`
+   sets `padding:0` at a higher specificity than `px-4 py-2`, so the number was never measured and
+   could not have been. **That padding collapse is a real defect** — the focused skip bar paints with
+   no padding at all — and is filed.
+
+   **The inline-prose rule is now written where a call site will find it**, in `TOUCH_TARGET`'s own
+   docblock rather than only in a spec comment: a link inside a sentence carries WCAG 2.5.8's
+   "inline in a block of text" exemption, and the suite draws that line by STRUCTURE, never by
+   naming controls. `app/docs/page.tsx:46`'s inline *FAQ* link (31x21) is the case that fixed the
+   wording — it is prose, not a chip, and padding it would break the sentence it lives in.
+
+   Pinned by a control: reverting the wordmark to a plain inline link fails **two** assertions, the
+   header case naming `37x28 "Loft"` and `scan()` on every workspace.
 3. **The docs routes** — `SectionNav`'s contents chips render 34 px tall and the suite never visits
-   those routes at all, so the count there is unmeasured rather than zero.
+   those routes at all, so the count there is unmeasured rather than zero. **DONE 2026-08-13**, and
+   the premise was half wrong in a way worth recording: the suite DOES visit the docs routes, and has
+   a case called *"the docs section nav is a row of targets, on every docs route"* that reads as
+   though they were covered. **It asserts `nav[aria-label="Docs sections"]` — the CROSS-ROUTE list.
+   The IN-PAGE contents nav sitting beside it on the same pages, `SectionNav`'s "Jump to a section of
+   this page", was measured by nothing at all.** Two navigations on one page, one asserted and one
+   invisible.
+
+   Measured on an iPhone 13 with a coarse pointer, over all six docs routes: **57 chips at 34 px**,
+   the largest single group of under-target controls left anywhere in the walk, on a `sticky` strip a
+   reader taps repeatedly working through a long page. `px-3 py-1.5` at `text-sm` and no touch token.
+   They take `TOUCH_TARGET_SQUARE` — standalone controls whose width is a section's name, per the
+   rule increment 2 wrote into the token's docblock; the narrowest today is *Drag* at 58 px, so the
+   width floor changes nothing yet, which is what a floor is for.
+
+   After: **every under-target control remaining on the six docs routes is inline prose**, which
+   carries WCAG's "inline in a block of text" exemption. The new case walks all six — including
+   `/docs/changelog`, which the older one does not visit — asserts both dimensions, and asserts its
+   own population is above 40, so a nav that stopped rendering could not pass by measuring nothing.
+   Pinned by a control: removing the token fails with `/docs: "What Loft is" is 34 px tall`.
 
 **Size.** 3 increments. Each lands its own assertion, so a run that gets one has moved a real count.
 
 **Notes.** Increment 2 will raise counts before it lowers them, exactly as P14's increment 3 did.
 That is the ratchet working; the number goes up in the same commit that makes the instrument honest.
+
+---
+
+## P16 — The gate cannot see what the browser actually got
+
+**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-13.
+
+**Written 2026-08-13 because P15 shipped and the P-track went dry, and because this run produced the
+evidence for it rather than an argument for it.** `MAINTAINING.md` says extending the track IS the
+work in that case; this is that increment plus the first slice of what it named.
+
+**Outcome.** The gate compares what the app SERVES against what it PROMISED, on the axes where a
+green suite currently proves nothing. P14 made three instruments general rather than enumerative;
+this milestone is about a different blindness — instruments that read the SOURCE and never the
+artifact.
+
+**The measurement that decided it, and it is this run's own failure.** A one-character change in
+`components/SiteHeader.tsx` put a class immediately before a `${` interpolation boundary. Tailwind
+v4 extracts candidates from raw source text, so it stopped seeing the literal; the header is the
+only use of that utility in the tree, so **the rule was never generated and the class shipped in the
+served `class` attribute with nothing behind it.** The desktop wordmark dropped from 30 px to 20 px
+on every route.
+
+**What passed while that was true:** `npm run lint` (0 errors), `npm test` (1254 tests),
+`npm run build` (succeeded), `npm run test:e2e` (268 tests) — including the cases that measure that
+exact header, because they run at a phone viewport where the `md:` variant does not apply. It was
+found by an agent reading the stylesheet, not by anything in the gate.
+
+**Increment 1 — every served class has a rule, 2026-08-13.** `scripts/check-classes.mjs`, wired into
+`postbuild` beside the three checks already there. It collects the class selectors the built
+stylesheet DEFINES — scanning selector context only, and unescaping as it reads — then walks every
+served document and fails on any class token that is not among them. Collect-then-subtract rather
+than escape-each-token-and-grep, so the escaping rules live in one place. Pinned by a control:
+restoring the interpolation boundary fails the build with `md:` ... `3xl` named, exit 1.
+
+**Two things it found about itself before it found anything about the app, and both are recorded
+because each nearly produced a false result:**
+
+1. **It cried wolf on its first run.** CSS has two escape forms and it handled one. A class may not
+   begin with a digit unescaped, so Tailwind writes the app's `2xl` max-width utility with a HEX
+   escape terminated by a space; read as literal characters that yields "32", and the script
+   confidently reported a rule-less class whose rule was three characters away. A checker that is
+   wrong on its first run is worse than no checker.
+2. **Naming a class in prose REGENERATES it, and that masked the defect during verification.** Two
+   attempts to reproduce the original bug failed, and a correct diagnosis was nearly retracted as
+   unreproducible — because the fix's own explanatory comment named the class, and then this
+   script's docblock named it again, each quietly recreating the rule whose absence was the bug.
+   `MAINTAINING.md` records this hazard for markdown and `app/globals.css` excludes `*.md` and test
+   files for it; it applies to every scanned file. **`@source not "../scripts/**"` is added** —
+   nothing under `scripts/` renders markup, so none of it can legitimately contribute a utility,
+   while all of it describes them at length.
+
+**Done when** the gate fails on a served class with no rule (**done**); on a served `id` or
+`aria-label` that a test selector names but the markup no longer carries; and on a stylesheet rule
+generated from prose rather than from a component, which is the inverse of increment 1 and the one
+the two findings above say is reachable.
+
+2. **Selectors that no longer resolve.** The suite is full of `getByRole(… { name })` and `#id`
+   selectors; a renamed label makes a case pass by matching nothing wherever the assertion is a
+   count-or-absence. Enumerate the names the suite asserts and check the export carries them.
+3. **Rules generated from prose.** The inverse of increment 1: a class in the stylesheet that no
+   component asks for. `MAINTAINING.md` records 2,617 bytes of exactly this, removed on 2026-08-08
+   by the `@source not` globs, with no check to stop it returning.
+
+**Size.** 3 increments. Each lands its own check and its own control.
+
+**Notes.** Increment 1 asserts a count of 6,163 class uses against 500 selectors; those numbers are
+printed rather than asserted, deliberately — the check's claim is "none missing", and pinning the
+totals would make every legitimate utility addition a failure.
 
 ---
 
@@ -5753,6 +6009,24 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-13 — the wordmark takes the touch target on the docs routes and an exemption on the app,
+  rather than one answer everywhere.** P15's increment 2 was written as "the brand link and the skip
+  link exempted BY NAME". **Taken: split it by context.** On the docs section the wordmark is the
+  only link back into the app — enumerated, not assumed: every `<a href>` on `/docs` and
+  `/docs/methods` yields `["/"]` — so it gets `TOUCH_TARGET_SQUARE`, and those routes carry no
+  workspace spine to charge the 16 px against. On the app it stays **37x28 and short of `DESIGN.md`
+  §8** — recorded as a filed GAP, not an exemption. **Rejected: give it the target everywhere** —
+  tried first, and `e2e/depth.spec.ts` refused it: the spine went to **1071 px** against a **1060 px**
+  cap on all four workspaces. The headroom is **5 px** (baseline 1055), not the 49 px implied by a
+  stale comment this session quoted instead of measuring — the exact failure `MAINTAINING.md` names
+  under *Measure, don't remember*. **Rejected: call the app side exempt under WCAG 2.5.8's
+  *Equivalent* exception** — drafted, and refuted at pre-push review: `/` bounces back to the open
+  workspace via `router.replace`, and **← Import another** is `reset()`, a destructive act rather than
+  the same function; 2.5.8 is also the 24x24 AA floor, which 37x28 already clears, where this repo
+  works to 2.5.5's 44 px. **Rejected: keep the depth by hanging the target off negative margin** —
+  that hand-rolls a treatment to defeat a measurement. Desktop reports `pointer: fine` and is
+  untouched at 37x28. Reversing this is one ternary.
 
 - **2026-08-10 — the persistent airframe strip is a DESKTOP affordance, and the phone keeps its
   screens.** Driven at 390x664 the strip put the sweep's first answer 2.13 screens down, past

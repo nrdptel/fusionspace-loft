@@ -9,7 +9,7 @@
  *  time-varying (propellant burns off) and is added by the simulator via `combine`. */
 
 import type { Rocket, RocketComponent, Stage, NoseCone, Transition } from "../model/types";
-import { flattenRocket, type Positioned } from "../model/geometry";
+import { flattenRocket, statedCGBounds, type Positioned } from "../model/geometry";
 import { noseProps, transitionProps } from "./shapes";
 
 export interface PointMass {
@@ -197,17 +197,27 @@ function componentPointMass(p: Positioned): PointMass | null {
   }
 
   // Shoulder mass: the collar of a nose cone or transition that plugs into the neighbouring tube
-  // is real material a bare body-of-revolution volume misses (OpenRocket counts it). Add it before
-  // the override check, since a stated component mass already includes it.
+  // is real material a bare body-of-revolution volume misses (OpenRocket counts it).
+  //
+  // **Computed unconditionally, including when the design states the part's own mass.** This used to
+  // be skipped whenever `overrideMass` was set, on the stated reasoning that "a stated component mass
+  // already includes it". That is true of the MASS and says nothing about the CG — and skipping the
+  // block dropped the shoulder's MOMENT as well as its mass, so the whole stated mass was placed at
+  // the SHELL centroid, forward of where the part actually balances. OpenRocket keeps the
+  // shoulder-inclusive centroid and rescales only the weight.
   let shoulderMass = 0;
   let shoulderMoment = 0;
-  if (overrideMass === undefined && (c.kind === "nosecone" || c.kind === "transition")) {
+  if (c.kind === "nosecone" || c.kind === "transition") {
     for (const s of shoulderContribs(c, p.xFore)) {
       shoulderMass += s.mass;
       shoulderMoment += s.mass * s.cg;
     }
   }
 
+  // The geometry-derived shell mass, kept before any override replaces it: the component's own
+  // centroid is a property of its GEOMETRY, so it still needs the computed shell mass as a weight
+  // even when the flyer or the file has stated what the part weighs.
+  const shellMass = mass;
   if (overrideMass !== undefined) mass = overrideMass;
 
   // A clustered motor mount is N motor tubes, not one; scale the tube's own structural mass to
@@ -240,11 +250,39 @@ function componentPointMass(p: Positioned): PointMass | null {
     ownInertia *= cluster;
   }
 
-  const bodyCg = overrideCg !== undefined ? p.xFore + overrideCg : p.xFore + cgLocal;
-  const totalMass = mass + shoulderMass;
+  // The component's own geometric CG — mass-weighted across the body and its shoulder(s), which sit
+  // fore/aft of the body proper. This is OpenRocket's `getComponentCG()`: `Transition.java`'s
+  // `calculateProperties()` sums `foreCapCG + foreShoulderCG + transCG + aftShoulderCG + aftCapCG`
+  // into one centroid, so a shoulder is INSIDE the component's CG, never something added afterwards.
+  const shellCg = p.xFore + cgLocal;
+  const geomMass = shellMass + shoulderMass;
+  const componentCg = geomMass > 0 ? (shellMass * shellCg + shoulderMoment) / geomMass : shellCg;
+
+  // **OpenRocket's precedence, term for term** — `RocketComponent.getCG()`, release-24.12:
+  //
+  //     if (cgOverridden)   return getOverrideCG().setWeight(getMass());
+  //     if (massOverridden) return getComponentCG().setWeight(getMass());
+  //     return getComponentCG();
+  //
+  // …where `getOverrideCG()` is `getComponentCG().setX(overrideCGX)` — the x replaced WHOLESALE.
+  //
+  // Both branches were wrong here, in opposite directions, and both are fixed together because they
+  // are one rule read off one source:
+  //
+  //  - **A stated CG is the WHOLE part's CG, shoulders included** — not the body's centroid with a
+  //    shoulder blended in aft of it. The blend put the part up to 133 mm behind the station the
+  //    flyer stated (`rocket.ork`'s carbon cone: 457.00 → 590.29 mm), which also made the control
+  //    non-idempotent — typing back the number the box showed moved the design's CG.
+  //  - **A stated MASS keeps the geometric centroid** and rescales the weight only. Dropping the
+  //    shoulder from the CG put the whole stated mass at the shell centroid, too far forward, on
+  //    every shouldered cone carrying an `<overridemass>`. That is dry CG, and dry CG is what static
+  //    margin is measured from.
+  //
+  // The datum is the component's own fore end (`p.xFore`), which is OpenRocket's too: `overrideCGX`
+  // is applied to a coordinate whose origin is the component, with a fore shoulder at negative x.
+  const cg = overrideCg !== undefined ? p.xFore + overrideCg : componentCg;
+  const totalMass = overrideMass !== undefined ? mass : mass + shoulderMass;
   if (totalMass <= 0) return null;
-  // Mass-weighted CG of the body and its shoulder(s), which sit fore/aft of the body proper.
-  const cg = (mass * bodyCg + shoulderMoment) / totalMass;
   return { mass: totalMass, cg, ownInertia, source: c.name || c.kind, componentId: c.id };
 }
 
@@ -427,12 +465,16 @@ export function statedMassHolder(rocket: Rocket, id: string): string | null {
  *  same quantity as the part's reported CG, and the difference is what a placeholder must not get
  *  wrong.
  *
- *  **`overrideCGx` sets the BODY's centroid, and a shoulder is then blended in aft of it.**
- *  `componentPointMass` computes `bodyCg = xFore + overrideCg` and then returns
- *  `(mass * bodyCg + shoulderMoment) / totalMass`, so on the 15 corpus nose cones that carry a
- *  shoulder the part acts up to 133 mm behind the station the flyer stated. Offering the reported CG
- *  as the placeholder made the control non-idempotent: typing the number the box already showed moved
- *  the design's CG on 15 of 57 live controls, and the part then read back a third number again.
+ *  **This used to be a different quantity from the reported CG, and since 2026-08-13 it is not.**
+ *  `overrideCGx` set the BODY's centroid and `componentPointMass` blended a shoulder in aft of it, so
+ *  on the 15 corpus nose cones with a shoulder the part acted up to 133 mm behind the station the
+ *  flyer stated. Offering the reported CG as the placeholder therefore made the control
+ *  non-idempotent: typing back the number the box already showed moved the design's CG on 15 of 57
+ *  live controls, and the part read back a third number again.
+ *
+ *  **The blend is gone** — a stated CG replaces the whole part's centroid, shoulder included, which
+ *  is what OpenRocket's `<overridecg>` has always meant (`RocketComponent.getCG()`). So the slope
+ *  this function recovers is now 1 and the station it returns is the one the flyer typed.
  *
  *  Recovered by inversion rather than by re-deriving the centroid, so there is one definition of the
  *  blend and this cannot drift from it. The reported CG is affine in `overrideCGx` — slope
@@ -452,7 +494,13 @@ export function localBodyCGx(rocket: Rocket, id: string): number | undefined {
   const slope = (hi - lo) / len;
   if (!(Math.abs(slope) > 1e-12)) return undefined;
   const local = (reported - lo) / slope;
-  return Number.isFinite(local) ? Math.min(Math.max(local, 0), len) : undefined;
+  // **Bounded by the whole PART, not by its body** — the same correction as `withStatedCG`'s, and
+  // this is the site where getting it wrong was visible. `[0, len]` could not express the quantity
+  // this function now recovers: on `rocket.ork`'s two 12.70 mm transitions the whole-part centroid is
+  // 81.96 mm, and clamping handed the panel 12.70 for a part balancing at 81.96 — reintroducing the
+  // non-idempotent placeholder this control exists not to have.
+  const b = statedCGBounds(part.component) ?? { min: 0, max: len };
+  return Number.isFinite(local) ? Math.min(Math.max(local, b.min), b.max) : undefined;
 }
 
 /** One definition of "the same rocket with a different stated CG on one part", shared by the two

@@ -68,8 +68,14 @@ export default function Footer() {
               `VERSION` is generated from `CHANGELOG.md` and checked against `package.json` at build
               time (`scripts/gen-version.mjs`), so this string cannot disagree with the release that
               describes it. The date is the accessible name rather than more visible text — the
-              chrome height ratchet is 49 px from its cap and a second visible token here spends it
-              on all six routes at once.
+              chrome height ratchet is close to its cap and a second visible token here spends the
+              remainder on all six routes at once.
+
+              **This said "49 px from its cap"; re-measured 2026-08-13 it is 5 px** (spine at 1055
+              against `e2e/depth.spec.ts`'s 1060). The figure was right when written and the chrome
+              has grown since. It is stated without a number now on purpose: a headroom figure copied
+              into prose goes stale silently, and a session spent 16 px of this one on the strength of
+              the old copy in `SiteHeader.tsx` before the ratchet caught it. Read the ratchet.
 
               An in-app route rather than the file on GitHub: the changelog is something a flyer
               reads about the tool they are holding, and sending them off-site to read it is the same

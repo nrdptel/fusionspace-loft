@@ -39,6 +39,7 @@ import {
   STEP_NOTICE_M,
   overallLength,
   maxBodyRadius,
+  statedCGBounds,
 } from "../model/geometry";
 import type { Rocket, RocketComponent } from "../model/types";
 import {
@@ -1012,15 +1013,24 @@ suite("real-design corpus", () => {
 
         // A station a whole metre down a part that is centimetres long: the bound is what must
         // decide the stored figure, not the number typed.
+        //
+        // **The bound is the whole PART's extent, not the body's length** (2026-08-13). It was `len`
+        // until a stated CG came to mean the whole part's centroid, shoulders included; a shouldered
+        // cone can genuinely balance behind its base, so clamping to `len` would refuse the reading
+        // the panel asks the flyer for. `statedCGBounds` is the one definition, shared with
+        // `withStatedCG` and `localBodyCGx`, so these three cannot drift apart on what a stated
+        // balance point is allowed to be. 25 of the corpus's cones carry a shoulder and moved this
+        // expectation when the semantics changed — which is the assertion doing its job.
         const over = applyGeometryEdits(rocket, bag(1));
         const stored = flattenRocket(over).find((p) => p.component.id === part.id)!.component as {
           overrideCGx?: number;
           cgFrom?: string;
         };
-        if (len < 1) {
+        const bound = statedCGBounds(part)?.max ?? len;
+        if (bound < 1) {
           clamped++;
-          if (stored.overrideCGx === undefined || Math.abs(stored.overrideCGx - len) > 1e-9)
-            wrong.push(`${shortName(f.name)}: a balance point past the end of a ${part.kind} was stored as ${stored.overrideCGx}, not clamped to ${len}`);
+          if (stored.overrideCGx === undefined || Math.abs(stored.overrideCGx - bound) > 1e-9)
+            wrong.push(`${shortName(f.name)}: a balance point past the end of a ${part.kind} was stored as ${stored.overrideCGx}, not clamped to ${bound}`);
         }
         if (stored.cgFrom !== "flyer")
           wrong.push(`${shortName(f.name)}: a stated ${part.kind} balance point is not marked as the flyer's`);
@@ -1055,9 +1065,18 @@ suite("real-design corpus", () => {
         // Counted rather than asserted, so the population is visible if a corpus re-cut empties it.
         if (reaches && entry !== undefined && entry.subsumedBy !== undefined) subsumedButLive++;
         // And the placeholder must be a FIXED POINT: committing the figure the box already shows
-        // cannot move the flight. This is what caught the shoulder blend — `overrideCGx` replaces the
-        // body centroid while the reported CG includes the shoulder, so offering the reported figure
-        // moved the design's CG on 15 of 57 live controls.
+        // cannot move the flight. This is what caught the shoulder blend, when `overrideCGx` replaced
+        // the body centroid while the reported CG included the shoulder — offering the reported
+        // figure moved the design's CG on 15 of 57 live controls. That blend is gone (2026-08-13); a
+        // stated CG is now the whole part's centroid and this asserts the property still holds.
+        //
+        // **It is blind to the population where the property last broke, and that is worth stating
+        // here rather than discovering twice.** This drives the two PANEL controls over real design
+        // files, and 0 of the 35 carry a cone whose whole-part balance point sits behind its own
+        // base — so it passed green while the bound in `localBodyCGx` was wrong for exactly that
+        // shape. The catalogue is where it is reachable (a cone pick is one click from the front
+        // door), and `lib/model/edit.test.ts`'s *"every catalogued cone's shown balance point is one
+        // the design actually flies at"* is the check that covers it.
         const shown = localBodyCGx(rocket, part.id);
         if (reaches && shown !== undefined) {
           const cg = dryMassProperties(applyGeometryEdits(rocket, bag(shown))).cg;

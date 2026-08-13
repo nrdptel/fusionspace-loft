@@ -231,6 +231,35 @@ export function foreOuterRadius(c: RocketComponent): number | undefined {
         : undefined;
 }
 
+/** The full physical extent of a part in its OWN frame (m), fore end at 0 — shoulders included.
+ *
+ *  **This is the bound a stated balance point is held to, and `[0, length]` is the wrong one.** That
+ *  was correct while `overrideCGx` meant the SHELL's centroid, which cannot leave the body. Since
+ *  2026-08-13 it means the WHOLE part's centroid, shoulders included (OpenRocket's
+ *  `RocketComponent.getCG()`), and that legitimately sits outside the body: a shoulder carrying most
+ *  of the part's mass pulls the balance point aft of the base, and a transition's FORE shoulder pulls
+ *  it fore of the datum, to negative x.
+ *
+ *  Measured on the corpus the day the semantics changed: `rocket.ork` carries two 12.70 mm
+ *  transitions whose 152.4 mm aft shoulders hold ~92% of their mass, and whose whole-part CG is
+ *  **81.96 mm** — six times the body's own length. Clamping that to `[0, len]` handed the panel a
+ *  placeholder of 12.70 mm for a part balancing at 81.96, which is the non-idempotent placeholder the
+ *  stated-CG control exists not to have: typing back the figure the box showed moved the design's CG.
+ *  20 of the 804 catalogued nose cones with a shoulder are the same shape and are one click from the
+ *  front door.
+ *
+ *  A bound is still wanted — a station off the end of the physical part means nothing, and an
+ *  unbounded field stored a balance point a thousand kilometres down a zero-length cone once. This is
+ *  that bound, drawn around the part that exists rather than around the body alone. */
+export function statedCGBounds(c: RocketComponent): { min: number; max: number } | undefined {
+  const len = (c as { length?: number }).length;
+  if (len === undefined || !(len > 0)) return undefined;
+  if (c.kind === "nosecone") return { min: 0, max: len + (c.aftShoulderLength ?? 0) };
+  if (c.kind === "transition")
+    return { min: -(c.foreShoulderLength ?? 0), max: len + (c.aftShoulderLength ?? 0) };
+  return { min: 0, max: len };
+}
+
 /** The part that sits immediately behind `afterId` in the airframe's nose-to-tail chain, if any.
  *
  *  Top-level components only — an inner tube or a coupler is not on the outer mould line, so a walk

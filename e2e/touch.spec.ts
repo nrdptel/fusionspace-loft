@@ -29,31 +29,103 @@ test.describe("phone layout", () => {
     }
   });
 
-  test("the header and import controls clear a 44 px hit target", async ({ page }) => {
+  test("the header and import controls clear a 44 px hit target in BOTH dimensions", async ({ page }) => {
+    // **Both dimensions, and that is P15 increment 2.** This measured `h` alone and filtered `h < 44`,
+    // so a control 37 px wide and 44 px tall was reported clean. One was: the wordmark, at **37x28**
+    // on every route — and it was not even reaching the height branch, because the filter below used
+    // to read `x.t !== "Loft"`. That is the "filter nobody can find" this increment exists to remove:
+    // an exemption keyed on a control's own visible label, which silently un-exempts the control if
+    // the label is ever reworded and silently exempts a different one that happens to share it.
+    //
+    // **The wordmark is excluded here by STRUCTURE, and it is a KNOWN GAP rather than an exemption.**
+    // On the app it is the page's `<h1>` — `SiteHeader` wraps it in one unless `compact` — so
+    // `header h1 > a` names it without naming its label. It is still 37x28 and still short of
+    // `DESIGN.md` §8; what stops the fix is `e2e/depth.spec.ts`'s 1060 px phone chrome cap, which the
+    // 16 px would breach on all four workspaces. `ROADMAP.md` P15 and `BACKLOG.md` carry the gap.
+    //
+    // **`header h1 > a`, not `closest("h1")`.** The first draft filtered every element with an `<h1>`
+    // ancestor out of the whole `header a, header button, main button` population — which would
+    // silently exempt any future button placed inside any heading, replacing a too-narrow filter with
+    // a too-wide one. This matches the wordmark and nothing else.
     await page.goto("/");
     const short = await page.$$eval("header a, header button, main button", (ns) =>
       ns
+        .filter((n) => !n.matches("header h1 > a"))
         .map((n) => {
           const r = n.getBoundingClientRect();
-          return { t: (n.textContent || "").trim().replace(/\s+/g, " ").slice(0, 28), h: Math.round(r.height) };
+          return {
+            t: (n.getAttribute("aria-label") || n.textContent || "").trim().replace(/\s+/g, " ").slice(0, 28),
+            w: Math.round(r.width),
+            h: Math.round(r.height),
+          };
         })
-        // The wordmark is a heading that happens to link home, not a control to hit.
-        .filter((x) => x.t && x.t !== "Loft" && x.h > 0 && x.h < 44),
+        .filter((x) => x.w > 0 && x.h > 0 && (x.w < 44 || x.h < 44))
+        .map((x) => `${x.w}x${x.h} "${x.t}"`),
     );
-    expect(short, "controls under the 44 px touch minimum").toEqual([]);
+    expect(short, "header/import controls under the 44 px touch minimum").toEqual([]);
+
+    // The exclusion is bounded rather than open: the wordmark is still expected to BE the heading's
+    // only anchor, so if a second control joins that heading it is measured rather than excluded.
+    await expect(page.locator("header h1 > a")).toHaveCount(1);
+  });
+
+  test("the wordmark is a real target on EVERY docs route", async ({ page }) => {
+    // **Every docs route, not the two that happened to prove the point.** The first draft of this
+    // walked `/docs` and `/docs/methods` and asserted the app-links enumeration equalled `["/"]` —
+    // which held on exactly those two and is false on `/docs/validation`, which links to `/validate`.
+    // A check scoped to where a claim holds is a check written to match the claim rather than test
+    // it. It walks `ROUTES` now, and it asserts the thing that is actually true and actually matters:
+    // the header's route back into the app is a real target on all of them.
+    for (const route of ROUTES.filter((r) => r.startsWith("/docs"))) {
+      await page.goto(route);
+      const box = await page.locator('header a[href="/"]').boundingBox();
+      expect(Math.round(box?.width ?? 0), `${route}: wordmark width`).toBeGreaterThanOrEqual(44);
+      expect(Math.round(box?.height ?? 0), `${route}: wordmark height`).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  test("the skip link is the one named exemption, and it is named here", async ({ page }) => {
+    // **The single deliberate exemption on the shared chrome, written as an assertion rather than as
+    // a filter.** P15's *done when* asks for exemptions "named in this file rather than skipped", and
+    // an exemption that only exists as an absence in a selector is unreviewable — nobody can tell a
+    // deliberate one from a control the selector never happened to match.
+    //
+    // It is exempt because the touch contract is scoped to `pointer: coarse`, and this control is
+    // reachable by Tab and by nothing else: it is the first stop for a keyboard or screen-reader
+    // user, and a thumb never lands on it because it is not painted until something focuses it. That
+    // is a different claim from "it is offscreen", which was the old reason and which would equally
+    // have excused a control merely scrolled out of view.
+    //
+    // **`classList.contains`, not a regex, and that correction is the point of the case.** This read
+    // `toHaveClass(/\bsr-only\b/)` — which also matches the `focus:not-sr-only` in the very same
+    // attribute, because `\b` treats the `-` before `sr` as a word boundary. It therefore stayed
+    // green with the leading `sr-only` DELETED: an assertion that could not fail for the single
+    // change it existed to catch, guarding an exemption. An exact token test can fail, and does.
+    await page.goto("/");
+    const skip = page.locator('a[href="#main"]');
+    await expect(skip).toHaveCount(1);
+    expect(await skip.evaluate((n) => n.classList.contains("sr-only")), "skip link hidden at rest").toBe(true);
+    await expect(skip).not.toBeInViewport();
   });
 
   test("the workspace spine and unit toggle clear it once a design is loaded", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+    // Both dimensions here too. These six are the app's primary navigation and its unit switch —
+    // every one of them is a standalone control whose width is set by the length of the word inside
+    // it, which is precisely the shape `TOUCH_TARGET` cannot defend. They measure 66x44, 75x44,
+    // 74x44, 114x44, 54x44 and 62x44 today, so the width floor asserts something already true; that
+    // is the point of adding it, because "Sweep" is one rename away from the footer's 33 px *Docs*.
     for (const name of ["Flight", "Design", "Sweep", "Cross-check"]) {
       const box = await page.getByRole("link", { name, exact: true }).first().boundingBox();
-      expect(box?.height ?? 0, `${name} link height`).toBeGreaterThanOrEqual(44);
+      expect(Math.round(box?.height ?? 0), `${name} link height`).toBeGreaterThanOrEqual(44);
+      expect(Math.round(box?.width ?? 0), `${name} link width`).toBeGreaterThanOrEqual(44);
     }
     for (const name of ["Metric", "Imperial"]) {
       const box = await page.getByRole("button", { name, exact: true }).first().boundingBox();
-      expect(box?.height ?? 0, `${name} height`).toBeGreaterThanOrEqual(44);
+      expect(Math.round(box?.height ?? 0), `${name} height`).toBeGreaterThanOrEqual(44);
+      expect(Math.round(box?.width ?? 0), `${name} width`).toBeGreaterThanOrEqual(44);
     }
   });
 
@@ -205,7 +277,10 @@ test.describe("phone layout", () => {
     for (const el of await panel.locator("input[type=number], select, button").all()) {
       const box = await el.boundingBox();
       if (!box || box.height === 0) continue; // not laid out (a closed disclosure)
-      if (box.height < 44) short.push(`${Math.round(box.width)}x${Math.round(box.height)}`);
+      // Both dimensions, per P15 increment 2. The `input[type=number]` and `select` here are all
+      // `w-full` and so are defended by the layout rather than by a token, but the `button`s are not
+      // — and this scan is the only thing that measures them on this surface.
+      if (box.height < 44 || box.width < 44) short.push(`${Math.round(box.width)}x${Math.round(box.height)}`);
     }
     expect(short, `controls under the 44 px hit target: ${short.join(", ")}`).toEqual([]);
 
@@ -358,8 +433,11 @@ test.describe("phone layout", () => {
     //
     // Excluded, deliberately, and each for a reason rather than to make the test pass: an inline
     // prose link is text bound by its line height and carries the WCAG "inline in a block of text"
-    // exemption; the skip link is offscreen until focused; and the wordmark is exempted by the header
-    // test above.
+    // exemption; and the skip link is keyboard-only, which its own named case above now asserts
+    // rather than assumes. **The wordmark is still excluded, but by `header h1 > a` rather than by
+    // its label**, and it is recorded as a GAP rather than an exemption: it is 37x28 on these routes
+    // and the 16 px that would fix it breaches `depth.spec.ts`'s 1060 px cap. On the docs routes,
+    // which this scan does not walk, it takes `TOUCH_TARGET_SQUARE` and has its own case above.
     //
     // **One exclusion was removed because its stated reason was false.** This list used to read "the
     // file input is 1x1 and sr-only behind a visible 44 px trigger". The input is indeed 1x1 — which
@@ -386,8 +464,14 @@ test.describe("phone layout", () => {
       // one scan that measures BOTH dimensions of every phone control stopped seeing the app's
       // primary navigation entirely. Its width is checked nowhere else — the two height assertions
       // elsewhere in this suite would pass a 20 px-wide link.
+      // `header a` joined this list in P15 increment 2, and its absence was the actual hole. The
+      // header's four anchors — the Fusion Space badge, the Ko-fi tip, *Docs* and the wordmark — are
+      // on EVERY route, and not one of them was area-measured anywhere: this scan did not match them,
+      // and the header assertion above measured height alone. The wordmark sat at 37x28 behind a
+      // label-text filter the whole time. Header links are the most-rendered controls in the app, so
+      // they are the last place a width floor should have been missing.
       page.$$eval(
-        'button, input:not([type=hidden]), select, summary, nav[aria-label="Workspace"] a, label:has(input.sr-only)',
+        'button, input:not([type=hidden]), select, summary, header a, nav[aria-label="Workspace"] a, label:has(input.sr-only)',
         (ns) =>
           ns
             .map((n) => {
@@ -395,6 +479,11 @@ test.describe("phone layout", () => {
               if (r.width < 4 || r.height < 4) return null;
               if (r.width >= 44 && r.height >= 44) return null;
               if (n.closest("footer")) return null;
+              // The wordmark. A KNOWN GAP, not an exemption: 37x28, short of §8, blocked by the
+              // 1060 px chrome cap in `depth.spec.ts` (see `SiteHeader.tsx`). Keyed on the heading
+              // rather than the label, and matched precisely — `closest("h1")` would exempt any
+              // future control placed inside any heading.
+              if (n.matches("header h1 > a")) return null;
               const name = (n.getAttribute("aria-label") || n.textContent || "")
                 .replace(/\s+/g, " ")
                 .trim()
@@ -1020,8 +1109,41 @@ test.describe("phone layout", () => {
         const box = await links.nth(i).boundingBox();
         const label = (await links.nth(i).innerText()).trim();
         expect(box!.height, `${route}: "${label}" is ${Math.round(box!.height)} px tall`).toBeGreaterThanOrEqual(44);
+        expect(box!.width, `${route}: "${label}" is ${Math.round(box!.width)} px wide`).toBeGreaterThanOrEqual(44);
       }
     }
+  });
+
+  test("the in-page contents chips are targets too, on every docs route", async ({ page }) => {
+    // **P15 increment 3, and the gap was one `aria-label` wide.** The case above asserts
+    // `nav[aria-label="Docs sections"]` — the CROSS-ROUTE list — and reads as though the docs routes
+    // were covered. The IN-PAGE contents nav beside it, `SectionNav`'s "Jump to a section of this
+    // page", was measured by nothing at all: **34 px tall on all six routes, 57 controls**, the
+    // largest single group of under-target controls left in the walk. Two navigations on one page,
+    // one asserted and one invisible, is the shape this milestone keeps finding.
+    //
+    // All SIX routes, including `/docs/changelog`, which the case above does not visit. Both
+    // dimensions, per this milestone. Counted as well as measured, so a nav that rendered no chips
+    // cannot pass by being empty — the failure mode the case above guards with its `toBe(5)`.
+    let seen = 0;
+    for (const route of ROUTES.filter((r) => r.startsWith("/docs")).concat("/docs/changelog")) {
+      await page.goto(route);
+      const nav = page.getByRole("navigation", { name: "Jump to a section of this page" });
+      if ((await nav.count()) === 0) continue; // a page short enough not to need one
+      const links = nav.getByRole("link");
+      const n = await links.count();
+      expect(n, `${route}: contents chips`).toBeGreaterThan(0);
+      for (let i = 0; i < n; i++) {
+        const box = await links.nth(i).boundingBox();
+        const label = (await links.nth(i).innerText()).trim();
+        expect(box!.height, `${route}: "${label}" is ${Math.round(box!.height)} px tall`).toBeGreaterThanOrEqual(44);
+        expect(box!.width, `${route}: "${label}" is ${Math.round(box!.width)} px wide`).toBeGreaterThanOrEqual(44);
+        seen++;
+      }
+    }
+    // The population itself is asserted: if `SectionNav` ever stops rendering, or the label is
+    // reworded, this case would otherwise pass by measuring nothing at all.
+    expect(seen, "contents chips measured across the docs section").toBeGreaterThan(40);
   });
 
   test("the footer's navigation links are targets, not 16 px of text", async ({ page }) => {

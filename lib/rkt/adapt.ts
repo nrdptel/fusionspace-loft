@@ -269,7 +269,17 @@ const CG_OVERRIDABLE = new Set<RocketComponent["kind"]>(["nosecone", "bodytube",
  *  cached the computed CG, so adopting the value whenever the flag is set would blindly defer to
  *  RockSim's per-part CG (not ground truth) and could import a nonsensical out-of-body value (a real
  *  file was seen with a nose `KnownCG` well past its length); this keeps only an intentional trim,
- *  e.g. a nose weighted with clay to a measured CG. */
+ *  e.g. a nose weighted with clay to a measured CG.
+ *
+ *  **The `knownM > lengthM` bound is now slightly too tight, and it is left alone deliberately.**
+ *  Since 2026-08-13 a stated CG means the WHOLE part's balance point, shoulder included
+ *  (`lib/sim/mass.ts`), so a shouldered nose can legitimately balance behind its own base and this
+ *  would refuse it. The correct bound is `statedCGBounds`'s, as `withStatedCG` and `localBodyCGx`
+ *  now use. It is not changed here because **both `.rkt` CG overrides in the corpus pass this bound
+ *  comfortably**, so the widening would fire on zero real files while weakening the one guard that
+ *  rejects RockSim's cached-not-measured values — which is the failure this function exists for, and
+ *  which a real file has actually exhibited. Filed in `BACKLOG.md`; it wants a fixture that shows the
+ *  case before the guard moves. */
 function cgOverrideM(node: XmlNode, lengthM: number): number | undefined {
   if (Math.round(n(node, "UseKnownCG", 0)) !== 1) return undefined;
   const knownM = n(node, "KnownCG", 0) * MM;
