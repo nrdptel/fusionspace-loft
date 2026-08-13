@@ -279,6 +279,52 @@ describe("adaptRasAeroXml — booster stages", () => {
     expect(doc.warnings.join(" ")).toMatch(/booster stage/i);
   });
 
+  it("says so when its simulations disagree about the airframe, and names the one being flown", () => {
+    // **A `.CDX1` states the stack's weight and balance PER SIMULATION; Loft flies one airframe.**
+    // So simulation 1's figures are used under every configuration the file offers, and a flyer who
+    // switches configuration changes the motors and nothing else. Measured on the corpus: 2 of the 4
+    // RASAero designs disagree with themselves this way — `Complex.Two-Stage.CDX1` by 41 g and 6 mm,
+    // `Show-off.CDX1` by a full inch of balance point.
+    const two = DESIGN.replace(
+      "</Simulation>\n  </SimulationList>",
+      `</Simulation>
+    <Simulation>
+      <SustainerEngine>J350W  (AT)</SustainerEngine>
+      <SustainerLaunchWt>35.1</SustainerLaunchWt>
+      <SustainerCG>41.90</SustainerCG>
+      <SustainerIgnitionDelay>0</SustainerIgnitionDelay>
+    </Simulation>
+  </SimulationList>`,
+    );
+    const doc = adaptRasAeroXml(two);
+    expect(doc.rocket.configurations.length, "both simulations are offered").toBe(2);
+    const w = doc.warnings.join(" ");
+    expect(w, "the disagreement is stated").toMatch(/different launch weight or balance point/i);
+    // It names the figures actually being flown, so the flyer can tell which of the two they have.
+    expect(w).toMatch(/37\.80 lb at 43\.82 in/);
+    expect(w).toMatch(/changes the motors and not the airframe/i);
+  });
+
+  it("stays quiet when every simulation states the same airframe", () => {
+    // The other half of the claim, and the one that stops the warning becoming noise a flyer learns
+    // to ignore: a file with two simulations that agree gets nothing. `MAINTAINING.md` — "a flag that
+    // cries wolf teaches flyers to ignore it".
+    const same = DESIGN.replace(
+      "</Simulation>\n  </SimulationList>",
+      `</Simulation>
+    <Simulation>
+      <SustainerEngine>J350W  (AT)</SustainerEngine>
+      <SustainerLaunchWt>37.8</SustainerLaunchWt>
+      <SustainerCG>43.82</SustainerCG>
+      <SustainerIgnitionDelay>0</SustainerIgnitionDelay>
+    </Simulation>
+  </SimulationList>`,
+    );
+    const doc = adaptRasAeroXml(same);
+    expect(doc.rocket.configurations.length).toBe(2);
+    expect(doc.warnings.join(" ")).not.toMatch(/different launch weight or balance point/i);
+  });
+
   it("doesn't stage a simulation that excludes the booster", () => {
     const off = SIM.replace("<IncludeBooster1>True</IncludeBooster1>", "<IncludeBooster1>False</IncludeBooster1>");
     const doc = adaptRasAeroXml(staged(off));
