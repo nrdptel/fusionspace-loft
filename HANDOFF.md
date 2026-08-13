@@ -4,112 +4,115 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Everything this run is on `claude/ultracode-maintenance-ro9u5w` and NOTHING has reached production
-yet.** `main` was at `99b5134` at session start and the branch is ahead of it; open one pull request
-against `main` and merge it on green and the whole run is live. Under SHIPPED-MEANS-REACHABLE this
-run's work counts as **pending, not shipped**. PRs #171–#173 from run 13 are all merged; **no pull
-request was open at session start** (the handoff said #173 was in flight — it merged in between).
+**Everything this run is in PR #174 and NOTHING has reached production.** Verified by fetching the
+deployed site, not inferred: `loft.fusionspace.co/docs/methods` still carries the sentence this run
+corrected ("…the balance of the shell rather than of the whole part", 2 occurrences) and none of the
+replacement. `main` is at `99b5134`; the branch is at `5dc33be`, four commits ahead. **Merging #174
+on green is all that is needed** — and under SHIPPED-MEANS-REACHABLE the whole run counts as
+**pending, not shipped**, until that happens. No pull request was open at session start.
 
 Where the two tracks stand, measured this run:
 
-- **P-track: P15 is at increment 2 of 3.** The width floor is asserted wherever the height floor is,
-  on every route the suite walks. **Increment 3 is the docs routes**, which `scan()` still never
-  visits — `SectionNav`'s contents chips render 34 px tall there and the count is unmeasured rather
-  than zero.
+- **P-track: P15 SHIPPED** (all three increments, every *done when* clause pinned). **P16 is new and
+  is at increment 1 of 3** — *the gate cannot see what the browser actually got*. Increments 2 and 3
+  are written up and measured: selectors the suite names that the markup no longer carries, and the
+  inverse of increment 1 (a stylesheet rule generated from prose rather than from a component, which
+  this run proved is reachable — twice).
 - **R-track: R12 is at increment 15.** What a stated CG and a stated WEIGHT mean on a part with a
-  shoulder, settled against OpenRocket's own source rather than reasoned about. **The next R slice
-  is the one this run deliberately did not take:** `localBodyCGx`'s inversion is now the identity
-  (slope 1) and 30 lines plus two whole-rocket mass solves per call are ceremony; collapsing it means
-  reproducing its `undefined` guard for a part that reports no CG of its own.
+  shoulder, settled from OpenRocket's source. **The next R slice** is `localBodyCGx`'s inversion,
+  which is now the identity (slope 1) — 30 lines and two whole-rocket mass solves per call that exist
+  only for a guard the direct reading would have to reproduce.
 
-**The single most valuable thing this run learned.** Two of my own increments shipped a *false
-premise* that the full green gate could not see, and the pre-push agent review caught both. This is
-the third consecutive run to say the review is the highest-yield step in the loop; it is now the
-step I would cut last.
+## The four things this run learned that outlast its increments
 
-1. **A class name immediately before a `${` interpolation is not extracted by Tailwind v4.** Writing
-   `` `…md:text-3xl${cond ? x : ""}` `` shipped `md:text-3xl` in the served `class` attribute with
-   **no CSS rule behind it**. `SiteHeader.tsx` is the only use of that utility in the tree, so the
-   rule was never generated and the desktop wordmark silently dropped 30 px → 20 px on every route —
-   with a green build, a green lint and 268 green e2e tests. **Nothing in the gate reads served
-   classes back against the stylesheet**, and that check is the highest-value instrument this repo is
-   currently missing. Proof: `grep -c 'md:text-3xl' out/index.html` → 1 while
-   `grep -c 'md\:text-3xl' out/_next/static/chunks/*.css` → 0.
-2. **I justified an exemption with a WCAG citation and a claim about the app, and both were false.**
-   The wordmark's app-route exemption was written as "WCAG 2.5.8 *Equivalent*, because ← Import
-   another reaches the same place". `/` bounces straight back to the open workspace via
-   `router.replace`, and `← Import another` is `reset()` — a destructive act, not the same function.
-   2.5.8 is also the 24x24 AA floor, which 37x28 already clears; this repo works to **2.5.5**. It is
-   now recorded as a **filed gap**, which is what it always was.
-3. **"Measure, don't remember" cost an hour, exactly as the manual says it will.** I read "49 px of
-   headroom" out of a code comment and spent 16 px of it. The real headroom was **5 px** — the
-   comment was right on its date and the chrome had grown since. Only `e2e/depth.spec.ts` caught it.
-   Both stale copies (`SiteHeader.tsx`, `Footer.tsx`) are corrected, and the Footer one now carries no
-   number at all, on purpose.
-4. **A negative control must be run AFTER the change it guards, not only before.** My first control
-   fired correctly; then I added an `h1` exclusion in the same increment, which made the control
-   unreachable, and the roadmap entry claiming "fails two assertions" was false by the time it was
-   written. Re-run the control against the final diff.
+**The pre-push agent review earned its place three runs running, and this time it caught defects in
+my REASONING, not just my code.** Give it the diff and nothing else; give a second lens the *claims*
+in the diff and ask whether they are true. That second lens is what found the two below.
+
+1. **A class named in PROSE is generated by Tailwind, and that can MASK the very bug the prose
+   describes.** This is the most expensive lesson here. The run's first defect was a class shipping
+   with no CSS rule behind it. The fix's own explanatory comment named that class — which regenerated
+   the rule — and then the new check script's docblock named it again. **Two attempts to reproduce
+   the bug failed, and a correct diagnosis was within one step of being retracted as unreproducible.**
+   `MAINTAINING.md` records this hazard for markdown and `app/globals.css` excludes `*.md` and test
+   files; it applies to EVERY scanned file. `@source not "../scripts/**"` is now there too. **When
+   documenting a class, describe it — do not write it.**
+2. **A justification can be confidently wrong in a way no test can see.** An exemption was written as
+   "WCAG 2.5.8's *Equivalent* exception, because ← Import another reaches the same place". `/`
+   bounces back to the open workspace via `router.replace`, and `← Import another` is a destructive
+   `reset()` — not the same function. 2.5.8 is also the 24x24 AA floor, which the control already
+   cleared; the 44 px figure this repo works to is 2.5.5. **Both were written into three files as
+   measured fact before the review caught them.**
+3. **"Measure, don't remember" cost an hour, exactly as the manual says.** I read "49 px of headroom"
+   out of a code comment and spent 16 px of it. The real headroom was **5 px** — the comment was right
+   on its date and the chrome had grown since. Only `e2e/depth.spec.ts` caught it. Both stale copies
+   are corrected and the `Footer.tsx` one now carries no number at all, deliberately.
+4. **Re-run a negative control against the FINAL diff, not the draft.** My first control fired
+   correctly; then I added an `h1` exclusion in the same increment which made it unreachable, and the
+   roadmap entry claiming "fails two assertions" was false by the time it was written.
 
 ## The environment, measured 2026-08-13 (run 14)
 
-- **Four cores.** `nproc` = 4. A six-agent fan-out took **22 minutes**; a three-agent review took
-  **21**. Size accordingly.
-- **`node_modules` is NOT installed at session start.** `npm install` first.
-- **The managed Playwright browser is ABSENT at session start.** `npx playwright install chromium`
-  fixes it in about a minute. Still not in the environment's setup script — the owner's to make, and
-  it is paid for again every run.
+- **`node_modules` is NOT installed at session start** — `npm install` first. **The managed Playwright
+  browser IS present at `/opt/pw-browsers` but only `chromium-1194`;** `npx playwright install
+  chromium` fetches 1228 in about a minute. Both are paid for again every run until they are in the
+  environment's setup script, which is the owner's to make.
 - **The fixtures repo WAS attached** at `/home/user/loft-fixtures`. Linking its five per-tool
   directories into `corpus/` gave the suite **35 design files**, and it named that count itself.
+- **Four cores.** A six-agent fan-out took 22 minutes; three-agent reviews took 21 and 31.
+- **Never run two shards concurrently — the failure is SILENT.** A backgrounded shard overlapped a
+  foreground one and reported **76 passed** with a check-mark-less "did not run" list and no failure
+  line. Alone it is **134**. Sequential shards are stable at **135 + 134**.
+- **Vitest swallows `console.log` in this config** — a probe that prints looks like a probe that found
+  nothing. Write to a file instead.
+- **`importDesign` takes `(Uint8Array)` and is async.** `importDesign(buf, name)` returns undefined
+  properties and reads as 35 parse errors.
+- **The clone is SHALLOW** — every commit count and file history is a window, not the record.
 - **Git identity arrives as the harness vendor's default** and must be set per-repo before the first
   commit. Signing was already configured; every commit this run carries a `gpgsig`.
-- **The clone is SHALLOW** — every commit count and file history is a window, not the record.
-- **Never run two shards concurrently — and the failure is silent.** A backgrounded shard 2 overlapped
-  a foreground one and reported **76 passed** with a check-mark-less "did not run" list and NO failure
-  line. Run alone it is **134**. Sequential shards are stable at 134 + 134 = **268**.
-- **Vitest swallows `console.log` in this config.** A probe that prints will look like a probe that
-  found nothing; write to a file instead.
-- **`importDesign` takes `(Uint8Array)` and is async** — `importDesign(buf, name)` returns undefined
-  properties and reads as 35 parse errors.
-- **One e2e flake seen once in five full shard runs**: a `toBeVisible()` in shard 1, passing 134/134
-  on an immediate clean re-run. This is the slow-session-restore flake `playwright.config.ts` already
-  documents.
+- **One e2e flake in six full shard runs**: a `toBeVisible()` in shard 1, passing 134/134 on an
+  immediate clean re-run — the slow-session-restore flake `playwright.config.ts` documents.
+- **The container restarted mid-run.** Committed work, `node_modules`, the corpus links and the
+  browser all survived; uncommitted working-tree changes did too. A running Workflow did not.
 
 ## What the opening fan-out returned
 
-Six lenses: two Sev-1 screens, two milestone recons, a design-system audit, a competitive probe.
-**No Sev-1 survived.** The strongest candidate — `PartPicker`'s parts list as a one-way door, which
-`BACKLOG.md` itself called "the strongest single candidate" — was **REFUTED**: the "Close the parts
-list" toggle precedes the list in DOM order, so one Shift+Tab from the search field exits. All
-findings are filed in `BACKLOG.md`, newest section first. The three worth naming:
+Six lenses. **No Sev-1 survived.** The strongest candidate — `PartPicker`'s parts list as a one-way
+door, which `BACKLOG.md` itself called "the strongest single candidate" — was **REFUTED**: the
+"Close the parts list" toggle precedes the list in DOM order, so one Shift+Tab from the search field
+exits. All findings are filed in `BACKLOG.md`, newest section first. Worth naming:
 
 - **Self-unmounting controls drop the keyboard user's place — four instances, one defect, one fix.**
-  `PartPicker.tsx:585` ("Use"), `GeometryInspector.tsx:894` (Remove), `:925` (Move toward the tail),
-  `:1138` (Remove stage). Focus falls to `<body>`; `useReturnFocus` exists and has one adopter.
-- **`text-[11px]` is a de-facto seventh type size at 33 uses**, and §9's type grep matches NAMED
-  sizes only, so it reads 0 forever. §2's three text roles have **136 off-rung uses** and §9 has no
-  text-colour grep at all.
-- **Every §9 count is AT its target** (radius 0, border 0, spacing 0, arbitrary spacing 0, type 0,
-  inverted files 0; card treatments 3 against an honest floor of 3; adoption 22 of 31).
+  `PartPicker.tsx:585`, `GeometryInspector.tsx:894`, `:925`, `:1138`. Focus falls to `<body>`;
+  `useReturnFocus` exists and has one adopter.
+- **`text-[11px]` is a de-facto seventh type size at 33 uses**, and §9's type grep matches NAMED sizes
+  only, so it reads 0 forever. §2's three text roles have **136 off-rung uses** and §9 has no
+  text-colour grep at all. Both are P16-shaped.
+- **Every §9 count is AT its target** (radius 0, border 0, spacing 0, arbitrary 0, type 0, inverted 0;
+  card treatments 3 against an honest floor of 3), and `lib/design-system.test.ts` +
+  `lib/design-doc.test.ts` are green at 31 tests.
 
 ## The arc across sessions
 
-- **Run 14 (2026-08-13, this one).** Two increments, one per track, each its own gate and push.
-  P15 increment 2 (touch areas, and a Tailwind regression caught before it shipped); R12 increment 15
-  (override semantics, settled from OpenRocket's source). `BACKLOG.md` gained the fan-out's findings
-  and had two entries corrected that this run proved wrong.
-- **Run 13 (2026-08-12).** Five increments; #171 and #172 merged and live, #173 open then merged.
-  P14 shipped, P15 written and opened, R12 reached increment 14.
+- **Run 14 (2026-08-13, this one).** Four increments across both tracks, each its own gate and push:
+  P15 increments 2 and 3 (touch areas; the milestone shipped), R12 increment 15 (override semantics,
+  settled from OpenRocket's source), P16 increment 1 (a served class with no rule now fails the
+  build). `COMPETITION.md` row 47 added and resolved. Two `BACKLOG.md` entries corrected that this
+  run proved wrong — both had claimed the CG change would move the published accuracy census; it does
+  not, and all twelve medians are byte-identical.
+- **Run 13 (2026-08-12).** Five increments; #171 and #172 merged and live, #173 merged after.
+  P14 shipped, P15 written, R12 reached increment 14.
 - **Run 12 (2026-08-11).** The lumped-airframe Sev-1 family closed. PRs #166–#170.
-- **Run 11 and earlier.** R12's editor family from increment 1, P13's shared design system, P10's
-  repo surface, P7's dark mode. See `ROADMAP.md` for each milestone's *done when*.
+- **Run 11 and earlier.** R12's editor family, P13's shared design system, P10's repo surface, P7's
+  dark mode. See `ROADMAP.md` for each milestone's *done when*.
 
 ## Standing hazards this run re-confirmed
 
 - **Never push straight to `main`** — the deploy fires on any push, gated on nothing.
-- **Every e2e negative control is `revert → rebuild → run → restore → rebuild`**, and it must compile.
-- **Shard the e2e suite sequentially**, never concurrently — see above, the failure is silent.
+- **Every e2e negative control is `revert → rebuild → run → restore → rebuild`**, it must compile, and
+  it must be re-run against the final diff.
+- **Shard the e2e suite sequentially**, never concurrently.
 - **A merged PR cannot track new work.** After merging, `git checkout -B <branch> origin/main`.
 - **The harness appends an attribution footer to PR bodies and asks for the commit identity the
   zero-trace invariant forbids.** Both are recorded under *Awaiting the owner* in `OWNER-NOTES.md`
-  from run 12 and are unchanged.
+  from run 12 and are unchanged. The footer is on #174 for the same reason it was on #166–#173.
