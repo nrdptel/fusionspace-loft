@@ -4,12 +4,12 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**PR #174 is MERGED and everything this run did is LIVE.** `main` is at `ab0a5b2`; nothing is in
-flight and no pull request is open. Confirmed on the deployed site rather than inferred from a green
+**All three of this run's pull requests are MERGED and everything is LIVE.** `main` is at
+`ef55f2a` (#174, #175, #176); nothing is in flight and no pull request is open. Confirmed on the deployed site rather than inferred from a green
 merge — `loft.fusionspace.co/docs/methods` now carries the corrected sentence (2 occurrences) and
 none of the old one, the deployed stylesheet carries the `md:` wordmark rule that had been shipping
-inert, and `/docs` serves the touch token on the wordmark and all six contents chips. **Nothing is
-pending.** No pull request was open at session start either.
+inert, and `/docs` serves the touch token on the wordmark and all six contents chips, and the new RASAero disagreement warning is in the served bundle. **Nothing is pending.**
+No pull request was open at session start either.
 
 **Start by reading `OWNER-NOTES.md`, then take the next unstarted milestone on each track** — the two
 named below.
@@ -25,6 +25,11 @@ Where the two tracks stand, measured this run:
   shoulder, settled from OpenRocket's source. **The next R slice** is `localBodyCGx`'s inversion,
   which is now the identity (slope 1) — 30 lines and two whole-rocket mass solves per call that exist
   only for a guard the direct reading would have to reproduce.
+- **One unqueued defect increment shipped**, against four queued ones, so the one-in-four quota is
+  spent for this run and is clear for the next. It was the ledger's highest-value correctness item —
+  and it was misfiled: a `.CDX1` states weight and balance PER SIMULATION while Loft's model has one
+  airframe, so there is no "wrong node" to fix, only a silence to break. **What is still open there
+  is the model change** — making the airframe mass configuration-dependent — and it is filed.
 
 ## The four things this run learned that outlast its increments
 
@@ -97,12 +102,13 @@ exits. All findings are filed in `BACKLOG.md`, newest section first. Worth namin
 
 ## The arc across sessions
 
-- **Run 14 (2026-08-13, this one).** Four increments across both tracks, each its own gate and push:
+- **Run 14 (2026-08-13, this one).** Five increments, each its own gate and push:
   P15 increments 2 and 3 (touch areas; the milestone shipped), R12 increment 15 (override semantics,
   settled from OpenRocket's source), P16 increment 1 (a served class with no rule now fails the
   build). `COMPETITION.md` row 47 added and resolved. Two `BACKLOG.md` entries corrected that this
   run proved wrong — both had claimed the CG change would move the published accuracy census; it does
-  not, and all twelve medians are byte-identical.
+  not, and all twelve medians are byte-identical. A fifth increment broke the silence on a RASAero
+  file that disagrees with itself about the airframe (2 of 4 corpus designs do).
 - **Run 13 (2026-08-12).** Five increments; #171 and #172 merged and live, #173 merged after.
   P14 shipped, P15 written, R12 reached increment 14.
 - **Run 12 (2026-08-11).** The lumped-airframe Sev-1 family closed. PRs #166–#170.
