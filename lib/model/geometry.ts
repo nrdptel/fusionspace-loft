@@ -220,6 +220,25 @@ export function aftOuterRadius(c: RocketComponent): number | undefined {
       : undefined;
 }
 
+/** Can a new part be authored immediately BEHIND this one?
+ *
+ *  **The question is whether it presents an aft face to fair to**, which is exactly what
+ *  `aftOuterRadius` answers: a body tube at its own outer radius, a nose cone and a transition at
+ *  their aft ones, and nothing for a part that is inside another or mounted on one. A fin set has no
+ *  aft face to build from; a centring ring's is not the airframe's.
+ *
+ *  **Named here rather than spelled as a kind test at each call site, because it was spelled three
+ *  times and all three said `bodytube`** — narrower than the code behind them. `buildAdded`'s body
+ *  tube arm and `transitionDefaults` both size the new part through `aftOuterRadius(anchor)` and have
+ *  always been able to answer for a nose cone or a transition; only the guards in front of them said
+ *  otherwise. Measured over the 35-design corpus: body tubes are **90 of 569 parts**, and the three
+ *  kinds with an aft face are **150** — so the gesture "another one of these, here" was refused on
+ *  the nose cone of every design, which is the first part a from-scratch build has. */
+export function canAnchorAfter(c: RocketComponent): boolean {
+  const r = aftOuterRadius(c);
+  return r !== undefined && r > 0;
+}
+
 /** The outer radius (m) a part presents at its FORE face. A nose cone comes to a point, so 0. */
 export function foreOuterRadius(c: RocketComponent): number | undefined {
   return c.kind === "bodytube"

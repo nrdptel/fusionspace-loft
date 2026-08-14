@@ -2716,6 +2716,33 @@ test.describe("Loft", () => {
     await expect.poll(async () => parseFloat((await span.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
   });
 
+  test("a tube can be added behind the nose cone, which is where a build starts", async ({ page }) => {
+    // **The gesture R12 is named for, refused on the first part a from-scratch build has.** "Add a
+    // tube behind this" was gated on the pick being a body tube — in the panel and in the applier —
+    // while `buildAdded` sized the new tube through the anchor's AFT FACE, which a nose cone has.
+    // So the guard was narrower than the code behind it, on 35 of 35 corpus designs.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Design" }).click();
+
+    // Pick the nose cone from the parts list.
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+    await table.getByText("Nose cone", { exact: true }).first().click();
+
+    const addTube = page.getByRole("button", { name: /Add a tube behind this/ });
+    await expect(addTube, "the nose cone must offer the gesture").toBeVisible();
+
+    // The parts that go INSIDE a tube are correctly NOT offered on a cone — one rule widened, not both.
+    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Add a centering ring inside this/ })).toHaveCount(0);
+
+    await addTube.click();
+    // The design gained a tube, and it is undoable like any other edit.
+    await expect(page.getByRole("button", { name: /^Undo/ })).toBeEnabled();
+  });
+
   test("a docs link the app itself planted does not throw the undo stack away", async ({ page }) => {
     // **P17's first clause, and the seam the shell was built to close everywhere except here.**
     // `app/(app)/layout.tsx` holds the design above the four workspace routes precisely so moving

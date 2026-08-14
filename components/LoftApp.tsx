@@ -11,7 +11,7 @@ import { Button, Card, ErrorState, NumberField, Segmented, Select } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
-import { flattenRocket, statedCGBounds } from "@/lib/model/geometry";
+import { aftOuterRadius, canAnchorAfter, flattenRocket, statedCGBounds } from "@/lib/model/geometry";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import { storedTag } from "@/lib/validation/stored-status";
 import {
@@ -1285,7 +1285,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
   const addPartAfter = (afterId: string, kind: AddedPart["kind"] = "bodytube") => {
     if (!doc || !removableFrom) return;
     const anchor = flattenRocket(removableFrom).find((p) => p.component.id === afterId)?.component;
-    if (!anchor || anchor.kind !== "bodytube") return;
+    if (!anchor) return;
+    // **Two rules, not one, and they were collapsed into "is it a body tube".** A part authored
+    // BEHIND another needs an aft face to fair to, which `canAnchorAfter` answers for a nose cone and
+    // a transition as well; a part authored INSIDE one, or mounted ON it, needs a tube. The tube and
+    // transition arms of `buildAdded` have always sized themselves through `aftOuterRadius` and could
+    // answer for all three, so the old guard refused a gesture the model could already perform — on
+    // the nose cone of every design, which is the first part a from-scratch build has.
+    const goesAfter = kind === "bodytube" || kind === "transition";
+    if (goesAfter ? !canAnchorAfter(anchor) : anchor.kind !== "bodytube") return;
     const id = newPartId(doc.rocket, edits.added, afterId);
     let part: AddedPart;
     if (kind === "trapezoidfinset") {
@@ -1310,7 +1318,13 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       // and a ring is 3.18 mm — see there for why one number could not have served both.
       part = { id, kind, after: afterId, length: 0, name: kind === "tubecoupler" ? "Coupler" : "Centering ring" };
     } else {
-      part = { id, kind: "bodytube", after: afterId, length: Math.max(anchor.length / 2, 2 * anchor.outerRadius) };
+      // Read through `aftOuterRadius` rather than off `outerRadius`, because the anchor may now be a
+      // nose cone or a transition — neither of which has one. The default is unchanged for a tube
+      // anchor: half its length, or two calibers of the face the new tube fairs to, whichever is
+      // longer. `canAnchorAfter` above guarantees the radius is defined and positive.
+      const faceR = aftOuterRadius(anchor)!;
+      const anchorLen = "length" in anchor && typeof anchor.length === "number" ? anchor.length : 0;
+      part = { id, kind: "bodytube", after: afterId, length: Math.max(anchorLen / 2, 2 * faceR) };
     }
     // Aim the fields for that KIND at it in the same commit, so one undo takes back the part AND the aim
     // rather than leaving the fields holding a part that no longer exists — and clear the absolute

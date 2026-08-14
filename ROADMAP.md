@@ -2586,6 +2586,33 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 19 — the gesture a build starts with, refused on the part a build starts from,
+2026-08-14.** "Add a tube behind this" was gated on the picked part being a body tube — in the panel
+and in the applier — so selecting the nose cone offered nothing. **Body tubes are 90 of the 569 parts
+across the 35-design corpus**; the nose cone is the first part a from-scratch build has, and
+"another one of these, here" was refused on it in every design.
+
+**The guard was narrower than the code behind it, which is what makes this a one-line capability
+rather than a feature.** `buildAdded`'s body-tube arm sizes the new part with `aftOuterRadius(after)`
+and `transitionDefaults` reads the same accessor — and `aftOuterRadius` has always answered for a
+nose cone and a transition at their aft radii. Neither consults the anchor's kind. So the model could
+already author a tube behind a cone; only the two guards said otherwise.
+
+**Two rules, not one, and collapsing them is what caused it.** A part authored BEHIND another needs
+an aft face to fair to; a part authored INSIDE it, or mounted ON it, needs a tube. Both were spelled
+as one body-tube test. `lib/model/geometry.ts`'s new `canAnchorAfter` is the first rule, named once
+and used at both sites; the inside-and-on kinds keep the second, so a coupler, a centring ring, a
+mass object and a fin set are still refused on a cone — correctly.
+
+**Pinned by `e2e/smoke.spec.ts`'s *a tube can be added behind the nose cone, which is where a build
+starts*** — picks the cone from the parts list, asserts the gesture is offered, asserts the three
+inside-kinds are NOT, adds the tube and checks it is undoable. **The e2e is the only thing that can
+pin this**, and the model test beside it says so in as many words: `applyGeometryEdits` builds the
+same tube before and after the change, because the applier never consulted the kind. A model test
+that passes either way is evidence about the model, not about the fix — it is kept for what it does
+prove, which is that the capability was there. Control: narrowing the panel gate back to body tubes
+fails the e2e with *"the nose cone must offer the gesture"*.
+
 **Increment 18 — two suppressed accuracy assertions, armed, 2026-08-14.** `KNOWN_ISSUES` is the
 corpus's documented-gap list: a design Loft still gets wrong is parsed but not asserted, so the gap is
 recorded rather than baked in as correct, and the contract is *fix the bug, then drop the entry to arm

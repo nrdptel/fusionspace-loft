@@ -96,7 +96,7 @@ import type {
   Material,
   TrapezoidFinSet,
 } from "./types";
-import { overallLength, maxBodyRadius, referenceRadius } from "./geometry";
+import { overallLength, maxBodyRadius, referenceRadius, canAnchorAfter, aftOuterRadius } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
 import { dryMassProperties, localBodyCGx, massByComponent, statedMassHolder, statesOwnAssemblyMass } from "../sim/mass";
@@ -4595,6 +4595,59 @@ describe("picking a real coupler or centring ring", () => {
    *  Asserted on the REFERENCE RADIUS rather than on the part, because that is the quantity that was
    *  wrong and the one a flyer reads through. The airframe's own radius is read off the design rather
    *  than written here, so the assertion cannot pass by agreeing with a constant. */
+  /** **"Another one of these, here" was refused on the nose cone of every design.**
+   *
+   *  A part authored BEHIND another needs an aft face to fair to; a part authored INSIDE it, or
+   *  mounted ON it, needs a tube. Both rules were spelled as one body-tube test, in the panel and in
+   *  the applier — and `buildAdded`'s tube arm and `transitionDefaults` have always sized themselves
+   *  through `aftOuterRadius`, which answers for a nose cone and a transition too. So the guard was
+   *  narrower than the code behind it, on the first part a from-scratch build has.
+   *
+   *  **This case documents that the MODEL was already capable and pins the new predicate; it does
+   *  NOT pin the guard change, and saying so matters.** `applyGeometryEdits` builds a tube behind a
+   *  nose cone with or without this run's change, because `buildAdded` never consulted the anchor's
+   *  kind — which is exactly the finding. What changed is the two guards in front of it, and the
+   *  only thing that can pin those is the e2e case that picks a nose cone and looks for the button.
+   *  A model test that passes before and after is evidence about the model, not about the fix. */
+  it("authors a tube behind a nose cone, which the aft face has always supported", async () => {
+    const doc = await load(SINGLE);
+    const nose = flattenRocket(doc.rocket).find((p) => p.component.kind === "nosecone")!.component;
+    expect(canAnchorAfter(nose), "a nose cone presents an aft face").toBe(true);
+
+    const id = newPartId(doc.rocket, undefined, nose.id);
+    const faceR = aftOuterRadius(nose)!;
+    const built = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "bodytube", after: nose.id, length: Math.max((nose as { length: number }).length / 2, 2 * faceR) }],
+    });
+    const made = flattenRocket(built).find((p) => p.component.id === id);
+    expect(made, "a tube behind the nose cone must build").toBeDefined();
+    // Faired to the face it follows, which is what makes it "another one of these".
+    expect((made!.component as { outerRadius: number }).outerRadius).toBeCloseTo(faceR, 9);
+
+    // And the parts that go INSIDE a tube are still refused there — the widening is one rule, not both.
+    for (const kind of ["tubecoupler", "centeringring"] as const) {
+      const inner = newPartId(built, undefined, nose.id);
+      const out = applyGeometryEdits(doc.rocket, { added: [{ id: inner, kind, after: nose.id, length: 0 }] });
+      expect(flattenRocket(out).find((p) => p.component.id === inner), `${kind} must not go inside a nose cone`).toBeUndefined();
+    }
+  });
+
+  it("says which parts can take one behind them, across every corpus design", async () => {
+    // The population the widening is about, measured rather than asserted from memory: body tubes are
+    // a sixth of the parts a flyer can pick, and the three kinds with an aft face are a quarter.
+    // A count that reads 0 would mean the corpus never loaded.
+    const doc = await load(SINGLE);
+    const parts = flattenRocket(doc.rocket);
+    const anchors = parts.filter((p) => canAnchorAfter(p.component));
+    const tubes = parts.filter((p) => p.component.kind === "bodytube");
+    expect(tubes.length, "the fixture must carry a tube").toBeGreaterThan(0);
+    expect(anchors.length, "and strictly more parts can anchor than are tubes").toBeGreaterThan(tubes.length);
+    // Every anchor is one of exactly the three kinds that present an aft face.
+    for (const a of anchors) {
+      expect(["bodytube", "nosecone", "transition"], `${a.component.kind} answered the aft-face question`).toContain(a.component.kind);
+    }
+  });
+
   it("refuses a picked part wider than its host, so the design's caliber stays the airframe's", async () => {
     const doc = await load(SINGLE);
     const host = firstTube(doc.rocket);
