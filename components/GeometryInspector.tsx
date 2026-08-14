@@ -653,15 +653,25 @@ export default function GeometryInspector({
           })(),
         }
       : null;
-  /** Whether the pick is set but NOT being flown — it is longer than the tube it goes in, so
-   *  `fitAddedInternalParts` left it out rather than shortening a part that carries a vendor's part
-   *  number. Derived once and read by both the notice and the picker's own caption, because those
-   *  two sit one line apart and a flyer reading "not in the flight" above "Flying …" is being told
-   *  two things about one part. The comparison is the model's own, on the same two numbers. */
-  const pickDropped =
+  /** Whether the pick is set but NOT being flown — it is longer than the tube it goes in, or WIDER
+   *  than that tube's bore, so `fitAddedInternalParts` left it out rather than resizing a part that
+   *  carries a vendor's part number. Derived once and read by both the notice and the picker's own
+   *  caption, because those two sit one line apart and a flyer reading "not in the flight" above
+   *  "Flying …" is being told two things about one part. Both comparisons are the model's own, on the
+   *  same numbers.
+   *
+   *  **The width half is the one that mattered**: an over-wide internal part is invisible on the
+   *  diagram but is read by `maxBodyRadius`, so it silently became the reference diameter the whole
+   *  design's static margin is quoted in calibers of. */
+  const pickTooLong =
     !!pickTarget?.entry.pick &&
     pickTarget.hostLength !== undefined &&
     pickTarget.entry.pick.length > pickTarget.hostLength;
+  const pickTooWide =
+    !!pickTarget?.entry.pick &&
+    pickTarget.outerDiameter !== undefined &&
+    pickTarget.entry.pick.outerDiameter > pickTarget.outerDiameter;
+  const pickDropped = pickTooLong || pickTooWide;
 
   // A part's host, by the host's OWN name, so "in Payload coupler" and the row reading "Payload
   // coupler" are the same string. Undefined where the design never named the host — see the prop's
@@ -1031,7 +1041,7 @@ export default function GeometryInspector({
                 about what is being flown, and it is reachable in two keystrokes.
                 `DESIGN.md` §6: a withheld value says why and how to get it back — here there are two
                 ways back and both are named. */}
-            {pickDropped && pickTarget.entry.pick && pickTarget.hostLength !== undefined && (
+            {pickDropped && pickTarget.entry.pick && (
                 <Card tone="warn" className="mb-2 text-sm" role="status">
                   <p>
                     <strong className="font-medium">
@@ -1039,10 +1049,39 @@ export default function GeometryInspector({
                       not in the flight.
                     </strong>{" "}
                     {pickTarget.entry.pick.manufacturer} {pickTarget.entry.pick.partNumber} is{" "}
-                    {d.q(d.lengthMm(pickTarget.entry.pick.length, units))} long and the part it goes
-                    inside is now {d.q(d.lengthMm(pickTarget.hostLength, units))}. It is left out rather than
-                    flown short, because a shortened part under a vendor&apos;s part number is not
-                    that part. Lengthen the tube, or take the pick back below.
+                    {/* **Every dimension that does not fit, not the first one.** A flyer told only
+                        "too long" lengthens the tube and the part still does not appear — which is
+                        verbatim the failure this notice exists to prevent, and the first draft of
+                        the width case reintroduced it by making the two branches exclusive. */}
+                    {pickTooLong && pickTarget.hostLength !== undefined && (
+                      <>
+                        {d.q(d.lengthMm(pickTarget.entry.pick.length, units))} long and the part it
+                        goes inside is {d.q(d.lengthMm(pickTarget.hostLength, units))}
+                        {pickTooWide ? ", " : ". "}
+                      </>
+                    )}
+                    {pickTooWide && (
+                      <>
+                        {pickTooLong ? "and it is " : ""}
+                        {d.q(d.lengthMm(pickTarget.entry.pick.outerDiameter, units))} across against a
+                        bore of {d.q(d.lengthMm(pickTarget.outerDiameter ?? 0, units))}.{" "}
+                      </>
+                    )}
+                    It is left out rather than resized, because a part under a vendor&apos;s part
+                    number that is not that part&apos;s size is a wrong number under a real label
+                    {pickTooWide ? (
+                      <>
+                        {" "}
+                        — and a part wider than the airframe would be read as the whole design&apos;s
+                        reference diameter, which static margin is quoted in calibers of
+                      </>
+                    ) : null}
+                    .{" "}
+                    {pickTooLong && pickTooWide
+                      ? "Lengthen and widen the tube, or take the pick back below."
+                      : pickTooLong
+                        ? "Lengthen the tube, or take the pick back below."
+                        : "Widen the tube, or take the pick back below."}
                   </p>
                 </Card>
               )}
@@ -1050,6 +1089,10 @@ export default function GeometryInspector({
               kind={pickTarget.entry.kind === "tubecoupler" ? "tubecoupler" : "centeringring"}
               imperial={units === "imperial"}
               currentOuterDiameter={pickTarget.outerDiameter}
+              // The same bore the filter labels itself with, now also the ceiling a row is refused
+              // against — a part wider than its host becomes the whole design's reference diameter,
+              // which static margin is quoted in calibers of.
+              maxOuterDiameter={pickTarget.outerDiameter}
               maxLength={pickTarget.hostLength}
               picked={pickTarget.entry.pick}
               // These two have no editable dimension of their own, so nothing a flyer can type can

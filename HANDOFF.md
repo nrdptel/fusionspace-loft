@@ -4,115 +4,93 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**All three of this run's pull requests are MERGED and everything is LIVE.** `main` is at
-`ef55f2a` (#174, #175, #176); nothing is in flight and no pull request is open. Confirmed on the deployed site rather than inferred from a green
-merge — `loft.fusionspace.co/docs/methods` now carries the corrected sentence (2 occurrences) and
-none of the old one, the deployed stylesheet carries the `md:` wordmark rule that had been shipping
-inert, and `/docs` serves the touch token on the wordmark and all six contents chips, and the new RASAero disagreement warning is in the served bundle. **Nothing is pending.**
-No pull request was open at session start either.
+**Run 15 shipped a Sev-1 fix that had been sitting in `BACKLOG.md` since 2026-08-03, explicitly
+declined as not-a-Sev-1 on reasoning that was right about the mass and never asked what the part did
+to the design's CALIBER.** A picked coupler or centring ring wider than the tube holding it became
+`referenceRadius` — the diameter static margin is quoted in calibers of, and the reference area every
+drag coefficient uses. On the bundled starter, one pick moved static margin **1.5279 → 0.1157 cal**,
+of which **0.6211 → 0.1157** is the reference diameter alone with mass and CG held identical. 123 of
+236 catalogued couplers and 243 of 497 rings are wider than that whole rocket.
 
-**Start by reading `OWNER-NOTES.md`, then take the next unstarted milestone on each track** — the two
-named below.
+**The other half of it is on IMPORT, and is filed as a gap rather than a defect.** `maxBodyRadius`
+reads every component, not just the airframe, so an imported design whose internal part is genuinely
+wider than its own airframe would set `d_ref` from that part. **0 of the 35 corpus designs are drawn
+that way**, so nothing is currently getting a wrong number by that route and a guard for it would
+fire on zero real files.
 
-Where the two tracks stand, measured this run:
+**I first filed that as "1 of 35, an 11.9% error on `02.Two-stage.ork`" and it was FABRICATED by my
+own probe** — it reached `BACKLOG.md`, this file and a public docs page before the pre-push review
+killed it. The probe hand-rolled the accessor as `outerRadius ?? aftRadius`; a `transition` has
+neither, so a transition widest at its fore end read as its narrow end. The 112.5 mm part on that
+design is a transition — airframe — and its rings are *narrower* than its tubes. **`lib/model/geometry.ts`
+exports `outerRadius()`; use it.** A hand-rolled accessor invents defects that read exactly like real
+ones, and this one nearly published a fault against a named OpenRocket sample.
 
-- **P-track: P15 SHIPPED** (all three increments, every *done when* clause pinned). **P16 is new and
-  is at increment 1 of 3** — *the gate cannot see what the browser actually got*. Increments 2 and 3
-  are written up and measured: selectors the suite names that the markup no longer carries, and the
-  inverse of increment 1 (a stylesheet rule generated from prose rather than from a component, which
-  this run proved is reachable — twice). **P16 increment 2 is the next P slice.**
-- **R-track: R12 is at increment 16** (run 15). Increment 15 settled what a stated CG and a stated
-  WEIGHT mean on a part with a shoulder, from OpenRocket's source; increment 16 removed
-  `localBodyCGx`'s two probe solves, which that left as the identity. **The next R slice** is the
-  live-but-blank stated-CG control on a part a STAGE lump subsumes — `localBodyCGx` returns
-  `undefined` there, the field renders enabled with an empty box, and the corpus fixed-point check
-  skips exactly that population (`subsumedButLive = 5`, counted and not asserted).
-- **One unqueued defect increment shipped**, against four queued ones, so the one-in-four quota is
-  spent for this run and is clear for the next. It was the ledger's highest-value correctness item —
-  and it was misfiled: a `.CDX1` states weight and balance PER SIMULATION while Loft's model has one
-  airframe, so there is no "wrong node" to fix, only a silence to break. **What is still open there
-  is the model change** — making the airframe mass configuration-dependent — and it is filed.
+Where the two tracks stand:
 
-## The four things this run learned that outlast its increments
+- **R-track: R12 is at increment 17.** 16 removed `localBodyCGx`'s two probe solves (the identity
+  increment 15 left behind); 17 is the caliber Sev-1 above.
+- **P-track: P16 is at increment 2 of 3.** Increment 2 shipped `scripts/check-selectors.mjs`.
+  **Increment 3 is the last one**: a stylesheet rule generated from prose rather than from a
+  component — the inverse of increment 1, and `MAINTAINING.md` records 2,617 bytes of exactly that
+  removed on 2026-08-08 with no check to stop it returning.
+- **The one-in-four quota is clear.** All of this run's increments were queued milestone work or a
+  Sev-1 preemption; no unqueued defect increment was spent.
 
-**The pre-push agent review earned its place three runs running, and this time it caught defects in
-my REASONING, not just my code.** Give it the diff and nothing else; give a second lens the *claims*
-in the diff and ask whether they are true. That second lens is what found the two below.
+## What this run learned that outlasts its increments
 
-1. **A class named in PROSE is generated by Tailwind, and that can MASK the very bug the prose
-   describes.** This is the most expensive lesson here. The run's first defect was a class shipping
-   with no CSS rule behind it. The fix's own explanatory comment named that class — which regenerated
-   the rule — and then the new check script's docblock named it again. **Two attempts to reproduce
-   the bug failed, and a correct diagnosis was within one step of being retracted as unreproducible.**
-   `MAINTAINING.md` records this hazard for markdown and `app/globals.css` excludes `*.md` and test
-   files; it applies to EVERY scanned file. `@source not "../scripts/**"` is now there too. **When
-   documenting a class, describe it — do not write it.**
-2. **A justification can be confidently wrong in a way no test can see.** An exemption was written as
-   "WCAG 2.5.8's *Equivalent* exception, because ← Import another reaches the same place". `/`
-   bounces back to the open workspace via `router.replace`, and `← Import another` is a destructive
-   `reset()` — not the same function. 2.5.8 is also the 24x24 AA floor, which the control already
-   cleared; the 44 px figure this repo works to is 2.5.5. **Both were written into three files as
-   measured fact before the review caught them.**
-3. **"Measure, don't remember" cost an hour, exactly as the manual says.** I read "49 px of headroom"
-   out of a code comment and spent 16 px of it. The real headroom was **5 px** — the comment was right
-   on its date and the chrome had grown since. Only `e2e/depth.spec.ts` caught it. Both stale copies
-   are corrected and the `Footer.tsx` one now carries no number at all, deliberately.
-4. **Re-run a negative control against the FINAL diff, not the draft.** My first control fired
-   correctly; then I added an `h1` exclusion in the same increment which made it unreachable, and the
-   roadmap entry claiming "fails two assertions" was false by the time it was written.
+1. **The pre-push agent review is now three-for-three at finding defects the four gates cannot see,
+   and this time it found them in a test I had just written to prove a claim.** It caught an
+   assertion that could not fail (the bounds clamp guaranteed it), a comment naming a failure mode
+   the clamp structurally forbids, a pointer aimed at the wrong end of `ROADMAP.md`, and **four dated
+   claims written a day ahead of the date**. Give it the diff, and separately ask it whether the
+   diff's own PROSE CLAIMS are true — that second lens is what found all four.
+2. **A fan-out lens can be refuted and still be the most valuable thing in the run.** The P16
+   investigation filed a Sev-1 saying increment 2 could not be built. The adversarial verifier
+   refuted it — and in refuting it surfaced `scripts/check-text-gaps.mjs`, which had already solved
+   the exact problem (a reliable detector over served markup beside a lead detector over client
+   chunks, with only the reliable one gating). The increment is built on that shape. **Verify every
+   Sev-1 with an agent whose instruction is to refute it**; the refutations carry prior art.
+3. **A shared test fixture was quietly exercising the defect under test.** Five cases drove a 44.4 mm
+   SEMROC ring into a fixture whose only tube has a 34 mm bore. They all went red the moment the
+   model started refusing over-wide parts, which is how it was found. **When a fix breaks existing
+   tests, read the fixture before assuming the fix is wrong.**
+4. **An allowlist entry that excuses nothing will eventually excuse something.** `check-selectors.mjs`
+   reports entries doing no work, and named all three of its own first-draft exemptions as idle on
+   its first run. It ships with an empty list.
 
-## The environment, measured 2026-08-13 (run 14)
+## The environment, measured 2026-08-13/14 (run 15)
 
-- **`node_modules` is NOT installed at session start** — `npm install` first. **The managed Playwright
-  browser IS present at `/opt/pw-browsers` but only `chromium-1194`;** `npx playwright install
-  chromium` fetches 1228 in about a minute. Both are paid for again every run until they are in the
-  environment's setup script, which is the owner's to make.
+- **`node_modules` is NOT installed at session start** — `npm install` first. The managed Playwright
+  browser was present at `/opt/pw-browsers` as **chromium-1194 only**; `npx playwright install
+  chromium` fetched **1228** in about a minute. The suite ran against 1228. Both are paid for again
+  every run until they are in the environment's setup script, which is the owner's to make.
 - **The fixtures repo WAS attached** at `/home/user/loft-fixtures`. Linking its five per-tool
-  directories into `corpus/` gave the suite **35 design files**, and it named that count itself.
-- **Four cores.** A six-agent fan-out took 22 minutes; three-agent reviews took 21 and 31.
-- **Never run two shards concurrently — the failure is SILENT.** A backgrounded shard overlapped a
-  foreground one and reported **76 passed** with a check-mark-less "did not run" list and no failure
-  line. Alone it is **134**. Sequential shards are stable at **135 + 134**.
-- **Vitest swallows `console.log` in this config** — a probe that prints looks like a probe that found
-  nothing. Write to a file instead.
-- **`importDesign` takes `(Uint8Array)` and is async.** `importDesign(buf, name)` returns undefined
-  properties and reads as 35 parse errors.
+  directories into `corpus/` gave the suite **35 design files**.
+- **Four cores, and the e2e flake is REAL and reproducible under agent load.** Two of this run's shard
+  runs reported exactly one failure while subagents were running; both passed in isolation and both
+  shards passed 135 + 134 on a clean re-run. The flake landed on `touch.spec.ts`'s hover-state count
+  once and elsewhere once. **Do not believe a single e2e failure while agents are in flight — re-run
+  the shard alone before diagnosing it.**
+- **A 10-agent fan-out took 54 minutes and THREE of its agents died on API 529s** — the phone walk,
+  the corpus sweep and the design-system audit, i.e. two of the three lenses whose absence is hardest
+  to notice. `parallel()` returns `null` for a dead agent and the run reports normally. **Check the
+  agent count against the lens count before trusting a fan-out**; they were re-run as a second
+  workflow.
 - **The clone is SHALLOW** — every commit count and file history is a window, not the record.
 - **Git identity arrives as the harness vendor's default** and must be set per-repo before the first
   commit. Signing was already configured; every commit this run carries a `gpgsig`.
-- **One e2e flake in six full shard runs**: a `toBeVisible()` in shard 1, passing 134/134 on an
-  immediate clean re-run — the slow-session-restore flake `playwright.config.ts` documents.
-- **The container restarted mid-run.** Committed work, `node_modules`, the corpus links and the
-  browser all survived; uncommitted working-tree changes did too. A running Workflow did not.
-
-## What the opening fan-out returned
-
-Six lenses. **No Sev-1 survived.** The strongest candidate — `PartPicker`'s parts list as a one-way
-door, which `BACKLOG.md` itself called "the strongest single candidate" — was **REFUTED**: the
-"Close the parts list" toggle precedes the list in DOM order, so one Shift+Tab from the search field
-exits. All findings are filed in `BACKLOG.md`, newest section first. Worth naming:
-
-- **Self-unmounting controls drop the keyboard user's place — four instances, one defect, one fix.**
-  `PartPicker.tsx:585`, `GeometryInspector.tsx:894`, `:925`, `:1138`. Focus falls to `<body>`;
-  `useReturnFocus` exists and has one adopter.
-- **`text-[11px]` is a de-facto seventh type size at 33 uses**, and §9's type grep matches NAMED sizes
-  only, so it reads 0 forever. §2's three text roles have **136 off-rung uses** and §9 has no
-  text-colour grep at all. Both are P16-shaped.
-- **Every §9 count is AT its target** (radius 0, border 0, spacing 0, arbitrary 0, type 0, inverted 0;
-  card treatments 3 against an honest floor of 3), and `lib/design-system.test.ts` +
-  `lib/design-doc.test.ts` are green at 31 tests.
+- **`npm test` takes ~6.5 minutes; a full gate with both e2e shards is ~15.** Budget for it.
 
 ## The arc across sessions
 
-- **Run 14 (2026-08-13, this one).** Five increments, each its own gate and push:
-  P15 increments 2 and 3 (touch areas; the milestone shipped), R12 increment 15 (override semantics,
-  settled from OpenRocket's source), P16 increment 1 (a served class with no rule now fails the
-  build). `COMPETITION.md` row 47 added and resolved. Two `BACKLOG.md` entries corrected that this
-  run proved wrong — both had claimed the CG change would move the published accuracy census; it does
-  not, and all twelve medians are byte-identical. A fifth increment broke the silence on a RASAero
-  file that disagrees with itself about the airframe (2 of 4 corpus designs do).
-- **Run 13 (2026-08-12).** Five increments; #171 and #172 merged and live, #173 merged after.
-  P14 shipped, P15 written, R12 reached increment 14.
+- **Run 15 (2026-08-13/14, this one).** R12 increments 16 and 17 (the second a Sev-1 preemption),
+  P16 increment 2. `check-classes.mjs` gained the examined-nothing and `existsSync` guards it shipped
+  without. A `BACKLOG.md` entry from 2026-08-03 corrected from "deliberately NOT ruled Sev-1" to
+  resolved-as-Sev-1, with the measurement that decides it.
+- **Run 14 (2026-08-13).** Five increments: P15 shipped, R12 increment 15 (override semantics from
+  OpenRocket's source), P16 increment 1 (a served class with no rule now fails the build).
+- **Run 13 (2026-08-12).** Five increments; P14 shipped, P15 written, R12 reached increment 14.
 - **Run 12 (2026-08-11).** The lumped-airframe Sev-1 family closed. PRs #166–#170.
 - **Run 11 and earlier.** R12's editor family, P13's shared design system, P10's repo surface, P7's
   dark mode. See `ROADMAP.md` for each milestone's *done when*.
@@ -120,10 +98,11 @@ exits. All findings are filed in `BACKLOG.md`, newest section first. Worth namin
 ## Standing hazards this run re-confirmed
 
 - **Never push straight to `main`** — the deploy fires on any push, gated on nothing.
-- **Every e2e negative control is `revert → rebuild → run → restore → rebuild`**, it must compile, and
-  it must be re-run against the final diff.
-- **Shard the e2e suite sequentially**, never concurrently.
+- **Every e2e negative control is `revert → rebuild → run → restore → rebuild`.** A postbuild check
+  that reads `out/` has exactly the same property, and this run's `check-selectors` control was run
+  that way for that reason.
+- **Shard the e2e suite sequentially**, never concurrently, and re-run a lone failure before believing it.
 - **A merged PR cannot track new work.** After merging, `git checkout -B <branch> origin/main`.
 - **The harness appends an attribution footer to PR bodies and asks for the commit identity the
   zero-trace invariant forbids.** Both are recorded under *Awaiting the owner* in `OWNER-NOTES.md`
-  from run 12 and are unchanged. The footer is on #174 for the same reason it was on #166–#173.
+  from run 12 and are unchanged. Read every PR body back after posting and strip it.

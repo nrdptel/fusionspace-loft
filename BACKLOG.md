@@ -12,6 +12,120 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-14, from the corpus sweep and the phone walk** — the two opening-fan-out lenses that
+died on API 529s the first time and were re-run. The sweep confirmed its own population before any of
+this was believed: `imports every design file (35 present)`, 45 tests, 0 failures, and all twelve
+census medians printed.
+
+- **Two KNOWN-ISSUE entries are STALE, and each is suppressing an assertion that would pass today.**
+  `lib/corpus/sweep.test.ts:98` and `:100`. Re-measured: the first is apogee −10.15% / max velocity
+  −1.56%, the second apogee +10.76% / +4.95% — all inside the ±12% `TOLERANCE_PCT` the suite asserts.
+  The second entry's own comment quotes the very figures that now pass. Dropping both arms two real
+  asserts, which is the documented lifecycle for a `knownIssue`: fix the bug, then drop the entry.
+- **And the suite's own stale-known-issue DETECTOR structurally cannot see either of them**, which is
+  why they survived. `sweep.test.ts:2614` only reports an entry as stale when `|pctError| <=
+  TOLERANCE_PCT / 2` — 6% on apogee — so an entry sitting between 6% and the 12% it is actually
+  asserted against is invisible to it forever. That is a check that cannot fail over exactly the band
+  it exists to police, and it is the more valuable of these two to fix.
+- **The published `maxAcceleration` median is 1.3% and the corpus now measures 1.2%.** Inside
+  `CENSUS_SLACK_PCT` so it does not fail, and it is an improvement rather than a regression — but
+  /docs/validation publishes a figure the corpus no longer produces. Worth correcting on the next
+  re-publish rather than leaving a stale number on the accuracy page.
+- **Two of the corpus's five advertised tool families contribute zero assertions, invisibly.**
+  `corpusFiles()` filters on `/\.(ork|ork\.gz|rkt|cdx1)$/i`, so the three RocketPy and SpaceCAD files
+  are never opened, while `corpus/` advertises five per-tool directories and the count of 35 reads as
+  whole-corpus coverage. Either widen the filter or have the sweep say which families it skipped.
+- **Nothing in the repo reads `manifest.csv`.** `fetch-fixtures.mjs` verifies `CHECKSUMS.sha256` only
+  and the sweep reads design bytes, so every curated ground-truth column in the fixtures repo —
+  `stated_apogee` and its siblings — is unused. Worse, the metadata contradicts the code: all four
+  RASAero rows carry `importable_by_loft = no` and the sweep imports every one and scores two.
+- **One RASAero fixture's stored results are physically impossible and are listed as ground truth**
+  (`rasaero__openrocket-repo-rasaero…`): its two `<MaxAltitude>` values are 3.76 and 10.16 feet.
+  Loft converts them correctly and then scores itself against 1.1 m and 3.1 m apogees.
+- **The dispersion sentinel's partial-landing branch is dead across the whole corpus** —
+  `sweep.test.ts:3440`; the suite prints `1 where NONE landed, 0 where some did`, so the branch that
+  handles a partially-landed Monte-Carlo has never executed against a real design.
+
+**Phone walk, 390 px, against `DESIGN.md` §8 — the gaps are all in the SCAN'S POPULATION rather than
+in its threshold.** Every `ui.tsx` primitive carries the touch token and no raw sub-44 px control was
+found on any route the ratchet walks; what follows is what it cannot see.
+
+- **The only control that picks a catalogued part is the last column of a table whose own `minWidth`
+  is 544–736 px**, read through a ~300 px window (`components/PartPicker.tsx:557`). On a phone the
+  flyer scrolls right past the row's identity to reach "Use", and no `DataTable` pins its row-label
+  column (`components/DataTable.tsx:196`) — so the name is gone before the decision arrives.
+- **The parts-table ROW is the selection gesture and renders 32 px tall** (`DataTable.tsx:271`,
+  `py-1.5` around a 20 px line box). The touch ratchet's selector omits `<tr>`, `<td>` and non-header
+  `<a>`, so a 32 px primary gesture reads as compliant.
+- **The sticky table header never sticks.** `overflow-x: auto` with `overflow-y: visible` computes
+  `overflow-y` to `auto`, so the wrapper rather than the viewport is the sticky element's scrollport.
+- **The hit-target scan never runs on `/` at all**, and the hover-only ratchet's route list excludes
+  `/`, `/docs/faq`, `/docs/limitations`, `/docs/validation` and `/docs/changelog`. On `/` the header
+  case measures only `header a, header button, main button`, so every input, select, summary and
+  label on the first screen a cold flyer meets is unmeasured.
+- **`app/error.tsx:23` — the error boundary's second recovery path is a bare underlined link**, about
+  20 px tall, beside a 44 px button. A recovery affordance is the last place to put an unmissable
+  target out of reach.
+- **`components/DownloadCsv.tsx:56` — when both clipboard paths fail the button relabels itself
+  "Press ⌘/Ctrl+C"**, a key chord that does not exist on the form factor the failure is likeliest on.
+- **The imported file's name renders only at `sm:` and above** (`LoftApp.tsx:2139`), and its only
+  other carrier is a `title` — which the hover ratchet skips and a phone cannot open. Same shape on
+  the recents shelf (`ImportPanel.tsx:246`), where the visible label is the rocket name and the FILE
+  name lives only in a `title`.
+- **The Properties popover is a bottom sheet below `sm` whose body is number fields**
+  (`components/ui.tsx:1210`), with no `interactiveWidget: 'resizes-content'` — so the on-screen
+  keyboard overlays the field being edited.
+
+**Filed 2026-08-14, from the pre-push review of the caliber Sev-1 fix.** Both are about the same
+pre-existing behaviour, both are OUT of that increment's scope, and the increment's own copy was
+softened so it does not claim they are impossible.
+
+- **`scaleAirframeRadii` silently rescales a PICKED coupler or ring, so "flying SEMROC CR-10-13P" can
+  be flying something else.** `lib/model/edit.ts`'s caliber scale multiplies every internal part's
+  radii along with the airframe's, and it runs BEFORE `fitAddedInternalParts`. Measured: pick
+  `CR-10-13P` (33.0 mm OD) on `demo-single-deploy`, then set Body diameter to 76 mm, and the part is
+  flown at **65.9 mm** under a caption still reading *Flying SEMROC CR-10-13P*. This is the same
+  wrong-number-under-a-real-label shape the LENGTH rule already refuses — a shortened part under a
+  vendor's number is refused, a *scaled* one is not — and it is the widest route into these parts.
+  Not fixed with the Sev-1 because the Sev-1 was about the design's CALIBER and this is about the
+  part's LABEL, and because scaling internals with the airframe is deliberate for derived parts and
+  needs a rule that keeps that while exempting picks.
+- **The panel and the model judge a pick's width against different numbers.** The model tests the
+  ring's SCALED `outerRadius` (after `scaleAirframeRadii`); `GeometryInspector`'s `pickTooWide` tests
+  the pick's UNSCALED published `outerDiameter`. They diverge on a caliber edit with factor
+  0.795 ≤ f < 0.973: the model flies the part while the panel renders *"…is not in the flight"* and
+  the picker caption reads *Not in the flight*. A surface disagreeing with the model about what is
+  being flown, which is the exact defect the notice was built to remove — one layer up.
+- **The derived-part width clamp added with the Sev-1 is close to untested and may be unreachable.**
+  A derived ring is born at exactly the bore and scales with it, `internalOuterDiameter` is already
+  clamped by `internalPartBounds`, and there is no wall edit — so the clamp fires only on a caliber
+  edit with f < 1, where the bore shrinks by `w(1−f)` and the ring by `ro(1−f)`. Wants a test or it
+  will rot.
+
+**Also filed 2026-08-14, found while fixing the caliber Sev-1 — the other half of it, on IMPORT.**
+
+- **`referenceRadius` takes the widest component in the design, not the widest part of the AIRFRAME —
+  reachable in principle on IMPORT, and exercised by no real file.** `maxBodyRadius`
+  (`lib/model/geometry.ts:163`) maxes `outerRadius()` over every component `flattenRocket` yields,
+  internals included. The Sev-1 fixed on 2026-08-14 closed the AUTHORING route into that; an imported
+  file is taken as drawn, so a design whose internal part is genuinely wider than its own airframe
+  would set `d_ref` from that part. Measured over all 35 corpus designs: **0 of 35** do.
+  So this is a gap in the rule, not a number anything is currently getting wrong, and under
+  *do not manufacture correctness work* it waits for a file that exhibits it — a guard that fires on
+  zero real files is worse than nothing. If it is ever taken, the first thing to establish is what
+  OpenRocket's own `MAXIMUM` reference type measures, from its published documentation rather than
+  from reasoning, since matching it is the whole point of the rule.
+
+  **Filed first as "1 of 35, an 11.9% error on `02.Two-stage.ork`", and that was FABRICATED by a bad
+  probe — it reached this file, `HANDOFF.md` and a public docs page before the pre-push review caught
+  it.** The probe hand-rolled the accessor as `outerRadius ?? aftRadius`, and a `transition` has
+  neither: it has `foreRadius` and `aftRadius`, so a transition widest at its FORE end read as its
+  narrow end and the airframe maximum came out too small. `02.Two-stage.ork`'s 112.5 mm part is a
+  **transition** — airframe — and its centring rings are 94.5 mm, *narrower* than the 100.5 mm tubes.
+  `lib/model/geometry.ts` exports `outerRadius()` and answers correctly for every kind. **Use the
+  codebase's own accessor in a probe; a hand-rolled one invents defects that read exactly like real
+  ones**, and this one nearly published a fabricated fault against a named OpenRocket sample.
+
 **Filed 2026-08-13, from run 15's pre-push review of R12 increment 16.** Everything the review found
 in the diff itself is fixed in that commit; these were measured and deliberately not taken.
 
@@ -1637,6 +1751,20 @@ fixed in that increment rather than filed. The rest are below.
   value it cannot physically mean, and reports a confident number from it". The fit filter now opens
   on the host's bore, which is the affordance; making it a refusal, a caution, or a default-on filter
   is the open question.
+
+  **RESOLVED 2026-08-14 as a Sev-1, and the reasoning above is what kept it open for eleven days.** It
+  is right about the mass and wrong about the consequence, because it never asked what an over-wide
+  part does to the design's own CALIBER. A coupler and a ring are invisible on the diagram — the
+  silhouette only walks the airframe — but `maxBodyRadius` maxes `outerRadius()` over every
+  component, internals included, so an over-wide one becomes `referenceRadius`: the diameter
+  `staticMarginCal` is quoted in calibers OF, and the reference area every drag coefficient is
+  computed from. That is not a fact about the part the flyer chose, so "the mass is honestly computed
+  for the part they chose" does not reach it. Measured on the bundled starter (54 mm airframe): the
+  reference diameter goes **54 mm → 289.8 mm**, and holding mass and CG identical by pinning the
+  reference, the diameter ALONE moves static margin **0.6211 → 0.1157 cal**. 123 of 236 catalogued
+  couplers and 243 of 497 rings are wider than that whole rocket, so it is the common case, not the
+  exotic one. Refused now at the model (`fitAddedInternalParts` judges width beside length, over the
+  flown tree) and on the row that offers it, with the reason named on both.
 
 - **A picked part left out of the flight explains itself only while its own row is selected, and
   never after a reload.** `components/GeometryInspector.tsx` gates the "not in the flight" notice on

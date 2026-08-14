@@ -3811,12 +3811,44 @@ function fitAddedInternalParts(rocket: Rocket, added?: readonly AddedPart[]): Ro
       const kids = c.children.length ? walk(c.children) : c.children;
       if (c.kind !== "bodytube") return kids === c.children ? c : { ...c, children: kids };
       const host: number = c.length;
+      // **The host's BORE, judged on the flown tree for the same reason its LENGTH is.** The same
+      // expression `buildAdded` sizes a derived ring with, and the same one the panel labels the fit
+      // filter with: a tube stating no wall has no inner radius to speak of, so its own outer radius
+      // is the honest fallback rather than an invented one.
+      const wall = "thickness" in c && c.thickness !== undefined && c.thickness > 0 ? c.thickness : 0;
+      const bore = Math.max(1e-6, c.outerRadius - wall);
       const fitted = kids.flatMap((ch): RocketComponent[] => {
         if (!isRing(ch)) return [ch];
         const entry = authored.get(ch.id);
-        if (!entry || ch.length <= host + 1e-9) return [ch];
+        if (!entry) return [ch];
+        const tooLong = ch.length > host + 1e-9;
+        // **Width, and getting this wrong reported a wrong caliber for the WHOLE ROCKET.** A ring is
+        // invisible on the diagram — the silhouette only walks the airframe — but `maxBodyRadius`
+        // maxes `outerRadius()` over every component, internals included, so `referenceRadius` and
+        // through it `staticMarginCal` and every drag coefficient's reference area were computed
+        // against a coupler's diameter instead of the airframe's. The typed field has been clamped
+        // against this since the day the panel gained it, and its own comment names this exact
+        // consequence; the PICK path reached the model without passing it. Measured on the bundled
+        // starter (54 mm airframe, 51 mm bore): 123 of 236 catalogued couplers and 243 of 497
+        // centring rings are wider than the whole rocket, and picking the widest moved the reference
+        // diameter 54 mm → 289.8 mm. Holding mass and CG identical by pinning the reference, the
+        // diameter ALONE moved static margin 0.6211 → 0.1157 cal — a stability figure a flyer acts
+        // on before they go to the pad, in calibers of a diameter the rocket does not have.
+        const tooWide = ch.outerRadius > bore + 1e-9;
+        if (!tooLong && !tooWide) return [ch];
+        // A catalogued part is refused whole rather than resized, for the reason the length rule
+        // already gives: a vendor's part number over a dimension that vendor never published is a
+        // wrong number under a label naming a real product. The panel says so where the flyer picked
+        // it, and refuses the row in the first place.
         if (usableCatalogRing(entry.pick)) return [];
-        const cut: RingComponent = { ...ch, length: Math.max(1e-4, host) };
+        const cutR = tooWide ? bore : ch.outerRadius;
+        const cut: RingComponent = {
+          ...ch,
+          length: tooLong ? Math.max(1e-4, host) : ch.length,
+          outerRadius: cutR,
+          // A bore can never reach its own outer wall, whatever it was before the clamp.
+          innerRadius: Math.min(ch.innerRadius, Math.max(0, cutR - 1e-6)),
+        };
         return [cut];
       });
       return { ...c, children: fitted };

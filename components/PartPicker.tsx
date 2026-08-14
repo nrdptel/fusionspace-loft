@@ -230,6 +230,7 @@ export default function PartPicker({
   /** Metres. The caliber the design is at now, so the list can open on parts that actually fit it. */
   currentOuterDiameter,
   maxLength,
+  maxOuterDiameter,
   imperial,
   onPick,
   picked,
@@ -245,6 +246,9 @@ export default function PartPicker({
    *
    *  Absent for the three kinds that go on the outside of the airframe, which nothing bounds. */
   maxLength?: number;
+  /** The host's BORE — the widest part that can go inside it. A pick past it is refused here and by
+   *  the model, because an over-wide internal part becomes the whole design's reference diameter. */
+  maxOuterDiameter?: number;
   imperial: boolean;
   /** The catalogue row and its resolved stock, NOT a finished edit-bag record.
    *
@@ -574,7 +578,17 @@ export default function PartPicker({
         // searched for a part number they own is owed "that one is too long for this tube" — a row
         // that silently is not there teaches nothing.
         const tooLong = maxLength !== undefined && p.length !== undefined && p.length > maxLength + 1e-9;
-        const refused = !buildable(p, kind) || tooLong;
+        // **And a part WIDER than the bore it goes into, for a reason the length rule does not
+        // have.** A coupler or a ring is invisible on the diagram, but `maxBodyRadius` reads the
+        // widest component in the whole design, internals included — so an over-wide one silently
+        // became the reference diameter that static margin is quoted in calibers OF, and that every
+        // drag coefficient's reference area is computed from. 123 of the 236 catalogued couplers and
+        // 243 of the 497 rings are wider than the bundled starter's entire airframe, so this is the
+        // common case rather than the exotic one. The model refuses it too; this row is where the
+        // flyer finds out why, and disabled-with-a-reason beats a row that is silently not there.
+        const tooWide =
+          maxOuterDiameter !== undefined && p.outerDiameter !== undefined && p.outerDiameter > maxOuterDiameter + 1e-9;
+        const refused = !buildable(p, kind) || tooLong || tooWide;
         return (
         <>
         <Button
@@ -593,11 +607,16 @@ export default function PartPicker({
             longer than the {span(maxLength, imperial)} {unit} it goes into
           </span>
         )}
+        {tooWide && !tooLong && (
+          <span className="block text-xs text-amber-700 dark:text-amber-400">
+            wider than the {span(maxOuterDiameter, imperial)} {unit} bore it goes into
+          </span>
+        )}
         </>
         );
       },
     },
-  ], [imperial, unit, onPick, db, kind, maxLength]);
+  ], [imperial, unit, onPick, db, kind, maxLength, maxOuterDiameter]);
 
   const control =
     "mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
