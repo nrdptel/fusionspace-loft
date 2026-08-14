@@ -6220,8 +6220,94 @@ totals would make every legitimate utility addition a failure.
 
 ## P17 — The shell survives every navigation, including the ones it does not own
 
-**Status: NOT STARTED — increment 1 was built, gated green, and WITHDRAWN before it shipped.** The
-knowledge is below; the code is not in `main` and should not be resurrected as written.
+**Status: IN PROGRESS** — increment 1 shipped 2026-08-14 on the second attempt. The first attempt's
+withdrawal, and the seven requirements it left, are recorded below the increment entry.
+
+**Increment 1 — the undo stack survives the docs link, 2026-08-14.** `SavedSession` carries the stack
+beside the bytes it belongs to; `loadDoc` replays it on a RESUME only, so a fresh load still starts
+clean and one design's past can never land on another.
+
+**The rebuild's whole content is the thing that sank the first attempt: what in a step is DATA.** A
+step's state is the app's `WhatIf` — edits, scenario, sim index, and the live `WeatherConditions`.
+Those conditions turned out to be **eleven fields of data plus exactly two things that are functions
+OF them**: `atmosphere`, an `Atmosphere` class instance, and `windProfile`, a closure.
+`JSON.stringify` drops both silently, the stored record still looks right, and the throw lands inside
+the solver on replay.
+
+**So the derivation was extracted rather than the weather dropped.** `lib/weather.ts` now exports
+`deriveConditions(plain)` — lifted out of `parseForecast`, which calls it, so there is ONE definition
+of what the wind does between two reported levels — and `rehydrateConditions(unknown)`, which
+validates a stored record field by field and rebuilds the two derived members. Nothing is lost: a
+restored step flies the same air it was taken in. The alternative considered and rejected was storing
+steps with `weather: null`, which is smaller and quietly changes the flight a step restores to — a
+wrong number, which this repo ranks above the convenience.
+
+**Pinned at both layers, each with a control run against the final diff:**
+
+- `lib/weather.test.ts` — a JSON round trip loses both members (asserted on BEHAVIOUR: the dead object
+  still has an `atmosphere` property of type object, which is what made this easy to miss), and
+  rehydrating gives back identical density and identical wind at five altitudes to 12 places. A third
+  case refuses a malformed record, including one malformed LEVEL — which would not crash, it would
+  make the wind `NaN` in the two bands that level bounds, and mis-fire the surface-wind guard as well
+  if it is the lowest. A fourth pins the SORT, which moved into `deriveConditions` from
+  `parseForecast`: the profile walks ascending pairs, so an unsorted array reads the surface wind
+  where it should interpolate — silently, with no throw. The invariant now lives in the one function
+  that requires it rather than in the one caller that happened to hold it.
+- `lib/session.test.ts` — a stack whose step carries live conditions survives the store and still
+  flies; the write side strips the derived members from every step; and malformed shapes are refused
+  all-or-nothing while the rest of the session still comes back. Controls: removing the rehydration
+  fails the round-trip case, and not stripping on write fails the write-side one.
+- `e2e/smoke.spec.ts` — *a docs link the app itself planted does not throw the undo stack away*.
+  Three edits on `/design`, out through the app's own **"where it's weak"** link, back, then all three
+  undone in order. **It clicks the link rather than navigating to the URL**, which is the difference
+  from the withdrawn version: a `page.goto` passes unchanged if the link is deleted, so it pinned the
+  navigation and not the affordance. Control: not replaying the stack fails it with *"the undo stack
+  did not survive the docs link"*.
+
+**`writeSlot` drops the stack, not the design, when the record will not fit.** `MAX_BYTES` is measured
+against the design alone and cannot see the stack, so the quota path retries without it — losing a
+flyer's rocket because the app was trying to remember how to undo it would be a feature making them
+worse off.
+
+**Two things the opening fan-out caught in this increment before it shipped, both folded in:**
+
+1. **The present and the stack disagreed about what air was being flown.** `loadDoc` restored the
+   stack and then set `weather` to null and `scenario` to *design* unconditionally, so a resume could
+   leave steps taken under a forecast sitting above a present that had none — one undo would jump
+   into weather the flyer could not otherwise get back, and one redo would lose it again. The present
+   conditions now travel with the stack, stored and rebuilt the same way, so the two halves are one
+   state. A fresh load still starts on design conditions.
+2. **Storing live conditions wrote the dead class into the record.** `Atmosphere`'s own fields are
+   enumerable, so `JSON.stringify` faithfully emits its layer table — bytes that cannot be called and
+   that the reader ignores — and because one fetch is shared by reference across every step that
+   followed it, the same blob was written once per step. `plainConditions` is the write-side
+   counterpart of `rehydrateConditions`, applied to the present and to every step, so the only form
+   that ever reaches storage is the one that can be read back.
+
+**And three more the pre-push review caught, all in this increment's own work:**
+
+- **`readStep` guarded the field that had broken before and passed the other three through.** The
+  conditions are the tempting field to guard alone; the failure MODE is what matters, and it is the
+  same for all of them — the apply throws, `applyWhatIfState` returns false, and a step that fails to
+  apply is not consumed, so the control stays lit over a stack nothing can walk. A step whose `edits`
+  is a string jams it exactly as a dead atmosphere does. Every field is validated now.
+- **Nothing capped the stack on READ.** The reducer caps writes at `HISTORY_DEPTH`; a hand-edited or
+  foreign record of any length was accepted whole. The bound belongs on both sides of the boundary.
+- **A restored forecast had no age, and nothing on screen would reveal a stale one.** The Conditions
+  panel prints `aloftTime` as the hour alone — `18:00 local`, no date — so a profile restored from a
+  previous day reads exactly like this evening's, and this file's own measurement puts an unmatched
+  profile up to **154° apart** from the actual hour. Stored conditions now carry `weatherAt` and are
+  restored only while they are still this hour's; when they expire they go, and so does the stack
+  **if and only if** its steps were taken under them. The ordinary session never fetches a forecast
+  and its stack is untouched.
+
+**Still open from the withdrawn attempt's list, and deliberately not folded in:** bounding the record
+by BYTES rather than by step count (what landed is a catch-and-retry around whatever the browser's
+quota happens to be, which is quota-dependent); the per-keystroke cost of writing it; `reset()` —
+*Import another* — still discarding the stack; and closing the restored top step's run so an edit
+within the coalescing window cannot merge into it. Each is its own slice.
+
+
 
 **Increment 1 was attempted 2026-08-14 and pulled by its own pre-push review.** It persisted the
 undo stack in `SavedSession`, replayed it on a resume only, and passed the whole gate — lint clean,

@@ -115,7 +115,7 @@ import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption,
 import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
 import { localBodyCGx, massByComponent, statedCGReachesDesign, statedMassHolder, statesOwnAssemblyMass } from "@/lib/sim/mass";
 import { statedAirframeMass } from "@/lib/model/edit";
-import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
+import { fetchConditions, geocode, plainConditions, type WeatherConditions } from "@/lib/weather";
 import {
   clearDiscardedSession,
   clearSession,
@@ -132,6 +132,7 @@ import {
   carriesWork,
   saveDiscardedSession,
   saveSession,
+  storableHistory,
   type SavedSession,
   toBase64,
   type RecentDesign,
@@ -457,6 +458,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *  an undo stack that survived a load would offer to restore one design's edits onto another. */
   const [history, setHistory] = useState<History<WhatIf>>(EMPTY_HISTORY as History<WhatIf>);
   const [weather, setWeather] = useState<WeatherConditions | null>(null);
+  /** When the conditions on screen were FETCHED — not when they were last written down.
+   *
+   *  The session's freshness rule expires a stored forecast after an hour, and the stamp it reads has
+   *  to be the fetch or the rule measures nothing: the save effect runs on every edit, every
+   *  workspace click and every resume, so a stamp taken there is re-taken continuously and a profile
+   *  from this morning stays "fresh" all afternoon for anyone who keeps working. It is a ref rather
+   *  than state because nothing renders it — it travels with the conditions and is read only by the
+   *  writer. */
+  const weatherAt = useRef<number | null>(null);
   /** Bumped once per forecast fetched, and by nothing else. The analysis panels watch the launch
    *  conditions by VALUE, and a forecast's atmosphere and wind profile are FUNCTIONS — there is no
    *  value to compare, so a presence flag cannot tell a new forecast from the last one. Re-fetching
@@ -611,7 +621,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       /** The design's own file bytes, so the session can store exactly what was opened. */
       bytes?: Uint8Array,
       /** A session being restored: its saved edits and configuration, instead of a clean slate. */
-      resume?: { edits: Edits; simIndex: number; rocket?: string },
+      resume?: {
+        edits: Edits;
+        simIndex: number;
+        rocket?: string;
+        history?: History<WhatIf>;
+        weather?: WeatherConditions | null;
+        scenario?: "design" | "today";
+        weatherAt?: number;
+      },
     ) => {
       // The design being replaced is about to stop being the open one — its shelf row's last chance
       // to become true. Runs before any state is touched.
@@ -635,11 +653,27 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       setFileName(name);
       setEdits(e);
       // A load is where the history starts, not a step in it. Carrying a stack across a load would
-      // offer to restore one design's edits onto another — and the session that resumes here arrives
-      // with its edits already applied, so its own past is not ours to replay.
-      setHistory(EMPTY_HISTORY as History<WhatIf>);
-      setWeather(null);
-      setScenario("design");
+      // offer to restore one design's edits onto another — which is why a fresh load still clears it.
+      //
+      // **A RESUME is the exception, and it is the same argument rather than a hole in it.** The
+      // stack a resume brings is THIS design's own past, stored beside its own bytes, so replaying it
+      // restores the flyer's edits onto the design they were made on. The sentence above used to end
+      // "so its own past is not ours to replay", which was true while nothing stored one.
+      //
+      // The trip that matters is not a reload. The shell lives above the four workspace routes so
+      // moving between them keeps everything — but `/docs/*` resolves through a different layout, so
+      // following one of the docs links planted beside the numbers unmounts the shell. The design
+      // came back; three edits' worth of undo did not.
+      setHistory((resume?.history as History<WhatIf> | undefined) ?? (EMPTY_HISTORY as History<WhatIf>));
+      // The PRESENT conditions travel with the stack, or the two disagree about what air is being
+      // flown: a resume that dropped the forecast while the stack kept steps taken under it would
+      // let one undo jump into weather the flyer could not otherwise get back, and one redo lose it
+      // again. A fresh load still starts on design conditions, which is what `resume` gates.
+      setWeather(resume?.weather ?? null);
+      // A resumed forecast keeps the age it was stored with; re-stamping here would make every
+      // reload renew it, which is the bug this stamp exists to avoid.
+      weatherAt.current = resume?.weatherAt ?? null;
+      setScenario(resume?.scenario ?? "design");
       setSimIndex(idx);
       setError(null);
       setRestored(resume !== undefined);
@@ -993,6 +1027,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     if (!fly(w)) return false;
     setEdits(w.edits);
     setWeather(w.weather);
+    weatherAt.current = Date.now();
     setScenario(w.scenario);
     setSimIndex(w.simIndex);
     return true;
@@ -1530,6 +1565,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     setEdits({});
     setHistory(EMPTY_HISTORY as History<WhatIf>);
     setWeather(null);
+    weatherAt.current = null;
     setScenario("design");
     setSimIndex(0);
     setRestored(false);
@@ -1605,6 +1641,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
           edits: saved.edits as Edits,
           simIndex: saved.simIndex,
           rocket: saved.rocket,
+          history: saved.history as History<WhatIf> | undefined,
+          weather: (saved.weather as WeatherConditions | undefined) ?? null,
+          scenario: saved.scenario,
+          weatherAt: saved.weatherAt,
         });
       } catch {
         // A design Loft can no longer read (a format change, a truncated write) is dropped rather
@@ -1670,8 +1710,25 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       units,
       simIndex,
       edits: edits as Record<string, unknown>,
+      // The undo stack, so a docs link does not throw the flyer's edits away. Capped at
+      // `HISTORY_DEPTH` by the reducer, rebuilt through `rehydrateConditions` on the way back in,
+      // and the first thing `writeSlot` drops if the record will not fit — losing the design to
+      // remember how to undo it would be a bad trade.
+      //
+      // **Every set of conditions is stripped to its plain half before it is written.** `Atmosphere`
+      // is a class whose own fields are enumerable, so storing the live object emits its layer table
+      // into the record — bytes that cannot be called and that `rehydrateConditions` ignores. One
+      // fetch is shared by reference across every step that followed it, so the live form writes the
+      // same dead blob once per step; the plain form writes what it actually needs.
+      history: storableHistory(history),
+      weather: weather ? plainConditions(weather) : undefined,
+      scenario,
+      // The FETCH time, carried from where the forecast landed. Taking `Date.now()` here instead
+      // would stamp the write, and this effect runs on every edit — so the age the reader checks
+      // would reset continuously and a morning profile would never expire.
+      weatherAt: weather ? (weatherAt.current ?? undefined) : undefined,
     });
-  }, [doc, fileName, workspace, units, simIndex, edits]);
+  }, [doc, fileName, workspace, units, simIndex, edits, history, weather, scenario]);
 
   const choices = doc ? configChoices(doc) : [];
 

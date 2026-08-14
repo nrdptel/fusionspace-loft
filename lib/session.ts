@@ -16,12 +16,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { isEditedValue } from "./model/edit";
 import { resolveWorkspace, type Workspace } from "./workspaces";
+import { plainConditions, rehydrateConditions, type WeatherConditions } from "./weather";
+import { HISTORY_DEPTH } from "./model/history";
 
 const KEY = "loft.session";
 /** localStorage is typically a ~5 MB budget for the whole origin, and base64 costs a third on top
  *  of the raw bytes. A design far past this is a pathological file, not a rocket; it simply isn't
  *  remembered rather than evicting everything else the site keeps. */
 const MAX_BYTES = 1_500_000;
+/** How long stored conditions stay this hour's. One hour, because that is the grid the forecast is
+ *  reported on and the unit `aloftTime` names. */
+const WEATHER_MAX_AGE_MS = 60 * 60 * 1000;
 
 export interface SavedSession {
   /** Schema version — a stored session from an older shape is discarded, never half-read. */
@@ -47,6 +52,47 @@ export interface SavedSession {
    *  import is offered back under its original file name. The recents shelf already carries the same
    *  distinction for the same reason. */
   rocket?: string;
+  /** The undo/redo stack, so leaving the workspace does not throw the flyer's edits away.
+   *
+   *  **The seam this exists for is not a reload.** The app's shell lives above the four workspace
+   *  routes precisely so moving between them keeps the design, its edits and its undo stack — but
+   *  `/docs/*` resolves through a different layout, so following one of the docs links the app plants
+   *  beside its own numbers unmounts the shell. The design came back from here; the stack did not.
+   *
+   *  Typed loosely for the reason `edits` is: this module is storage, and the shapes it carries
+   *  belong to the app. Optional because a session written before this existed has none, and because
+   *  it is the first thing dropped when the record will not fit — see `writeSlot`. */
+  history?: { past: readonly unknown[]; future: readonly unknown[] };
+  /** Today's conditions, as data, and which of the two the flyer was flying.
+   *
+   *  **These ride with the stack because without them the present and the stack disagree about what
+   *  air is being flown.** A resume used to put the flyer back on design conditions unconditionally;
+   *  once the stack survives too, undoing could jump INTO a step taken under a forecast the present
+   *  did not have, and redo would drop it again. Storing the present alongside makes the two halves
+   *  one state. Stored plain and rebuilt on read for the same reason every step's are — see
+   *  `rehydrateConditions`. */
+  weather?: unknown;
+  scenario?: "design" | "today";
+  /** When those conditions were FETCHED (epoch ms), and the reason they expire.
+   *
+   *  **The fetch, not the write, and the difference is the whole guard.** The session is written on
+   *  every edit, every workspace change and every resume, so a stamp taken at write time is retaken
+   *  continuously — a profile fetched at 09:00 would still read "fresh" at 17:00 for anyone who kept
+   *  working, and the rule below would measure nothing. `components/LoftApp.tsx` holds the fetch time
+   *  beside the conditions and carries it through a resume unchanged for exactly this reason.
+   *
+   *  **A forecast is for an HOUR, and nothing on screen would reveal a stale one.** `parseForecast`
+   *  matches the surface reading to a specific hourly wind profile and this file's own measurement
+   *  records what an unmatched one costs: at 850 hPa, 2.78 m/s from 317° where the actual hour was
+   *  2.12 m/s from 163° — **154° apart**. The Conditions panel prints `aloftTime` as the hour alone,
+   *  `18:00 local`, with no date, so a profile restored from a previous day reads exactly like this
+   *  evening's. Drift is the number a flyer walks on.
+   *
+   *  So conditions are restored only while they are still this hour's, and otherwise dropped along
+   *  with anything that depends on them. That is the same rule the app already applies at fetch time
+   *  through `aloftMatched`; this is it applied to the delay between storing and reading, which
+   *  `aloftMatched` is computed too early to see. */
+  weatherAt?: number;
 }
 
 /** base64 for a byte array, without pulling in a dependency or blowing the argument limit on a
@@ -65,6 +111,111 @@ export function fromBase64(b64: string): Uint8Array {
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
+}
+
+/** A history stack with every set of conditions reduced to the half that can be written down — the
+ *  write-side counterpart of `readHistory`, and it lives here beside it so the two cannot drift.
+ *
+ *  Shaped as a transform over the stack rather than a flag on the writer, so the only form that ever
+ *  reaches storage is the plain one and there is no path where a live set slips through. The steps
+ *  are otherwise untouched: the reader rebuilds the derived members and validates everything else, so
+ *  this side only has to stop writing what cannot be read back. */
+export function storableHistory(h: { past: readonly unknown[]; future: readonly unknown[] }): {
+  past: readonly unknown[];
+  future: readonly unknown[];
+} {
+  const strip = (st: unknown) => {
+    const step = st as { state?: { weather?: unknown } };
+    if (!step?.state) return st;
+    const w = step.state.weather;
+    return { ...step, state: { ...step.state, weather: w ? plainConditions(w as WeatherConditions) : null } };
+  };
+  return { past: h.past.map(strip), future: h.future.map(strip) };
+}
+
+/** One undo step, as `lib/model/history.ts` writes it and as `undoHistory` expects to read it back:
+ *  a state object, the prose label the control shows, the coalescing key, and the clock.
+ *
+ *  **The `state` is where a previous attempt at this died, and it is worth naming.** A step's state
+ *  is the app's `WhatIf` — edits, scenario, sim index, and the live weather CONDITIONS. Those
+ *  conditions are eleven fields of data plus an `Atmosphere` class instance and a `windProfile`
+ *  closure, and `JSON.stringify` drops both silently. Storing the step verbatim therefore wrote a
+ *  record that looked right and threw inside the solver on replay — and because `undoStep` does not
+ *  consume a step whose apply fails, the control stayed lit over a stack nothing could walk. So the
+ *  conditions go through `rehydrateConditions`, which rebuilds the two derived members from the
+ *  eleven stored ones, and a step whose conditions will not rebuild is not a step. */
+function readStep(x: unknown): { state: Record<string, unknown>; label: string; key: string; at: number } | null {
+  if (!x || typeof x !== "object") return null;
+  const s = x as { state?: unknown; label?: unknown; key?: unknown; at?: unknown };
+  if (!s.state || typeof s.state !== "object") return null;
+  if (typeof s.label !== "string" || typeof s.key !== "string") return null;
+  if (typeof s.at !== "number" || !Number.isFinite(s.at)) return null;
+  const raw = s.state as Record<string, unknown>;
+  // **Every field of the state, not just the one that used to break.** The conditions are the field
+  // that made a previous attempt fail, so they are the field it is tempting to guard alone — but the
+  // failure MODE is what matters, and it is the same for all of them: `undoStep` applies the state,
+  // the apply throws, `applyWhatIfState` returns false, and a step that fails to apply is not
+  // consumed. So the control stays lit over a stack nothing can walk, whichever field was wrong. A
+  // step whose `edits` is a string jams it exactly as a step whose atmosphere is dead does.
+  if (!raw.edits || typeof raw.edits !== "object" || Array.isArray(raw.edits)) return null;
+  if (raw.scenario !== "design" && raw.scenario !== "today") return null;
+  if (typeof raw.simIndex !== "number" || !Number.isInteger(raw.simIndex) || raw.simIndex < 0) return null;
+  const state: Record<string, unknown> = {
+    edits: raw.edits,
+    scenario: raw.scenario,
+    simIndex: raw.simIndex,
+    weather: null,
+  };
+  if (raw.weather !== null && raw.weather !== undefined) {
+    const live = rehydrateConditions(raw.weather);
+    if (!live) return null;
+    state.weather = live;
+  }
+  return { state, label: s.label, key: s.key, at: s.at };
+}
+
+/** The stored stack, or `undefined` if any part of it is not one. **All or nothing, deliberately:**
+ *  dropping only the bad steps would silently change what "undo three times" means, which is worse
+ *  than starting the flyer with a clean stack and the edits they can still see in front of them. */
+function readHistory(h: SavedSession["history"]): SavedSession["history"] {
+  if (!h || !Array.isArray(h.past) || !Array.isArray(h.future)) return undefined;
+  // The reducer caps what it WRITES at `HISTORY_DEPTH`; nothing capped what could be read back, so a
+  // hand-edited or foreign record of any length was accepted whole. The bound belongs on both sides
+  // of the boundary, not only on the side this app controls.
+  if (h.past.length > HISTORY_DEPTH || h.future.length > HISTORY_DEPTH) return undefined;
+  const past = h.past.map(readStep);
+  const future = h.future.map(readStep);
+  if (past.some((x) => x === null) || future.some((x) => x === null)) return undefined;
+  return { past: past as unknown[], future: future as unknown[] };
+}
+
+/** The conditions half of a stored record — the present forecast, which of the two scenarios was
+ *  being flown, and the undo stack, which are read together because they expire together.
+ *
+ *  **A stack whose steps were taken under a forecast is only as restorable as the forecast is.** Once
+ *  the conditions are too old to fly, restoring the edits without them would put a flyer on design
+ *  air in a state their own undo label says was flown on today's; restoring them anyway would fly
+ *  yesterday's wind under a label that shows the hour and not the date. So when the conditions have
+ *  expired, they go — and so does the stack, but ONLY if the stack actually depends on them. The
+ *  common session never fetches a forecast at all, and its stack is unaffected. */
+function readConditions(parsed: SavedSession, now = Date.now()): Pick<SavedSession, "history" | "weather" | "scenario" | "weatherAt"> {
+  const history = readHistory(parsed.history);
+  const stepsNeedWeather = !!history && [...history.past, ...history.future].some(
+    (st) => (st as { state?: { weather?: unknown } })?.state?.weather != null,
+  );
+  const hasPresent = parsed.weather !== undefined && parsed.weather !== null;
+  if (!hasPresent && !stepsNeedWeather) return { history, weather: undefined, scenario: undefined, weatherAt: undefined };
+
+  const fresh = typeof parsed.weatherAt === "number" && Number.isFinite(parsed.weatherAt) && now - parsed.weatherAt <= WEATHER_MAX_AGE_MS && now >= parsed.weatherAt;
+  if (!fresh) {
+    return { history: stepsNeedWeather ? undefined : history, weather: undefined, scenario: undefined, weatherAt: undefined };
+  }
+  const weather = hasPresent ? (rehydrateConditions(parsed.weather) ?? undefined) : undefined;
+  // Conditions that will not rebuild must not leave the flyer on "today" with no air behind it.
+  if (hasPresent && !weather) {
+    return { history: stepsNeedWeather ? undefined : history, weather: undefined, scenario: undefined, weatherAt: undefined };
+  }
+  return { history, weather, scenario: parsed.scenario === "today" ? "today" : undefined, weatherAt: parsed.weatherAt };
 }
 
 /** Read one stored session slot, or null if it is absent, unreadable, or from an older schema.
@@ -90,6 +241,10 @@ function readSlot(key: string): SavedSession | null {
       simIndex: Number.isInteger(parsed.simIndex) ? parsed.simIndex : 0,
       edits: parsed.edits && typeof parsed.edits === "object" ? parsed.edits : {},
       rocket: typeof parsed.rocket === "string" && parsed.rocket ? parsed.rocket : undefined,
+      // Named HERE as well as on the type, because this function rebuilds field by field and its
+      // docblock warns that anything not named is "written cleanly and silently dropped on the next
+      // read" — which on screen is indistinguishable from never having saved one.
+      ...readConditions(parsed),
     };
   } catch {
     return null;
@@ -105,8 +260,25 @@ function writeSlot(key: string, s: SavedSession): boolean {
     localStorage.setItem(key, JSON.stringify(s));
     return true;
   } catch {
-    // Quota exceeded, or storage disabled entirely. Not remembering the session is a lesser
-    // failure than breaking the app, so this stays silent — but it is reported, not swallowed.
+    // **Quota exceeded — and the undo stack is the part to give up, not the design.** Storage can
+    // also be disabled outright (Safari private browsing), which this same branch covers.
+    //
+    // The stack is capped at `HISTORY_DEPTH` steps, but each step carries a whole `edits` snapshot
+    // and those are append-only in the structural fields, so on a heavily built design it is the one
+    // part of this record that grows in practice. `MAX_BYTES` above is measured against the design
+    // alone and cannot see it. Writing the stack is a strict improvement when it fits and a strict
+    // LOSS if it costs the design: a flyer who loses their rocket because the app was trying to
+    // remember how to undo it has been made worse off by a feature meant to help.
+    if (s.history) {
+      try {
+        const { history: _dropped, ...rest } = s;
+        void _dropped;
+        localStorage.setItem(key, JSON.stringify(rest));
+        return true;
+      } catch {
+        return false;
+      }
+    }
     return false;
   }
 }

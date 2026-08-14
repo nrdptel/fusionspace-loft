@@ -2716,6 +2716,70 @@ test.describe("Loft", () => {
     await expect.poll(async () => parseFloat((await span.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
   });
 
+  test("a docs link the app itself planted does not throw the undo stack away", async ({ page }) => {
+    // **P17's first clause, and the seam the shell was built to close everywhere except here.**
+    // `app/(app)/layout.tsx` holds the design above the four workspace routes precisely so moving
+    // between them keeps the edits and the undo stack. `/docs/*` resolves through a DIFFERENT layout,
+    // so following one of the docs links the app plants beside its own numbers unmounts the shell —
+    // and the design came back from the saved session while the stack did not, because nothing
+    // stored one. Three edits in, one click on a link Loft put there, and Undo was greyed out with
+    // the edits still applied and no way back to them.
+    //
+    // **It CLICKS the app's own link rather than navigating to the URL**, which is the difference
+    // between this and the version that was withdrawn: a `page.goto("/docs/methods")` passes
+    // unchanged if the link is deleted, so it pins the navigation and not the affordance.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Design" }).click();
+
+    const field = (re: RegExp) => page.locator("input").and(page.getByLabel(re)).first();
+    const undo = page.getByRole("button", { name: /^Undo/ });
+
+    // Three edits on three different fields — the coalescing window is keyed per field, so they
+    // cannot merge into one gesture however fast they are typed.
+    await field(/Fin span/).fill("75");
+    await field(/Fin span/).blur();
+    await field(/Body length/).fill("700");
+    await field(/Body length/).blur();
+    await field(/Nose length/).fill("140");
+    await field(/Nose length/).blur();
+    await expect(undo).toBeEnabled();
+    const labelBefore = await undo.textContent();
+
+    // Out through the app's own link, and back the way a flyer goes.
+    await page.getByRole("link", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "where it's weak" }).click();
+    await expect(page).toHaveURL(/\/docs\/limitations/);
+    await page.goBack();
+
+    // **Back on the DESIGN workspace before asserting on its fields.** `goBack` lands on `/flight`,
+    // where the design panel is `hidden` rather than unmounted — and `toHaveValue` reads a hidden
+    // input happily, so the first draft of this case passed without ever looking at the workspace it
+    // asserts on.
+    await page.getByRole("link", { name: "Design" }).click();
+    await expect(field(/Fin span/)).toBeVisible({ timeout: 15000 });
+
+    // The edits are still applied…
+    await expect(field(/Fin span/)).toHaveValue("75");
+    // …and so is the way back out of them, which is the half that used to be lost.
+    await expect(undo, "the undo stack did not survive the docs link").toBeEnabled();
+    expect(await undo.textContent(), "the stack came back as itself, not as a stub").toBe(labelBefore);
+
+    // All three steps, each returning its field to the value it held BEFORE that edit — which for
+    // these three is the design's own, rendered as an empty override box. Asserting the exact value
+    // rather than "not the edited one": all three prior values are empty, so a single reset-shaped
+    // restore would satisfy three `not.toHaveValue` checks while undoing nothing in order.
+    await undo.click();
+    await expect(field(/Nose length/)).toHaveValue("");
+    await expect(field(/Body length/), "only the top step comes off").toHaveValue("700");
+    await undo.click();
+    await expect(field(/Body length/)).toHaveValue("");
+    await expect(field(/Fin span/), "and only that one").toHaveValue("75");
+    await undo.click();
+    await expect(field(/Fin span/)).toHaveValue("");
+  });
+
   test("leaving a design is undoable, and the undo brings the what-ifs with it", async ({ page }) => {
     // "Import another" is a text-link-styled button 12 px from the design-name input, and one click on
     // it discarded the loaded design, every what-if on it and the session, with no confirmation and no

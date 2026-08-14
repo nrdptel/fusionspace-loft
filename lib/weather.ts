@@ -195,6 +195,48 @@ export function parseForecast(raw: unknown, lat: number, lon: number, place?: st
   }
   aloft.sort((a, b) => a.altitudeMsl - b.altitudeMsl);
 
+  return deriveConditions({
+    place,
+    latitude: lat,
+    longitude: lon,
+    elevationMsl,
+    tempC,
+    surfacePressurePa,
+    surfaceWindMps,
+    surfaceWindDirDeg,
+    aloft,
+    aloftTime,
+    aloftMatched,
+  });
+}
+
+/** Everything about the conditions that is DATA — every field of `WeatherConditions` except the two
+ *  it derives. This is the half that can be written down, sent somewhere, or stored. */
+export type PlainConditions = Omit<WeatherConditions, "atmosphere" | "windProfile">;
+
+/** Build the two DERIVED members from the plain ones, and there is exactly one of these.
+ *
+ *  **`atmosphere` is a class instance and `windProfile` is a closure**, so neither survives
+ *  `JSON.stringify` — a round trip leaves `atmosphere.sample` undefined, and `lib/sim/simulate.ts`
+ *  calls exactly that. Anything that stores conditions therefore stores the plain half and rebuilds
+ *  these, which is what this function is for. Extracted from `parseForecast` rather than copied
+ *  beside it, so a stored record and a freshly fetched one cannot come back subtly different: there
+ *  is one definition of what the wind does between two reported levels, and both callers get it.
+ *
+ *  Every input is already a field of the record — ground elevation, surface temperature and pressure,
+ *  the surface wind, and the reported levels aloft — so nothing is lost by storing the plain half.
+ *  That is the property that makes the conditions storable at all, and it is worth stating because it
+ *  is not obvious from the type: `WeatherConditions` looks like a bag of data with two odd members,
+ *  and it is really eleven inputs and two functions OF them. */
+export function deriveConditions(c: PlainConditions): WeatherConditions {
+  const { elevationMsl, tempC, surfacePressurePa, surfaceWindMps, surfaceWindDirDeg } = c;
+  // **Sorted HERE, not by the caller, because `windProfile` below depends on it.** The profile tests
+  // `altMsl <= aloft[0]` and then walks ascending pairs, so an unsorted array does not throw — it
+  // silently reads the surface wind where it should interpolate, and interpolates the wrong pair
+  // above that. `parseForecast` used to own the sort, which was fine while it was the only caller;
+  // the moment a stored record could be read back in, the invariant had to move to the one function
+  // that requires it. A copy, so a caller's array is never reordered underneath it.
+  const aloft = [...c.aloft].sort((a, b) => a.altitudeMsl - b.altitudeMsl);
   const atmosphere = atmosphereForGround(elevationMsl, cToK(tempC), surfacePressurePa);
 
   const windProfile = (altAgl: number): Vec3 => {
@@ -219,21 +261,85 @@ export function parseForecast(raw: unknown, lat: number, lon: number, place?: st
     return windVector(top.windMps, top.windDirDeg);
   };
 
-  return {
-    place,
-    latitude: lat,
-    longitude: lon,
+  return { ...c, aloft, atmosphere, windProfile };
+}
+
+/** The storable half of live conditions — the write-side counterpart of `rehydrateConditions`.
+ *
+ *  **Storing the live object instead writes the dead one and pays for it.** `Atmosphere` is a class
+ *  whose own fields are enumerable, so `JSON.stringify` faithfully emits its internals — a layer
+ *  table and its constants — into every record that holds a `WeatherConditions`. Those bytes are
+ *  worse than useless: they cannot be called, `rehydrateConditions` ignores them and rebuilds from
+ *  the eleven plain fields anyway, and where a record holds MANY conditions — an undo stack whose
+ *  steps each carry the same fetch — the same dead blob is written once per step. Dropping the two
+ *  derived members before the write is both smaller and honest about what is being stored. */
+export function plainConditions(c: WeatherConditions): PlainConditions {
+  const { atmosphere: _a, windProfile: _w, ...plain } = c;
+  void _a;
+  void _w;
+  return plain;
+}
+
+/** Read a stored plain record back into live conditions, or `null` if it is not one.
+ *
+ *  Field by field rather than a cast, for `lib/session.ts`'s reason: storage is not to be trusted,
+ *  and a half-read record here does not fail at the read — it fails inside the solver, several
+ *  interactions later, as a `TypeError` on a method the flyer has no way to connect to a stale
+ *  `localStorage` entry. `aloft` is checked element by element for the same reason: one malformed
+ *  level makes `windProfile` return `NaN` at exactly one altitude band, which is a wrong drift number
+ *  rather than a crash. */
+export function rehydrateConditions(x: unknown): WeatherConditions | null {
+  if (!x || typeof x !== "object") return null;
+  const c = x as Record<string, unknown>;
+  const num = (k: string) => (typeof c[k] === "number" && Number.isFinite(c[k] as number) ? (c[k] as number) : undefined);
+  const elevationMsl = num("elevationMsl");
+  const tempC = num("tempC");
+  const surfacePressurePa = num("surfacePressurePa");
+  const surfaceWindMps = num("surfaceWindMps");
+  const surfaceWindDirDeg = num("surfaceWindDirDeg");
+  const latitude = num("latitude");
+  const longitude = num("longitude");
+  if (
+    elevationMsl === undefined ||
+    tempC === undefined ||
+    surfacePressurePa === undefined ||
+    surfaceWindMps === undefined ||
+    surfaceWindDirDeg === undefined ||
+    latitude === undefined ||
+    longitude === undefined
+  ) {
+    return null;
+  }
+  if (!Array.isArray(c.aloft)) return null;
+  const aloft: AloftLevel[] = [];
+  for (const lv of c.aloft) {
+    if (!lv || typeof lv !== "object") return null;
+    const l = lv as Record<string, unknown>;
+    if (
+      typeof l.altitudeMsl !== "number" ||
+      typeof l.windMps !== "number" ||
+      typeof l.windDirDeg !== "number" ||
+      !Number.isFinite(l.altitudeMsl) ||
+      !Number.isFinite(l.windMps) ||
+      !Number.isFinite(l.windDirDeg)
+    ) {
+      return null;
+    }
+    aloft.push({ altitudeMsl: l.altitudeMsl, windMps: l.windMps, windDirDeg: l.windDirDeg });
+  }
+  return deriveConditions({
+    place: typeof c.place === "string" ? c.place : undefined,
+    latitude,
+    longitude,
     elevationMsl,
     tempC,
     surfacePressurePa,
     surfaceWindMps,
     surfaceWindDirDeg,
     aloft,
-    aloftTime,
-    aloftMatched,
-    atmosphere,
-    windProfile,
-  };
+    aloftTime: typeof c.aloftTime === "string" ? c.aloftTime : undefined,
+    aloftMatched: c.aloftMatched === true,
+  });
 }
 
 /** Fetch and parse today's conditions for a launch site. */
