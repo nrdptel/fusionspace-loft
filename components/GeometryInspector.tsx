@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { MassProvenance, Material, Rocket, RocketComponent } from "@/lib/model/types";
-import { flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
+import { canAnchorAfter, flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import { cgSourceLabel, massSource, massSourceLabel } from "@/lib/mass-provenance";
 import type { MotorMark } from "@/lib/sim/setup";
@@ -673,6 +673,22 @@ export default function GeometryInspector({
     pickTarget.entry.pick.outerDiameter > pickTarget.outerDiameter;
   const pickDropped = pickTooLong || pickTooWide;
 
+  /** Whether the picked part is a body tube — the second of the two gates on the add verbs.
+   *
+   *  A part authored BEHIND the pick needs an aft face to fair to, which a nose cone and a transition
+   *  have; a part authored INSIDE it, or mounted ON it, needs a tube. Both were one body-tube test
+   *  until 2026-08-14, which refused "add a tube behind this" on the nose cone of every design. */
+  const hostIsTube = !!selectedId && parts.find((x) => x.component.id === selectedId)?.component.kind === "bodytube";
+  /** Whether a part can be authored BEHIND the pick — the first of the two gates.
+   *
+   *  **Optional, not asserted, and that distinction cost a red gate.** `selectedId` can name a part
+   *  that is no longer in `parts` — the moment after a removal is the ordinary case — so a non-null
+   *  assertion here throws inside render and takes the whole panel with it, blanking the parts table
+   *  rather than hiding a button. The predicate the original spelled inline was already written this
+   *  way for the same reason. */
+  const picked = selectedId ? parts.find((x) => x.component.id === selectedId)?.component : undefined;
+  const anchorAfterOk = !!picked && canAnchorAfter(picked);
+
   // A part's host, by the host's OWN name, so "in Payload coupler" and the row reading "Payload
   // coupler" are the same string. Undefined where the design never named the host — see the prop's
   // docblock: the kind fallback said "in Body tube" on every nested row of an unnamed design, which
@@ -945,7 +961,13 @@ export default function GeometryInspector({
             one of these, here" — the part it goes behind is the one on screen, the new part inherits
             its caliber, wall, material and finish, and the editor's fields re-aim at it the moment it
             exists. The numbers are the confirmation, not the gesture. */}
-        {onAddAfter && selectedId && parts.find((x) => x.component.id === selectedId)?.component.kind === "bodytube" && (
+        {/* **Two gates, because there are two gestures.** A part authored BEHIND this one needs an aft
+            face to fair to — `canAnchorAfter`, true of a nose cone and a transition as well as a
+            tube — while a part authored INSIDE it, or mounted ON it, needs a tube. Both were spelled
+            as one body-tube test, which refused "add a tube behind this" on the nose cone of every
+            design: the first part a from-scratch build has, and the one place the gesture is most
+            obviously wanted. */}
+        {onAddAfter && selectedId && anchorAfterOk && (
           <p className="mt-1 text-sm">
             <Button
               onClick={() => onAddAfter(selectedId)}
@@ -956,7 +978,7 @@ export default function GeometryInspector({
             {/* Only where there is a set to copy — the new ring is cloned from the design's own rather
                 than derived from invented proportions, so a design with no fins has no source and the
                 control is not offered. All 35 corpus designs carry one, and so does the starter. */}
-            {parts.some((x) => x.component.kind === "trapezoidfinset") && (
+            {hostIsTube && parts.some((x) => x.component.kind === "trapezoidfinset") && (
               <Button
                 className="ml-1.5"
                 onClick={() => onAddAfter(selectedId, "trapezoidfinset")}
@@ -974,13 +996,15 @@ export default function GeometryInspector({
                 nose ballast. It mounts INSIDE the tube rather than behind it, so unlike the other three
                 it needs a station, and the corpus supplies one: a third of the way down the part
                 holding it, which is where a real bay sits. */}
-            <Button
+            {hostIsTube && (
+              <Button
               className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "masscomponent")}
               aria-label="Add a mass inside this — electronics, a tracker, ballast — and re-fly the design"
             >
               <span aria-hidden>+</span> Add a mass inside this
             </Button>
+            )}
             <Button
               className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "transition")}
@@ -1003,20 +1027,24 @@ export default function GeometryInspector({
                 corpus designs — because a part longer than its host does not overhang the back, it
                 overhangs the FRONT into whatever is ahead of it. The label says "as long as the tube
                 allows" rather than promising a length the tube cannot give. */}
-            <Button
+            {hostIsTube && (
+              <Button
               className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "tubecoupler")}
               aria-label="Add a coupler inside this — a tube at this one's bore, as long as the tube allows, and re-fly the design"
             >
               <span aria-hidden>+</span> Add a coupler inside this
             </Button>
-            <Button
+            )}
+            {hostIsTube && (
+              <Button
               className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "centeringring")}
               aria-label="Add a centering ring inside this — a plate bored to the motor mount where this tube has one, or to a typical bore where it has none, and re-fly the design"
             >
               <span aria-hidden>+</span> Add a centering ring inside this
             </Button>
+            )}
           </p>
         )}
         {/* Authoring by SELECTION for the two internal kinds, on the part it describes. It sits HERE
