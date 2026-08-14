@@ -12,6 +12,19 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-14, from the run's own closing cold walk** (tenth-use journey: import → sweep →
+Monte-Carlo → cross-check, driven against the built export of `59bf140`).
+
+- **The cross-check workspace renders two tables and offers one export control between them.** One of
+  the two cannot be copied or downloaded at all, on the surface whose whole job is publishing a
+  disagreement somebody will argue with elsewhere — so the flyer who wants to take that argument to a
+  forum has to retype it. Measured by counting `table` elements against `Copy`/`Download` buttons on
+  `/validate` with the bundled 38 mm single-deploy sample loaded. The four tables that use
+  `DataTable`'s own export get it for free (`DataTable.tsx:163`), so this is a table that renders its
+  own rows; the fix is the same one `MassBreakdown` needs, one surface over.
+- **All three analysis panels arrive closed** — `details[open]` is 0 on entering the sweep workspace
+  with a design loaded — which confirms from the running app what was filed from the source above.
+
 **Filed 2026-08-14, from the corpus sweep and the phone walk** — the two opening-fan-out lenses that
 died on API 529s the first time and were re-run. The sweep confirmed its own population before any of
 this was believed: `imports every design file (35 present)`, 45 tests, 0 failures, and all twelve
