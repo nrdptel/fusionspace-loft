@@ -6220,7 +6220,57 @@ totals would make every legitimate utility addition a failure.
 
 ## P17 — The shell survives every navigation, including the ones it does not own
 
-**Status: NOT STARTED.** Written 2026-08-14 because P16 shipped and the P-track went dry, and
+**Status: NOT STARTED — increment 1 was built, gated green, and WITHDRAWN before it shipped.** The
+knowledge is below; the code is not in `main` and should not be resurrected as written.
+
+**Increment 1 was attempted 2026-08-14 and pulled by its own pre-push review.** It persisted the
+undo stack in `SavedSession`, replayed it on a resume only, and passed the whole gate — lint clean,
+1,261 unit tests, six postbuild checks, its own e2e case green with a working negative control. It
+was still wrong, and wrong in the one way this milestone cannot afford.
+
+**`WhatIf.weather` is not serialisable, and the failure is a PERMANENT one-way door.**
+`WeatherConditions` carries `atmosphere`, an instance of the `Atmosphere` **class**
+(`lib/sim/atmosphere.ts:62`, with a `sample()` method at `:94`), and `windProfile`, a **function**
+(`lib/weather.ts:50`). `JSON.stringify` drops the prototype and the function outright — verified
+directly: a round trip leaves `atmosphere.sample` as `undefined`, and calling it throws *"is not a
+function"*. `lib/sim/simulate.ts:633` calls exactly that. So a step committed while today's weather
+was loaded cannot be flown after a restore: `fly` throws, the apply returns false, and **`undoStep`
+returns without consuming the step**. The flyer gets raw JavaScript text in the error strip, Undo
+stays lit, and every step beneath it is unreachable for good. That is damage-order 1 — a state with
+no way back — created by the fix for damage-order 1.
+
+**What the next attempt has to do, all of it measured rather than guessed:**
+
+1. **Persist a step's state WITHOUT `weather`**, or persist a re-derivable descriptor of it rather
+   than the live object. Anything holding a class instance or a closure cannot go through
+   `localStorage`, and nothing in the type system says so.
+2. **Bound the record by BYTES, not by step count.** `HISTORY_DEPTH` caps the stack at 100 steps and
+   `MAX_BYTES` is checked against `s.design.length` alone, before the write — so the history is
+   unbounded past it. Worst case measured: a 6 KB from-scratch design with 100 steps of a heavily
+   built rocket is a **1.85 MB record, 1.82 MB of it history**, while the guard sees 6,000. The cost
+   is quadratic in structural edits, because `edits.added` / `moved` / `removedIds` are append-only.
+3. **Cost the write.** That record is a synchronous `JSON.stringify` plus a `localStorage.setItem`
+   **per keystroke**, on the main thread, on the phone §8 is written for.
+4. **Validate every STEP on read, not just that the two lists are arrays.** `undoHistory` reads
+   `step.state` straight into `setEdits`, so `past: [1, 2, 3]` jams the stack the same way. The
+   withdrawn increment had this fixed and it is worth keeping: all-or-nothing, because dropping only
+   the bad steps silently changes what "undo three times" means.
+5. **`reset()` — "Import another" — still discards the stack**, and it is the app's one destructive
+   act. A stack that survives a docs link but not that link is half a fix.
+6. **Drive the actual LINK in the e2e case.** The withdrawn test used `page.goto("/docs/methods")`,
+   which is a typed URL: it would have passed unchanged if the in-app link were deleted. Click
+   `LoftApp.tsx`'s own `<Link>`.
+7. **Close the restored top step's run** — nothing calls `endRun` on resume, so an edit to the same
+   field within the coalescing window merges into the restored step and one undo takes back two
+   gestures.
+
+**The lesson, which is bigger than this milestone.** A green gate said this was fine: the failure
+needs a fetched forecast, an edit, a navigation and an undo, in that order, and no test walks that
+sequence. **Persisting a state object is a promise that every field in it is data**, and neither the
+type nor the gate checks it. Whatever ships here must be argued from the SHAPE of what is stored,
+not from a passing suite.
+
+Written 2026-08-14 because P16 shipped and the P-track went dry, and
 `MAINTAINING.md` says extending the track IS the work in that case. Chosen over the other candidates
 the run's fan-out produced because it is the only one that ranks 1 on this file's own damage order —
 a state a flyer can enter with no way back to the work they had done — and because it is **P2's own
