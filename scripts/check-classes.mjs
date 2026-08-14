@@ -47,12 +47,17 @@
  *  Run after a build: `node scripts/check-classes.mjs`. Prints the counts and exits 1 on any class
  *  with no rule, naming the class and the first document it appears in.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { resolve, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const out = resolve(root, "out");
+
+if (!existsSync(out)) {
+  console.error("check-classes: out/ not found — run this after `npm run build`.");
+  process.exit(1);
+}
 
 /** Classes that legitimately carry no rule of their own. Each is a MARKER read by another selector
  *  or by script, not a utility — so "no rule" is correct for it and always will be. Kept as an
@@ -152,6 +157,22 @@ for (const f of htmlFiles) {
 console.log(
   `check-classes: ${tokens} class use(s) across ${htmlFiles.length} document(s), against ${defined.size} selector(s) in ${cssFiles.length} stylesheet(s)`,
 );
+
+// **A pass over nothing is the failure this whole milestone is named after, and this script shipped
+// without the guard against it** — the only one of the five postbuild checks missing it, in the
+// increment that introduced the milestone about instruments that certify nothing. With no documents
+// or no stylesheet, `tokens` is 0, `missing` is empty, and it prints "every served class has a rule"
+// and exits 0. `check-links.mjs` refuses the same shape in the same words. The floors are an order of
+// magnitude below the real figures (6,163 uses across 14 documents against 500 selectors), so they
+// catch an empty or truncated export without becoming a ratchet on every legitimate addition.
+if (!htmlFiles.length || !cssFiles.length || tokens < 100 || defined.size < 50) {
+  console.error(
+    "check-classes: this examined almost nothing, which cannot be right — " +
+      `${htmlFiles.length} document(s), ${cssFiles.length} stylesheet(s), ${tokens} class use(s), ${defined.size} selector(s). ` +
+      "A pass over an empty or partial export is the false all-clear, not a result.",
+  );
+  process.exit(1);
+}
 
 if (missing.size) {
   console.error(`check-classes: ${missing.size} class(es) served with NO rule behind them:`);
