@@ -15,7 +15,8 @@
  *  the two form factors are tuned separately, not stretched from one layout.
  *
  *  **Keyed on the POINTER, not on the viewport width, and that is a correction rather than a
- *  preference.** These read `min-h-11 sm:min-h-0` until 2026-08-01: the floor was released at the
+ *  preference.** These carried the 11-step min-height and released it again at the sm breakpoint
+ *  until 2026-08-01: the floor was released at the
  *  `sm:` breakpoint, 640 px. `DESIGN.md` §8 says "44 px minimum hit target on `pointer: coarse`,
  *  everywhere, not just where it was first measured", and the sentence above this one has claimed
  *  "touch layouts" for as long as it has existed — but width is not touch. **Measured on a Pixel 7
@@ -87,8 +88,9 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
  *  Gating on only one of them is not theoretical: gating on `aria-disabled` alone shipped for one
  *  commit and made the diagram's zoom −/+ light up with the full secondary treatment at the ends of
  *  their range. Measured on the built export, `disabled=true`: rest `rgba(0,0,0,0)` / zinc-300,
- *  hover `oklab(0.985 …)` / indigo-400. The hand-rolled string this replaced had carried an explicit
- *  `disabled:hover:bg-transparent` that the conversion dropped, so the guard existed and was lost.
+ *  hover `oklab(0.985 …)` / indigo-400. The hand-rolled string this replaced had carried an
+ *  explicit disabled-hover transparent-background guard that the conversion dropped, so the guard
+ *  existed and was lost.
  *
  *  Spelled out in full at every site on purpose. Tailwind scans SOURCE for literal class strings, so
  *  hoisting the `not-disabled:not-aria-disabled:` prefix into a constant and interpolating it would

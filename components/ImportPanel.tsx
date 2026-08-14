@@ -204,7 +204,8 @@ export default function ImportPanel({
               e.target.value = "";
             }}
           />
-          {/* The peer of the primary beside it, and it used to be visibly taller: `px-4 py-2.5`
+          {/* The peer of the primary beside it, and it used to be visibly taller, at a 4-step
+              horizontal pad over a 2.5-step vertical one
               against `Button`'s `px-3 py-1.5`, so the two controls a first-time visitor chooses
               between were different heights on the one surface everybody sees first. */}
           <Button disabled={busy} onClick={onNew}>
@@ -232,7 +233,8 @@ export default function ImportPanel({
               <li key={r.id} className="flex min-w-0 items-stretch rounded-md border border-zinc-300 dark:border-zinc-700">
                 {/* A split control: the `<li>` owns the outer border and radius, so each half
                     squares off the edge they meet at. `rounded-r-none` / `rounded-l-none` rather
-                    than a hand-rolled `rounded-l-md` — a corner utility overrides the primitive's
+                    than a hand-rolled left-corner radius at the control step — a corner utility
+                    overrides the primitive's
                     own all-corner radius, which is what lets a split control be built FROM the
                     primitive instead of beside it. */}
                 <Button

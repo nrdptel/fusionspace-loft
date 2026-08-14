@@ -95,25 +95,32 @@ const KNOWN_ISSUES: Record<string, string> = {
     "(1326.5 m and 1328.6 m) despite very different motors, which Loft doesn't reproduce. Flying " +
     "the sustainer after separation rather than at booster burnout was tried and made BOTH " +
     "configurations worse (+23.6% and +21.7%), so the timing is not the cause.",
-  "Punisher Apprentice.ork::Simulation 10":
-    "Largest motor in a nine-simulation sweep; the rest land within 8%.",
-  "03.Three-stage.ork":
-    "Third-stage burn still diverges after the ignition-order fix. **Re-measured 2026-08-02, and " +
-    "the previous text was stale in both halves**: it said apogee was within 10% and max velocity " +
-    "read 17% low. Before R7's per-set fin cross-section it was apogee -7.57% and max velocity " +
-    "-3.78%; after, apogee +10.76%, max velocity +4.95% and FLIGHT TIME +10.67% (it was -5.6%), " +
-    "which is the number a flyer sizes a tracking or recovery window on and is nearly as large as " +
-    "the apogee error. This design is the one place in the " +
-    "corpus where that fix made an APOGEE error worse. It is not the only design it touched at all: " +
-    "02.Two-stage.ork's max-velocity error grew 0.51% -> 0.92% while its apogee error fell -2.15% -> " +
-    "-0.38%. The reason here is known rather than mysterious: " +
-    "three of its five fin sets are rounded and were being billed as square (over-drag), while its " +
-    "leading-edge sweep is still collapsed to one design-wide 22.4 degrees against five real sets at " +
-    "35.0-70.6 degrees (also over-drag). The two were partly cancelling, and only one is fixed. " +
-    "R7's sweep slice is what closes the other; making it per-set in the same increment was measured " +
-    "and reverted, because it moved no census median the right way and pushed a real design outside " +
-    "the agreement tolerance.",
 };
+
+/** **Two entries were dropped from `KNOWN_ISSUES` on 2026-08-14, and this records what came with
+ *  them.** Both had come inside the ±`TOLERANCE_PCT` the suite asserts, so each was excusing a case
+ *  that would have passed — and the nudge above could not say so, because its apogee bar was half the
+ *  tolerance and both sat in the gap. Re-measured before removal:
+ *
+ *  - `Punisher Apprentice.ork::Simulation 10` — apogee **−10.15%**, max velocity **−1.56%**. It was
+ *    the largest motor in a nine-simulation sweep; the other eight land within 7.5%. Now asserted,
+ *    with **1.85 points** of margin on apogee.
+ *  - `03.Three-stage.ork::Simulation 1` — apogee **+10.76%**, max velocity **+4.95%**, flight time
+ *    **+10.67%**. Now asserted, with **1.24 points** of margin — the thinnest armed case in the
+ *    corpus, and named here so the next run knows how close it is rather than rediscovering it from
+ *    a red gate.
+ *
+ *  **The physical gap behind the second one is NOT closed, and deleting its prose with its entry
+ *  would have lost the only record of it.** Three of that design's five fin sets are rounded and were
+ *  billed as square (over-drag) until R7's per-set cross-section; its leading-edge sweep is still
+ *  collapsed to one design-wide 22.4° against five real sets at 35.0–70.6° (also over-drag). The two
+ *  errors were partly cancelling and only one is fixed, which is why R7 made this design's apogee
+ *  error WORSE — the one place in the corpus where it did. Making the sweep per-set in that same
+ *  increment was measured and reverted: it moved no census median the right way and pushed a real
+ *  design outside the agreement tolerance. R7's sweep slice is what closes it.
+ *
+ *  So the case passes and the model is still approximate, which is exactly the state a passing
+ *  assertion cannot express — hence this comment rather than silence. */
 
 /** The per-metric accuracy the Validation page publishes: median absolute disagreement with each
  *  file's own stored results, across every stored simulation Loft flies completely (known issues
@@ -2611,9 +2618,21 @@ suite("real-design corpus", () => {
     // Apogee alone isn't enough to say so: several of these files store results their own
     // geometry can't produce, and one of them agrees on apogee while reading 25% high on speed.
     // Requiring the trajectory to agree too keeps the nudge from arming a coincidence.
+    //
+    // **The apogee bar used to be `TOLERANCE_PCT / 2`, and that made this nudge blind over exactly
+    // the band it exists to police.** The suite ASSERTS at `TOLERANCE_PCT`; the nudge asked for half
+    // of it, so an entry sitting between the two — passing the assertion it is excused from, and
+    // therefore excusing nothing — could never be reported, however long it stayed that way.
+    // Measured 2026-08-14, both in that band and both invisible to this line for as long as it read
+    // `/2`: `Punisher Apprentice.ork::Simulation 10` at apogee −10.15% / velocity −1.56%, and
+    // `03.Three-stage.ork` at +10.76% / +4.95%. Two suppressed assertions that would have passed.
+    // The velocity clause is what stops a coincidence arming — that was always the real guard, and
+    // it is untouched; the halved apogee bar was a second, stricter one with no reason of its own.
+    // A check that cannot fire over the range it polices is the shape P14 and P16 are both about,
+    // and this is that shape inside the corpus rather than inside the gate.
     const fixed = excused.filter(
       (c) =>
-        Math.abs(c.pctError) <= TOLERANCE_PCT / 2 &&
+        Math.abs(c.pctError) <= TOLERANCE_PCT &&
         c.velPctError !== undefined &&
         Math.abs(c.velPctError) <= TOLERANCE_PCT,
     );
