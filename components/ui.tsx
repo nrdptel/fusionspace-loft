@@ -255,7 +255,8 @@ function SectionHeader({ title, aside }: { title: React.ReactNode; aside?: React
  *  raised card; where it is, that is `Panel`.
  *
  *  **It had zero call sites for five runs, and the reason was in its own implementation.** It imposed
- *  `mt-8 first:mt-0` on the region and `mt-4` on the children — rhythm the routes already own through
+ *  an 8-step top margin, zeroed on the first child, plus a 4-step one on the children — rhythm the
+ *  routes already own through
  *  `space-y-8` on the workspace, so adopting it would have doubled every gap. A primitive that
  *  cannot be adopted without a repaint does not get adopted; it gets copied. Both margins are gone
  *  and the call site keeps its own spacing class, which is what the two real regions were already
@@ -849,9 +850,9 @@ export function ErrorState({
  *
  *  **Eight sites across five files, one treatment, hand-rolled at TWO radii — and §9's radius check
  *  could not see any of it.** Measured 2026-08-09: five bar swatches (`inline-block h-2 w-3`) wrote
- *  `rounded-sm` four times and `rounded-[2px]` once, for the same 12x8 px chip; three marker dots
+ *  the sm radius step four times and a 2 px arbitrary radius once, for the same 12x8 px chip; three marker dots
  *  wrote `h-2 w-2 rounded-full`, one of them with a border instead of a fill. The old radius grep
- *  named the single literal `rounded-lg`, so every one of them read as compliant. This is the twelve
+ *  named a single literal — the lg step — so every one of them read as compliant. This is the twelve
  *  card treatments in miniature, in the part of the tree the instrument was blind to.
  *
  *  **`bar` for a series, `dot` for a marker**, because that is the distinction the legends already
@@ -1202,8 +1203,9 @@ export function Popover({
           className={cx(
             "absolute top-full z-30 mt-2 text-left normal-case tracking-normal outline-none",
             // Anchored to the VIEWPORT below `sm` and to the trigger above it. Both edges are named
-            // explicitly rather than through `inset-x-*` plus an override: `left-0` and `inset-x-4`
-            // both set `left` at equal specificity, so which wins is source order in the generated
+            // explicitly rather than through an inset-x utility plus an override: a zero-left
+            // utility and an inset-x at a step both set `left` at equal specificity, so which wins is
+            // source order in the generated
             // stylesheet, and measured on a 390 px phone the panel came out at x=0 with only the
             // right gutter applied.
             "max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-auto max-sm:bottom-4",

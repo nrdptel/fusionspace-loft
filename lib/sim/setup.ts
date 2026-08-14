@@ -395,7 +395,7 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
       const stage = rocket.stages[i];
       // An empty stage carries nothing, so there is no dead mass to warn about — only noise.
       if (!stage || stage.components.length === 0) continue;
-      // Capitalised, because the warning uses this name to OPEN its sentence. A lowercase
+      // Capitalised, because the warning uses this name to OPEN its sentence. An uncapitalised
       // `stage ${i+1}` fallback under a template that prepended "The stage " read "The stage stage 2".
       deadStages.push({ name: stage.name || `Stage ${i + 1}`, shed: Number.isFinite(detachT[i]) });
     }
