@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { resolveWorkspace, WORKSPACES } from "./workspaces";
+import { deriveConditions, plainConditions, rehydrateConditions } from "./weather";
 import {
   toBase64,
   fromBase64,
   loadSession,
   saveSession,
+  storableHistory,
   clearSession,
   loadRecents,
   rememberRecent,
@@ -73,6 +75,231 @@ describe("session storage", () => {
     expect(back?.units).toBe("imperial");
     expect(back?.simIndex).toBe(2);
     expect(back?.edits).toEqual({ finSpan: 0.06 });
+  });
+
+  it("carries an undo stack whose conditions still fly after the round trip", () => {
+    // **The failure a previous attempt shipped past its own green gate.** A step's state holds the
+    // live `WeatherConditions`, which is eleven fields of data plus an `Atmosphere` class instance
+    // and a `windProfile` closure. `JSON.stringify` drops both, the record still looks right, and
+    // the throw lands inside the solver on replay — where `undoStep` does not consume a step whose
+    // apply failed, so the control stays lit over a stack nothing can walk.
+    //
+    // Asserted on BEHAVIOUR rather than on the keys being present: the dead round-tripped object
+    // still has an `atmosphere` property of type object, which is exactly what made this easy to miss.
+    const conditions = deriveConditions({
+      place: "Somewhere",
+      latitude: 32.9,
+      longitude: -106.9,
+      elevationMsl: 1400,
+      tempC: 21,
+      surfacePressurePa: 86_000,
+      surfaceWindMps: 4,
+      surfaceWindDirDeg: 270,
+      aloft: [{ altitudeMsl: 1600, windMps: 6, windDirDeg: 280 }],
+      aloftTime: "2026-08-14T12",
+      aloftMatched: true,
+    });
+    const step = {
+      state: { edits: { finSpan: 0.06 }, weather: conditions, scenario: "today", simIndex: 0 },
+      label: "fin span",
+      key: "finSpan",
+      at: 1,
+    };
+    // Stamped, because a stack whose steps carry a forecast is only as restorable as the forecast:
+    // an unstamped one has no age to check and is treated as expired.
+    saveSession({ ...session(), history: { past: [step], future: [] }, weatherAt: Date.now() });
+
+    const back = loadSession();
+    expect(back?.history?.past).toHaveLength(1);
+    const w = (back!.history!.past[0] as { state: { weather: typeof conditions } }).state.weather;
+    expect(w.atmosphere.sample(2000).density).toBeCloseTo(conditions.atmosphere.sample(2000).density, 12);
+    for (const k of ["x", "y", "z"] as const) {
+      expect(w.windProfile(1200)[k]).toBeCloseTo(conditions.windProfile(1200)[k], 12);
+    }
+  });
+
+  it("refuses a stack that is not one, and keeps the rest of the session", () => {
+    const ok = { state: { edits: {}, weather: null, scenario: "design", simIndex: 0 }, label: "x", key: "x", at: 1 };
+    saveSession({ ...session(), history: { past: [ok], future: [] } });
+    expect(loadSession()?.history?.past).toHaveLength(1);
+
+    // All or nothing: dropping only the bad steps would silently change what "undo three times"
+    // means. A bad stack is not a bad session, so everything else must still come back.
+    for (const bad of [
+      { past: [1, 2, 3], future: [] },
+      { past: [{ label: "x", key: "x", at: 1 }], future: [] },
+      { past: [{ ...ok, at: "soon" }], future: [] },
+      { past: [ok], future: [null] },
+      { past: [ok] },
+      // A step whose conditions cannot be rebuilt — the case the whole rehydration exists for.
+      { past: [{ ...ok, state: { ...ok.state, weather: { tempC: 21 } } }], future: [] },
+    ]) {
+      localStorage.setItem("loft.session", JSON.stringify({ ...session(), history: bad }));
+      expect(loadSession()?.history, `accepted ${JSON.stringify(bad).slice(0, 44)}`).toBeUndefined();
+      expect(loadSession()?.name).toBe("rocket.ork");
+    }
+  });
+
+  it("stores conditions as data, not as a dead class instance", () => {
+    // `Atmosphere`'s own fields are enumerable, so storing the LIVE object faithfully writes its
+    // layer table into the record — bytes that cannot be called, that the reader ignores, and that
+    // are written once per step where an undo stack shares one fetch across many. The plain half is
+    // what goes in.
+    const conditions = deriveConditions({
+      place: "Somewhere",
+      latitude: 32.9,
+      longitude: -106.9,
+      elevationMsl: 1400,
+      tempC: 21,
+      surfacePressurePa: 86_000,
+      surfaceWindMps: 4,
+      surfaceWindDirDeg: 270,
+      aloft: [{ altitudeMsl: 1600, windMps: 6, windDirDeg: 280 }],
+      aloftMatched: true,
+    });
+    const plain = plainConditions(conditions);
+    expect(Object.keys(plain), "the two derived members must not be stored").not.toContain("atmosphere");
+    expect(Object.keys(plain)).not.toContain("windProfile");
+    // Everything else survives, so nothing is lost by storing the plain half.
+    expect(plain.tempC).toBe(21);
+    expect(plain.aloft).toHaveLength(1);
+    // And it is smaller than writing the live one, which is the whole point.
+    expect(JSON.stringify(plain).length).toBeLessThan(JSON.stringify(conditions).length);
+    // Round-trips back to something that flies.
+    const back = rehydrateConditions(JSON.parse(JSON.stringify(plain)));
+    expect(back!.atmosphere.sample(2000).density).toBeCloseTo(conditions.atmosphere.sample(2000).density, 12);
+  });
+
+  it("carries the present conditions beside the stack", () => {
+    // Without these the present and the stack disagree about what air is flown: a resume that kept
+    // the stack but dropped the forecast lets one undo jump into weather the flyer cannot otherwise
+    // get back, and one redo lose it again.
+    const conditions = deriveConditions({
+      place: "Somewhere",
+      latitude: 32.9,
+      longitude: -106.9,
+      elevationMsl: 1400,
+      tempC: 21,
+      surfacePressurePa: 86_000,
+      surfaceWindMps: 4,
+      surfaceWindDirDeg: 270,
+      aloft: [],
+      aloftMatched: false,
+    });
+    saveSession({ ...session(), weather: plainConditions(conditions), scenario: "today", weatherAt: Date.now() });
+    const back = loadSession();
+    expect(back?.scenario).toBe("today");
+    const w = back?.weather as typeof conditions;
+    expect(w.atmosphere.sample(1500).density).toBeCloseTo(conditions.atmosphere.sample(1500).density, 12);
+
+    // A record whose conditions will not rebuild must not leave the flyer on "today" with no air
+    // behind it — the conditions are dropped rather than half-read.
+    localStorage.setItem(
+      "loft.session",
+      JSON.stringify({ ...session(), weather: { tempC: 21 }, scenario: "today", weatherAt: Date.now() }),
+    );
+    expect(loadSession()?.weather).toBeUndefined();
+    expect(loadSession()?.name).toBe("rocket.ork");
+  });
+
+  it("lets stored conditions expire, and takes what depends on them", () => {
+    // A forecast is for an HOUR, and the Conditions panel prints `aloftTime` as the hour alone with
+    // no date — so a profile restored from a previous day reads exactly like this evening's. The
+    // file's own measurement puts an unmatched profile up to 154 degrees off the actual hour, and
+    // drift is the number a flyer walks on.
+    const conditions = deriveConditions({
+      place: "Somewhere",
+      latitude: 32.9,
+      longitude: -106.9,
+      elevationMsl: 1400,
+      tempC: 21,
+      surfacePressurePa: 86_000,
+      surfaceWindMps: 4,
+      surfaceWindDirDeg: 270,
+      aloft: [],
+      aloftMatched: true,
+    });
+    const withWeather = { state: { edits: {}, weather: plainConditions(conditions), scenario: "today", simIndex: 0 }, label: "x", key: "x", at: 1 };
+    const stale = Date.now() - 3 * 60 * 60 * 1000;
+
+    // Stale present conditions go, and so does a stack whose steps were taken under them.
+    localStorage.setItem(
+      "loft.session",
+      JSON.stringify({ ...session(), weather: plainConditions(conditions), scenario: "today", weatherAt: stale, history: { past: [withWeather], future: [] } }),
+    );
+    expect(loadSession()?.weather, "stale conditions must not be restored").toBeUndefined();
+    expect(loadSession()?.scenario, "and not the scenario that depends on them").toBeUndefined();
+    expect(loadSession()?.history, "nor a stack whose steps fly them").toBeUndefined();
+    // The design still comes back — expiring the air is not losing the rocket.
+    expect(loadSession()?.name).toBe("rocket.ork");
+
+    // A stack that never touched the weather is unaffected, which is the ordinary session.
+    const plainStep = { state: { edits: {}, weather: null, scenario: "design", simIndex: 0 }, label: "x", key: "x", at: 1 };
+    localStorage.setItem(
+      "loft.session",
+      JSON.stringify({ ...session(), weatherAt: stale, history: { past: [plainStep], future: [] } }),
+    );
+    expect(loadSession()?.history?.past, "a weather-free stack must survive").toHaveLength(1);
+
+    // No stamp at all is treated as stale, because an unstamped forecast has no age to check.
+    localStorage.setItem(
+      "loft.session",
+      JSON.stringify({ ...session(), weather: plainConditions(conditions), scenario: "today" }),
+    );
+    expect(loadSession()?.weather).toBeUndefined();
+  });
+
+  it("strips the derived members from every step before writing", () => {
+    // The read side rebuilds them, so writing the live form is not WRONG — it is dead weight, and
+    // because one fetch is shared by reference across every step that followed it, the same dead
+    // `Atmosphere` blob is written once per step. This is the write-side half of that contract, and
+    // it sits beside the read-side half so the two cannot drift.
+    const conditions = deriveConditions({
+      place: "Somewhere",
+      latitude: 32.9,
+      longitude: -106.9,
+      elevationMsl: 1400,
+      tempC: 21,
+      surfacePressurePa: 86_000,
+      surfaceWindMps: 4,
+      surfaceWindDirDeg: 270,
+      aloft: [{ altitudeMsl: 1600, windMps: 6, windDirDeg: 280 }],
+      aloftMatched: true,
+    });
+    const live = {
+      past: [{ state: { edits: {}, weather: conditions, scenario: "today", simIndex: 0 }, label: "x", key: "x", at: 1 }],
+      future: [],
+    };
+    const out = storableHistory(live);
+    const w = (out.past[0] as { state: { weather: Record<string, unknown> } }).state.weather;
+    expect(Object.keys(w), "the class instance must not be written").not.toContain("atmosphere");
+    expect(Object.keys(w)).not.toContain("windProfile");
+    expect(w.tempC, "and everything that is data survives").toBe(21);
+    expect(JSON.stringify(out).length).toBeLessThan(JSON.stringify(live).length);
+
+    // A step with no conditions comes through untouched, as null rather than absent.
+    const bare = storableHistory({ past: [{ state: { edits: {}, weather: null, scenario: "design", simIndex: 0 }, label: "y", key: "y", at: 2 }], future: [] });
+    expect((bare.past[0] as { state: { weather: unknown } }).state.weather).toBeNull();
+  });
+
+  it("expires on the fetch time it was given, not on the time it was written", () => {
+    // The session is written on every edit and every resume, so a stamp taken at write time is
+    // retaken continuously and the freshness rule measures nothing. This asserts the rule reads the
+    // stamp it is HANDED — the app's side of that contract is a ref carried from the fetch.
+    const stale = Date.now() - 90 * 60 * 1000;
+    const conditions = deriveConditions({
+      place: "P", latitude: 1, longitude: 2, elevationMsl: 100, tempC: 15,
+      surfacePressurePa: 100_000, surfaceWindMps: 3, surfaceWindDirDeg: 90, aloft: [], aloftMatched: true,
+    });
+    // Written now, fetched 90 minutes ago: the write must not renew it.
+    saveSession({ ...session(), weather: plainConditions(conditions), scenario: "today", weatherAt: stale });
+    expect(loadSession()?.weather, "a write must not renew a stale fetch").toBeUndefined();
+
+    // Same record, fetched 10 minutes ago: still this hour's.
+    saveSession({ ...session(), weather: plainConditions(conditions), scenario: "today", weatherAt: Date.now() - 10 * 60 * 1000 });
+    expect(loadSession()?.weather).toBeDefined();
+    // And the stamp survives the read, so a resume can carry it rather than re-taking it.
+    expect(loadSession()?.weatherAt).toBeGreaterThan(0);
   });
 
   it("returns null when nothing is stored", () => {

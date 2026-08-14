@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { aloftIndexForNow, buildForecastUrl, lerpBearing, parseForecast } from "./weather";
+import { aloftIndexForNow, buildForecastUrl, deriveConditions, lerpBearing, parseForecast, rehydrateConditions } from "./weather";
 
 /** `lib/weather.ts` had NO tests, which is most of why it carried two defects that both corrupt the
  *  same number — the wind a flight is flown through, and therefore the drift and the landing point a
@@ -259,5 +259,93 @@ describe("parseForecast — the flight is flown on the hour the flyer is standin
     expect(url).toContain("forecast_days=1");
     expect(url).toContain("current=temperature_2m");
     expect(url).toContain("wind_speed_850hPa");
+  });
+});
+
+describe("storing conditions and reading them back", () => {
+  /** **The property that lets the undo stack, or anything else, be persisted at all.**
+   *
+   *  `WeatherConditions` is eleven fields of data plus two things that are functions OF them:
+   *  `atmosphere` is a class instance and `windProfile` is a closure. `JSON.stringify` drops both
+   *  silently — the record still LOOKS right, and the failure surfaces inside the solver as a
+   *  `TypeError` on a method, several interactions after the write. A whole increment was built,
+   *  gated green and withdrawn over exactly this, so it is asserted here rather than remembered.
+   *
+   *  Asserted on BEHAVIOUR, not on the presence of the two keys: `typeof x.atmosphere === "object"`
+   *  is true of the dead round-tripped object too, which is precisely what made this easy to miss. */
+  const plain = {
+    place: "Somewhere",
+    latitude: 32.9,
+    longitude: -106.9,
+    elevationMsl: 1400,
+    tempC: 21,
+    surfacePressurePa: 86_000,
+    surfaceWindMps: 4,
+    surfaceWindDirDeg: 270,
+    aloft: [
+      { altitudeMsl: 1600, windMps: 6, windDirDeg: 280 },
+      { altitudeMsl: 3000, windMps: 12, windDirDeg: 300 },
+    ],
+    aloftTime: "2026-08-14T12",
+    aloftMatched: true,
+  };
+
+  it("a JSON round trip loses the atmosphere and the wind profile", () => {
+    const live = deriveConditions(plain);
+    expect(live.atmosphere.sample(2000).density).toBeGreaterThan(0);
+    expect(live.windProfile(100).x, "a live profile returns a vector").toBeTypeOf("number");
+
+    const dead = JSON.parse(JSON.stringify(live)) as typeof live;
+    expect(typeof (dead as { windProfile?: unknown }).windProfile, "a function cannot survive JSON").toBe("undefined");
+    expect(() => dead.atmosphere.sample(2000)).toThrow();
+  });
+
+  it("rehydrating that same record gives back conditions the solver can fly", () => {
+    const live = deriveConditions(plain);
+    const back = rehydrateConditions(JSON.parse(JSON.stringify(live)));
+    expect(back).not.toBeNull();
+    // Identical, not merely present — one definition of the derivation, so a stored record and a
+    // freshly parsed one cannot come back subtly different.
+    expect(back!.atmosphere.sample(2000).density).toBeCloseTo(live.atmosphere.sample(2000).density, 12);
+    for (const alt of [0, 150, 1200, 2500, 9000]) {
+      const a = live.windProfile(alt);
+      const b = back!.windProfile(alt);
+      for (const k of ["x", "y", "z"] as const) {
+        expect(b[k], `wind at ${alt} m, ${k}`).toBeCloseTo(a[k], 12);
+      }
+    }
+  });
+
+  it("sorts the levels itself, because the wind profile depends on it", () => {
+    // `windProfile` tests `altMsl <= aloft[0]` and then walks ascending pairs, so an unsorted array
+    // does not throw — it reads the surface wind where it should interpolate. The sort used to live
+    // in `parseForecast`, which was safe only while nothing else could build conditions.
+    const levels = [
+      { altitudeMsl: 3000, windMps: 12, windDirDeg: 300 },
+      { altitudeMsl: 1600, windMps: 6, windDirDeg: 280 },
+    ];
+    const jumbled = deriveConditions({ ...plain, aloft: levels });
+    const sorted = deriveConditions({ ...plain, aloft: [...levels].reverse() });
+    for (const alt of [0, 300, 900, 1800]) {
+      for (const k of ["x", "y", "z"] as const) {
+        expect(jumbled.windProfile(alt)[k], `wind at ${alt} m, ${k}`).toBeCloseTo(sorted.windProfile(alt)[k], 12);
+      }
+    }
+    // And the record it returns carries the sorted order, so a reader cannot inherit the caller's.
+    expect(jumbled.aloft.map((l) => l.altitudeMsl)).toEqual([1600, 3000]);
+    // The caller's own array is not reordered underneath it.
+    expect(levels[0].altitudeMsl).toBe(3000);
+  });
+
+  it("refuses a record that is not one, rather than failing later inside the solver", () => {
+    expect(rehydrateConditions(null)).toBeNull();
+    expect(rehydrateConditions({})).toBeNull();
+    // A field that is present but not a number is the shape a hand-edited or truncated store has.
+    expect(rehydrateConditions({ ...plain, tempC: "warm" })).toBeNull();
+    expect(rehydrateConditions({ ...plain, aloft: "none" })).toBeNull();
+    // One malformed LEVEL is the dangerous case: it would not crash, it would make the wind NaN in
+    // the two altitude bands that level bounds — and if it is the lowest level, the surface-wind
+    // guard mis-fires as well. A wrong drift number rather than a failure.
+    expect(rehydrateConditions({ ...plain, aloft: [{ altitudeMsl: 1600, windMps: 6 }] })).toBeNull();
   });
 });

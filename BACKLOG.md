@@ -25,6 +25,57 @@ Monte-Carlo → cross-check, driven against the built export of `59bf140`).
 - **All three analysis panels arrive closed** — `details[open]` is 0 on entering the sweep workspace
   with a design loaded — which confirms from the running app what was filed from the source above.
 
+**Filed 2026-08-14, from run 16's opening fan-out** — six lenses, both Sev-1 candidates refuted by
+adversarial verifiers, and both refutations recorded because each is more useful than the claim.
+
+- **Apogee is AGL and nothing on any surface or docs page says so.** `lib/sim/simulate.ts:174` marks
+  it `// m AGL` in a code comment; the strings "AGL", "above ground" and "above the pad" appear in
+  **zero** UI strings and **zero** docs pages that describe altitude (the three "above the pad" hits
+  are all about wind). Meanwhile `components/MonteCarlo.tsx:151` frames the number against a WAIVER
+  CEILING in its own comment — "a 3,000 ft waiver on this project's 38 mm sample (apogee 3,230 ft)".
+  **Deliberately not ruled Sev-1**, and the reasoning is worth keeping: AGL is the universal
+  convention in this hobby and every competitor reports it, so the number is correct and unambiguous
+  *to its audience* — it is the datum that is unstated rather than the value that is wrong. But a
+  waiver is the one place a flyer converts a Loft number into a legal claim, and a field 5,000 ft up
+  makes AGL and MSL a 5,000 ft difference. Saying it once, where a flyer checks a ceiling, is cheap.
+- **`components/ResultsView.tsx:705` — on a transonic flight every Readout in the Flight card carries
+  the extrapolated treatment and none of the four plots or the flight-path view does.** The caveat is
+  on the numbers and absent from the pictures of the same numbers, which is the one-surface-says-one-
+  thing shape this repo files against itself repeatedly.
+- **`components/ui.tsx:500` — `Extrapolated`'s inline form renders its reason as
+  `hidden pointer-coarse:block`,** so on a DESKTOP the reason the number is extrapolated, and the
+  range it left, are not on screen at all. The treatment is visible; its explanation is phone-only.
+- **`components/LoftApp.tsx:655` — a file that IMPORTS cleanly but throws in the SOLVER leaves the
+  flyer at `/` with the design chrome and nothing else** — no import panel, no diagram, no spine, no
+  numbers. The import succeeded so the error state never renders, and the workspace needs a run that
+  does not exist.
+- **`components/LoftApp.tsx:447` — the unit system resets to metric on every visit** and there is no
+  unit control until a design is loaded, so an imperial flyer's first screen is always metric.
+- **`components/LoftApp.tsx:4375` — the Conditions summary reads "as designed" even when Loft read
+  no launch conditions from the file at all**, conflating "the design states these" with "the design
+  states nothing and these are defaults".
+- **`components/ImportPanel.tsx:147` — there is no window-level drag guard**, so a `.ork` dropped
+  anywhere but the dashed box is opened by the browser and the flyer loses the page. And the drop
+  handler ignores `busy` while every button on the surface is disabled by it.
+- **The design-system audit found `DESIGN.md` contradicted by the code in three places, which is the
+  highest-value thing that lens can return.** §5's `Popover` contract binds its trigger to a `link`
+  button weight and asserts §5 "already defines" it — §5 defines no such weight and `lib/ui-tokens.ts`
+  ships none. §5's recorded reason for deleting `Chip` says the app contains "exactly one"
+  token-shaped element; `MassBreakdown.tsx:89` is a second. And §9's own prose claims three grep holes
+  were "all fixed the same day" while its stated scope still excludes `lib/ui-tokens.ts`.
+- **`app/globals.css:179` and seven sibling `.prose-loft` rules carry 12 spacing declarations off
+  §4's scale**, two of them values §4 forbids by name — on all six docs routes, invisible to §9's
+  class-name greps because a stylesheet declares values.
+- **`app/docs/validation/page.tsx:501` renders the RocketPy cross-check as a raw `<table>`**, where
+  §5 binds that job to `DataTable` — sortable, keyboard-navigable, copyable. It is none of those.
+- **`components/ParameterSweep.tsx:442` — `loading` is one of §5's five required states and has no
+  primitive.** The spinner is hand-rolled at five sites in two sizes.
+- **REFUTED, and recorded so nobody re-chases it:** a claim that P17 increment 1 leaves the present
+  and the stack disagreeing about the flown air. It described the pre-fix code — the increment
+  already carries `weather`, `scenario` and `weatherAt` through the resume, gated on `resume`, with
+  the hazard named in a comment. **The filer worked from `BACKLOG.md`'s own stale line numbers**,
+  which is a good argument for citing symbols rather than lines in this file.
+
 **Filed 2026-08-14, from the corpus sweep and the phone walk** — the two opening-fan-out lenses that
 died on API 529s the first time and were re-run. The sweep confirmed its own population before any of
 this was believed: `imports every design file (35 present)`, 45 tests, 0 failures, and all twelve
