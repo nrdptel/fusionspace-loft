@@ -292,6 +292,27 @@ export default function Methods() {
         interference: K_fb = 1 + r_body/(s + r_body){"\n"}
         static margin (cal) = (X_cp − X_cg) / d_ref
       </p>
+      <p>
+        <strong>
+          What <code>d_ref</code> is, since every figure above is quoted in it.
+        </strong>{" "}
+        A design may state its own reference, or ask for its nose&apos;s diameter; otherwise Loft
+        takes the <em>widest component in the design</em>. Stated plainly here because the caliber is
+        invisible in the number that depends on it — a margin reads the same whether the reference
+        behind it is right or wrong.
+      </p>
+      <p>
+        <strong>Where that rule is imperfect, and it is worth knowing which way.</strong> &ldquo;Widest
+        component&rdquo; ought to mean the widest part of the <em>airframe</em> — the outer mould line
+        the air actually meets — because a part that lives <em>inside</em> the airframe is not a
+        caliber the rocket presents to the airstream. When you build in Loft that is what you get: a
+        coupler or a centring ring wider than the tube holding it is refused rather than flown,
+        because it would quote your stability in calibers of a diameter your rocket does not have. An
+        <em>imported</em> file is taken as its author drew it, so a design whose internal part is
+        genuinely wider than its own airframe would still set <code>d_ref</code> from that part. None
+        of the 35 real designs Loft tests against is drawn that way, so this is a gap in the rule
+        rather than a number any of them is currently getting wrong.
+      </p>
       <DocsH3>Fin planforms beyond the trapezoid</DocsH3>
       <p>
         Elliptical and freeform fin sets use their area- and span-equivalent trapezoid for the

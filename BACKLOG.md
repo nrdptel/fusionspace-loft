@@ -12,6 +12,226 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-14, from the corpus sweep and the phone walk** — the two opening-fan-out lenses that
+died on API 529s the first time and were re-run. The sweep confirmed its own population before any of
+this was believed: `imports every design file (35 present)`, 45 tests, 0 failures, and all twelve
+census medians printed.
+
+- **Two KNOWN-ISSUE entries are STALE, and each is suppressing an assertion that would pass today.**
+  `lib/corpus/sweep.test.ts:98` and `:100`. Re-measured: the first is apogee −10.15% / max velocity
+  −1.56%, the second apogee +10.76% / +4.95% — all inside the ±12% `TOLERANCE_PCT` the suite asserts.
+  The second entry's own comment quotes the very figures that now pass. Dropping both arms two real
+  asserts, which is the documented lifecycle for a `knownIssue`: fix the bug, then drop the entry.
+- **And the suite's own stale-known-issue DETECTOR structurally cannot see either of them**, which is
+  why they survived. `sweep.test.ts:2614` only reports an entry as stale when `|pctError| <=
+  TOLERANCE_PCT / 2` — 6% on apogee — so an entry sitting between 6% and the 12% it is actually
+  asserted against is invisible to it forever. That is a check that cannot fail over exactly the band
+  it exists to police, and it is the more valuable of these two to fix.
+- **The published `maxAcceleration` median is 1.3% and the corpus now measures 1.2%.** Inside
+  `CENSUS_SLACK_PCT` so it does not fail, and it is an improvement rather than a regression — but
+  /docs/validation publishes a figure the corpus no longer produces. Worth correcting on the next
+  re-publish rather than leaving a stale number on the accuracy page.
+- **Two of the corpus's five advertised tool families contribute zero assertions, invisibly.**
+  `corpusFiles()` filters on `/\.(ork|ork\.gz|rkt|cdx1)$/i`, so the three RocketPy and SpaceCAD files
+  are never opened, while `corpus/` advertises five per-tool directories and the count of 35 reads as
+  whole-corpus coverage. Either widen the filter or have the sweep say which families it skipped.
+- **Nothing in the repo reads `manifest.csv`.** `fetch-fixtures.mjs` verifies `CHECKSUMS.sha256` only
+  and the sweep reads design bytes, so every curated ground-truth column in the fixtures repo —
+  `stated_apogee` and its siblings — is unused. Worse, the metadata contradicts the code: all four
+  RASAero rows carry `importable_by_loft = no` and the sweep imports every one and scores two.
+- **One RASAero fixture's stored results are physically impossible and are listed as ground truth**
+  (`rasaero__openrocket-repo-rasaero…`): its two `<MaxAltitude>` values are 3.76 and 10.16 feet.
+  Loft converts them correctly and then scores itself against 1.1 m and 3.1 m apogees.
+- **The dispersion sentinel's partial-landing branch is dead across the whole corpus** —
+  `sweep.test.ts:3440`; the suite prints `1 where NONE landed, 0 where some did`, so the branch that
+  handles a partially-landed Monte-Carlo has never executed against a real design.
+
+**Phone walk, 390 px, against `DESIGN.md` §8 — the gaps are all in the SCAN'S POPULATION rather than
+in its threshold.** Every `ui.tsx` primitive carries the touch token and no raw sub-44 px control was
+found on any route the ratchet walks; what follows is what it cannot see.
+
+- **The only control that picks a catalogued part is the last column of a table whose own `minWidth`
+  is 544–736 px**, read through a ~300 px window (`components/PartPicker.tsx:557`). On a phone the
+  flyer scrolls right past the row's identity to reach "Use", and no `DataTable` pins its row-label
+  column (`components/DataTable.tsx:196`) — so the name is gone before the decision arrives.
+- **The parts-table ROW is the selection gesture and renders 32 px tall** (`DataTable.tsx:271`,
+  `py-1.5` around a 20 px line box). The touch ratchet's selector omits `<tr>`, `<td>` and non-header
+  `<a>`, so a 32 px primary gesture reads as compliant.
+- **The sticky table header never sticks.** `overflow-x: auto` with `overflow-y: visible` computes
+  `overflow-y` to `auto`, so the wrapper rather than the viewport is the sticky element's scrollport.
+- **The hit-target scan never runs on `/` at all**, and the hover-only ratchet's route list excludes
+  `/`, `/docs/faq`, `/docs/limitations`, `/docs/validation` and `/docs/changelog`. On `/` the header
+  case measures only `header a, header button, main button`, so every input, select, summary and
+  label on the first screen a cold flyer meets is unmeasured.
+- **`app/error.tsx:23` — the error boundary's second recovery path is a bare underlined link**, about
+  20 px tall, beside a 44 px button. A recovery affordance is the last place to put an unmissable
+  target out of reach.
+- **`components/DownloadCsv.tsx:56` — when both clipboard paths fail the button relabels itself
+  "Press ⌘/Ctrl+C"**, a key chord that does not exist on the form factor the failure is likeliest on.
+- **The imported file's name renders only at `sm:` and above** (`LoftApp.tsx:2139`), and its only
+  other carrier is a `title` — which the hover ratchet skips and a phone cannot open. Same shape on
+  the recents shelf (`ImportPanel.tsx:246`), where the visible label is the rocket name and the FILE
+  name lives only in a `title`.
+- **The Properties popover is a bottom sheet below `sm` whose body is number fields**
+  (`components/ui.tsx:1210`), with no `interactiveWidget: 'resizes-content'` — so the on-screen
+  keyboard overlays the field being edited.
+
+**Filed 2026-08-14, from the pre-push review of the caliber Sev-1 fix.** Both are about the same
+pre-existing behaviour, both are OUT of that increment's scope, and the increment's own copy was
+softened so it does not claim they are impossible.
+
+- **`scaleAirframeRadii` silently rescales a PICKED coupler or ring, so "flying SEMROC CR-10-13P" can
+  be flying something else.** `lib/model/edit.ts`'s caliber scale multiplies every internal part's
+  radii along with the airframe's, and it runs BEFORE `fitAddedInternalParts`. Measured: pick
+  `CR-10-13P` (33.0 mm OD) on `demo-single-deploy`, then set Body diameter to 76 mm, and the part is
+  flown at **65.9 mm** under a caption still reading *Flying SEMROC CR-10-13P*. This is the same
+  wrong-number-under-a-real-label shape the LENGTH rule already refuses — a shortened part under a
+  vendor's number is refused, a *scaled* one is not — and it is the widest route into these parts.
+  Not fixed with the Sev-1 because the Sev-1 was about the design's CALIBER and this is about the
+  part's LABEL, and because scaling internals with the airframe is deliberate for derived parts and
+  needs a rule that keeps that while exempting picks.
+- **The panel and the model judge a pick's width against different numbers.** The model tests the
+  ring's SCALED `outerRadius` (after `scaleAirframeRadii`); `GeometryInspector`'s `pickTooWide` tests
+  the pick's UNSCALED published `outerDiameter`. They diverge on a caliber edit with factor
+  0.795 ≤ f < 0.973: the model flies the part while the panel renders *"…is not in the flight"* and
+  the picker caption reads *Not in the flight*. A surface disagreeing with the model about what is
+  being flown, which is the exact defect the notice was built to remove — one layer up.
+- **The derived-part width clamp added with the Sev-1 is close to untested and may be unreachable.**
+  A derived ring is born at exactly the bore and scales with it, `internalOuterDiameter` is already
+  clamped by `internalPartBounds`, and there is no wall edit — so the clamp fires only on a caliber
+  edit with f < 1, where the bore shrinks by `w(1−f)` and the ring by `ro(1−f)`. Wants a test or it
+  will rot.
+
+**Also filed 2026-08-14, found while fixing the caliber Sev-1 — the other half of it, on IMPORT.**
+
+- **`referenceRadius` takes the widest component in the design, not the widest part of the AIRFRAME —
+  reachable in principle on IMPORT, and exercised by no real file.** `maxBodyRadius`
+  (`lib/model/geometry.ts:163`) maxes `outerRadius()` over every component `flattenRocket` yields,
+  internals included. The Sev-1 fixed on 2026-08-14 closed the AUTHORING route into that; an imported
+  file is taken as drawn, so a design whose internal part is genuinely wider than its own airframe
+  would set `d_ref` from that part. Measured over all 35 corpus designs: **0 of 35** do.
+  So this is a gap in the rule, not a number anything is currently getting wrong, and under
+  *do not manufacture correctness work* it waits for a file that exhibits it — a guard that fires on
+  zero real files is worse than nothing. If it is ever taken, the first thing to establish is what
+  OpenRocket's own `MAXIMUM` reference type measures, from its published documentation rather than
+  from reasoning, since matching it is the whole point of the rule.
+
+  **Filed first as "1 of 35, an 11.9% error on `02.Two-stage.ork`", and that was FABRICATED by a bad
+  probe — it reached this file, `HANDOFF.md` and a public docs page before the pre-push review caught
+  it.** The probe hand-rolled the accessor as `outerRadius ?? aftRadius`, and a `transition` has
+  neither: it has `foreRadius` and `aftRadius`, so a transition widest at its FORE end read as its
+  narrow end and the airframe maximum came out too small. `02.Two-stage.ork`'s 112.5 mm part is a
+  **transition** — airframe — and its centring rings are 94.5 mm, *narrower* than the 100.5 mm tubes.
+  `lib/model/geometry.ts` exports `outerRadius()` and answers correctly for every kind. **Use the
+  codebase's own accessor in a probe; a hand-rolled one invents defects that read exactly like real
+  ones**, and this one nearly published a fabricated fault against a named OpenRocket sample.
+
+**Filed 2026-08-13, from run 15's pre-push review of R12 increment 16.** Everything the review found
+in the diff itself is fixed in that commit; these were measured and deliberately not taken.
+
+- **A part a STAGE lump subsumes gets a stated-CG control that is live, enabled, and BLANK — and the
+  one check that would notice skips exactly that population.** `massByComponent` reports such a part
+  as `{mass: 0, subsumedBy: "⟨stage⟩"}` with no `cg`, so `localBodyCGx`'s `reported === undefined`
+  guard returns `undefined`, `LoftApp.tsx:1761` turns that into `Number.NaN`, and the field still
+  renders — `reaches` is true, because a per-part CG on a stage-subsumed part genuinely does move the
+  design's balance point, so the control is correctly NOT disabled. What is wrong is that it offers
+  no placeholder and no explanation for having none, on the one population where the figure is
+  genuinely unknowable from the part alone. `lib/corpus/sweep.test.ts:1080` guards its fixed-point
+  assertion on `shown !== undefined`, so it tests nothing here; its own census prints the size of the
+  gap and does not assert it — **62 live controls, 57 fixed points counted, `subsumedButLive = 5`**.
+  This is the next R slice: the honest answer is the lump's own station, labelled as the lump's.
+
+- **`localBodyCGx` still walks the tree twice per call**, and the 3.2× it just gained leaves another
+  ~2× sitting there: `flattenRocket(rocket).find(…)` to get the part, then `massByComponent(rocket)`
+  which walks it again through `structurePointMasses`. One walk that returns both would halve what is
+  left. Not taken with the increment that removed the probes, because that one moved no number and
+  this one changes the function's shape.
+- **`flattenRocket().find` takes the FIRST match while `massByComponent` is last-write-wins**, so the
+  two would read different components if any design ever carried a duplicate id. The two-probe form
+  was immune, because its baseline came out of the same map. Theoretical — 0 corpus designs have a
+  duplicate id, and the importers mint ids — but the immunity is genuinely gone, so it is written
+  down rather than assumed. A duplicate-id guard at import is the fix if one is ever wanted.
+
+**Filed 2026-08-13, from run 15's opening fan-out.** Each was reproduced against the named lines
+before filing; where a lens's finding was already in this file it was dropped rather than re-filed,
+and what is here is what was NOT already known. **No Sev-1 in the batch** — the two that read as one
+are argued down explicitly below, because "why this is not a Sev-1" is the part a later run would
+otherwise re-derive.
+
+- **Following an in-app docs link tears down the loaded design, and takes the undo stack, a finished
+  Monte-Carlo and a running RocketPy download with it.** `/docs/*` resolves through
+  `app/docs/layout.tsx`, not `app/(app)/layout.tsx`, so the route group's layout — and `LoftApp`
+  under it — unmounts. The design itself comes back from the saved session; three things do not,
+  because none is persisted: the undo/redo stack (`loadDoc` resets it and `saveSession` never writes
+  history), the Monte-Carlo result (`components/MonteCarlo.tsx:136`, plain `useState`) and the
+  RocketPy run (`components/RocketpyCrossCheck.tsx:98`). **`app/(app)/layout.tsx:9-20` states the
+  opposite as the load-bearing reason for its own shape** — "the imported design, its edits, its undo
+  stack, a running Monte-Carlo and a RocketPy cross-check all survive a navigation" — which is true
+  between the four workspace routes and false for the docs links the app deliberately plants beside
+  the numbers (`ResultsView.tsx:613`, `:1191`, `ValidationPanel.tsx:98`, and the footer strip on all
+  four routes). Worst case: start the RocketPy cross-check and, while its ~40 MB runtime downloads,
+  click "see how this is measured" one screen above it — the whole download and run is discarded with
+  no prompt. **Not filed as a Sev-1**, and the distinction is worth keeping: the flyer can go Back,
+  the design is still there and still edited, and the lost work is re-runnable at a cost. It is
+  destructive-without-warning rather than a state with no way back. `:1877` and `:593` file the
+  RELOAD variant, which a flyer chooses knowingly; this one is a single click on a link the app
+  itself placed next to the number that raised the question. **This is the strongest finding of the
+  run and it is P2's own *done when* not holding at the seam** — a P-track milestone, not a fix.
+- **Every solver warning string is hard-coded metric while the hints beneath them convert.** The
+  `Warning` record carries a message string and nothing else, and `lib/sim/simulate.ts` never sees
+  `UnitSystem`: hard-landing descent and arrival speed (`:1469`, `:1475`), fin flutter (`:1119`,
+  `:1120`, `:1127`, `:1133`), ballistic and no-deployment speeds (`:1397`, `:1431`, `:1445`), flat
+  leading face and diameter step in mm (`:1523`, `:1553`), booster terminal speed (`:1710`, `:1716`)
+  and rail-exit velocity (`:1750`). The cards render in the shared chrome on all four routes
+  (`ResultsView.tsx:531-544`) and the paragraph directly beneath does convert
+  (`ResultsView.tsx:1843`), so on one screen the firm-landing card reads "descends at about 9.2 m/s",
+  the Descent rate readout reads ~30 ft/s, and the sizing line reads "to land at about 16 ft/s
+  instead" — three readings of one quantity in two unit systems. **Not a Sev-1: the figure carries
+  its own unit**, so it is inconsistent rather than wrong or unlabelled. It is a `DESIGN.md` §6
+  violation ("the unit comes from the units context") across a whole class of strings, on the surface
+  a flyer sizes a parachute from. Two smaller instances of the same rule, both inside components that
+  already hold `units` and already convert their neighbours: `LoftApp.tsx:4447` prints the fetched
+  weather temperature as `°C` unconditionally between an imperial wind speed and field elevation, and
+  `ResultsView.tsx:1844` prints the recovery drag area as `m² Cd·A` in the same sentence as a ft/s
+  speed and an inch canopy.
+- **An import failure is announced roughly a thousand pixels below where the flyer is looking.**
+  `components/LoftApp.tsx:2095` renders `{error && <ErrorState/>}` AFTER the whole of
+  `<ImportPanel/>` (drop zone, shelf, eight sample chips, `WhyLoft`, `WhatItDoes`), and `ErrorState`
+  (`components/ui.tsx:838`) carries no `role="alert"` and no `aria-live`; nothing calls
+  `scrollIntoView` or moves focus. So picking a PDF by mistake reads on screen as the button doing
+  nothing — while `lib/ork/import.ts:80-109` has six carefully-worded, genuinely actionable messages
+  ready. `ImportPanel.tsx:136` identifies this exact hazard for the shelf-removal refusal and fixed
+  it there; the primary import path still has it. Nothing in the e2e suite asserts an import error is
+  reachable at all, and `toBeVisible` would not have caught it — which is P16's own subject.
+- **`MassBreakdown`'s CSV and Copy always come out heaviest-first, whatever the flyer sorted to.**
+  The table became sortable on all six columns, but the sort lives in `DataTable`'s uncontrolled
+  `ownSort` (`components/MassBreakdown.tsx:102` passes no `sort`/`onSortChange`), while `csv` is built
+  at `:70` from the fixed `[...points].sort((a,b) => b.mass - a.mass)` at `:51`. The panel's own
+  comment at `:98` names the workflow this breaks — a flyer checking an import against a build sheet
+  wanting station order — and `MotorSweep.tsx:520` states the rule verbatim: "the CSV must come out
+  in the order on SCREEN". The four tables that use `DataTable`'s own export get it right for free,
+  because `DataTable.tsx:163` builds `csvRows` from `sorted`. Nothing is misattributed; the flyer
+  sorted to get an order and gets a different one.
+- **Two latent items in the same file, neither reachable today.** `MassBreakdown.tsx:104` keys rows on
+  the SORTED index (`${p.source}-${i}`) — exactly what `PartPicker.tsx:829` documents as the thing
+  never to do — invisible only because those rows hold nothing focusable; and `:137`, `:163` define
+  `csv:` on two columns that can never run, since no `exportName` is passed, so adding one later
+  silently yields a two-column file.
+- **`ValidationPanel`'s Δ column hand-rolls a sign and a precision the codebase already owns.** The
+  sign comes from the raw value (`:192`) and the magnitude from the rounded one (`:193`), so a
+  pctError of 0.4 renders "+0%", -0.4 renders "0%", and an exact zero renders "+0%" — a direction
+  claimed where there is none, on the panel this repo calls the honest accuracy record.
+  `lib/display.ts:186`'s `changePercent` exists for precisely this and says so; `RocketpyCrossCheck.tsx:352`
+  one tab away uses it. Separately the cell renders at 0 decimals and the CSV exports at 1 (`:200`),
+  which is the two-sources-of-truth shape the panel's own `csvNumber` docblock (`:56`) rejects.
+- **The three analysis panels forget that they were open.** `MotorSweep.tsx:152`,
+  `ParameterSweep.tsx:263` and `MonteCarlo.tsx:125` hold open/closed in plain `useState(false)`, while
+  every choice INSIDE them is persisted — sort column, swept axis and metric, six dispersion sigmas.
+  So the app remembers how the flyer wants each sweep run but not that they run it. Only bites on
+  reload, since the panels stay mounted across workspace tabs. Same class as `:241`'s Parts
+  disclosure. Worth weighing before fixing: re-opening Monte-Carlo re-flies 300 flights, so the
+  cheaper shape is to persist the flag and still require the explicit Run.
+
 **Filed 2026-08-13, from the SECOND pre-push review — against the physics increment, before it
 shipped.** All the code findings are fixed in that same increment; what is left here is what was
 measured and deliberately not taken.
@@ -341,6 +561,11 @@ designs, found by publishing a number that had only ever been computed.**
   computed a figure the flyer measured. Pre-existing on mass; the CG control makes it reachable for
   the balance point too. The fix is a mark the exporter can write and the importer can read back.
 - **`statedCGReachesDesign` costs three whole-rocket mass solves per call and the panel makes two.**
+  *(Still open, and now the whole of this stutter rather than half of it: `localBodyCGx`'s two probe
+  solves went on 2026-08-13 in R12 increment 16, taking the pair's cost median 0.585 → 0.182 ms and
+  worst 96.9 → 29.6 ms. The figures below are this function's own and are unchanged. Its answer
+  decides whether the control is OFFERED at all, so deriving it analytically can change what the
+  panel shows — which is why it was not taken alongside a change that moved no number.)*
   Measured over the corpus: median 0.589 ms for the pair, worst **60.9 ms**
   (`openrocket-repo-rasaero-threestage`, 35 parts) against 14.8 ms for a single bare
   `dryMassProperties`. It sits inside the `designDims` memo, so it is paid on every part pick and on
@@ -1526,6 +1751,20 @@ fixed in that increment rather than filed. The rest are below.
   value it cannot physically mean, and reports a confident number from it". The fit filter now opens
   on the host's bore, which is the affordance; making it a refusal, a caution, or a default-on filter
   is the open question.
+
+  **RESOLVED 2026-08-14 as a Sev-1, and the reasoning above is what kept it open for eleven days.** It
+  is right about the mass and wrong about the consequence, because it never asked what an over-wide
+  part does to the design's own CALIBER. A coupler and a ring are invisible on the diagram — the
+  silhouette only walks the airframe — but `maxBodyRadius` maxes `outerRadius()` over every
+  component, internals included, so an over-wide one becomes `referenceRadius`: the diameter
+  `staticMarginCal` is quoted in calibers OF, and the reference area every drag coefficient is
+  computed from. That is not a fact about the part the flyer chose, so "the mass is honestly computed
+  for the part they chose" does not reach it. Measured on the bundled starter (54 mm airframe): the
+  reference diameter goes **54 mm → 289.8 mm**, and holding mass and CG identical by pinning the
+  reference, the diameter ALONE moves static margin **0.6211 → 0.1157 cal**. 123 of 236 catalogued
+  couplers and 243 of 497 rings are wider than that whole rocket, so it is the common case, not the
+  exotic one. Refused now at the model (`fitAddedInternalParts` judges width beside length, over the
+  flown tree) and on the row that offers it, with the reason named on both.
 
 - **A picked part left out of the flight explains itself only while its own row is selected, and
   never after a reload.** `components/GeometryInspector.tsx` gates the "not in the flight" notice on

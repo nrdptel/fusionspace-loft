@@ -96,7 +96,7 @@ import type {
   Material,
   TrapezoidFinSet,
 } from "./types";
-import { overallLength, maxBodyRadius } from "./geometry";
+import { overallLength, maxBodyRadius, referenceRadius } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
 import { dryMassProperties, localBodyCGx, massByComponent, statedMassHolder, statesOwnAssemblyMass } from "../sim/mass";
@@ -4512,11 +4512,24 @@ describe("picking a real coupler or centring ring", () => {
   const load = async (f: string) => importOrk(readFileSync(resolve(process.cwd(), f)));
   const firstTube = (r: Rocket) => flattenRocket(r).find((p) => p.component.kind === "bodytube")!.component as BodyTube;
   const PLY: Material = { name: "Plywood, light, bulk", density: 352, type: "bulk" };
+  /** A real catalogued ring that **fits `SINGLE`'s bore**, and the fit is the load-bearing half.
+   *
+   *  This was `SEMROC CR-9-175P`, 44.4 mm across, in a fixture whose one body tube is 38 mm outside
+   *  with a 2 mm wall — a **34 mm bore**. So every case below was driving a ring wider than the whole
+   *  rocket it was being fitted into, and passing: an over-wide internal part is invisible on the
+   *  diagram but is read by `maxBodyRadius`, so the fixture was quietly exercising the caliber defect
+   *  rather than the behaviour each case names. The five that used it went red the moment the model
+   *  started refusing that part, which is how it was found.
+   *
+   *  `CR-10-13P` is the same manufacturer, the same plywood stock and the same 3.175 mm length, so
+   *  every assertion below still means what it meant — a real vendor part, in a stock the host does
+   *  not share, at dimensions Loft would not have derived — and now describes a part that can exist
+   *  inside this design. */
   const PICK: PickedRing = {
     manufacturer: "SEMROC",
-    partNumber: "CR-9-175P",
-    outerDiameter: 0.0443992,
-    innerDiameter: 0.0254,
+    partNumber: "CR-10-13P",
+    outerDiameter: 0.0329692,
+    innerDiameter: 0.0264668,
     length: 0.003175,
     material: PLY,
   };
@@ -4566,6 +4579,46 @@ describe("picking a real coupler or centring ring", () => {
       added: [{ id, kind: "tubecoupler", after: host.id, length: 0, pick: fits }],
     });
     expect(flattenRocket(ok).find((p) => p.component.id === id)).toBeDefined();
+  });
+
+  /** **A picked part wider than its host was reported as the whole rocket's caliber.**
+   *
+   *  A coupler and a centring ring are invisible on the diagram — the silhouette only walks the
+   *  airframe — but `maxBodyRadius` maxes `outerRadius()` over every component, internals included.
+   *  So an over-wide one became `referenceRadius`, and through it the diameter `staticMarginCal` is
+   *  quoted in calibers OF and the reference area every drag coefficient is computed from. The typed
+   *  field has been clamped against exactly this since the panel gained it; the PICK path was not.
+   *
+   *  Measured on the bundled starter, 54 mm airframe: 123 of the 236 catalogued couplers and 243 of
+   *  the 497 rings are wider than the entire rocket, so it is the common case.
+   *
+   *  Asserted on the REFERENCE RADIUS rather than on the part, because that is the quantity that was
+   *  wrong and the one a flyer reads through. The airframe's own radius is read off the design rather
+   *  than written here, so the assertion cannot pass by agreeing with a constant. */
+  it("refuses a picked part wider than its host, so the design's caliber stays the airframe's", async () => {
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const before = referenceRadius(doc.rocket);
+    // Deliberately wider than the whole airframe, and short enough that the LENGTH guard cannot be
+    // what refuses it — otherwise this would pass for the wrong reason.
+    const tooWide: PickedRing = { ...PICK, partNumber: "CT-11.4", outerDiameter: host.outerRadius * 6, innerDiameter: host.outerRadius * 5, length: host.length / 4 };
+    const built = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "tubecoupler", after: host.id, length: 0, pick: tooWide }],
+    });
+    expect(flattenRocket(built).find((p) => p.component.id === id), "a coupler six times the airframe's radius was built").toBeUndefined();
+    expect(referenceRadius(built), "the design's reference radius must still be the airframe's").toBeCloseTo(before, 12);
+
+    // The same pick inside the bore does build, so the refusal is about the width and not about picks
+    // in general — and the reference radius is still the airframe's, because it fits.
+    const wall = host.thickness && host.thickness > 0 ? host.thickness : 0;
+    const bore = host.outerRadius - wall;
+    const fits: PickedRing = { ...tooWide, outerDiameter: bore * 2 * 0.98, innerDiameter: bore * 2 * 0.9 };
+    const ok = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "tubecoupler", after: host.id, length: 0, pick: fits }],
+    });
+    expect(flattenRocket(ok).find((p) => p.component.id === id), "a coupler inside the bore was refused").toBeDefined();
+    expect(referenceRadius(ok)).toBeCloseTo(before, 12);
   });
 
   it("weighs the part the vendor describes, and comes back when the pick is dropped", async () => {

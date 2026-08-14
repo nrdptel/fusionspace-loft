@@ -1748,17 +1748,16 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               const n = primaryNose(designBase);
               if (!n) return undefined;
               return {
-                // `localBodyCGx` still, though the reason has changed and shrunk. It used to be
-                // required: `overrideCGx` replaced the cone's BODY centroid and a shoulder was
-                // blended in aft of it, so the reported CG was a third quantity and offering it as
-                // the placeholder made the control non-idempotent on the 15 corpus cones with a
-                // shoulder. **That blend is gone** — a stated CG now replaces the whole part's
-                // centroid, shoulder included, which is what OpenRocket's `<overridecg>` has always
-                // meant — so the reported CG and this box hold the SAME quantity and the inversion
-                // has slope 1. It is kept because it still returns `undefined` for a part that
-                // reports no CG of its own (no structural mass, or subsumed by a stage lump), which
-                // is the case the placeholder must not guess at. Collapsing it to a direct reading
-                // would have to reproduce that guard, and is filed rather than done here.
+                // `localBodyCGx` converts the datum: the parts table publishes an absolute station
+                // and this box holds one measured from the part's own tip. It used to do more —
+                // `overrideCGx` replaced the cone's BODY centroid with a shoulder blended in aft of
+                // it, so the reported CG was a third quantity and offering it as the placeholder
+                // made the control non-idempotent on the 15 corpus cones with a shoulder, and the
+                // station had to be recovered by inverting two probe solves. **That blend is gone**
+                // (2026-08-13), so the two hold the same quantity and the conversion is a
+                // subtraction; the probes went with it on 2026-08-13. It still returns `undefined`
+                // for a part that reports no CG of its own — no structural mass, or subsumed by a
+                // stage lump — which is the case the placeholder must not guess at.
                 local: localBodyCGx(designBase, n.id) ?? Number.NaN,
                 // The whole PART's extent, shoulder included — not `n.length`. The hint below tells
                 // the flyer to type a knife-edge reading of the part in their hand, and on a

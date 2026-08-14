@@ -2586,6 +2586,115 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 17 — Sev-1: a part inside the rocket was setting the rocket's caliber, 2026-08-14.**
+Preempted the milestone, as a Sev-1 must. Found by the opening fan-out's competitive probe, confirmed
+by an adversarial verifier that set out to refute it, and reproduced independently here before a line
+was changed.
+
+**What was wrong.** A catalogued coupler or centring ring pick wrote the vendor's outer diameter onto
+the component with no bound against the host's bore (`lib/model/edit.ts`, `buildAdded`). A ring is
+invisible on the diagram — `lib/model/silhouette.ts` only walks the airframe — but `maxBodyRadius`
+maxes `outerRadius()` over **every** component, internals included. So the picked part became
+`referenceRadius`, and through it the diameter `staticMarginCal` is quoted in calibers OF and the
+reference area every drag coefficient is computed from. The TYPED field has been clamped against
+exactly this since the panel gained it, and the comment above that clamp names this consequence in as
+many words; the pick path reached the model without passing it.
+
+**Measured on the bundled starter, 54 mm airframe with a 51 mm bore.** 123 of the 236 catalogued
+couplers and 243 of the 497 centring rings are wider than the entire rocket — the common case, not
+an exotic one. Picking the widest (Public Missiles CT-11.4, 289.8 mm) took the reference diameter
+**54 mm → 289.8 mm** and static margin **1.5279 → 0.1157 cal**. Isolating the cause by pinning the
+reference to the airframe's own radius on the *same* tree — mass and CG byte-identical — the
+reference diameter ALONE accounts for **0.6211 → 0.1157 cal**. Nothing on screen said the caliber had
+moved.
+
+**Why it is criterion (a) and not merely a bad default.** Static margin is the figure a flyer reads
+before they go to the pad, the readout prints bare calibers with a low/high flag, and it never names
+the diameter it is quoting. The number was wrong and unlabelled on the surface a flyer acts on.
+`BACKLOG.md` had this filed since 2026-08-03 and had **explicitly declined Sev-1**, on the reasoning
+that "the mass is honestly computed for the part the flyer chose". True, and it does not reach the
+reference diameter, which is not a fact about the chosen part at all. That entry is corrected rather
+than deleted.
+
+**The fix follows the rule already shipped for LENGTH**, at the layer that already asks the question.
+`fitAddedInternalParts` judges the flown tree once, after dimension edits — deliberately, because
+`applyAdds` runs first and a birth-time guard is judged against the pristine host. It now asks about
+width beside length, with the same established outcome: a catalogued pick that does not fit is left
+out whole rather than resized, because a vendor's part number over a dimension that vendor never
+published is a wrong number under a real label; a derived part is clamped. The picker refuses the row
+with the reason on it, and the panel's "not in the flight" notice now names *which* dimension does not
+fit — a flyer told the wrong reason goes and lengthens a tube that was never too short.
+
+**It cannot touch an imported design.** The pass only ever looks at parts the flyer authored in this
+session (`authored.get(ch.id)`), so no corpus design, sample or `.ork` import changes by a gram — the
+census is untouched, which is what makes a Sev-1 fix safe to ship on its own.
+
+**What it does NOT close, stated because the first draft of its own copy claimed otherwise.** The
+caliber edit (`scaleAirframeRadii`) multiplies every internal part's radii along with the airframe's
+and runs before this pass, so a PICKED ring is still silently rescaled — 33.0 mm flown at 65.9 mm
+under a caption reading *Flying SEMROC CR-10-13P*. That is the part's LABEL being wrong, where this
+increment is about the design's CALIBER being wrong, and it is filed rather than folded in: scaling
+internals with the airframe is correct for derived parts, so exempting picks needs its own rule.
+The panel's `pickTooWide` also judges the pick's UNSCALED published diameter while the model judges
+the scaled one, which diverges on a narrowing caliber edit. Both are in `BACKLOG.md` with the
+measurements; the notice's wording was changed from "left out rather than flown narrowed" to a claim
+that survives them.
+
+**Pinned by `lib/model/edit.test.ts`'s *refuses a picked part wider than its host, so the design's
+caliber stays the airframe's*.** Asserted on the REFERENCE RADIUS rather than on the part, because
+that is the quantity that was wrong; the airframe's own radius is read off the design rather than
+written into the test, so it cannot pass by agreeing with a constant, and the over-wide pick is made
+deliberately short so the length guard cannot be what refuses it. Negative control: judging width as
+always-fitting fails it with the coupler built.
+
+**And it found a test fixture that had been exercising the defect.** Five existing cases drove a
+`SEMROC CR-9-175P` — 44.4 mm across — into a fixture whose only body tube is 38 mm outside with a 2 mm
+wall, a 34 mm bore. All five went red the moment the model started refusing that part, which is how it
+surfaced. They now use `CR-10-13P`: same manufacturer, same plywood stock, same length, and a part
+that can physically exist inside that design.
+
+**Increment 16 — the two probe solves the panel was paying for on every keystroke, 2026-08-13.**
+Increment 15 filed this and said why it was not taken then: `localBodyCGx` recovered the station a
+flyer had stated by INVERTING two whole-rocket mass solves, which was the right shape while a shoulder
+blend meant there was a slope other than 1 to find. That blend went in increment 15.
+`componentPointMass` now reads `overrideCg !== undefined ? p.xFore + overrideCg : componentCg`, so the
+probes could only ever recover slope 1 and intercept `xFore`, and the conversion is a subtraction: the
+parts table publishes an absolute station, this control holds one measured from the part's own fore
+face, and the datum is the whole difference.
+
+**Measured before the change rather than argued** — all 35 corpus designs, every part where either
+form returns a figure: **372 parts, 0 disagreements, worst difference 4.4e-16 m** (one ULP), and no
+part where one form returns a station and the other returns nothing. So no number moves on any
+surface; the filed reason for keeping it — that the inversion supplied the `undefined` guard — was
+wrong, and the guard is the `reported === undefined` line it always was.
+
+**What a flyer gets is speed on the panel's hot path.** `localBodyCGx` sits inside the `designDims`
+memo, so both controls are recomputed on every part pick and every keystroke in a geometry field.
+Timed over the corpus, the pair per render: **median 0.585 → 0.182 ms, worst 96.9 → 29.6 ms**
+(`03.Three-stage.ork`, 35 parts) — 3.2× and 3.3×. The old form was slow enough that the probe
+harness timed out at vitest's 5 s default while the new one finished inside it. `BACKLOG.md`'s
+neighbouring entry — `statedCGReachesDesign` at three solves per call, worst 60.9 ms — is the larger
+remaining half of the same stutter and is untouched here, deliberately: it decides whether a control
+is OFFERED, so deriving it analytically can change what the panel shows and wants its own increment.
+
+**Pinned by two new assertions in `lib/sim/mass.test.ts`**, one per kind the panel offers the control
+on: a shouldered transition hung 400 mm down the airframe, and a body tube behind a 120 mm cone —
+which is the REACHABLE path, since `LoftApp.tsx` offers this control on a nose and a body tube and
+never on a transition. No other case in that file calls `localBodyCGx` at all, so nothing else covers
+the datum. Two independent negative controls, both re-run against the final diff: dropping the
+`- part.xFore` fails both cases (0.08 against 0 on the transition, 0.32 against 0.2 on the tube), and
+reintroducing the shoulder blend in `componentPointMass` fails the transition with 0.027 against 0
+and takes two of increment 15's assertions with it.
+
+**The pre-push review is why that pins anything, and what it caught is worth more than the increment.**
+The first draft also asserted that the unstated reading lands inside the part — which the
+`statedCGBounds` clamp guarantees whatever the datum is, so it could not fail. A pass-by-construction
+assertion, inside a test whose own docblock claimed it could not pass by construction, one milestone
+after P14 shipped about checks that cannot fail. It also caught the comment beside it stating a
+failure mode the clamp structurally forbids, a pointer aimed at the wrong end of this file, and
+**four dated claims written as 2026-08-14 while it was still the 13th** — none of which any of the
+four gates can see.
+
 **Increment 15 — what a stated CG and a stated WEIGHT actually mean on a part with a shoulder,
 2026-08-13.** `HANDOFF.md` named this as the next R slice and framed it as one defect on the CG path
 that would "re-fly every imported `<overridecg>` and move the published accuracy census". **It is two
@@ -2666,8 +2775,12 @@ flag, which does move a section's balance point. All three are fixed, and the pu
 measurement this change invalidates (CG 456.9 → **457.1** mm, margin 2.712 → **2.7095** cal) is
 updated in `COMPETITION.md` row 2, this file's own table, and the test's docblock.
 
-**Not taken, and filed:** `localBodyCGx`'s inversion collapses to the identity now that the slope is
-1, and 30 lines plus two whole-rocket mass solves per call become ceremony. It is kept because it
+**Not taken, and filed** — *the first of these was taken the next day as increment 16, ABOVE, and the
+reason recorded here for not taking it turned out to be wrong: the `undefined` guard is the
+`reported === undefined` line and never came from the probes at all. Left standing rather than
+rewritten, because what a run believed at the time is the record:* `localBodyCGx`'s
+inversion collapses to the identity now that the slope is 1, and 30 lines plus two whole-rocket mass
+solves per call become ceremony. It is kept because it
 still returns `undefined` for a part that reports no CG of its own, which the placeholder must not
 guess at; collapsing it means reproducing that guard, and that is its own increment. Also filed:
 `lib/rkt/adapt.ts`'s `cgOverrideM` still rejects a `KnownCG` past the body's length, which is now
@@ -2732,6 +2845,9 @@ and fails when the writer is neutered.
   design's CG on 15 of 57 live controls. The placeholder is now `localBodyCGx` — the station
   `overrideCGx` actually replaces, recovered by inversion so there is one definition of the blend —
   and the hint says the shoulder is weighed separately, as the tube's hint already said about fins.
+  *(Both halves of that sentence were overtaken later: increment 15 removed the blend and rewrote the
+  hint, and increment 16 removed the inversion. Left as written, because this entry is the record of
+  what the increment did on its date.)*
   **The remaining question is a semantic one and is filed rather than guessed at:** a flyer balancing
   a cone on a knife edge measures the whole part, shoulder included, and OpenRocket's override tab
   may mean that. Changing what `overrideCGx` means would re-fly every imported `<overridecg>` and
@@ -5938,8 +6054,53 @@ because each nearly produced a false result:**
    nothing under `scripts/` renders markup, so none of it can legitimately contribute a utility,
    while all of it describes them at length.
 
-**Done when** the gate fails on a served class with no rule (**done**); on a served `id` or
-`aria-label` that a test selector names but the markup no longer carries; and on a stylesheet rule
+**Increment 2 — a test that has stopped testing, 2026-08-14.** `scripts/check-selectors.mjs`, wired
+into `postbuild` between `check-classes` and `check-routes`.
+
+**The increment as this file first worded it could not be built, and the investigation that
+established that is worth more than the sentence it corrected.** The wording was "enumerate the names
+the suite asserts and check the export carries them". All four workspace routes render `null` on the
+server by design — the shell lives in the route group's layout so moving between workspaces does not
+unmount a running dispersion — so `out/**/*.html` carries the header, the footer and almost nothing
+else. Measured: of the 84 unique (role, name) pairs the suite asserts from literal-name call sites,
+**13 resolve in static HTML with the role verified**. A check scoped to served markup would have
+reported every selector resolved while seeing about 15% of the app — the exact false all-clear this
+milestone is named after, shipped inside the milestone. **`scripts/check-text-gaps.mjs` already had
+the answer**: it walks `out/**/*.html` AND `out/_next/static/chunks/**/*.js`, reports the two
+separately so they are never added into one misleading total, and gates on the reliable one only.
+
+**So the increment narrowed to the half that can carry a verdict, and it is the half that matters.**
+For a name asserted PRESENT, a rename already fails the test loudly — the suite is its own alarm and
+a new instrument adds nothing. For a name asserted ABSENT the direction reverses: not finding the
+string anywhere in the build proves the assertion **can never fail again**. The suite holds 109
+`toHaveCount(0)` and 11 `toBeHidden()` assertions, and **five names in it are asserted ONLY as an
+absence** — each one copy edit away from being permanently vacuous, and a vacuous absence assertion
+prints identically to a correct one.
+
+**Negative control, run with the rebuild it requires** (the check reads `out/`, so a control without
+one proves nothing — the trap `MAINTAINING.md` records): renaming the span at
+`components/RocketpyCrossCheck.tsx:276` leaves `npm run build` and all four existing postbuild checks
+green, and `npx playwright test e2e/rocketpy-selfhosted.spec.ts` green at **11 passed** — which is the
+defect. `check-selectors` exits 1 naming the string and `e2e/rocketpy-selfhosted.spec.ts:235`.
+Restored and rebuilt, it is green again.
+
+**Two things it says about itself, because an instrument that overclaims is what this milestone is
+about.** It prints the 679 regex and template selector names it CANNOT see rather than counting them
+as resolved; and it reports allowlist entries that are doing no work. The first draft carried three
+exemptions written from a list of names expected to be unreachable — the script named all three as
+idle on its own first run (one is present in the build after all, two are not absence-only), so the
+list ships **empty**. An exemption that excuses nothing today is one that will one day excuse a real
+defect.
+
+**And increment 1's own script gets the guard it shipped without.** `check-classes.mjs` was the only
+one of the five postbuild checks with no examined-nothing guard and no `existsSync`: with an empty
+`out/` it printed *"every served class has a rule"* and exited 0, and with no `out/` it threw a raw
+`ENOENT` stack. Both fixed, both controlled — empty export now exits 1 naming the four counts, absent
+export exits 1 with the sentence its three siblings already use.
+
+**Done when** the gate fails on a served class with no rule (**done**); on a test selector the app can
+no longer satisfy (**done**, for the absence-only population, which is the half where a missing string
+is a verdict rather than a lead); and on a stylesheet rule
 generated from prose rather than from a component, which is the inverse of increment 1 and the one
 the two findings above say is reachable.
 

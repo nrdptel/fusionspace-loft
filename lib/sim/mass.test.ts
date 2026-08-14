@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { combine, dryMassProperties, finChordCentroid, massByComponent, structurePointMasses } from "./mass";
+import { combine, dryMassProperties, finChordCentroid, localBodyCGx, massByComponent, structurePointMasses } from "./mass";
 import { flattenRocket } from "../model/geometry";
 import { importOrk, importDesign } from "../ork/import";
-import type { Rocket, BodyTube, InnerTube, MassComponent, GenericFinSet, NoseCone } from "../model/types";
+import type { Rocket, BodyTube, InnerTube, MassComponent, GenericFinSet, NoseCone, Transition } from "../model/types";
 
 const MAT = { name: "x", density: 1000, type: "bulk" as const };
 
@@ -219,6 +219,104 @@ describe("nose/transition shoulder mass", () => {
       const both = props(noseBase({ ...SH, overrideMass: 0.25, overrideCGx: 0.04 }));
       expect(both.cg).toBeCloseTo(0.04, 9);
       expect(both.mass).toBeCloseTo(0.25, 9);
+    });
+
+    /** **The read side of the same rule, on a part that does NOT start at the nose.**
+     *
+     *  `localBodyCGx` answers "what station is already in the box", and `overrideCGx` is measured from
+     *  the part's own fore face while every CG the mass code reports is absolute from the tip. It read
+     *  that station back by INVERTING two probe solves until 2026-08-13; the direct subtraction that
+     *  replaced it is only correct because `componentPointMass` writes a stated CG as
+     *  `xFore + overrideCGx`, and that is what this pins. No other case in this file calls
+     *  `localBodyCGx` at all — the import arrived with this test — so nothing else covers the datum.
+     *
+     *  Asserted as a FIXED POINT rather than against a recomputed centroid: state a station, read it
+     *  back, and it must be the one stated. **That is the only shape here that can fail**, and the
+     *  first draft of this test proved the point by getting it wrong — it also asserted that the
+     *  unstated reading lands inside the part, which the `statedCGBounds` clamp guarantees whatever
+     *  the datum is. A pass-by-construction assertion inside the test whose docblock claims it cannot
+     *  pass by construction is the P14 shape exactly; the pre-push review caught it and it is gone.
+     *
+     *  Run on BOTH kinds the panel offers a control for — a body tube (`LoftApp.tsx`'s
+     *  `bodyTubeCGx`) and a shouldered transition — because only the first is on the reachable path
+     *  and only the second can put a legitimate station behind the part's own base. */
+    it("reads a stated station back from a part that is not at the nose", () => {
+      const tube: BodyTube = {
+        id: "b",
+        name: "body",
+        kind: "bodytube",
+        placement: { method: "top", offset: 0 },
+        material: MAT2,
+        length: 0.4,
+        outerRadius: 0.0125,
+        thickness: 0.001,
+        children: [],
+      };
+      // A shouldered transition 400 mm down the airframe, so its own datum and the rocket's differ by
+      // a figure large enough that swapping them is unmissable.
+      const trans: Transition = {
+        id: "x",
+        name: "shoulder transition",
+        kind: "transition",
+        placement: { method: "after", offset: 0 },
+        material: MAT2,
+        length: 0.05,
+        foreRadius: 0.0125,
+        aftRadius: 0.02,
+        thickness: 0.002,
+        shape: "conical",
+        aftShoulderRadius: 0.019,
+        aftShoulderLength: 0.03,
+        aftShoulderThickness: 0.002,
+        children: [],
+      };
+      const build = (stated?: number): Rocket => ({
+        name: "t",
+        stages: [{ name: "s", components: [tube, stated === undefined ? trans : { ...trans, overrideCGx: stated }] }],
+        configurations: [],
+        referenceType: "maximum",
+      });
+
+      // The transition, at four stations including one behind its own base — which its shoulder makes
+      // physically reachable and which `statedCGBounds` is what allows.
+      for (const stated of [0.0, 0.01, 0.05, 0.07]) {
+        expect(localBodyCGx(build(stated), "x"), `stated ${stated} m on the transition`).toBeCloseTo(stated, 9);
+      }
+
+    });
+
+    /** The same datum, on the kind the panel actually offers this control on — `LoftApp.tsx`'s
+     *  `bodyTubeCGx`. Its own case, so that a datum error is reported against the REACHABLE path
+     *  rather than stopping at the transition above and leaving this half unproven.
+     *
+     *  A uniform tube behind a 120 mm cone balances at its own mid-length, 200 mm. The absolute
+     *  station is 320 mm, and both figures are inside the `[0, 0.4]` clamp — so the clamp cannot
+     *  manufacture this pass, and reading the wrong datum fails it by 120 mm. */
+    it("reads a body tube's station from the tube's own fore face, not the rocket's tip", () => {
+      const nose = noseBase({ length: 0.12 });
+      const behind = (stated?: number): Rocket => {
+        const t: BodyTube = {
+          id: "b",
+          name: "body",
+          kind: "bodytube",
+          placement: { method: "after", offset: 0 },
+          material: MAT2,
+          length: 0.4,
+          outerRadius: 0.0125,
+          thickness: 0.001,
+          children: [],
+        };
+        return {
+          name: "t",
+          stages: [{ name: "s", components: [nose, stated === undefined ? t : { ...t, overrideCGx: stated }] }],
+          configurations: [],
+          referenceType: "maximum",
+        };
+      };
+      expect(localBodyCGx(behind(), "b"), "a uniform tube balances at its own mid-length").toBeCloseTo(0.2, 9);
+      for (const stated of [0.0, 0.15, 0.4]) {
+        expect(localBodyCGx(behind(stated), "b"), `stated ${stated} m on the tube`).toBeCloseTo(stated, 9);
+      }
     });
   });
 });
