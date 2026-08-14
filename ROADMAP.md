@@ -2586,6 +2586,42 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 18 — two suppressed accuracy assertions, armed, 2026-08-14.** `KNOWN_ISSUES` is the
+corpus's documented-gap list: a design Loft still gets wrong is parsed but not asserted, so the gap is
+recorded rather than baked in as correct, and the contract is *fix the bug, then drop the entry to arm
+the assert*. Two entries had come good and nothing said so.
+
+**Re-measured before touching either, against every excused case:**
+
+| case | apogee | max velocity | verdict |
+|---|---|---|---|
+| `Punisher Apprentice.ork::Simulation 10` | −10.15% | −1.56% | stale — both inside the ±12% asserted |
+| `03.Three-stage.ork::Simulation 1` | +10.76% | +4.95% | stale — both inside the ±12% asserted |
+| `Complex.Two-Stage.CDX1::J90W` | +12.40% | +8.02% | genuinely excused, still outside |
+| `TubeFins1.rkt::C6-5` | +5.20% | +25.29% | genuinely excused, still outside on speed |
+
+**The nudge that exists to catch exactly this could not see either of them, and that is the real
+find.** `sweep.test.ts`'s stale-entry detector required apogee within `TOLERANCE_PCT / 2` — 6% —
+while the suite ASSERTS at `TOLERANCE_PCT` — 12%. An entry between the two passes the assertion it is
+excused from, excuses nothing, and can never be reported. Both stale entries sat in that gap. The
+halved bar had no reason of its own: the stated guard against arming a coincidence is the VELOCITY
+clause, which is untouched. **A check that cannot fire over the range it polices** is the same shape
+P14 and P16 are about, inside the corpus rather than inside the gate.
+
+**Both assertions are armed now**, with 1.85 and 1.24 points of margin respectively — the second is
+the thinnest armed case in the corpus and is named as such in the file, so the next run knows how
+close it is rather than discovering it from a red gate.
+
+**The physics behind the second entry is NOT fixed, and its prose was kept rather than deleted with
+the entry.** Three of `03.Three-stage.ork`'s five fin sets are rounded and were billed as square
+until R7's per-set cross-section; its leading-edge sweep is still collapsed to one design-wide 22.4°
+against five real sets at 35.0–70.6°. The two errors were partly cancelling and only one is fixed,
+which is why R7 made this design's apogee error worse — the one place in the corpus where it did. The
+case passes and the model is still approximate, which is precisely the state a green assertion cannot
+express, so it is a comment beside the list.
+
+Corpus after: **45 tests, 0 failures, 35 design files**, all twelve census medians unchanged.
+
 **Increment 17 — Sev-1: a part inside the rocket was setting the rocket's caliber, 2026-08-14.**
 Preempted the milestone, as a Sev-1 must. Found by the opening fan-out's competitive probe, confirmed
 by an adversarial verifier that set out to refute it, and reproduced independently here before a line
@@ -6007,7 +6043,8 @@ That is the ratchet working; the number goes up in the same commit that makes th
 
 ## P16 — The gate cannot see what the browser actually got
 
-**Status: IN PROGRESS** — increment 1 of 3 shipped 2026-08-13.
+**Status: SHIPPED 2026-08-14** — all three increments, every *done when* clause pinned by a check with
+its own negative control.
 
 **Written 2026-08-13 because P15 shipped and the P-track went dry, and because this run produced the
 evidence for it rather than an argument for it.** `MAINTAINING.md` says extending the track IS the
@@ -6098,11 +6135,73 @@ one of the five postbuild checks with no examined-nothing guard and no `existsSy
 `ENOENT` stack. Both fixed, both controlled — empty export now exits 1 naming the four counts, absent
 export exits 1 with the sentence its three siblings already use.
 
+**Increment 3 — the rules nobody asked for, 2026-08-14. P16 SHIPPED.** The inverse of increment 1,
+inside the same script because it needs the same stylesheet parse: increment 1 asks whether every
+served class has a rule, this asks whether every rule has something that asked for it.
+
+**Its first two designs were both wrong, and the pre-push review killed both.** That is the most
+useful thing in this increment, because each was wrong in a way that still printed a clean pass.
+
+1. **Substring matching is almost no test at all.** The first version asked whether the class's text
+   appeared anywhere in the built output. Measured on the build that shipped it: only **8 of 484**
+   defined classes ever appear as a delimited token, so 476 were passing by being embedded in a
+   longer name — `left-0` passed on `sm:left-0`, including one this increment's own comment had just
+   introduced. Six rules with nothing asking for them survived, 783 bytes, about 70% of what the
+   increment claimed to have removed. It now collects TOKENS: the words of every `class` attribute in
+   the markup, and of every quote- or space-delimited run in the shipped JS.
+2. **Lexing string literals out of minified JS desynchronises.** The token collector's first form
+   scanned for quoted literals; minified English prose carries apostrophes, so a stray one opened a
+   bogus single-quoted match that swallowed everything to the next apostrophe. It reported `pr-4`,
+   `ring-1` and `text-right` as unused while `,!s&&"pr-4",` sat in a chunk. Splitting on quote and
+   whitespace boundaries cannot desynchronise, and is what it does.
+
+**Then the honest version found something better than a defect: a limit.** With real token matching,
+11 rules had nothing asking for them — and ten were ordinary English words. `container`, `transform`,
+`shadow`, `outline`, `invert`, `grow`, `shrink`, `collapse`, `invisible`, `isolate`, every one
+generated by a sentence that had to say "the container", "a transform", "shadow another". **No
+wording avoids those**, so gating on them would buy a few hundred bytes at the price of prose nobody
+can write, and a check that forces that gets disabled — which is worse than one honest about its
+reach. So the script splits the population the way `check-text-gaps.mjs` splits its two detectors: a
+class carrying a digit, hyphen, colon, bracket or slash is a namespaced utility that reaches prose
+only when somebody wrote it, and **that half gates**; a bare lowercase word is printed as a lead and
+does not. The output names both counts and lists the leads, so the reach is stated rather than
+implied.
+
+**What it caught on the way.** Four of the pre-fix orphans were OFF-SYSTEM RADII — `DESIGN.md` §2
+sanctions three — regenerated by the prose in `components/ui.tsx` explaining which off-system radii
+had been *removed*. §9's radius grep reads source string literals, so it read **0** while the rules
+shipped. That is the third distinct shape of §9 blindness this file records, after the `.eqn` radius
+and the docs' font sizes.
+
+**And a hole in the `@source not` list that had been there since the list was written.** The globs
+exclude `*.test.ts` and `*.test.tsx`; Playwright names its files `*.spec.ts`, so the entire e2e suite
+was scanned. `@source not "../e2e/**"` is there now, on the argument already used for `scripts/`:
+nothing under `e2e/` renders markup. Of the rules it removed, `p-12` is the one that cleanly traces
+to a spec comment. **An exclusion list is an enumeration, and this one was right about the class of
+file and wrong about its extension for its whole life.**
+
+**Measured, not asserted.** Stylesheet **64,804 → 63,670 bytes**, defined selectors **500 → 483** —
+1,134 bytes of rules nothing asked for, on top of the 2,617 `MAINTAINING.md` records from
+2026-08-08. Eight comment blocks across five files now DESCRIBE the class instead of writing it,
+which is the practice P16 increment 1 wrote down and which nothing enforced until now.
+
+**Two negative controls, both against the final design.** Writing two radius literals back into one
+docblock regenerates both rules and fails the build naming both, 485 selectors against 483, exit 1.
+Writing three bare English words into the same docblock does NOT fail it — exit 0, 483 selectors —
+which is the half that had to be proved too, because a check that gated on those would be unusable
+rather than strict.
+
+**Ordering matters and the first draft got it backwards**: the orphan report now runs AFTER the
+served-class verdict, because a build with both defects was printing only the dead bytes and hiding
+the class-with-no-rule, which is the visible pixel regression the whole milestone exists for.
+
 **Done when** the gate fails on a served class with no rule (**done**); on a test selector the app can
 no longer satisfy (**done**, for the absence-only population, which is the half where a missing string
 is a verdict rather than a lead); and on a stylesheet rule
-generated from prose rather than from a component, which is the inverse of increment 1 and the one
-the two findings above say is reachable.
+generated from prose rather than from a component (**done for the parameterised half, which is
+where every case that has bitten this repo lives; the bare-English-word half is printed as a lead and
+deliberately not gated, for the reason in increment 3**). **All three clauses met — P16 is SHIPPED,
+with that limit stated rather than glossed.**
 
 2. **Selectors that no longer resolve.** The suite is full of `getByRole(… { name })` and `#id`
    selectors; a renamed label makes a case pass by matching nothing wherever the assertion is a
@@ -6116,6 +6215,65 @@ the two findings above say is reachable.
 **Notes.** Increment 1 asserts a count of 6,163 class uses against 500 selectors; those numbers are
 printed rather than asserted, deliberately — the check's claim is "none missing", and pinning the
 totals would make every legitimate utility addition a failure.
+
+---
+
+## P17 — The shell survives every navigation, including the ones it does not own
+
+**Status: NOT STARTED.** Written 2026-08-14 because P16 shipped and the P-track went dry, and
+`MAINTAINING.md` says extending the track IS the work in that case. Chosen over the other candidates
+the run's fan-out produced because it is the only one that ranks 1 on this file's own damage order —
+a state a flyer can enter with no way back to the work they had done — and because it is **P2's own
+*done when* not holding at a seam P2 never looked at**.
+
+**The measurement that decided it.** `app/(app)/layout.tsx:9-20` states, as the load-bearing reason
+for its own shape, that "the imported design, its edits, its undo stack, a running Monte-Carlo and a
+RocketPy cross-check all survive a navigation". That is true between the four workspace routes and
+**false for `/docs/*`**, which resolves through `app/docs/layout.tsx` — a different layout, so the
+route group's layout and `LoftApp` under it unmount. The design itself comes back from the saved
+session. Three things do not, because none is persisted:
+
+- the undo/redo stack — `loadDoc` resets it and `saveSession` never writes history;
+- a finished Monte-Carlo (`components/MonteCarlo.tsx:136`, plain `useState`) — 300 flights;
+- a finished or **running** RocketPy cross-check (`components/RocketpyCrossCheck.tsx:98`), including
+  its ~40 MB runtime download, discarded mid-flight with no prompt.
+
+**And the app plants those links directly beside the numbers that raise the question** —
+`ResultsView.tsx:613`, `:1191`, `ValidationPanel.tsx:98`, plus the footer strip on all four routes.
+So the gesture that destroys the work is the one the product invites. `BACKLOG.md:1877` and `:593`
+file the RELOAD variant, which a flyer chooses knowingly; this is a single click on a link Loft put
+there.
+
+**Outcome.** Following any in-app link out of a workspace and coming back leaves the flyer's work
+where it was. Nothing they cannot re-derive in a second is silently thrown away, and anything that
+genuinely cannot be preserved says so before it goes rather than after.
+
+**Done when** a flyer can: make three edits on `/design`, follow a docs link from `/flight`, come
+back, and still undo all three; run a Monte-Carlo, read the method that explains it, and come back to
+the same dispersion; and start a RocketPy cross-check, leave the page, and either return to it still
+running or be told before leaving that it will be discarded. **Pinned by an e2e case per clause** —
+the first is the cheapest and is the one that must exist before the milestone is called started.
+
+**Size.** 3–4 increments. Suggested order, smallest first so something lands early:
+
+1. **The undo stack survives.** It is the cheapest of the three and the one a flyer hits every
+   session. `lib/session.ts` already persists the design; history is a list of the same shape.
+   The open question is a bound — an unbounded history in `localStorage` is its own defect — so
+   measure the stack's real size on a heavy edit session before choosing one.
+2. **The Monte-Carlo result survives**, or the panel says plainly that leaving discards it. Note the
+   counter-argument recorded against the reload variant: re-opening re-flies 300 flights, so
+   persisting the RESULT is right where persisting the open/closed flag alone is not.
+3. **The RocketPy run.** The hardest, and the only one where "warn before it goes" may be the honest
+   answer rather than a weaker version of the fix — a 40 MB download cannot follow the flyer to a
+   docs page, and a prompt that says so is not a consolation prize.
+4. **Whatever the audit of step 1 turns up about the seam itself.** Two layouts that disagree about
+   what survives is a structural fact, not three bugs; if a single shell above both is the right
+   answer, it belongs here with its own measurement of what that costs a docs page.
+
+**Notes.** The docs routes must stay readable without mounting the whole app — a docs page is the
+one surface a flyer may reach from a search engine with no design loaded, and it is also the lightest
+document Loft serves. Any structural answer that makes `/docs` carry `LoftApp` needs to show it did
+not cost that.
 
 ---
 

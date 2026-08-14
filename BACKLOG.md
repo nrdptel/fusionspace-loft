@@ -17,16 +17,12 @@ died on API 529s the first time and were re-run. The sweep confirmed its own pop
 this was believed: `imports every design file (35 present)`, 45 tests, 0 failures, and all twelve
 census medians printed.
 
-- **Two KNOWN-ISSUE entries are STALE, and each is suppressing an assertion that would pass today.**
-  `lib/corpus/sweep.test.ts:98` and `:100`. Re-measured: the first is apogee −10.15% / max velocity
-  −1.56%, the second apogee +10.76% / +4.95% — all inside the ±12% `TOLERANCE_PCT` the suite asserts.
-  The second entry's own comment quotes the very figures that now pass. Dropping both arms two real
-  asserts, which is the documented lifecycle for a `knownIssue`: fix the bug, then drop the entry.
-- **And the suite's own stale-known-issue DETECTOR structurally cannot see either of them**, which is
-  why they survived. `sweep.test.ts:2614` only reports an entry as stale when `|pctError| <=
-  TOLERANCE_PCT / 2` — 6% on apogee — so an entry sitting between 6% and the 12% it is actually
-  asserted against is invisible to it forever. That is a check that cannot fail over exactly the band
-  it exists to police, and it is the more valuable of these two to fix.
+- ~~**Two KNOWN-ISSUE entries are STALE**~~ and ~~**the detector structurally cannot see them**~~ —
+  **both FIXED 2026-08-14 as R12 increment 18.** The two entries are dropped and their assertions
+  armed (1.85 and 1.24 points of margin), and the detector's apogee bar now matches the tolerance the
+  suite asserts instead of half of it. Left here rather than deleted because the shape is worth
+  keeping: a nudge calibrated tighter than the assertion it feeds cannot fire over the band between
+  them, which is where anything worth nudging about lives.
 - **The published `maxAcceleration` median is 1.3% and the corpus now measures 1.2%.** Inside
   `CENSUS_SLACK_PCT` so it does not fail, and it is an improvement rather than a regression — but
   /docs/validation publishes a figure the corpus no longer produces. Worth correcting on the next
