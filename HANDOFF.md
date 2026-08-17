@@ -4,9 +4,21 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Run 18 shipped R12 increment 21 and P18 increment 1.** `main` was at `c70f8b7` at session start and
-is at `0576ebc` after PR #185, which is **merged and live**. P18 increment 1 is on the branch behind a
-green gate. **The ledger's open Sev-1 count is zero**, and the opening fan-out claimed none.
+**Run 18 shipped THREE increments and every one of them is MERGED AND LIVE.** `main` was at `c70f8b7`
+at session start and is at `e3b42f9`. **No pull request is left open in either repo.**
+
+| | what | where |
+|---|---|---|
+| R12 increment 21 | a mass object goes inside any part with an interior bay | PR #185, merged |
+| P18 increment 1 | `Toast` — the floating message is a primitive | PR #186, merged |
+| R12 increment 22 | the whole add vocabulary is on screen, dimmed where it will not apply | PR #186, merged |
+
+**Reachability confirmed against the deployed site, not inferred from the merge.** Scanned all 11
+chunks `loft.fusionspace.co` actually serves: increment 22's `add-palette-refusals` present in 1,
+increment 21's refusal text present in 1 — the positive control — and a nonsense string in 0, so the
+grep could not have read green over nothing.
+
+**The ledger's open Sev-1 count is zero**, and the opening fan-out claimed none.
 
 **The shared `DESIGN.md` change went to BOTH repos in the same run, as §10 requires.**
 `nrdptel/fusionspace-debrief` **PR #199 is merged** (§2's elevation row, §5's `Toast`) and **PR #200
