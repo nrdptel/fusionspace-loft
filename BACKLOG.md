@@ -15,6 +15,75 @@ big for one pass. Newest first.
 **Filed 2026-08-17, from run 18's opening fan-out (8 lenses, 0 errors, 0 Sev-1 claimed) and its
 pre-push review (10 findings on one diff, of which 4 were fixed before it shipped).**
 
+**From R12 increment 22's pre-push review (11 findings; 9 fixed before it shipped). The three below
+are app-wide and measured, and none of them belongs in the increment that found them.**
+
+- **Every `disabled` and `aria-disabled` control in the app renders its label below WCAG AA.**
+  `lib/ui-tokens.ts`'s `buttonClass` dims with `opacity-50`, which composites `text-zinc-700` over
+  white to **2.64:1** and `text-zinc-300` over `zinc-900` to **3.91:1**, against AA's 4.5. Measured on
+  the built export through a canvas (`getComputedStyle` serialises Tailwind v4's oklch as `lab()`, so
+  a naive parse reads nonsense — that mistake cost this run two wrong numbers before the canvas route
+  fixed it). Increment 22 added an `unavailable` treatment for the one surface whose whole purpose is
+  to be read, and deliberately did NOT change the app-wide default, because **the app-wide fix is not
+  a colour swap**: a disabled PRIMARY is white on indigo and cannot take a muted text colour, so the
+  treatment has to differ by variant. That is a milestone. Affected today: undo, redo, the diagram's
+  zoom −/+, and every other `disabled` Button.
+- **§2's `tertiary` token does not clear AA on a raised dark surface, and it is the token the fix
+  above would naturally reach for.** `text-zinc-500 dark:text-zinc-500` on `dark:bg-zinc-900`
+  measures **3.66:1**. §2 lists `tertiary` for "disabled, placeholder, timestamps" — so the design
+  system's own answer for a disabled label is below AA in one theme. `DESIGN.md` is shared, so
+  settling it is a both-repos change. **Nothing checks it**: §9's contrast rule is enforced by
+  `e2e/contrast.spec.ts` over rendered pages, and see the next entry for why that misses this whole
+  class.
+- **`e2e/contrast.spec.ts` has never sampled a single button label, in either app.** Its walker skips
+  any element that has element children, and every `Button` in the app renders its label beside an
+  `aria-hidden` glyph span — so no button text anywhere is in its population. Its one part-picked
+  case also picks a Body tube, which dims nothing. The count it reports is real for what it looks at;
+  the population is smaller than the target implies, which is the enumerate-what-you-know failure §9
+  keeps recording about its own greps. Increment 22 asserts its own palette's contrast inline as a
+  stopgap; the fix is the walker.
+
+**From run 18's done-check cold walk — `/sweep` at 390x664, a journey this run had not touched.**
+
+- **41 controls render under 44 px in at least one dimension on `/sweep` at phone width, and no check
+  counts the route as a whole.** Measured on the built export of the shipped tree. **This is a RAW
+  count and not 41 violations** — say that plainly, because the number invites the wrong conclusion.
+  Most are shared chrome with documented treatment: the skip link is `e2e/touch.spec.ts`'s one NAMED
+  exemption, the wordmark is a recorded structural gap, and the header's Docs/Tip/theme controls are
+  34 px tall. The finding is the SHAPE of the coverage rather than the number: `touch.spec.ts` checks
+  `/sweep` region by region — its own comment says *"scoped to the tiles rather than to everything in
+  `main`, deliberately"* — so a control that is on the route but in neither a checked region nor the
+  named exemptions is counted by nothing. That is the enumerate-and-subtract lesson §9 keeps
+  recording, one suite over: a whole-route count minus a named exemption list would say something a
+  region-scoped one cannot.
+- **`/sweep` is 3.5 screens deep at 390x664.** Horizontal overflow is 0 and the empty state does say
+  what a sweep would produce before one is run, so the surface is not broken — but the phone contract
+  in the fan-out's own walk brief treats anything past two screens as a finding, and this is the
+  deepest workspace measured this run.
+
+**From P18 increment 1's pre-push review (16 findings on one diff; 13 fixed before it shipped).**
+
+- **Two `Toast`s mount at the same fixed position, and the second hides the first.**
+  `components/ui.tsx` — there is no stack, offset or queue. One caller today, so it is not reachable;
+  but §5 declares `Toast` for three concurrent-capable events ("a new build is ready, a save landed,
+  a background run finished"), so the second adopter walks into it. A `ToastRegion` that stacks them
+  is the shape; it is a real increment, not a line, which is why it is filed rather than folded into
+  the extraction.
+
+- **`Popover` is a dialog covering the page on a phone, separated from it by a hairline.**
+  `components/ui.tsx:1269` renders `max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-auto
+  max-sm:bottom-4` at `z-30` and carries no elevation at all. §2 now names `floating` and `Popover`
+  is its obvious second adopter. Deliberately not converted in the extraction pass so that pass stayed
+  an extraction rather than a repaint — but it is now a surface the design system says should have
+  something it does not.
+
+- **§9's readable block and its executable copy disagree about the card target.** `DESIGN.md`'s
+  comment still reads `# target: 1 (+ any named non-card primitive, see below)` in spirit, while
+  `lib/design-system.test.ts` now says a composing primitive contributes no treatment at all, so the
+  honest target is a plain 1. The block was updated with the two new commands this run; the
+  parenthetical and the honest-floor paragraph at §9's foot still need reconciling with that, and
+  `DESIGN.md` is shared, so it is a both-repos change.
+
 **From the fan-out's five audit lenses. Reported by an agent with a repro; NOT reproduced by the
 session unless the entry says so** — `MAINTAINING.md`'s rule is that a finding is a claim until
 someone has seen it, so these are filed as claims with the command that would settle each.
@@ -228,6 +297,15 @@ was the ledger's own open Sev-1, and it REPRODUCES (below).
   except for `border-2 border-dashed` and a dark fill of `/40` where §2 sanctions `zinc-900/50`. §9
   requires each to become "its own named primitive rather than a shadow prop on Card"; neither has
   one. **This is a P-track slice with a count that moves 3 → 1**, not a defect to clear ad hoc.
+  **CORRECTED AND HALF-CLOSED 2026-08-17 (run 18).** Two things in the entry above are wrong and both
+  mattered. (1) *"every other §9 count is at target"* was false — an ELEVATION count did not exist,
+  and `Segmented`'s thumb had carried an undeclared `shadow-sm` throughout; §2 now names two values
+  and `offSystemElevation` counts them. (2) *"a count that moves 3 → 1"* was the framing that made
+  P18's first draft self-contradictory: a primitive that COMPOSES `Card` removes the string, so a
+  milestone whose *done when* held the count at 3 would have gone red on a correct implementation.
+  The count P18 actually moves is a new one — treatments hand-rolled OUTSIDE the primitives file,
+  2 → 0. **`Toast` shipped, so the counts are now 2 and 1**; `components/ImportPanel.tsx:168` is the
+  one string left and P18 increment 2 takes both to target. See `ROADMAP.md` P18.
 - **`ErrorState` has exactly ONE adopter app-wide while the app's most-hit failure surface hand-rolls
   its own.** `components/RocketpyCrossCheck.tsx:313` renders `Card tone="danger"` with free-form
   prose; `components/PartPicker.tsx:695` renders the catalogue failure as a bare `<p>` in `red-600`.

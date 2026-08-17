@@ -2586,6 +2586,87 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 22 — the whole vocabulary is on screen, dimmed where the part will not take it,
+2026-08-17.** `COMPETITION.md` row 50's still-owed half, and the one place Loft was behind every
+tool in the field. Loft is the ONLY one of the four that states in the product WHY a component
+cannot go somewhere — OpenRocket says it in its documentation and greys the button, RockSim greys,
+RASAero has no vocabulary, RocketPy has no validity concept. And Loft was worse than all four on
+WHAT, because a control it could not offer was a control it did not draw: the six-word vocabulary
+was learnable only by picking parts until one of them offered something.
+
+**A rendering change, not a rule change**, which is what increment 20 bought: `addOptionsFor` has
+returned a verdict for every kind in a stable order since then, so the palette just draws what it
+already answered. Six near-identical `<Button>` blocks — each with its label in the markup, its long
+form in an `aria-label` beside it, and its own verdict gate to remember — collapse into one map over
+`ADD_KINDS` and one `ADD_LABELS` table. One of those six had already forgotten its gate: the
+transition button was still unconditional after the comment above it said otherwise, and the e2e
+caught it mid-change in increment 21.
+
+**`aria-disabled`, not `disabled`, and the repo had already paid for the difference.**
+`lib/ui-tokens.ts` records that a `disabled` button leaves the accessibility tree and drops focus to
+`<body>` — exactly wrong here, because the whole point of drawing a refused control is that somebody
+can reach it and find out why. A keyboard flyer tabs onto it, hears the name and "dimmed", and reads
+the reason on the line below. Both forms already suppress the hover treatment;
+`BUTTON_VARIANTS` spells `not-disabled:not-aria-disabled:` for precisely that reason.
+
+**The reasons render whenever ANYTHING is refused, not only when everything is.** They used to be
+the empty state for a part that took no gesture at all — right, while a refused control was not
+drawn, because then there was nothing on screen to explain. Four dimmed controls with no sentence is
+the "greys the button and explains only in the documentation" behaviour row 50 marks Loft as BETTER
+than, so keeping the explanation only for the all-refused case would have given the gap back on the
+way to closing it. `EmptyState` remains the primitive when nothing is offered — §5 — and a plain
+line otherwise, because a part taking four of six gestures is not an empty surface.
+
+**Measured on the 38 mm single-deploy:** controls drawn on a part go from *the offered subset* to
+**six, always** — a body tube 6 offered / 0 dimmed, a nose cone 3 / 3, a centring ring 0 / 6. On the
+**351 corpus parts that take no gesture at all**, that is 0 controls → 6.
+
+**Pinned by `e2e/smoke.spec.ts`'s *the whole add vocabulary is on screen, dimmed where the part will
+not take it***, which drives all three cases and asserts the count AND the dimmed tally on each, so
+a rule that dimmed five and dropped one fails. It also asserts the reason is on screen as TEXT — a
+tooltip is a state a flyer at the pad does not have — and that a dimmed control clicked with `force`
+leaves the undo stack empty. Control: filtering the palette back to the offered kinds fails it with
+*"a nose cone draws six and takes three: Expected 6, Received 3"*.
+
+**The palette carries `data-add-palette`, and that is not decoration.** Matching the buttons by their
+words answered **8** for a set of 6 — two unrelated "Add …" controls elsewhere on the panel — which
+is the same ambiguity the parts table's own note records about matching a row by its text, and why
+that one carries `data-kind`.
+
+**And a first draft of this entry over-claimed the check behind it**, which is worth recording because
+it is the run's third instance of the same reflex. It said `scripts/check-selectors.mjs` "holds them
+against the built export, so the name cannot rot silently". That script gates **absence-only** names —
+its own docblock spells out why: a name asserted PRESENT fails its test loudly when it is renamed, so
+the suite is its own alarm and the script would add nothing, while a name asserted ABSENT goes on
+passing forever once the string is gone. `data-add-palette` is asserted present, so it needs no gate
+and gets none. The honest claim is the smaller one.
+
+**A side effect worth noting:** this increment converted four `toHaveCount(0)` add-control assertions
+into attribute assertions, which is four fewer absence-only names in the population that script
+polices — the suite got stronger and the instrument got less to do.
+
+**The review found ELEVEN things and nine are fixed here. One of them nearly shipped the increment
+with its own content unreadable.** The dimmed labels — the half of the palette that exists to be read,
+on 351 of the 569 corpus parts — rendered at **2.64:1** in light and **3.91:1** in dark against WCAG
+AA's 4.5, because `aria-disabled:opacity-50` thins the text along with the control. `Button` gains an
+`unavailable` treatment that states a muted colour instead of thinning: **4.83:1** and **6.75:1**
+measured on the built export. Control: reverting it fails the new inline assertion with *"a dimmed
+palette label must stay readable — measured 3.21:1"*.
+
+**Three things that fix does NOT do, all filed:** the app-wide `opacity-50` on every other disabled
+control is untouched, because a disabled PRIMARY is white on indigo and cannot take a muted text
+colour — the app-wide fix differs by variant and is a milestone, not a line. §2's `tertiary` token,
+the one that fix would naturally reach for, itself measures **3.66:1** on a raised dark surface. And
+`e2e/contrast.spec.ts` has never sampled a single button label in either app: its walker skips any
+element with element children, and every `Button` wraps its label beside an aria-hidden glyph.
+
+**Two more review findings worth keeping.** The refusal was being spelled into every refused
+control's `aria-label` — three copies of the bore sentence and two of the aft-face sentence on one
+fin set, then again in the text below, which is verbatim the wall the visible dedup exists to
+prevent, rebuilt where nobody was looking; it is one `aria-describedby` now. And `ADD_LABELS` was
+typed `Record<string, …>`, so a seventh kind would have thrown `undefined.label` inside render and
+blanked the whole parts table rather than failing to compile.
+
 **Increment 21 — a mass goes where a mass goes: inside anything with a bay, 2026-08-17.** Nose
 ballast is the case the North Star names in as many words, and it was refused on the nose cone of all
 35 corpus designs. So was an av-bay inside a coupler — which in the field *is* the av-bay. The
@@ -6639,8 +6720,83 @@ not cost that.
 
 ## P18 — The two treatments that are not cards get names
 
-**Status: NOT STARTED.** Written 2026-08-17 because the P-track was dry, and `MAINTAINING.md` says
-extending it IS the work in that case.
+**Status: IN PROGRESS — increment 1 SHIPPED 2026-08-17.** Written the same run, because the P-track
+was dry and `MAINTAINING.md` says extending it IS the work in that case.
+
+**Increment 1 — `Toast`, 2026-08-17.** The service-worker update prompt spelled the entire floating
+surface at its call site. Only two things about it were ever not a `Card`: the elevation, and a
+tighter pad than `p-4` — the tone half was character-identical to `CARD_TONES.default`. Above the
+card sat the part a second floating surface would have copied wholesale: the fixed full-width
+centring row, the stacking context, `role="status"`, and the bottom pad that adds the device's own
+safe-area inset to a scale step.
+
+`Toast` composes `Card` rather than copying it, so **`cardTreatments` is 2** — the target of 1 is
+reachable and increment 2 gets there — and **`cardTreatmentsOutsidePrimitives` is 1**, from 2.
+`components/ServiceWorker.tsx` is 25 lines shorter and holds only the part that is about a service
+worker: the sentence, and the button that tells the waiting worker to take over.
+
+**§2 gained the elevation row in the same commit**, as the milestone requires. `DESIGN.md` named no
+shadow token anywhere before — the only occurrence of the word was §9's prohibition — while a
+`shadow-lg` shipped in a hand-rolled string, invisible to every §9 grep because they enumerate
+radius, border-colour, spacing and type. One value, `floating`, and it means the surface has left the
+document flow. `Popover` is the second caller waiting and deliberately not converted in this pass, so
+the pass stays an extraction rather than a repaint.
+
+**The toast had NO test of any kind, and the reason is structural.** Its only caller returns `null`
+unless `NODE_ENV` is production AND a worker already controls the page AND a newer one has reached
+`installed`; the e2e suite serves a static export, so it never registers one. `lib/toast.test.tsx`
+renders the primitive directly and asserts all four things §5 declares about it.
+
+**The pre-push review returned SIXTEEN findings on this diff and thirteen were fixed before it
+shipped. Three of them were in the section and the checks this increment wrote**, which is worth
+recording because each is the same failure this repo keeps cataloguing — an instrument that cannot
+contradict the claim beside it.
+
+1. **§2's elevation table declared "one value" while TWO shipped.** `Segmented`'s active thumb has
+   carried `shadow-sm` throughout, in the same file the section was written in, and the draft
+   asserted that `ServiceWorker`'s `shadow-lg` was the only undeclared elevation in the tree. Both
+   are named now — `floating` for a surface that leaves the flow, `thumb` for the one sanctioned
+   in-flow affordance — and enumerate-and-subtract is what lets a third value fail.
+2. **The token shipped with no instrument.** §9 says *"Pin what you fix. A drift you correct without
+   a check comes back"*, and a declared elevation had no grep and no ratchet, because every other
+   check here reads radius, border colour, spacing or type and reads straight past a shadow.
+   `offSystemElevation` is that check; control — a `shadow-2xl` on the toast fails it.
+3. **The new outside-the-primitives count had three defects of its own, and its own control found
+   the worst.** It read RAW source where every class-token check here reads stripped (a `rounded-xl
+   border` written in a prose comment would have failed it — and this diff added such a comment one
+   file over); it keyed a Map by treatment, so two files hand-rolling the SAME string counted as one,
+   which is the copy-paste case it exists to catch; and the pattern was anchored on the literal order
+   `rounded-xl border`, so `rounded-xl bg-white border …` matched nothing. The first rewrite then ran
+   a greedy regex over `classText`'s joined output and swallowed eleven unrelated class strings into
+   one match — reintroducing the counted-as-one defect with the tool used to remove it. It reads one
+   string literal at a time now.
+
+**Four checks, four controls, all fired.** `cardTreatmentsOutsidePrimitives` — restoring the
+hand-rolled call site fails it with *"expected 2 to be 1"*, naming the file and the string; a
+reordered hand-roll in a second file takes it to 2, and two in one file to 3; a prose mention does
+not move it. `offSystemElevation` — a third shadow value fails it. `lib/toast.test.tsx` — removing
+the elevation fails it with *"expected … to contain 'shadow-lg'"*. `lib/design-doc.test.ts` needs no
+control of its own: it is two-directional by construction, and an export undeclared in §5 fails the
+suite.
+
+**The Toast test was rewritten for the same reason.** Its first draft asserted `rounded-xl`,
+`border-zinc-200` and `dark:bg-zinc-900` as substrings of the whole document — which is `Card`'s tone
+rather than anything about `Toast`, and `dark:bg-zinc-900` passes on `dark:bg-zinc-900/50`, so the
+toast could switch to the SUNKEN surface level with the test green. It asserted none of `fixed`,
+`inset-x-0`, `bottom-0`, `z-50` or `justify-center` — the wrapper classes the extraction actually
+moved and the ones the "rendered output is unchanged" claim rests on. And its `not.toContain(
+'role="alert"')` could only ever fail alongside the positive assertion above it, which is not a
+control. It reads class attributes as SETS, per element, now.
+
+**Two defects in the primitive itself, both fixed.** The full-width positioning wrapper had no
+`pointer-events-none`, so the toast swallowed every click in a roughly 76 px strip across the bottom
+of the viewport for as long as it was up — the hand-rolled version had the same hole and one caller,
+and a primitive §5 invites three more callers to use would have institutionalised it, while §2's new
+text promises the flyer that what is behind a floating surface is still theirs. And the dismiss
+hand-rolled `TOUCH_TARGET_SQUARE` onto its class string inside the primitives file, which is exactly
+the pattern `Button`'s `square` prop exists to end.
+
+**Increment 2 is `DropZone`**, and the hazard below is the thing to settle first.
 
 **And it is written against a CORRECTION to the milestone the last handoff proposed.** That handoff
 named this slice as "a count that moves 3 → 1", and the count cannot move to 1 — `DESIGN.md` §9 says

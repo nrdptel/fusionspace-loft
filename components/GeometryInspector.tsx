@@ -302,9 +302,62 @@ const PART_COLUMNS = (
 // dead branch an unsound cast hides; the union and the switch below are kept in step by hand.
 type PartSort = "design" | "name" | "type" | "station" | "mass" | "cg";
 
+/** The six authoring gestures, as the palette words them — one row per `ADD_KINDS` entry.
+ *
+ *  **Spelled once, here, because the palette now draws every kind whether it is offered or not.**
+ *  Before, each was a hand-written `<Button>` with its label in the markup and its long form in an
+ *  `aria-label` beside it; six near-identical blocks, each of which had to remember its own verdict
+ *  gate. One of them forgot — the transition button was still unconditional after the comment above
+ *  it said otherwise, and the e2e caught it mid-change.
+ *
+ *  `label` is the visible text. `hint` is the accessible name when the gesture IS available, and it
+ *  says what the new part inherits and that the design re-flies — the "teach something rather than
+ *  restate the label" rule from the craft bar. When the gesture is NOT available the name is the plain
+ *  `label` and the reason arrives through `aria-describedby` instead — see the palette. */
+/** The one element every refused control points at with `aria-describedby`. A constant rather than a
+ *  `useId`, because only one parts panel is ever mounted and the value is referenced from two
+ *  branches — the plain line and the `EmptyState` — that never render together. */
+const REFUSAL_ID = "add-palette-refusals";
+
+/** Typed against `AddedPart["kind"]` rather than `string`, so a seventh kind is a COMPILE error here
+ *  rather than an `undefined.label` thrown inside render — which blanks the whole parts table, and is
+ *  the exact failure the panel's own note about `selectedId` records having closed once already.
+ *  `LoftApp`'s sibling label map is spelled the same way for the same reason. */
+const ADD_LABELS: Readonly<Record<AddedPart["kind"], { label: string; hint: string }>> = {
+  bodytube: {
+    label: "Add a tube behind this",
+    hint: "Add a tube behind this — a body tube faired to it, and re-fly the design",
+  },
+  trapezoidfinset: {
+    label: "Add fins to this tube",
+    hint: "Add fins to this tube — matching the design's own fins, and re-fly it",
+  },
+  transition: {
+    label: "Add a transition behind this",
+    hint: "Add a transition behind this — faired to what follows it, or contracting into a tail cone where nothing does, and re-fly the design",
+  },
+  masscomponent: {
+    label: "Add a mass inside this",
+    hint: "Add a mass inside this — electronics, a tracker, ballast — and re-fly the design",
+  },
+  tubecoupler: {
+    label: "Add a coupler inside this",
+    hint: "Add a coupler inside this — a tube at this one's bore, as long as the tube allows, and re-fly the design",
+  },
+  centeringring: {
+    label: "Add a centering ring inside this",
+    hint: "Add a centering ring inside this — a plate bored to the motor mount where this tube has one, or to a typical bore where it has none, and re-fly the design",
+  },
+};
+
 /** Exported so the property surface's heading names a part exactly as the parts table and the
  *  identify line do. Two tables of the same nouns is how a panel's label and its own note drift
- *  apart, and this one is already the app's single copy. */
+ *  apart, and this one is already the app's single copy.
+ *
+ *  (Its docblock was briefly orphaned above `ADD_LABELS` when that table was inserted between the
+ *  two — caught by the pre-push review. A comment that has drifted onto the wrong declaration is
+ *  worse than none: it documents something it is not about, in the app's single copy of the part
+ *  vocabulary.) */
 export const KIND_LABEL: Record<string, string> = {
   nosecone: "Nose cone",
   bodytube: "Body tube",
@@ -699,6 +752,9 @@ export default function GeometryInspector({
    *  part" over a rule that says otherwise. Derived from the verdicts instead, so it cannot drift
    *  from them again. */
   const anyOffer = offers.size > 0;
+  /** The distinct refusal sentences across every kind this part does not take, in kind order.
+   *  Deduplicated because six kinds collapse to two or three facts on any given part. */
+  const refusals = [...new Set(addOptions.filter((x) => !x.offered).map((x) => x.reason!))];
 
   // A part's host, by the host's OWN name, so "in Payload coupler" and the row reading "Payload
   // coupler" are the same string. Undefined where the design never named the host — see the prop's
@@ -978,93 +1034,68 @@ export default function GeometryInspector({
             as one body-tube test, which refused "add a tube behind this" on the nose cone of every
             design: the first part a from-scratch build has, and the one place the gesture is most
             obviously wanted. */}
-        {onAddAfter && selectedId && anyOffer && (
-          /* **A wrapping flex row with a gap, not a paragraph of buttons each nudged by `ml-1.5`.**
+        {onAddAfter && selectedId && addOptions.length > 0 && (
+          /* **Every kind, always — offered or not.** This used to render only the gestures a part
+             takes, so a flyer learned the vocabulary one part at a time and only ever saw the subset
+             the thing they happened to click allowed. `COMPETITION.md` row 50 records the gap
+             against the field: OpenRocket shows all four component categories permanently, top
+             right, and GREYS what the selection will not take, so the whole vocabulary is legible
+             without picking anything. Loft answered better than any of the four on WHY — and worse
+             than all of them on WHAT, because a control it could not offer was a control it did not
+             draw.
+
+             `addOptionsFor` has returned a verdict for every kind in a stable order since increment
+             20, which is what makes this a rendering change rather than a rule change.
+
+             **A wrapping flex row with a gap, not a paragraph of buttons each nudged by `ml-1.5`.**
              That chain encoded an ORDER — the first control carried no margin and every other one
-             did — and which control is first is now a property of the picked part rather than of
-             the source. `flex flex-wrap gap-2` is the idiom the rest of the app already uses for a
-             control row (`DataTable`, `ImportPanel`, `ResultsView`), and it spaces them the same
-             whichever subset renders. */
-          <div className="mt-1 flex flex-wrap gap-2 text-sm">
-            {/* Each button now asks for its OWN verdict, including the two that never used to. They
-                could be unconditional while the row's gate WAS the behind-rule; it is the
-                any-gesture rule now, so a part that offers only a mass object would otherwise have
-                rendered "Add a tube behind this" over a refusal. */}
-            {offers.has("bodytube") && (
-            <Button
-              onClick={() => onAddAfter(selectedId)}
-              aria-label="Add a tube behind this — a body tube faired to it, and re-fly the design"
-            >
-              <span aria-hidden>+</span> Add a tube behind this
-            </Button>
-            )}
-            {/* Only where there is a set to copy — the new ring is cloned from the design's own rather
-                than derived from invented proportions, so a design with no fins has no source and the
-                control is not offered. All 35 corpus designs carry one, and so does the starter. */}
-            {offers.has("trapezoidfinset") && (
+             did — and which control comes first stopped being a property of the source once the set
+             became conditional. `flex flex-wrap gap-2` is the idiom the rest of the app already uses
+             for a control row (`DataTable`, `ImportPanel`, `ResultsView`). */
+          <div
+            /* A stable hook for the suite, because the palette is now a SET and its members are the
+               claim. Matching the buttons by their words caught two unrelated "Add …" controls
+               elsewhere on the panel and answered 8 for a set of 6 — the same ambiguity the parts
+               table's own note records about matching a row by its text, which is why that one
+               carries `data-kind`. It needs no build-time gate and gets none:
+               `scripts/check-selectors.mjs` polices ABSENCE-only names, because a name asserted
+               PRESENT fails its own test loudly when it is renamed. That is the script's own
+               reasoning, and an earlier draft of this comment claimed the opposite. */
+            data-add-palette
+            className="mt-1 flex flex-wrap gap-2 text-sm"
+          >
+            {addOptions.map((o) => (
               <Button
-                onClick={() => onAddAfter(selectedId, "trapezoidfinset")}
-                aria-label="Add fins to this tube — matching the design's own fins, and re-fly it"
+                key={o.kind}
+                /* **`aria-disabled`, not `disabled`, and the repo has already paid for the
+                   difference.** `lib/ui-tokens.ts` records that a `disabled` button leaves the
+                   accessibility tree and drops focus to `<body>` — which is exactly wrong here,
+                   because the whole point of drawing a refused control is that somebody can reach it
+                   and find out why. A keyboard flyer tabs onto it, hears the name and "dimmed", and
+                   the reason is on the line below in text rather than in a hover. Both forms
+                   suppress the hover treatment; `BUTTON_VARIANTS` spells
+                   `not-disabled:not-aria-disabled:` for that reason. */
+                aria-disabled={o.offered ? undefined : true}
+                /* **The refused controls are the half of this palette that has to be READ** — a
+                   flyer learns the vocabulary from the ones their part will not take. The ordinary
+                   `aria-disabled:opacity-50` puts that text at 3.78:1 against WCAG AA's 4.5, on 351
+                   of the 569 corpus parts, so they take `Button`'s muted-but-readable treatment
+                   instead. Measured before and after; the numbers are in `buttonClass`. */
+                unavailable={!o.offered}
+                onClick={o.offered ? () => onAddAfter(selectedId, o.kind) : undefined}
+                /* **The refusal is DESCRIBED, not repeated into every name.** Spelling the reason
+                   into each `aria-label` put the bore sentence into three accessible names and the
+                   aft-face sentence into two on a single fin set, then again in the text below —
+                   verbatim the wall the deduplication below exists to prevent, rebuilt on the
+                   screen-reader path where nobody was looking. `aria-disabled` already announces the
+                   state, so the name says what the control IS and the reasons line says why, once,
+                   associated rather than merely adjacent. */
+                aria-describedby={o.offered ? undefined : REFUSAL_ID}
+                aria-label={o.offered ? ADD_LABELS[o.kind].hint : ADD_LABELS[o.kind].label}
               >
-                <span aria-hidden>+</span> Add fins to this tube
+                <span aria-hidden>+</span> {ADD_LABELS[o.kind].label}
               </Button>
-            )}
-            {/* The part that changes caliber. Its exit is a fact about the design wherever the design
-                supplies one — a part already sitting behind this at another caliber means the cone
-                fairs exactly to it and CLOSES a step, which is what 17 of the 25 corpus transitions
-                do. With nothing behind it, it is a tail cone, and the label says so rather than making
-                the flyer find out by clicking. */}
-            {/* The non-structural weight that decides where a rocket balances — an av-bay, a tracker,
-                nose ballast. It mounts INSIDE the tube rather than behind it, so unlike the other three
-                it needs a station, and the corpus supplies one: a third of the way down the part
-                holding it, which is where a real bay sits. */}
-            {offers.has("masscomponent") && (
-              <Button
-              onClick={() => onAddAfter(selectedId, "masscomponent")}
-              aria-label="Add a mass inside this — electronics, a tracker, ballast — and re-fly the design"
-            >
-              <span aria-hidden>+</span> Add a mass inside this
-            </Button>
-            )}
-            {offers.has("transition") && (
-              <Button
-              onClick={() => onAddAfter(selectedId, "transition")}
-              aria-label="Add a transition behind this — faired to what follows it, or contracting into a tail cone where nothing does, and re-fly the design"
-            >
-              <span aria-hidden>+</span> Add a transition behind this
-            </Button>
-            )}
-            {/* The two INTERNAL parts, and they are the first authored kinds that touch no outer
-                mould line at all: a coupler joins two tubes from inside, a centring ring holds a
-                motor mount concentric. Neither changes the airframe the solver sees — they move dry
-                mass and CG and nothing else — which is why they sit after the four that do.
-
-                Both size themselves from the part they go into rather than asking, and the two sizes
-                have nothing in common even though the model calls them the same shape: a coupler is a
-                TUBE at the host's bore and 1.86 calibers long, a ring is a bored PLATE 3.18 mm thick.
-                `internalPartDefaults` holds both figures and where in the corpus they come from. The
-                alternative was a modal of number fields, which is what the roadmap says to resist.
-
-                A coupler is cut down where the tube is shorter than 1.86 calibers — 3 of the 35
-                corpus designs — because a part longer than its host does not overhang the back, it
-                overhangs the FRONT into whatever is ahead of it. The label says "as long as the tube
-                allows" rather than promising a length the tube cannot give. */}
-            {offers.has("tubecoupler") && (
-              <Button
-              onClick={() => onAddAfter(selectedId, "tubecoupler")}
-              aria-label="Add a coupler inside this — a tube at this one's bore, as long as the tube allows, and re-fly the design"
-            >
-              <span aria-hidden>+</span> Add a coupler inside this
-            </Button>
-            )}
-            {offers.has("centeringring") && (
-              <Button
-              onClick={() => onAddAfter(selectedId, "centeringring")}
-              aria-label="Add a centering ring inside this — a plate bored to the motor mount where this tube has one, or to a typical bore where it has none, and re-fly the design"
-            >
-              <span aria-hidden>+</span> Add a centering ring inside this
-            </Button>
-            )}
+            ))}
           </div>
         )}
         {/* **What the panel says when it can offer nothing, which for most of a design is the case.**
@@ -1080,16 +1111,34 @@ export default function GeometryInspector({
             same statement rather than two that agree today. Deduplicated because the six kinds
             collapse to two or three distinct sentences on any given part — six lines all saying a
             fin set is not a body tube would be a wall, not an answer. */}
-        {onAddAfter && selectedId && !anyOffer && addOptions.length > 0 && (
-          <EmptyState
-            className="mt-2"
-            what={
-              <>
-                <span className="font-medium">Nothing can be added to this part.</span>{" "}
-                {[...new Set(addOptions.filter((x) => !x.offered).map((x) => x.reason!))].join(" ")}
-              </>
-            }
-          />
+        {onAddAfter && selectedId && refusals.length > 0 && (
+          /* **The reasons render whenever ANYTHING is refused, not only when everything is.** They
+             used to be the empty state for a part that took no gesture at all — which was right when
+             a refused control was not drawn, because then there was nothing on screen to explain.
+             Now every kind is drawn, so a nose cone shows four dimmed controls, and four dimmed
+             controls with no sentence is the "greys the button and explains only in the
+             documentation" behaviour `COMPETITION.md` row 50 marks Loft as BETTER than. Deduplicated
+             as before: the six kinds collapse to two or three distinct sentences on any given part,
+             and six restatements of one fact is a wall rather than an answer.
+
+             `EmptyState` is still the primitive when NOTHING is offered — §5's "a surface with no
+             empty state is not finished" — and a plain line otherwise, because a part that takes
+             four of six gestures is not an empty surface. */
+          anyOffer ? (
+            <p id={REFUSAL_ID} className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              {refusals.join(" ")}
+            </p>
+          ) : (
+            <EmptyState
+              className="mt-2"
+              what={
+                <span id={REFUSAL_ID}>
+                  <span className="font-medium">Nothing can be added to this part.</span>{" "}
+                  {refusals.join(" ")}
+                </span>
+              }
+            />
+          )
         )}
         {/* Authoring by SELECTION for the two internal kinds, on the part it describes. It sits HERE
             rather than in the editor below with the other three pickers, and that placement is the

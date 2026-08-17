@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
-import { Button } from "./ui";
+import { Button, Toast } from "./ui";
 
 /**
  * Registers the service worker (public/sw.js) for offline use, and — because an offline
@@ -66,21 +65,18 @@ export default function ServiceWorker() {
 
   if (!updateReady) return null;
 
+  // The whole floating surface is `Toast` now — `DESIGN.md` §5. This file used to spell it: the
+  // fixed centring row, the safe-area pad, `role="status"`, the card treatment and the dismiss's
+  // touch minimum were all written here, and the card half was character-identical to
+  // `CARD_TONES.default` with `shadow-lg` added. What is left is the only part that is about a
+  // service worker: the sentence, and the button that tells the waiting worker to take over.
   return (
-    <div
-      role="status"
-      className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-    >
-      <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
-        <span className="text-zinc-700 dark:text-zinc-200">
-          A new version of Loft is available.
-        </span>
-        {/* Both on the primitive. Hand-rolled, they reproduced `Button`'s primary fill character for
-            character while dropping the two things that are not decoration: the focus-visible ring, so
-            the toast's own action was invisible to a keyboard user, and the 44 px touch minimum. The
-            dismiss was the worse of the two — a one-glyph control at roughly 24x28 px, floating over
-            the app, next to a much larger button. `TOUCH_TARGET_SQUARE` is what the parts panel already
-            uses for exactly that shape. */}
+    <Toast
+      onDismiss={() => setUpdateReady(false)}
+      action={
+        // On the primitive. Hand-rolled, this reproduced `Button`'s primary fill character for
+        // character while dropping the focus-visible ring, so the toast's own action was invisible
+        // to a keyboard user.
         <Button
           variant="primary"
           onClick={() => {
@@ -90,15 +86,9 @@ export default function ServiceWorker() {
         >
           Refresh
         </Button>
-        <Button
-          variant="ghost"
-          onClick={() => setUpdateReady(false)}
-          aria-label="Dismiss"
-          className={TOUCH_TARGET_SQUARE}
-        >
-          <span aria-hidden>✕</span>
-        </Button>
-      </div>
-    </div>
+      }
+    >
+      A new version of Loft is available.
+    </Toast>
   );
 }

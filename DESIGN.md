@@ -58,6 +58,47 @@ A raised surface on a page needs a border to separate it. A sunken surface insid
 not — the tone change is the separation. Never nest raised inside raised; promote the inner one to
 sunken or drop the outer border.
 
+### Elevation — one surface value, and one sanctioned control affordance
+
+| Role | Value | Use for |
+|---|---|---|
+| `floating` | `shadow-lg` | a SURFACE that leaves the document flow and covers content — a toast, and any dialog anchored over the page |
+| `thumb` | `shadow-sm` | the selected option's lift inside `Segmented`, and nothing else |
+
+**`floating` is a claim about behaviour, not a style.** It says the surface is not part of the page
+underneath it — which the flyer needs to know, because what is behind it is still there and still
+theirs. It follows that a floating surface must not swallow clicks outside its own box: a full-width
+positioning wrapper takes `pointer-events-none` and gives the card back `pointer-events-auto`.
+
+**Nothing that sits IN the flow takes `floating`.** A card does not float, and a card with a shadow is
+a card pretending to be a dialog.
+
+**`thumb` is the one in-flow shadow, and it is sanctioned by name rather than waved through.** It is
+not a surface level: it is the affordance that says which option of a `Segmented` is chosen, at the
+scale of a control rather than of a container. Enumerating it here is what lets §9 subtract exactly
+it — the enumerate-and-subtract pattern the radius and border greps already use, and the one that
+stops a check going stale the moment somebody adds a third value.
+
+**Both were being invented at call sites, and the first draft of this section was wrong about that.**
+Added 2026-08-17 with `Toast`. Before it, this file mentioned no shadow token at all — the only
+occurrence of the word was §9's prohibition on a `shadow` prop on `Card`. That draft said
+`components/ServiceWorker.tsx`'s `shadow-lg` was the only undeclared elevation in the tree. **It was
+not**: `Segmented`'s thumb has carried `shadow-sm` throughout, in the same file the draft was written
+in, and the pre-push review found it. A section that declares "one value" while two ship is worse
+than no section, because the next reader trusts it. Two undeclared values, both now named.
+
+§9's greps could not see either: they enumerate radius, border-colour, spacing and type, and an
+elevation nobody declared is not off-scale to any of them. That is the same "wrong text" blindness §9
+records about the radius grep, one property over — and it is why this section ships with its own grep
+and its own ratchet rather than on discipline.
+
+**The next adopter is already in the tree and has no elevation.** `Popover` renders
+`max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-auto max-sm:bottom-4` at `z-30`, so on a phone
+it is a dialog covering the page separated from it by a hairline. **The table's `floating` row names
+what the token is FOR, not what already carries it** — `Toast` is its only adopter today. Converting
+`Popover` is deliberately not done in the same pass as the extraction, so that pass stays an
+extraction rather than a repaint.
+
 ### Borders
 
 | Role | Value | Use for |
@@ -227,6 +268,13 @@ hand-rolls it instead is not done.
 ### Containers
 - **`Card`** — the raised container. `rounded-xl border-hairline bg-raised p-4`. Optional `title` and
   `actions` slot. This replaces all 12 measured variants.
+- **`Toast`** — a short, dismissible message that floats over the page: a new build is ready, a save
+  landed, a background run finished. Renders a `Card` at §2's `floating` elevation, pinned to the
+  bottom of the viewport clear of the device inset, with `role="status"` so it is announced without
+  stealing focus. Takes one action at most and a dismiss. **It is a `Card` composed, not a `Card`
+  with a shadow** — §9 forbids the second, because a generic elevation prop lets any surface opt out
+  of "a card does not float". Never use it for an error the flyer must act on: that is `ErrorState`,
+  in the flow, where it cannot be dismissed unread.
 - **`Panel`** — a `Card` with a section header row — an `h2`, and an optional `aside` beside it —
   and, for anything dismissible, a close affordance. Owns focus return (see `useReturnFocus`).
   **Ten call sites and only three are dismissible**: it was extracted for the three heavy analysis
@@ -567,8 +615,25 @@ strs | grep -xE 'border-zinc-[0-9]{2,3}' \
 
 # card treatments hand-rolled instead of <Card>
 grep -roh 'rounded-xl border[a-z0-9:/ -]*' components \
-  | sed 's/[[:space:]]*$//' | sort -u | wc -l                       # target: 1 (+ any named
-                                                                    # non-card primitive, see below)
+  | sed 's/[[:space:]]*$//' | sort -u | wc -l                       # target: 1
+
+# ...and the one that says what is actually WRONG, which the count above cannot. That one counts
+# DISTINCT treatments wherever they live; a treatment inside `components/ui.tsx` is the vocabulary,
+# and the same string in a feature component is the vocabulary being re-invented. Excluded by PATH,
+# not by basename: `--exclude=ui.tsx` matches a basename anywhere in the subtree, so a future
+# `components/<dir>/ui.tsx` would be exempted silently — the third "wrong scope" this block records.
+grep -rn 'rounded-xl border' components --include='*.tsx' \
+  | grep -v '^components/ui\.tsx:' | wc -l                          # target: 0
+
+# elevation off the two §2 sanctions. Enumerate-and-subtract, like the radius and border greps, so
+# a third value nobody has thought of fails rather than passing unnamed. `shadow-lg` is `floating`
+# and `shadow-sm` is `Segmented`'s thumb; anything else is drift.
+# **This grep exists because the section it enforces shipped WRONG without one.** §2's elevation
+# table was written on 2026-08-17 claiming one value while two shipped, and no check in either repo
+# could contradict it — an elevation is not a radius, a border colour, a spacing step or a type
+# size, so every other command here reads past it.
+strs | grep -xE 'shadow(-(2xs|xs|sm|md|lg|xl|2xl|inner|none|\[[^]]+\]))?' \
+     | grep -vxE 'shadow-(lg|sm)' | wc -l                            # target: 0
 
 # a data surface that VANISHES instead of saying why — §5's "a surface with no empty state is not
 # finished". Two questions, and both have to be asked of a COMPONENT rather than of a file:

@@ -127,6 +127,77 @@ export function Card({
   );
 }
 
+/** A short, dismissible message that floats over the page — `DESIGN.md` §5.
+ *
+ *  **A `Card` COMPOSED, not a `Card` with a shadow prop, and §9 draws that line deliberately.** A
+ *  generic `elevated` flag would let any surface opt out of §2's rule that a card does not float; a
+ *  named primitive says which surfaces may, and there is exactly one kind. Because the treatment
+ *  lives in `Card`, this file still holds the only `rounded-xl border` string in the tree.
+ *
+ *  **What was hand-rolled here, and why the wrapper is the half worth moving.** The service-worker
+ *  update prompt spelled the whole thing at its call site: the tone half was character-identical to
+ *  `CARD_TONES.default`, so only two things were ever not a card — the elevation, and a tighter pad
+ *  than `p-4`. Above the card sat the part a second floating surface would have copied wholesale: the
+ *  fixed full-width centring row, the stacking context, `role="status"`, and the bottom pad that adds
+ *  the device's own safe-area inset to a scale step. That inset is the one arbitrary spacing value
+ *  §9 exempts by name, and it is exempted by EXPRESSION rather than by file, so moving it here keeps
+ *  both the arbitrary-spacing count and its floor assertion green.
+ *
+ *  `role="status"` rather than `alert`: this is announced politely and never steals focus, because a
+ *  toast is by definition something the flyer may ignore. **Anything they must act on is not a
+ *  toast** — that is `ErrorState`, in the flow, where it cannot be dismissed unread.
+ *
+ *  The dismiss takes `Button`'s `square` for the reason the parts panel's does: a one-glyph control
+ *  floating over the app, beside a much larger button, is otherwise about 24x28 px. */
+export function Toast({
+  children,
+  action,
+  onDismiss,
+  dismissLabel = "Dismiss",
+  className,
+  ...rest
+}: {
+  children: React.ReactNode;
+  /** At most one. A toast offering two choices is a dialog and belongs in the flow. */
+  action?: React.ReactNode;
+  /** Omitted only where the toast dismisses itself; §5 has no undismissable floating surface. */
+  onDismiss?: () => void;
+  dismissLabel?: string;
+} & React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    // **`pointer-events-none` on the wrapper, `auto` on the card, and this is a fix rather than a
+    // carry-over.** The wrapper is a full-width fixed strip so the card can centre in it, which
+    // means without this it swallows every click in roughly 76 px across the whole bottom of the
+    // viewport for as long as the toast is up — including on the surfaces behind it. The hand-rolled
+    // version had the same hole and one caller, so it went unnoticed; a primitive §5 invites three
+    // more callers to use would have institutionalised it. §2 says a floating surface tells the
+    // flyer that what is behind it is still theirs, and a surface that eats their clicks is saying
+    // the opposite.
+    <div
+      role="status"
+      className={cx(
+        "pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]",
+        className,
+      )}
+      {...rest}
+    >
+      <Card pad={false} className="pointer-events-auto flex items-center gap-3 px-4 py-3 text-sm shadow-lg">
+        <span className="text-zinc-700 dark:text-zinc-200">{children}</span>
+        {action}
+        {onDismiss && (
+          // `square`, not a hand-rolled `TOUCH_TARGET_SQUARE` on the class string. `lib/ui-tokens.ts`
+          // records that every such control in the app spelled the token itself, which is the reason
+          // the prop exists — re-introducing the pattern inside the primitives file would be the
+          // clearest possible place to get it wrong.
+          <Button variant="ghost" onClick={onDismiss} aria-label={dismissLabel} square>
+            <span aria-hidden>✕</span>
+          </Button>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 interface PanelBase {
   title: React.ReactNode;
   /** The landmark's accessible name. This is a `<section>`, and much of the e2e suite reaches these
@@ -292,6 +363,7 @@ export function Button({
   variant = "secondary",
   size = "md",
   square = false,
+  unavailable = false,
   className,
   type = "button",
   children,
@@ -303,6 +375,9 @@ export function Button({
    *  `buttonClass` — every one-glyph control in the app had hand-rolled this onto its own class
    *  string, which is why the prop exists rather than each site reaching for the token. */
   square?: boolean;
+  /** Unavailable, and still meant to be READ — see `buttonClass`. Sets the treatment only; the
+   *  caller still says `aria-disabled`. */
+  unavailable?: boolean;
   /** Declared explicitly because `ButtonHTMLAttributes` does not carry it. React 19 passes `ref`
    *  to a function component as an ordinary prop, so no forwarding wrapper is needed — but the type
    *  has to say so, and three of the panels hand their Run button a ref to return focus to. */
@@ -311,7 +386,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={buttonClass({ variant, size, square, className })}
+      className={buttonClass({ variant, size, square, unavailable, className })}
       {...rest}
     >
       {children}

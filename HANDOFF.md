@@ -4,9 +4,22 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Run 18 shipped R12 increment 21 and wrote P18.** `main` was at `c70f8b7` at session start and the
-work is on the pinned branch. **The ledger's open Sev-1 count is zero**, and the opening fan-out
-claimed none.
+**Run 18 shipped R12 increment 21 and P18 increment 1.** `main` was at `c70f8b7` at session start and
+is at `0576ebc` after PR #185, which is **merged and live**. P18 increment 1 is on the branch behind a
+green gate. **The ledger's open Sev-1 count is zero**, and the opening fan-out claimed none.
+
+**The shared `DESIGN.md` change went to BOTH repos in the same run, as §10 requires.**
+`nrdptel/fusionspace-debrief` **PR #199 is merged** (§2's elevation row, §5's `Toast`) and **PR #200
+is open** with the correction below. The shared digest needed no update and that was verified rather
+than assumed — `SHARED_SECTIONS` is 4, 6, 7, 8, 10, and both copies still hash to `3ec05348…f45fd`
+over 11,084 bytes. The two copies remain **892 diff lines apart** overall, in both directions, so
+neither can be pasted over the other.
+
+**One thing the sibling is still OWED, and it is the reason #200 exists.** Loft ships a §9 grep and an
+exact `offSystemElevation` ratchet for the new token; the sibling has the declaration and no
+instrument. A declared token with no check is exactly the state that let §2's first version ship
+claiming one value while two shipped — so porting that ratchet is the next thing to do over there,
+and it is one increment.
 
 **READ THIS BEFORE YOU BELIEVE A RED E2E GATE: two shards are no longer enough.** `MAINTAINING.md`
 still says `--shard=1/2 && --shard=2/2`, and at **207 tests** that advice has expired. Measured this
@@ -19,16 +32,27 @@ rather than a number in a manual that goes stale as the suite grows.
 
 **The next slice on each track:**
 
-- **R-track: R12 is at increment 22.** Increment 21 widened the mass-object gesture from body tubes
-  to the five kinds with an interior bay. The next slice is named in `COMPETITION.md` row 50's
-  still-owed clause and is the larger half of that row: **OpenRocket's add palette is ALWAYS
-  VISIBLE**, so a flyer learns the whole component vocabulary without selecting anything, while
-  Loft's verdicts are reachable only by picking a part that cannot take one. A persistent list of the
-  six kinds with their verdicts is what makes row 50 `BETTER` rather than merely different.
-- **P-track: P18 is WRITTEN and NOT STARTED.** Two named primitives — `Toast` and `DropZone` — to
-  absorb the two card treatments hand-rolled at call sites in `components/ServiceWorker.tsx:74` and
-  `components/ImportPanel.tsx:168`. Increment 1 is `Toast`. **Read its *done when* before starting:
-  the first draft of that milestone was wrong and the correction is recorded in it.**
+- **R-track: R12 is at increment 23, and `COMPETITION.md` row 50 is fully resolved.** Increment 21
+  widened the mass gesture to the five kinds with an interior bay; increment 22 made the whole
+  six-word vocabulary persistent, dimmed where a part will not take it. **Both halves of row 50 are
+  now closed**, so the next R12 slice needs picking rather than reading off: the strongest candidates
+  are the two the fan-out surfaced against the editor — the boattail draws three add controls that
+  `addPartAfter` cannot address at all (filed), and the mass station is derived from the host's
+  PRE-EDIT length so a resize leaves the mass outside its host (filed, and increment 21 extended it
+  to the coupler). The second is the one a flyer would notice.
+- **P-track: P18 increment 1 SHIPPED; increment 2 is `DropZone`.** `Toast` now owns the floating
+  surface and `cardTreatments` is **2**, `cardTreatmentsOutsidePrimitives` **1**. The one string left
+  outside the primitives file is `components/ImportPanel.tsx:168`'s drop zone, and converting it takes
+  both counts to their targets — 1 and 0.
+  **Settle this before writing it**, and it is measured rather than guessed: if `DropZone` composes
+  `<Card tone="muted" className="border-2">`, the 2 px border wins today only by SOURCE ORDER —
+  `.border-2` is emitted after `.border` in the built stylesheet at equal specificity, which is the
+  exact hazard `components/ui.tsx:1207-1210` already documents for `left`/`inset-x`. The honest form
+  is a width the primitive owns. Two more things belong in that increment: the drag-over state is
+  drawn in `border-indigo-400` / `bg-indigo-50/60` where §2's accent is `indigo-500/30` over
+  `indigo-500/5`, and no §9 check can see it; and `components/ResultsView.tsx:775` is the app's second
+  file-ingest surface, hand-rolling its own picker with no drag support and no rejected-file state —
+  shape `DropZone` for both or the split comes back in a run.
 - **The one-in-four quota is CLEAR.** Increment 21 was queued milestone work; writing P18 is what
   `MAINTAINING.md` requires of a dry track. No unqueued defect work was cleared this run.
 
@@ -65,7 +89,21 @@ rather than a number in a manual that goes stale as the suite grows.
    *done when* said `cardTreatments` stays 3 while its outcome removes two of the three strings.
    Corrected before a line was written: the target is 1, reachable by composition, and a *new* count
    (`cardTreatmentsOutsidePrimitives`, 2 → 0) is what the milestone actually moves.
-4. **Measure the thing the sentence claims, not a proxy for it.** Both of this run's number errors
+4. **A feature whose purpose is to be READ shipped, in review, below AA — and the check that should
+   have caught it has never looked at a button label in either app.** The palette's dimmed controls
+   measured **2.64:1** light and **3.91:1** dark against WCAG AA's 4.5, because
+   `aria-disabled:opacity-50` thins the text with the control. `e2e/contrast.spec.ts` cannot see it:
+   its walker skips any element with element children, and every `Button` renders its label beside an
+   aria-hidden glyph — so **no button text anywhere is in its population**. Two further measurements
+   came out of chasing it and both are filed: every disabled control in the app is in the same state,
+   and §2's own `tertiary` token — the one a fix would reach for — is **3.66:1** on a raised dark
+   surface.
+   **And the measurement itself was wrong twice before it was right.** Tailwind v4 emits `oklch`, and
+   `getComputedStyle` serialises it as `lab()`; parsing those three numbers as RGB produces
+   confident nonsense (it reported 1.11:1 for a colour that is really 3.91:1). Paint the colour onto
+   a 1x1 canvas and read the pixel back — that forces sRGB. Any future contrast probe here should
+   start from that.
+5. **Measure the thing the sentence claims, not a proxy for it.** Both of this run's number errors
    were the same mistake: a predicate that is *nearly* the question. 20-versus-22 asked the design
    where the sentence asked the part; 283-versus-128 (recorded last run, corrected in
    `COMPETITION.md` row 50 this run) counted `component.length` where the panel iterates
@@ -88,15 +126,27 @@ rather than a number in a manual that goes stale as the suite grows.
 - **Git identity arrived as the harness vendor's default** and was set per-repo before the first
   commit.
 - **No pull requests were open at session start** — the first run in a while where that was true.
+- **The sibling repo attaches and clones fine, but its clone only tracks `main`.** `add_repo` with
+  `access: "push"` for `nrdptel/fusionspace-debrief` succeeded and
+  `git clone --depth 1 …` took seconds. Its `remote.origin.fetch` is
+  `+refs/heads/main:refs/remotes/origin/main` only, so `git fetch origin <branch>` writes `FETCH_HEAD`
+  and no tracking ref, and a `--force-with-lease` push then fails with **"stale info"** on a branch
+  that already exists remotely. One line fixes it:
+  `git config --replace-all remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'`. Set the git
+  identity in that checkout too — it arrives as the harness vendor's default there as well.
 
 ## The arc across sessions
 
 - **Run 18 (2026-08-17, this one).** **R12 increment 21** — a mass object goes inside any part with
   an interior bay, not only a body tube: **90 → 218 of 569 corpus parts**, and the parts that answer
   NOTHING fall **419 → 351**. Nose ballast in a nose cone and an av-bay inside a coupler, both of
-  which the North Star names, were refused on all 35 designs. **P18 written** after the P-track ran
-  dry, and its first draft's *done when* corrected before any code. `COMPETITION.md` row 51 added and
-  row 50's stale clause resolved.
+  which the North Star names, were refused on all 35 designs. **R12 increment 22** — the whole add
+  vocabulary is on screen on every part, dimmed where it will not apply, which closes the second half
+  of `COMPETITION.md` row 50 and puts Loft level with OpenRocket on WHAT while keeping the thing none
+  of the four does, stating WHY in the product. **P18 written** after the P-track ran dry, its first
+  draft's *done when* corrected before any code, and **increment 1 shipped** — `Toast`, the first
+  primitive extracted since P13, with §2's first elevation token and the shared text mirrored to the
+  sibling repo the same run. `COMPETITION.md` row 51 added; row 50 resolved in both halves.
 - **Run 17 (2026-08-17).** Two Sev-1s and three increments; **P17 SHIPPED**, R12 reached increment
   20. The undo for "Import another" replayed the edit bag onto bytes that already carried it; a
   fetched forecast's age was renewed by every edit. `COMPETITION.md` row 50.
@@ -118,11 +168,22 @@ rather than a number in a manual that goes stale as the suite grows.
 - **Every e2e negative control is `revert → rebuild → run → restore → rebuild`**, and the suite serves
   `out/`. Both of this run's controls fired correctly.
 - **A merged PR cannot track new work.** After merging, `git checkout -B <branch> origin/main`.
-- **`DESIGN.md` §9, measured this run:** radius drift 0, border drift 0, **card treatments 3**
-  (target 1, and P18 is the milestone that gets it there), off-scale spacing 0, arbitrary spacing 0,
+- **`DESIGN.md` §9, measured this run:** radius drift 0, border drift 0, **card treatments 3 → 2**
+  (target 1; P18 increment 2 gets it there), **card treatments outside the primitives file 2 → 1**
+  (target 0 — a new count this run added, and the one the milestone actually moves),
+  off-scale spacing 0, arbitrary spacing 0,
   off-scale type 0, inverted files 0, raw `<select>` 0 (3 grep hits, all inside prose comments),
   primitive adoption 22 files, hover-only states on a coarse pointer 0. Only the card count is off
   target, and it now has a milestone.
-- **Both `## Awaiting the owner` entries in `OWNER-NOTES.md` are unchanged** — the attribution footer
-  and the commit identity the zero-trace invariant forbids, both from run 12. **All 13 open notes
-  carry a verdict; none is pending.**
+- **The owner ANSWERED the attribution and commit-identity pair this run**, in the session prompt:
+  they granted explicit permission to override the harness and remove any automatic vendor
+  attribution it adds. Both notes are marked answered in `OWNER-NOTES.md`, which carries the wording
+  verbatim — this file paraphrases it, because the zero-trace invariant governs every doc and the
+  reverse channel is the one place that quotation earns its keep. The harness appended its footer to
+  all three pull request bodies this run and every one was stripped by re-posting and read back. **What is still the owner's, and is now the only open item in that section:** the commits are
+  signed with the sandbox's SSH key rather than one registered to the account, so GitHub shows them
+  *Unverified*. Registering a key is the fix and only they can do it. Nothing is blocked.
+- **`OWNER-NOTES.md`: all 13 open notes carry a verdict and none is pending.** `## Awaiting the
+  owner` now has one live item — the signing key above. The other two entries from run 12, the
+  attribution footer and the commit identity, are answered and kept in full so the reasoning behind
+  the decision survives with it.
