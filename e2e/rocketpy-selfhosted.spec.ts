@@ -49,6 +49,48 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     expect(loftApogee).toBeLessThan(1005);
   });
 
+  test("a finished cross-check survives the docs link, and is not relabelled as another rocket's", async ({ page }) => {
+    // **P17's third clause.** The panel sits under a table comparing two solvers and the app plants
+    // links to the methods and limitations pages directly beside it — so the gesture that destroyed
+    // the comparison is the one the product invites. Held in a plain `useState`, it was gone.
+    //
+    // It lives here rather than in `smoke.spec.ts` because a real comparison needs the real runtime,
+    // and this file is already gated on the vendored Pyodide. The READ path is pinned separately and
+    // cheaply in `lib/session.test.ts`; what this pins is the journey.
+    test.setTimeout(240_000);
+
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    const panel = page.getByRole("region", { name: "RocketPy cross-check" });
+    await panel.getByRole("button", { name: /Run RocketPy/ }).click();
+
+    const apogeeRow = () => panel.getByRole("row", { name: /^Apogee\b/ });
+    await expect(apogeeRow()).toBeVisible({ timeout: 180_000 });
+    const before = (await apogeeRow().innerText()).trim();
+
+    // Out through a link the app itself planted, and back the way a flyer goes.
+    await page.getByRole("link", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "where it's weak" }).click();
+    await expect(page).toHaveURL(/\/docs\/limitations/);
+    await page.goBack();
+    await page.getByRole("link", { name: "Cross-check" }).click();
+
+    // The comparison is back, with no Run click on this side of the navigation…
+    await expect(apogeeRow(), "the cross-check did not survive the docs link").toBeVisible({ timeout: 30_000 });
+    expect((await apogeeRow().innerText()).trim(), "the restored comparison is the one that was run").toBe(before);
+
+    // …and it is NOT labelled as belonging to another rocket. `ranFor` is compared against a key
+    // whose leading field is a per-mount load counter, so restoring it verbatim would mark every
+    // restored comparison stale — a banner saying these numbers are for a different design, about
+    // the design in front of the flyer.
+    await expect(
+      panel.getByText(/different rocket|no longer|since this ran/i),
+      "a restored comparison was labelled stale against the design it was actually run for",
+    ).toHaveCount(0);
+  });
+
   test("labels a result the config moved out from under, and reuses the warm worker to redo it", async ({ page }) => {
     test.setTimeout(240_000);
 

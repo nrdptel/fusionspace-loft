@@ -436,6 +436,21 @@ export default function ResultsView({
   // What the heavy analysis panels are keyed on: change any of it and a completed run no longer describes
   // the design on screen, so the panel resets rather than showing a stale answer as a current one.
   const dkey = designKey({ loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, motorSwap, geometry });
+  /** The same key, identified by WHICH DESIGN rather than by how many designs have been opened — the
+   *  one to file a STORED answer under.
+   *
+   *  **`dkey`'s leading field is `loadId`, and that is a per-mount counter.** It is exactly right for
+   *  deciding when a panel must re-run inside one mount, and meaningless across a remount: it counts
+   *  loads from zero every time the shell is torn down, which is the event a stored answer exists to
+   *  survive. A flyer who opened two designs before leaving comes back with the counter at 1 where it
+   *  was 2, so a perfectly current stored answer would be filed under a key nothing matches — and a
+   *  panel that labels its figures stale against it would say "these are for a different design" about
+   *  the design on screen.
+   *
+   *  Built by handing `designKey` the content-addressed `designId` in `loadId`'s place, so it walks
+   *  the same edits through the same serialiser and a what-if added to the editor cannot be forgotten
+   *  here. Falls back to `loadId` where no fingerprint is available, which is today's behaviour. */
+  const stableKey = designKey({ loadId: designId ?? loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, motorSwap, geometry });
   // **The motor sweep is keyed WITHOUT the swap, and that is a correctness point rather than a
   // micro-optimisation.** No sweep row can depend on `motorSwap`: `lib/sim/sweep.ts` overrides the
   // motor per candidate, and every other input (`options`, `designMotor`, `ballastKg`, `geometry`,
@@ -1114,6 +1129,7 @@ export default function ResultsView({
       {run.hasPropulsion && (
         <MonteCarlo
           designKey={dkey}
+          stableKey={stableKey}
           designId={designId}
           weatherAt={weatherAt}
           flownOverrides={flownOverrides}
@@ -1233,6 +1249,8 @@ export default function ResultsView({
       {!staged && run.motorsComplete && (
         <RocketpyCrossCheck
           designKey={dkey}
+          stableKey={stableKey}
+          designId={designId}
           doc={doc}
           config={run.config}
           simIndex={simIndex}

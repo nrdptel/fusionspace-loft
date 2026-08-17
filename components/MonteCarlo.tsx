@@ -59,6 +59,7 @@ export default function MonteCarlo({
   motorSwap,
   geometry,
   designKey,
+  stableKey,
   designId,
   flownOverrides,
   weatherSerial,
@@ -76,6 +77,12 @@ export default function MonteCarlo({
    *  so depending on their identity would restart the run whenever anything re-renders; this is
    *  their *value*, and it is what decides when the dispersion is genuinely out of date. */
   designKey: string;
+  /** The same key, identified by which DESIGN rather than by how many have been opened — see
+   *  `ResultsView`. `designKey` leads with a per-mount counter, so it is right for deciding when to
+   *  re-fly and wrong for filing a stored run: a flyer who opened two designs before leaving comes
+   *  back with the counter reset, and a stored cloud that is still perfectly current would never be
+   *  matched. Optional so a caller that cannot supply one falls back to `designKey`. */
+  stableKey?: string;
   /** Which DESIGN this is, stable across a load — the identity a stored dispersion is filed under.
    *
    *  Deliberately not `designKey`, whose `loadId` is a per-mount counter: it is re-minted by the very
@@ -243,7 +250,7 @@ export default function MonteCarlo({
    *  Built from `settled` rather than `dispersions`, so it names what the run actually uses. `SAMPLES`
    *  and `SEED` are in it because they decide the cloud as surely as the tolerances do: raise the
    *  sample count and a stored 300-flight answer is no longer this panel's answer. */
-  const runKey = `${SAMPLES}|${SEED}|${designId ?? ""}|${designKey}|${conditionsId}|${keyOf(settled)}`;
+  const runKey = `${SAMPLES}|${SEED}|${designId ?? ""}|${stableKey ?? designKey}|${conditionsId}|${keyOf(settled)}`;
 
   /** Come back to the cloud you left — and ONLY to a cloud that is still this run's.
    *
@@ -346,8 +353,13 @@ export default function MonteCarlo({
     };
     // Keyed on the design's value, not the props' identity — see `designKey`. A changed dispersion
     // tolerance still re-flies; an unrelated re-render no longer restarts hundreds of flights.
+    //
+    // **`runKey` is in the list because the effect reads it.** It is built from `stableKey`, `designId`
+    // and `conditionsId`, none of which is otherwise watched — today a change to any of them also moves
+    // `designKey` or `conditionsKey`, so nothing is currently missed, but that is an undeclared
+    // invariant and this is what pins it. It is a derived string, so it cannot re-fire on identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, settled, designKey, conditionsKey]);
+  }, [open, settled, designKey, conditionsKey, runKey]);
 
   return (
     <Panel

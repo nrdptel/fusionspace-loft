@@ -20,6 +20,9 @@ import {
   clearRecents,
   MAX_RECENTS,
   designFingerprint,
+  loadCrossCheck,
+  saveCrossCheck,
+  clearCrossCheck,
   loadDispersion,
   saveDispersion,
   clearDispersion,
@@ -729,11 +732,13 @@ describe("the finished dispersion slot", () => {
   it("refuses a record that is not one, rather than handing back half of it", () => {
     localStorage.setItem("loft.dispersion", "{not json");
     expect(loadDispersion()).toBeNull();
-    localStorage.setItem("loft.dispersion", JSON.stringify({ v: 2, designId: "d", runKey: "k", result: {} }));
+    localStorage.setItem("loft.dispersion", JSON.stringify({ v: 3, designId: "d", runKey: "k", result: {} }));
     expect(loadDispersion(), "a future schema is discarded, never half-read").toBeNull();
-    localStorage.setItem("loft.dispersion", JSON.stringify({ v: 1, designId: "", runKey: "k", result: {} }));
+    localStorage.setItem("loft.dispersion", JSON.stringify({ v: 1, designId: "d", runKey: "k", result: {} }));
+    expect(loadDispersion(), "a v1 entry's key can no longer be produced, so it is discarded").toBeNull();
+    localStorage.setItem("loft.dispersion", JSON.stringify({ v: 2, designId: "", runKey: "k", result: {} }));
     expect(loadDispersion(), "an entry with no design is not filed against anything").toBeNull();
-    localStorage.setItem("loft.dispersion", JSON.stringify({ v: 1, designId: "d", runKey: "k", result: null }));
+    localStorage.setItem("loft.dispersion", JSON.stringify({ v: 2, designId: "d", runKey: "k", result: null }));
     expect(loadDispersion()).toBeNull();
   });
 
@@ -783,5 +788,66 @@ describe("designFingerprint", () => {
     const seen = new Set<string>();
     for (let i = 0; i < 5000; i++) seen.add(designFingerprint("d.ork", `payload-${i}-pad`.padEnd(40, "x")));
     expect(seen.size).toBe(5000);
+  });
+});
+
+describe("the finished cross-check slot", () => {
+  const loft = { apogee: 900, maxVelocity: 200, maxMach: 0.6, timeToApogee: 13, railExitVelocity: 20, staticMarginCal: 1.5, extrapolatedTransonic: false };
+  const rp = { apogee: 910, maxVelocity: 202, maxMach: 0.61, timeToApogee: 13.2, railExitVelocity: 20.4, staticMarginLiftoff: 1.48 };
+
+  beforeEach(() => {
+    clearCrossCheck();
+  });
+
+  it("round-trips a completed comparison", () => {
+    expect(saveCrossCheck({ designId: "d1", stableKey: "k1", loft, rp, at: 5 })).toBe(true);
+    const got = loadCrossCheck();
+    expect(got?.designId).toBe("d1");
+    expect(got?.stableKey).toBe("k1");
+    expect(got?.loft.apogee).toBe(900);
+    expect(got?.rp.staticMarginLiftoff).toBe(1.48);
+    expect(got?.loft.extrapolatedTransonic).toBe(false);
+  });
+
+  it("refuses a record missing any figure, rather than publishing a Δ neither solver produced", () => {
+    // This panel's whole output is a difference between two engines. A half-read record would put a
+    // number on screen that neither of them computed, which is worse than showing nothing.
+    for (const k of ["apogee", "maxVelocity", "maxMach", "timeToApogee", "railExitVelocity", "staticMarginCal"]) {
+      const bad = { ...loft } as Record<string, unknown>;
+      delete bad[k];
+      localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft: bad, rp, at: 1 }));
+      expect(loadCrossCheck(), `a record missing loft.${k} was accepted`).toBeNull();
+    }
+    for (const k of ["apogee", "maxVelocity", "maxMach", "timeToApogee", "railExitVelocity", "staticMarginLiftoff"]) {
+      const bad = { ...rp } as Record<string, unknown>;
+      delete bad[k];
+      localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft, rp: bad, at: 1 }));
+      expect(loadCrossCheck(), `a record missing rp.${k} was accepted`).toBeNull();
+    }
+  });
+
+  it("refuses a non-finite figure, because nothing here is a withheld sentinel", () => {
+    // Unlike the dispersion, `NaN` is not a contract in this result — `staticMarginCal` is guarded to
+    // 0 rather than left NaN — so a null that JSON produced from a NaN is corruption, not withholding.
+    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft: { ...loft, apogee: null }, rp, at: 1 }));
+    expect(loadCrossCheck()).toBeNull();
+    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft, rp: { ...rp, maxMach: "0.6" }, at: 1 }));
+    expect(loadCrossCheck()).toBeNull();
+  });
+
+  it("requires the extrapolation flag rather than defaulting it", () => {
+    // It decides whether the whole table carries the extrapolated marker. Defaulting it to false
+    // would silently publish an extrapolated comparison as a validated one.
+    const { extrapolatedTransonic: _drop, ...noFlag } = loft;
+    void _drop;
+    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft: noFlag, rp, at: 1 }));
+    expect(loadCrossCheck()).toBeNull();
+  });
+
+  it("discards an older schema whole rather than half-reading it", () => {
+    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 2, designId: "d", stableKey: "k", loft, rp, at: 1 }));
+    expect(loadCrossCheck()).toBeNull();
+    localStorage.setItem("loft.crosscheck", "{not json");
+    expect(loadCrossCheck()).toBeNull();
   });
 });

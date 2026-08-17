@@ -4,31 +4,56 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Run 17 shipped two increments and TWO Sev-1 fixes, all on PR #183.** `main` was at `bde404d` at
-session start. Merging #183 on green is pre-authorised. **The ledger's open Sev-1 count is zero.**
+**Run 17 shipped three increments and two Sev-1 fixes. PR #183 is MERGED and LIVE; PR #184 is open
+with a green local gate.** `main` was at `bde404d` at session start and is at `b4ebe3b` after #183.
+Merging #184 on green is pre-authorised. **The ledger's open Sev-1 count is zero.**
+
+**Confirmed reachable by a flyer, not just merged:** the R12 refusal string is present in a chunk
+`loft.fusionspace.co` actually serves, checked against a pre-existing control string in the same
+chunk so the grep could not read green over nothing.
 
 **The next slice on each track:**
 
-- **P-track: P17 is at increment 2 of 3–4.** *The shell survives every navigation, including the ones
-  it does not own.* Increment 1 landed the undo stack; increment 2 landed the Monte-Carlo result.
-  **Increment 3 is the RocketPy run**, and it is the one where *"warn before it goes"* may be the
-  honest answer rather than a weaker fix — a ~40 MB runtime download cannot follow a flyer to a docs
-  page, and a prompt saying so is not a consolation prize. Four smaller items remain listed under the
-  milestone: bounding the session record by BYTES rather than step count, the per-keystroke write
-  cost, `reset()` still discarding the undo stack, and closing the restored top step's run.
-- **R-track: R12 is at increment 20.** Increment 20 made every part answer what can be added to it.
-  **The measured next slice: of the 419 parts that take no gesture, 283 have `length > 0`, so
-  `buildAdded`'s mass arm would already build a mass object for them today** — nose ballast in a nose
-  cone is the obvious case and the North Star text names it. The panel and the handler demand a body
-  tube while the model does not; that is a capability being refused rather than a rule enforced.
-  `COMPETITION.md` row 50 carries the framing, and names the larger half still owed: OpenRocket's
-  vocabulary palette is ALWAYS VISIBLE, so a flyer learns the whole set without picking anything,
-  where Loft's refusal is reachable only by selecting a part that cannot take one.
+- **P-track: P17's three clauses are all shipped and pinned (#184).** The next P-track milestone must
+  be WRITTEN — the track is dry, and `MAINTAINING.md` says extending it IS the work in that case. The
+  strongest measured candidate is already in `BACKLOG.md`: **`DESIGN.md` §9's card-treatment count is
+  3 against a target of 1**, and every other §9 count is at target. The two extras are hand-rolls of a
+  primitive that exists — `components/ServiceWorker.tsx` (the update toast) and
+  `components/ImportPanel.tsx` (the drop zone) — and §9 requires each to become "its own named
+  primitive rather than a shadow prop on Card". A P-track milestone with a count that moves 3 → 1 and
+  an assertion already written to hold it. Four smaller P17 items stay listed under the milestone and
+  were deliberately not folded in: bounding the session record by BYTES rather than step count, the
+  per-keystroke write cost, `reset()` still discarding the undo stack, and closing the restored top
+  step's run. **Also still open and now recorded there: a blocking "this will discard your run"
+  prompt**, which cannot be built honestly on the App Router today.
+- **R-track: R12 is at increment 20, and the next slice is scoped, measured and CORRECTED.** A
+  dedicated probe over all 35 designs refuted the obvious reading of "283 parts could take a mass
+  object". Two corrections that would each have cost a session:
+  1. **The nose cone and the transition are not in the 419 silent set at all** — they already take the
+     "behind" gestures. So the North Star's own headline case (nose ballast) was never in that figure.
+  2. **The 283 figure counts `component.length`, but the panel iterates `Positioned.length`, which is
+     `axialLength`** — that returns a fin set's root chord and a canopy's packed length, so keying a
+     widening on it offers the gesture on 136 parts where `buildAdded` returns null and the click
+     changes nothing. That is precisely the defect increment 20's single-rule refactor ended.
+  **The defensible subset is four kinds, 128 corpus parts:** nose cone 35, inner tube 37, tube coupler
+  31, transition 25. Verified across all 128: CG-sign wrong 0, `maxBodyRadius` moved 0, overall length
+  moved 0, Barrowman CP moved 0, CNa moved 0. **Refuse the rest with reasons**: centring ring 83,
+  bulkhead 29, engine block 14 are discs 1.3–32 mm thick; shock cord 24 and launch lug 19 have a
+  length that is not an axial bay; **mass object 44 is disqualified by measurement** — `TubeFins1.rkt`
+  has one 1.219 m long in a 0.629 m rocket, so a child would land behind the tail.
 - **The one-in-four quota is CLEAR.** Both increments were queued milestone work; the Sev-1 was a
   preemption, which the quota excludes — as was the discarded-session replay below.
 
 ## What this run learned that outlasts its increments
 
+0. **The pre-push review is SEVEN-for-seven, and the second one this run found a defect in work that
+   had ALREADY MERGED.** `designKey` was not stable across `JSON.stringify`: the edit bag is a patch,
+   so clearing a what-if leaves the key holding `undefined`, `value()` rendered that as the empty
+   string, and JSON deletes the property. Measured — `finMaterial=,finSpan=0.075` live,
+   `finSpan=0.075` restored. Every answer filed under that key was unreachable for good for any flyer
+   who had ever set a field and cleared it. **A key is a different thing once it is written down**, and
+   nothing in the four gates can see that: the key was correct, the storage was correct, and the pair
+   was not.
 1. **The pre-push review is six-for-six, and this run it found SEVEN things in the increment's own
    work** — including one that made the feature actively worse than not having it: the dispersion
    panel force-opened at mount on the design id alone, and because all four workspaces render at once
@@ -98,15 +123,15 @@ was discarded, not a longer one*, with a control that fails it **Expected: 7, Re
 
 ## The arc across sessions
 
-- **Run 17 (2026-08-17, this one).** Two Sev-1s. One: the undo for "Import another" replayed the
-  edit bag onto bytes that already carried it, so picking a discarded build back up returned a rocket
-  a part longer than the one discarded — filed 2026-08-02, unreproduced for a fortnight, reproduced
-  and fixed here, with the ledger's stated root cause shown to be wrong. Two: a fetched forecast's age was renewed by every edit, so
-  a morning profile never expired — the stamp lived in `applyWhatIfState`, one function away from the
-  comment forbidding exactly that. P17 increment 2 — a finished Monte-Carlo survives a docs link,
-  stored in its own slot (78,649 bytes, 77,619 of it samples) and keyed on content rather than on two
-  per-mount counters. R12 increment 20 — every part answers what can be added to it, from one
-  exported rule that replaced three copies. `COMPETITION.md` row 50.
+- **Run 17 (2026-08-17, this one).** Two Sev-1s and three increments; **P17 SHIPPED**, R12 reached
+  increment 20. Sev-1 one: the undo for "Import another" replayed the edit bag onto bytes that already
+  carried it, so picking a discarded build back up returned a rocket a part longer than the one
+  discarded — filed 2026-08-02, unreproduced for a fortnight, reproduced and fixed here, with the
+  ledger's stated root cause shown to be wrong. Sev-1 two: a fetched forecast's age was renewed by
+  every edit, so a morning profile never expired. P17 increments 2 and 3 — a finished Monte-Carlo and
+  a finished RocketPy comparison both survive a docs link. R12 increment 20 — every one of 569 corpus
+  parts answers what can be added to it, from one exported rule that replaced three copies.
+  `COMPETITION.md` row 50.
 - **Run 16 (2026-08-14).** P17 increment 1 — the undo stack survives a docs link. R12 increment 19 —
   a tube can be added behind the nose cone. `COMPETITION.md` row 49.
 - **Run 15 (2026-08-13/14).** A Sev-1 on the design's caliber. **P16 SHIPPED.** R12 reached
