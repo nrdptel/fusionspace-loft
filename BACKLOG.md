@@ -12,6 +12,87 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-17, from run 17's opening fan-out** — eight lenses, 14 agents, 0 errors. Two of the
+Sev-1 candidates were against this run's own uncommitted work and were fixed before it shipped; one
+was the ledger's own open Sev-1, and it REPRODUCES (below).
+
+- **On a phone, the answer to "what can I add here?" appears 738 px ABOVE the row you just tapped.**
+  Measured 2026-08-17 on the built export at a 390x664 viewport, on the 38 mm single-deploy sample:
+  tapping the fin-set row in the parts table puts the add region's card at `y = -738`, entirely
+  off-screen above the fold, at 324x134 px. **This is not new with the refusal — the add BUTTONS have
+  always sat there**, so every authoring gesture on a phone is a tap followed by an unprompted scroll
+  upward to find out what happened. The refusal inherits it and makes it more visible: a button you
+  cannot see reads as "nothing here", a sentence you cannot see reads as nothing at all.
+  `components/GeometryInspector.tsx` renders the add region above the parts table, and on a phone the
+  table is what the flyer is working in. Two candidate fixes, neither costed: move the add region
+  below the table at the touch breakpoint, or scroll it into view on selection. Ranks as "a task that
+  costs steps a mature tool doesn't charge".
+
+- **FIXED 2026-08-17 — the discarded-session replay. It reproduced, and its stated root cause was
+  WRONG.** Driven here through the real importer and exporter on the
+  from-scratch starter: **pristine 6 parts → add a tube 7 → export-and-reimport (baked) 7 → replay
+  the edit bag 8.** So "Pick it back up" hands back a rocket one part longer than the one that was
+  discarded, from the button whose only job is to undo the app's one destructive act. **But the
+  claimed cause — duplicate component ids from `applyAdds` (`lib/model/edit.ts`) — is NOT what
+  happens: duplicate ids after the restore measured ZERO**, because the export/reimport re-mints ids
+  and the replayed part arrives as a genuinely new one. The real cause is one line up:
+  `syncShelfRow` overwrites `designBytes.current` with edits-baked bytes, and `designBytes`'s own
+  docblock says it is "the design as it was OPENED". `reset()` then pairs those baked bytes with the
+  unbaked edit bag. Fixing the id insert would not have fixed this. **The fix is one line:
+  `syncShelfRow` no longer writes the baked bytes back over `designBytes.current`.** The shelf still
+  gets them — `replaceRecent` is handed the serialisation directly — while the session and the
+  discarded slot keep the bytes the design was opened with, which is what the edit bag is a patch
+  against. Pinned by `e2e/smoke.spec.ts`'s *picking a discarded build back up returns the rocket that
+  was discarded, not a longer one*; control: putting the write back fails it
+  **"Expected: 7, Received: 8"**.
+- **`lib/model/edit.test.ts` carries ~12 TypeScript errors that NOTHING in the gate can see.**
+  `npx tsc --noEmit -p tsconfig.json` reports them (missing `placement` on an `InnerTube` literal,
+  `length` read off a `TrapezoidFinSet`, a spread of a non-object); `npm run build` type-checks the
+  app and not the specs, and vitest does not type-check at all. A test file that no longer matches
+  the types it exercises is a test asserting against a shape the app does not have — the same
+  "instrument that cannot see what it was not told to look for" this repo keeps recording.
+- **The `rocketpy-selfhosted` e2e specs flake in this sandbox, and they look like a red baseline.**
+  This run's baseline reported 2 failures across the two shards — `names the connection when the run
+  fails with no signal` was one — and BOTH passed on an immediate re-run with no code change. They
+  need a ~40 MB runtime through the proxy. Measured: 271 tests, 2 failed, then 0 failed on re-run.
+  Confirm a red e2e is yours by re-running the shard before believing it.
+- **DESIGN.md §9's card-treatment count is 3 against a target of 1, and has been for some time.**
+  Measured verbatim this run; every other §9 count is at target (radius 0, border 0, border pairs 0,
+  spacing 0/0, type 0, inverted 0, hand-rolled select 0; `lib/design-system.test.ts` + `design-doc`
+  green at 31 tests). The two extras are both hand-rolls of a primitive that exists:
+  `components/ServiceWorker.tsx:74` is the update toast, byte-identical to `CARD_TONES.default` plus
+  `shadow-lg`; `components/ImportPanel.tsx:168` is the drop zone, `Card tone="muted"` spelled out
+  except for `border-2 border-dashed` and a dark fill of `/40` where §2 sanctions `zinc-900/50`. §9
+  requires each to become "its own named primitive rather than a shadow prop on Card"; neither has
+  one. **This is a P-track slice with a count that moves 3 → 1**, not a defect to clear ad hoc.
+- **`ErrorState` has exactly ONE adopter app-wide while the app's most-hit failure surface hand-rolls
+  its own.** `components/RocketpyCrossCheck.tsx:313` renders `Card tone="danger"` with free-form
+  prose; `components/PartPicker.tsx:695` renders the catalogue failure as a bare `<p>` in `red-600`.
+  §5 declares `ErrorState`'s what/expected/next as separate props precisely so a call site cannot
+  drop one. Same census shape §5 already records for `Chip`, `link` and `ChipButton`.
+- **§5 requires five states on every data surface and `components/ui.tsx` exports primitives for
+  three.** `EmptyState`, `ErrorState`, `Extrapolated` exist; **loading** and **offline** have no
+  vocabulary entry, so every surface with them hand-rolls — the `aria-busy` + `opacity-50` string
+  appears identically in `MonteCarlo`, `ParameterSweep` and `MotorSweep`. Either §5 gains the two
+  primitives or it is naming states with nothing behind them.
+- **`app/docs/validation/page.tsx:501` renders the RocketPy-vs-Loft comparison as a raw `<table>`.**
+  No sort, no copy-out, no sticky header, no empty state — styled only by `.prose-loft`. §5 says
+  "every table is this one" (`DataTable`). It is the one table in the product where a flyer compares
+  two solvers, and §9's table grep reads `components/` only, so no ratchet can see it.
+- **The add-gesture rule is written in three layers and they already disagree on one kind.**
+  `lib/model/geometry.ts:237 canAnchorAfter` is the only shared piece; the panel spells six more
+  gates (`components/GeometryInspector.tsx:681,690,970,981,1143,1199`) and
+  `components/LoftApp.tsx:1296` spells the rule a second time. On `masscomponent` the panel and the
+  handler demand a body tube while `buildAdded` demands only `length > 0`. Nothing pins the
+  agreement. **Measured across the 35-design corpus: of 569 parts, 416 are offered NOTHING at all**
+  (centring ring 83, mass object 56, fin set 52, parachute 50, inner tube 34, coupler 31, bulkhead
+  29 …), 3 offer a motor mount only, and 150 carry the after-band. Of the 416 silent parts, **283
+  have `length > 0`, so `buildAdded`'s mass arm would already build for them today.**
+- **CORRECTION: `HANDOFF.md`'s "419 of the 569 corpus parts answer NOTHING when picked" is wrong.**
+  419 is the NESTED-part count the corpus suite prints on the line above ("569 parts, 419 nested
+  (73.6%)"); the parts that are genuinely offered nothing measure **416**. Two different quantities
+  that happen to sit three apart, which is exactly how a remembered number outlives its measurement.
+
 **Filed 2026-08-14, from the run's own closing cold walk** (tenth-use journey: import → sweep →
 Monte-Carlo → cross-check, driven against the built export of `59bf140`).
 
@@ -2584,6 +2665,10 @@ fixed in that increment rather than filed. The rest are below.
   `applyMountAdds` which is explicitly idempotent — which also makes one authored UUID appear twice
   in one tree, and `lib/model/id.ts:81` names that as exactly what `uniqueUuidFrom` exists to
   prevent. **Sev-1 if it reproduces** (one-way door on an undo).
+  **RESOLVED 2026-08-17 — it reproduces, this entry's stated cause is WRONG, and the fix is
+  elsewhere.** Duplicate ids after the restore measured ZERO, because the export/reimport re-mints
+  them; the double-apply comes from `syncShelfRow` overwriting `designBytes.current` with edits-baked
+  bytes that are then paired with the unbaked edit bag. See the newest entry at the top of this file.
 
 - **A from-scratch build stops being tracked by its shelf row after any reload.** Filed 2026-08-02
   from the opening fan-out; **UNREPRODUCED by me.** `components/LoftApp.tsx:515` `syncShelfRow` no-ops

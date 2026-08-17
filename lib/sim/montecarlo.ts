@@ -408,3 +408,156 @@ export function landingSpeedExceedance(result: MonteCarloResult, speedMps: numbe
   const over = landed.reduce((c, s) => c + (s.landingSpeed > speedMps ? 1 : 0), 0);
   return over / landed.length;
 }
+
+/** --- storing a result, and reading one back ----------------------------------------------------
+ *
+ *  A finished dispersion is 300 flights of work, and following one of the docs links the app plants
+ *  beside its own numbers used to throw it away. Keeping it means writing it down, and writing it
+ *  down means answering the question the last attempt at persistence in this repo got wrong:
+ *  **which fields of this object are DATA, and which only look like it.**
+ *
+ *  The answer here is not a class instance or a closure — `MonteCarloResult` is plain numbers and
+ *  booleans all the way down. It is `NaN`, and `JSON.stringify` turns it into `null` in silence.
+ *  Measured on the 38 mm sample: an ordinary 300-flight run has **2,739 leaves and round-trips with
+ *  none of them changed**, so nothing about the normal case would ever reveal the problem. A run in
+ *  which nothing landed has **39 leaves and loses 29 of them to `null`** — and those 29 are exactly
+ *  the figures this file documents as "`NaN` throughout when none landed, which a surface must
+ *  withhold rather than render". A `null` is not `NaN`: `Number.isFinite(null)` is false, so the
+ *  panel's own formatter happens to hold, but `result.landingEnergy.p95 > 0` and every future
+ *  reader would be comparing against a value whose type says `number` and whose contents are not.
+ *
+ *  **The half that carries the sentinel is the READER, and it is worth being exact about which.**
+ *  `JSON.stringify` already writes `NaN` as `null`, so `rehydrateResult` turning `null` back into
+ *  `NaN` is the whole of the fix; a control confirms the round trip holds with no write-side
+ *  transform at all. `plainResult` is not that fix and is not sold as one. It is the write-side
+ *  discipline `readSlot` applies to the session record for the same reason: it rebuilds the object
+ *  field by field, so only what the reader knows about is ever written, and a field this type grows
+ *  later that ISN'T plain data — a Map, a class, a closure — is dropped loudly by the reader rather
+ *  than smuggled through by `JSON.stringify` and found on a surface.
+ *
+ *  The pair lives HERE, beside the type whose contract it is keeping, rather than in the storage
+ *  module. The storage module cannot see that `NaN` means "withheld"; this file is where that is
+ *  written down. */
+
+/** A number as it can be written down: the withheld sentinel becomes `null`, everything else stays.
+ *  A non-finite that is NOT `NaN` (an infinity) is also stored as `null` — it is not a value any
+ *  surface here should render either, and reading it back as one would be inventing a measurement. */
+function plainNumber(n: number): number | null {
+  return Number.isFinite(n) ? n : null;
+}
+
+function plainStat(s: Stat): Record<string, number | null> {
+  return {
+    p5: plainNumber(s.p5),
+    p50: plainNumber(s.p50),
+    p95: plainNumber(s.p95),
+    mean: plainNumber(s.mean),
+    sd: plainNumber(s.sd),
+    min: plainNumber(s.min),
+    max: plainNumber(s.max),
+  };
+}
+
+/** A finished result reduced to the half that survives `JSON.stringify` — the write-side counterpart
+ *  of `rehydrateResult`, and it lives beside it so the two cannot drift. Shaped as a transform over
+ *  the result rather than a flag on the writer, so the only form that ever reaches storage is the
+ *  one that can be read back. */
+export function plainResult(r: MonteCarloResult): unknown {
+  return {
+    samples: r.samples.map((s) => ({
+      apogee: plainNumber(s.apogee),
+      maxVelocity: plainNumber(s.maxVelocity),
+      driftDistance: plainNumber(s.driftDistance),
+      landed: s.landed,
+      landingX: plainNumber(s.landingX),
+      landingY: plainNumber(s.landingY),
+      landingSpeed: plainNumber(s.landingSpeed),
+      landingEnergy: plainNumber(s.landingEnergy),
+      extrapolated: s.extrapolated,
+    })),
+    apogee: plainStat(r.apogee),
+    maxVelocity: plainStat(r.maxVelocity),
+    driftDistance: plainStat(r.driftDistance),
+    landingRadiusP95: plainNumber(r.landingRadiusP95),
+    landingSpeed: plainStat(r.landingSpeed),
+    landingEnergy: plainStat(r.landingEnergy),
+    n: r.n,
+    landedN: r.landedN,
+    extrapolatedN: r.extrapolatedN,
+  };
+}
+
+/** `null` back to the withheld sentinel; anything that is neither a finite number nor `null` fails
+ *  the read. `undefined` is a missing field, not a withheld one, and is refused for that reason —
+ *  a record written by an older shape must not read as a run whose figures were withheld. */
+function readNumber(x: unknown): number | null {
+  if (x === null) return NaN;
+  return typeof x === "number" && Number.isFinite(x) ? x : null;
+}
+
+function readStat(x: unknown): Stat | null {
+  if (!x || typeof x !== "object") return null;
+  const s = x as Record<string, unknown>;
+  const out = {} as Record<string, number>;
+  for (const k of ["p5", "p50", "p95", "mean", "sd", "min", "max"] as const) {
+    const v = readNumber(s[k]);
+    if (v === null) return null;
+    out[k] = v;
+  }
+  return out as unknown as Stat;
+}
+
+/** A stored result, or `null` if any part of it is not one.
+ *
+ *  **All or nothing, deliberately**, for the same reason the undo stack is: a half-read dispersion
+ *  is a cloud whose scatter and whose bands describe different populations, and a flyer sizes a
+ *  recovery area off exactly that disagreement. Every count is checked against the samples that
+ *  back it, because `landedN` is what four of the six figures are withheld on — a record claiming
+ *  landings it does not carry would publish a drift band computed from nothing. */
+export function rehydrateResult(x: unknown): MonteCarloResult | null {
+  if (!x || typeof x !== "object") return null;
+  const r = x as Record<string, unknown>;
+  if (!Array.isArray(r.samples)) return null;
+  const samples: MonteCarloSample[] = [];
+  for (const raw of r.samples) {
+    if (!raw || typeof raw !== "object") return null;
+    const s = raw as Record<string, unknown>;
+    if (typeof s.landed !== "boolean" || typeof s.extrapolated !== "boolean") return null;
+    const nums = {} as Record<string, number>;
+    for (const k of ["apogee", "maxVelocity", "driftDistance", "landingX", "landingY", "landingSpeed", "landingEnergy"] as const) {
+      const v = readNumber(s[k]);
+      if (v === null) return null;
+      nums[k] = v;
+    }
+    samples.push({ ...(nums as unknown as Omit<MonteCarloSample, "landed" | "extrapolated">), landed: s.landed, extrapolated: s.extrapolated });
+  }
+  const apogee = readStat(r.apogee);
+  const maxVelocity = readStat(r.maxVelocity);
+  const driftDistance = readStat(r.driftDistance);
+  const landingSpeed = readStat(r.landingSpeed);
+  const landingEnergy = readStat(r.landingEnergy);
+  const landingRadiusP95 = readNumber(r.landingRadiusP95);
+  if (!apogee || !maxVelocity || !driftDistance || !landingSpeed || !landingEnergy || landingRadiusP95 === null) return null;
+  const count = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null);
+  const n = count(r.n);
+  const landedN = count(r.landedN);
+  const extrapolatedN = count(r.extrapolatedN);
+  if (n === null || landedN === null || extrapolatedN === null) return null;
+  // The counts are what the surfaces withhold on, so a record whose counts disagree with its own
+  // samples is refused rather than repaired: `landedN` deciding a drift band that the samples say
+  // nobody flew is the wrong-number case this whole read path exists to prevent.
+  if (n !== samples.length) return null;
+  if (landedN !== samples.filter((s) => s.landed).length) return null;
+  if (extrapolatedN !== samples.filter((s) => s.extrapolated).length) return null;
+  // **And the invariant the counts exist to express, which the counts alone do not check.** This
+  // file's own docblocks state it twice: the drift band, the recovery radius, the landing speed and
+  // the landing energy are `NaN` throughout when `landedN` is 0, and every surface withholds all four
+  // on exactly that test. A record with landings but withheld landing figures would therefore be
+  // RENDERED — NaN read as a measurement on the surface a flyer sizes recovery from — and a record
+  // with no landings but finite ones would publish a band computed from nothing.
+  const landingFigures = [driftDistance, landingSpeed, landingEnergy].flatMap((st) => [st.p5, st.p50, st.p95, st.mean, st.min, st.max]).concat(landingRadiusP95);
+  const withheld = landingFigures.every((v) => Number.isNaN(v));
+  const measured = landingFigures.every((v) => Number.isFinite(v));
+  if (landedN === 0 ? !withheld : !measured) return null;
+  return { samples, apogee, maxVelocity, driftDistance, landingRadiusP95, landingSpeed, landingEnergy, n, landedN, extrapolatedN };
+}

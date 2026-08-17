@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { MassProvenance, Material, Rocket, RocketComponent } from "@/lib/model/types";
-import { canAnchorAfter, flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
+import { flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import { cgSourceLabel, massSource, massSourceLabel } from "@/lib/mass-provenance";
 import type { MotorMark } from "@/lib/sim/setup";
-import { mouldLineStep, internalSpanLabel, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
+import { addOptionsFor, mouldLineStep, internalSpanLabel, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import { csvQuantity } from "@/lib/csv";
 import * as d from "@/lib/display";
@@ -673,21 +673,22 @@ export default function GeometryInspector({
     pickTarget.entry.pick.outerDiameter > pickTarget.outerDiameter;
   const pickDropped = pickTooLong || pickTooWide;
 
-  /** Whether the picked part is a body tube — the second of the two gates on the add verbs.
+  /** Every add gesture with a verdict, from the ONE place that decides them.
    *
-   *  A part authored BEHIND the pick needs an aft face to fair to, which a nose cone and a transition
-   *  have; a part authored INSIDE it, or mounted ON it, needs a tube. Both were one body-tube test
-   *  until 2026-08-14, which refused "add a tube behind this" on the nose cone of every design. */
-  const hostIsTube = !!selectedId && parts.find((x) => x.component.id === selectedId)?.component.kind === "bodytube";
-  /** Whether a part can be authored BEHIND the pick — the first of the two gates.
+   *  **This panel used to spell the rules itself, and `addPartAfter` spelled them a second time.**
+   *  Two rules — a part authored BEHIND the pick needs an aft face to fair to, a part authored INSIDE
+   *  it needs a bore — collapsed differently in each copy. They agreed for every rendered control
+   *  while already disagreeing about a mass object, and nothing pinned the agreement; that is how
+   *  increment 19's gap survived in two of three copies for every design in the corpus.
+   *  `addOptionsFor` is now the only statement of the rule, and this reads it.
    *
-   *  **Optional, not asserted, and that distinction cost a red gate.** `selectedId` can name a part
-   *  that is no longer in `parts` — the moment after a removal is the ordinary case — so a non-null
-   *  assertion here throws inside render and takes the whole panel with it, blanking the parts table
-   *  rather than hiding a button. The predicate the original spelled inline was already written this
-   *  way for the same reason. */
-  const picked = selectedId ? parts.find((x) => x.component.id === selectedId)?.component : undefined;
-  const anchorAfterOk = !!picked && canAnchorAfter(picked);
+   *  **Asked with an id rather than a component, which keeps the old hazard closed.** `selectedId` can
+   *  name a part that is no longer in the tree — the moment after a removal is the ordinary case — and
+   *  `addOptionsFor` answers "refused, with a reason" for an id it cannot find rather than throwing.
+   *  A non-null assertion here once threw inside render and blanked the whole parts table. */
+  const addOptions = selectedId ? addOptionsFor(rocket, selectedId) : [];
+  const offers = new Set(addOptions.filter((x) => x.offered).map((x) => x.kind));
+  const anchorAfterOk = offers.has("bodytube");
 
   // A part's host, by the host's OWN name, so "in Payload coupler" and the row reading "Payload
   // coupler" are the same string. Undefined where the design never named the host — see the prop's
@@ -978,7 +979,7 @@ export default function GeometryInspector({
             {/* Only where there is a set to copy — the new ring is cloned from the design's own rather
                 than derived from invented proportions, so a design with no fins has no source and the
                 control is not offered. All 35 corpus designs carry one, and so does the starter. */}
-            {hostIsTube && parts.some((x) => x.component.kind === "trapezoidfinset") && (
+            {offers.has("trapezoidfinset") && (
               <Button
                 className="ml-1.5"
                 onClick={() => onAddAfter(selectedId, "trapezoidfinset")}
@@ -996,7 +997,7 @@ export default function GeometryInspector({
                 nose ballast. It mounts INSIDE the tube rather than behind it, so unlike the other three
                 it needs a station, and the corpus supplies one: a third of the way down the part
                 holding it, which is where a real bay sits. */}
-            {hostIsTube && (
+            {offers.has("masscomponent") && (
               <Button
               className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "masscomponent")}
@@ -1027,7 +1028,7 @@ export default function GeometryInspector({
                 corpus designs — because a part longer than its host does not overhang the back, it
                 overhangs the FRONT into whatever is ahead of it. The label says "as long as the tube
                 allows" rather than promising a length the tube cannot give. */}
-            {hostIsTube && (
+            {offers.has("tubecoupler") && (
               <Button
               className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "tubecoupler")}
@@ -1036,7 +1037,7 @@ export default function GeometryInspector({
               <span aria-hidden>+</span> Add a coupler inside this
             </Button>
             )}
-            {hostIsTube && (
+            {offers.has("centeringring") && (
               <Button
               className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "centeringring")}
@@ -1046,6 +1047,30 @@ export default function GeometryInspector({
             </Button>
             )}
           </p>
+        )}
+        {/* **What the panel says when it can offer nothing, which for most of a design is the case.**
+            Measured across the 35-design corpus: of 569 parts, 419 take no authoring gesture at all —
+            a centring ring, a bulkhead, a launch lug, a parachute, a fin set. The add row simply did
+            not render for any of them: no button, no sentence, no else branch. A flyer who picked one
+            learned nothing — not that the gesture was unavailable, not why, and not what to pick
+            instead — and the next thing on screen was an unrelated paragraph about stages.
+
+            `DESIGN.md` §5: "a surface with no empty state is not finished", and `EmptyState` "says
+            what would fill it *and* the one action that does. Never 'No data'." The reasons come from
+            `addOptionsFor`, so what the flyer is told and what the applier will actually do are the
+            same statement rather than two that agree today. Deduplicated because the six kinds
+            collapse to two or three distinct sentences on any given part — six lines all saying a
+            fin set is not a body tube would be a wall, not an answer. */}
+        {onAddAfter && selectedId && !anchorAfterOk && addOptions.length > 0 && (
+          <EmptyState
+            className="mt-2"
+            what={
+              <>
+                <span className="font-medium">Nothing can be added to this part.</span>{" "}
+                {[...new Set(addOptions.filter((x) => !x.offered).map((x) => x.reason!))].join(" ")}
+              </>
+            }
+          />
         )}
         {/* Authoring by SELECTION for the two internal kinds, on the part it describes. It sits HERE
             rather than in the editor below with the other three pickers, and that placement is the

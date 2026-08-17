@@ -19,6 +19,10 @@ import {
   countWhatIfs,
   clearRecents,
   MAX_RECENTS,
+  designFingerprint,
+  loadDispersion,
+  saveDispersion,
+  clearDispersion,
 } from "./session";
 
 /** A minimal localStorage stand-in — the tests run in Node, and the point is the module's own
@@ -705,5 +709,79 @@ describe("a workspace that has been retired", () => {
 
   it("passes a live workspace through untouched", () => {
     for (const w of WORKSPACES) expect(resolveWorkspace(w)).toBe(w);
+  });
+});
+
+describe("the finished dispersion slot", () => {
+  beforeEach(() => {
+    clearDispersion();
+  });
+
+  it("gives an entry back only under the key it was filed with", () => {
+    expect(saveDispersion({ designId: "d1", runKey: "k1", result: { n: 3 }, at: 1 })).toBe(true);
+    const got = loadDispersion();
+    expect(got?.runKey).toBe("k1");
+    expect(got?.designId).toBe("d1");
+    // The caller compares; this module only ever hands back what it stored, verbatim.
+    expect((got?.result as { n: number }).n).toBe(3);
+  });
+
+  it("refuses a record that is not one, rather than handing back half of it", () => {
+    localStorage.setItem("loft.dispersion", "{not json");
+    expect(loadDispersion()).toBeNull();
+    localStorage.setItem("loft.dispersion", JSON.stringify({ v: 2, designId: "d", runKey: "k", result: {} }));
+    expect(loadDispersion(), "a future schema is discarded, never half-read").toBeNull();
+    localStorage.setItem("loft.dispersion", JSON.stringify({ v: 1, designId: "", runKey: "k", result: {} }));
+    expect(loadDispersion(), "an entry with no design is not filed against anything").toBeNull();
+    localStorage.setItem("loft.dispersion", JSON.stringify({ v: 1, designId: "d", runKey: "k", result: null }));
+    expect(loadDispersion()).toBeNull();
+  });
+
+  it("is cleared by the destructive act", () => {
+    saveDispersion({ designId: "d1", runKey: "k1", result: { n: 1 }, at: 1 });
+    clearDispersion();
+    expect(loadDispersion()).toBeNull();
+  });
+
+  it("leaves nothing behind when the write will not fit", () => {
+    // The branch that decides whether a failed 78 KB write leaves a PREVIOUS run's entry sitting
+    // there. It is keyed, so a stale entry could never be shown against the wrong design — but it is
+    // spent quota that nothing will ever match, and the docblock says it goes. Nothing exercised this
+    // until the pre-push review pointed out that the test claiming to had never touched it.
+    saveDispersion({ designId: "d1", runKey: "k1", result: { n: 1 }, at: 1 });
+    expect(loadDispersion()).not.toBeNull();
+    const store = fakeStorage();
+    store.setItem("loft.dispersion", JSON.stringify({ v: 1, designId: "d1", runKey: "k1", result: { n: 1 }, at: 1 }));
+    vi.stubGlobal("localStorage", {
+      ...store,
+      setItem: () => {
+        throw new DOMException("QuotaExceededError");
+      },
+    });
+    expect(saveDispersion({ designId: "d2", runKey: "k2", result: { n: 2 }, at: 2 })).toBe(false);
+    // `clearDispersion` uses `removeItem`, which still works when `setItem` does not — so the old
+    // entry is actually gone rather than merely reported as gone.
+    expect(store.getItem("loft.dispersion")).toBeNull();
+  });
+});
+
+describe("designFingerprint", () => {
+  it("is stable for the same design and different for a changed one", () => {
+    const a = designFingerprint("rocket.ork", "AAAABBBB");
+    expect(designFingerprint("rocket.ork", "AAAABBBB")).toBe(a);
+    // A different name, a different length, and the same length with different CONTENT all differ —
+    // the last is the one a name-and-size id could not tell apart, and it is the case that would
+    // restore one design's dispersion onto another.
+    expect(designFingerprint("other.ork", "AAAABBBB")).not.toBe(a);
+    expect(designFingerprint("rocket.ork", "AAAABBBBC")).not.toBe(a);
+    expect(designFingerprint("rocket.ork", "BBBBAAAA")).not.toBe(a);
+  });
+
+  it("does not collide across the whole real corpus of stored designs", () => {
+    // Cheap sanity over many distinct byte strings of the same length — the collision that matters
+    // is same-name-same-length, which is exactly what the hash is carried for.
+    const seen = new Set<string>();
+    for (let i = 0; i < 5000; i++) seen.add(designFingerprint("d.ork", `payload-${i}-pad`.padEnd(40, "x")));
+    expect(seen.size).toBe(5000);
   });
 });

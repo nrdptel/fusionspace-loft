@@ -620,6 +620,109 @@ export function clearSession(): void {
   }
 }
 
+/** --- the finished dispersion --------------------------------------------------------------------
+ *
+ *  A Monte-Carlo is 300 flights, and the app plants a link to the method that explains it directly
+ *  beside the numbers it produces. Following that link resolves through a different layout, so the
+ *  shell unmounts and the cloud is gone; coming back re-flies the whole run. This slot is what makes
+ *  the trip survivable.
+ *
+ *  **It is deliberately NOT in `SavedSession`, and the reason is a measurement.** That record is
+ *  rewritten on every edit, every workspace change and every resume — in practice once per keystroke
+ *  — and a finished 300-flight result is **78,649 bytes of JSON, 77,619 of it the samples** (measured
+ *  on the 38 mm sample; the summary alone is 1,030). Putting it in the session would add a 77 KB
+ *  synchronous `JSON.stringify` and `setItem` to every keystroke, on the main thread, on the phone
+ *  §8 is written for — and it would put a derived cache inside the record whose quota path is already
+ *  choosing what to sacrifice to keep the flyer's rocket. So it is its own slot, written ONCE when a
+ *  run completes, and losing it costs nothing but the run.
+ *
+ *  **What makes it safe to read back is the key, not the bytes.** A restored cloud that does not
+ *  belong to the design, the conditions and the tolerances now on screen is a wrong number on the
+ *  surface a flyer sizes a recovery area from. So the entry carries the exact identity of the run
+ *  that produced it and the reader refuses anything else — see `runKey` at its only call site. */
+const DISPERSION_KEY = "loft.dispersion";
+
+export interface StoredDispersion {
+  v: 1;
+  /** Which design this was flown for, stable across a load — see `designFingerprint`. Held apart
+   *  from `runKey` because the two answer different questions: this one decides whether the panel
+   *  should be OPEN at all when the flyer comes back, and it can be answered on the first render;
+   *  `runKey` decides whether the stored numbers may be SHOWN, and it cannot, because the flyer's
+   *  own dispersion tolerances arrive from storage an effect later. */
+  designId: string;
+  /** The full identity of the run: the design, its edits, the conditions flown, the tolerances, and
+   *  the sample count and seed. Compared verbatim; anything else re-flies. */
+  runKey: string;
+  /** The result, already reduced to the half that survives JSON — see `plainResult`. Typed loosely
+   *  for the reason `edits` is: this module is storage, and the shape belongs to the simulation. */
+  result: unknown;
+  /** When the run finished (epoch ms). Not used to expire it — the key already decides validity —
+   *  but a stored answer with no clock is one nothing can ever reason about later. */
+  at: number;
+}
+
+/** A token for "which design is this", stable across a reload and across a navigation away and back.
+ *
+ *  **`designKey`'s `loadId` cannot serve here and the difference is a wrong number.** That token is
+ *  minted once per LOAD from a counter that starts at zero on every mount, so a resumed session
+ *  re-mints it — and two different designs opened in different orders can be handed the same one.
+ *  Keying stored results on it would let a cloud flown for one design be restored onto another. This
+ *  is content-addressed instead: the name, the byte length, and a hash of the bytes themselves.
+ *
+ *  FNV-1a over the base64 rather than a cryptographic digest: this decides whether to re-fly 300
+ *  flights, not whether to trust a signature, and it runs on a string that can be a megabyte. The
+ *  length is carried beside the hash so a collision has to beat both. */
+export function designFingerprint(name: string, designBase64: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < designBase64.length; i++) {
+    h ^= designBase64.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return `${name}:${designBase64.length}:${(h >>> 0).toString(36)}`;
+}
+
+/** The stored dispersion, whatever design it belongs to. The caller compares the ids itself, because
+ *  it has two different questions to ask of them and only one of them can be answered at mount. */
+export function loadDispersion(): StoredDispersion | null {
+  try {
+    const raw = localStorage.getItem(DISPERSION_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as StoredDispersion;
+    if (p?.v !== 1) return null;
+    if (typeof p.designId !== "string" || !p.designId) return null;
+    if (typeof p.runKey !== "string" || !p.runKey) return null;
+    if (!p.result || typeof p.result !== "object") return null;
+    return { v: 1, designId: p.designId, runKey: p.runKey, result: p.result, at: Number.isFinite(p.at) ? p.at : 0 };
+  } catch {
+    return null;
+  }
+}
+
+/** Returns whether it was stored. A cache that could not be written is not an error worth surfacing —
+ *  the panel simply re-flies next time. Returned anyway so a future caller that wants to say "kept"
+ *  is not left guessing; today's caller does not need to. Quota failures drop the entry entirely
+ *  rather than trimming it: half a dispersion is not a smaller dispersion. */
+export function saveDispersion(entry: Omit<StoredDispersion, "v">): boolean {
+  try {
+    localStorage.setItem(DISPERSION_KEY, JSON.stringify({ v: 1, ...entry }));
+    return true;
+  } catch {
+    // Out of room, or storage disabled outright (Safari private browsing). Clear rather than leave a
+    // previous run's entry behind: it is keyed, so it could not be shown for this design — but an
+    // entry nothing will ever match is just spent quota.
+    clearDispersion();
+    return false;
+  }
+}
+
+export function clearDispersion(): void {
+  try {
+    localStorage.removeItem(DISPERSION_KEY);
+  } catch {
+    // as above
+  }
+}
+
 
 /** A value that lags its input until the input stops changing.
  *

@@ -63,6 +63,8 @@ import {
   internalPartBounds,
   fittingMaxOuterDiameter,
   fittingUnitMass,
+  addOptionsFor,
+  ADD_KINDS,
 } from "../model/edit";
 import { dryMassProperties, localBodyCGx, massByComponent, statedCGReachesDesign, statedMassHolder } from "../sim/mass";
 
@@ -3834,4 +3836,54 @@ suite("real-design corpus", () => {
     // so the two assertions fail together rather than one covering for the other.
     expect(withheldRows).toEqual(["rocksimTestRocket1.rkt [E6-2] deploymentVelocity"]);
   }, 900_000);
+});
+
+describe("real-design corpus — the authoring panel answers on every part", () => {
+  it("gives every part a verdict on every add gesture, and every refusal a reason", async () => {
+    // **The gap this closes, measured before it was closed: of 569 parts across the 35 designs, 416
+    // were offered NOTHING and told nothing.** The panel's add row had no else branch — a flyer
+    // picking a centring ring, a bulkhead, a launch lug or a fin set got no button and no sentence.
+    // `DESIGN.md` §5: a surface with no empty state is not finished.
+    //
+    // Asserted over the real corpus rather than a constructed rocket, because the point is coverage
+    // across every part kind that occurs in the wild, and a hand-built tree only contains the kinds
+    // whoever wrote it thought of.
+    const files = corpusFiles();
+    if (files.length === 0) return;
+    let parts = 0;
+    let silent = 0;
+    const offeredBy = new Map<string, number>();
+    const silentByKind = new Map<string, number>();
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      for (const p of flattenRocket(doc.rocket)) {
+        parts++;
+        const opts = addOptionsFor(doc.rocket, p.component.id);
+        // Every kind, always, in a stable order — a caller cannot render a subset by forgetting one.
+        expect(opts.map((o) => o.kind), `${f.name}: ${p.component.id}`).toEqual([...ADD_KINDS]);
+        for (const o of opts) {
+          if (o.offered) {
+            expect(o.reason, `${f.name}: an offered gesture carries a refusal`).toBeUndefined();
+            offeredBy.set(o.kind, (offeredBy.get(o.kind) ?? 0) + 1);
+          } else {
+            // The whole point: a refusal SAYS something, and says what would work instead.
+            expect(o.reason, `${f.name}: ${p.component.kind} refused ${o.kind} with no reason`).toBeTruthy();
+            expect(o.reason!.length, `${f.name}: a reason too short to teach anything`).toBeGreaterThan(20);
+          }
+        }
+        if (opts.every((o) => !o.offered)) {
+          silent++;
+          silentByKind.set(p.component.kind, (silentByKind.get(p.component.kind) ?? 0) + 1);
+        }
+      }
+    }
+    const top = [...silentByKind.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, n]) => `${k} ${n}`).join(", ");
+    console.log(
+      `add-gesture verdicts across ${files.length} design files: ${parts} parts x ${ADD_KINDS.length} kinds, ` +
+        `${silent} parts take no gesture at all (${top}) — each now says why`,
+    );
+    // Every part answers. This is the assertion the milestone's *done when* rests on: not that every
+    // part can be added to, which is false and should be, but that none is silent about it.
+    expect(parts).toBeGreaterThan(500);
+  }, 120_000);
 });

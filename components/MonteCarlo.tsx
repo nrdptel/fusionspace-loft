@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { conditionsPhrase, type ConditionsSource } from "@/lib/what-if";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
@@ -12,11 +12,13 @@ import {
   FIRM_LANDING_MPS,
   HARD_LANDING_MPS,
   type Dispersions,
+  plainResult,
+  rehydrateResult,
   type MonteCarloResult,
   type Stat,
 } from "@/lib/sim/montecarlo";
 import type { GeometryEdits } from "@/lib/model/edit";
-import { usePersistedNumber, useSettled } from "@/lib/session";
+import { clearDispersion, loadDispersion, saveDispersion, usePersistedNumber, useSettled } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import { Card, Extrapolated, Figure, NumberField, Panel, Readout } from "./ui";
@@ -57,8 +59,10 @@ export default function MonteCarlo({
   motorSwap,
   geometry,
   designKey,
+  designId,
   flownOverrides,
   weatherSerial,
+  weatherAt,
   conditions,
 }: {
   doc: OrkDocument;
@@ -72,6 +76,13 @@ export default function MonteCarlo({
    *  so depending on their identity would restart the run whenever anything re-renders; this is
    *  their *value*, and it is what decides when the dispersion is genuinely out of date. */
   designKey: string;
+  /** Which DESIGN this is, stable across a load — the identity a stored dispersion is filed under.
+   *
+   *  Deliberately not `designKey`, whose `loadId` is a per-mount counter: it is re-minted by the very
+   *  navigation this exists to survive, and two designs opened in different orders can be handed the
+   *  same one. See `designFingerprint`. Optional so a caller that cannot identify its design simply
+   *  gets today's behaviour — the run is never stored, and never restored. */
+  designId?: string;
   /** The launch conditions the flight in view was actually flown under. This study built its own
    *  nominal from the design FILE, so it answered for a different day than the Flight card beside
    *  it: on the 54 mm dual-deploy sample with surface wind set to 20 mph, the card's drift moved
@@ -83,6 +94,16 @@ export default function MonteCarlo({
   /** Bumped once per forecast fetched — the only thing that can tell one forecast's air from the
    *  next, since an atmosphere and a wind profile are functions with no value to compare. */
   weatherSerial?: number;
+  /** When the forecast on screen was FETCHED (epoch ms), or undefined on design air.
+   *
+   *  **`weatherSerial` cannot identify a forecast across a navigation, and that is a wrong number
+   *  rather than a missed cache.** It is a per-mount counter — the same defect `loadId` has — so it
+   *  restarts at 0 every time the shell remounts, which is precisely the event a stored run has to
+   *  survive. Two different forecasts therefore stamp identical keys after a remount, and a cloud
+   *  flown through one day's air could be restored as another's. This is the fetch time instead: it
+   *  is written into the saved session and carried back through a resume unchanged, so it means the
+   *  same thing on both sides of the trip. */
+  weatherAt?: number;
   /** Where each launch condition came from, so this panel names what IT flew. */
   conditions?: ConditionsSource;
 }) {
@@ -96,6 +117,15 @@ export default function MonteCarlo({
   // deliberately keeps flying the FILE's conditions: it exists to compare two solvers like-for-like
   // against the design as saved, so the flyer's day is not the question it answers.
   const o = flownOverrides;
+  // The half of the conditions that means the same thing after a remount — see `conditionsId` below.
+  const conditionsIdLive = [
+    o?.rodLength ?? "",
+    o?.rodAngleDeg ?? "",
+    o?.rodAzimuthDeg ?? "",
+    o?.windSpeed ?? "",
+    o?.launchAltitude ?? "",
+    weatherAt ?? "design",
+  ].join("|");
   const conditionsKeyLive = [
     o?.rodLength ?? "",
     o?.rodAngleDeg ?? "",
@@ -113,7 +143,33 @@ export default function MonteCarlo({
   // elevation restarted this panel four times, flying every candidate at 1 m, 15 m and 150 m on the
   // way. The dispersion's own sigma inputs have been debounced for exactly this reason since they
   // were added; the launch conditions reach the same panels through the same kind of field.
-  const conditionsKey = useSettled(conditionsKeyLive, conditionsKeyLive);
+  /** The conditions, identified in a way that SURVIVES A REMOUNT — the counterpart of `designId`.
+   *
+   *  `conditionsKeyLive` above is right for deciding when to RE-FLY, which is a question asked inside
+   *  one mount: the presence strings `"profile"` / `"atm"` and the `weatherSerial` counter all move
+   *  whenever the air does, and none has to mean anything once the shell is torn down. A STORED run is
+   *  compared across exactly that boundary, where a counter restarting at 0 makes two different
+   *  forecasts look identical. So this is built from values that mean the same on both sides: the five
+   *  launch overrides, and the forecast's own fetch time.
+   *
+   *  **Settled TOGETHER with the re-fly key, through ONE timer — and the honest reason is the shape of
+   *  the hazard, not a reproduction.** These were two `useSettled` calls with two independent 350 ms
+   *  timers. Only `conditionsKey` is a dependency of the run effect, so on the commit where it settled
+   *  the effect could read an identity still describing the PREVIOUS conditions — which is exactly the
+   *  key the cloud on screen was filed under. It would match, restore what was already there, and
+   *  return, with nothing to re-fire it.
+   *
+   *  **Measured: that does not reproduce today.** Reverting to two clocks and re-running
+   *  `a finished Monte-Carlo survives the docs link the app plants beside it` PASSES — both timers
+   *  drain before React commits a render, so the two settle in the same pass. So this is not a defect
+   *  that was shipped; it is a latent one that any scheduling change would expose, and it cannot be
+   *  pinned by a test. One clock cannot lag itself, which is why the shape is the argument. */
+  const conditionsSettled = useSettled(
+    { key: conditionsKeyLive, id: conditionsIdLive },
+    `${conditionsKeyLive}\u0000${conditionsIdLive}`,
+  );
+  const conditionsKey = conditionsSettled.key;
+  const conditionsId = conditionsSettled.id;
   // Under today's weather the solver reads a wind PROFILE and never looks at a surface wind, so the
   // spread below cannot be applied to it: `windAt` returns `windProfile(altAgl)` whenever a profile
   // is set. Measured with a constant 8.94 m/s profile over 200 flights, the drift band is
@@ -170,12 +226,49 @@ export default function MonteCarlo({
   // every keystroke — the run waits until the value settles. (Serialised as the effect dependency so
   // a new object identity from an unchanged value doesn't re-trigger it.)
   const [settled, setSettled] = useState(dispersions);
-  const dispKey = `${dispersions.impulseFrac}|${dispersions.massFrac}|${dispersions.dragFrac}|${dispersions.recoveryFrac}|${dispersions.rodAngleDeg}|${dispersions.windSpeedMps}`;
+  const keyOf = (x: Dispersions) =>
+    `${x.impulseFrac}|${x.massFrac}|${x.dragFrac}|${x.recoveryFrac}|${x.rodAngleDeg}|${x.windSpeedMps}`;
+  const dispKey = keyOf(dispersions);
   useEffect(() => {
     const id = setTimeout(() => setSettled(dispersions), 350);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispKey]);
+
+  /** The full identity of the run the effect below would fly: which design, which conditions, which
+   *  tolerances, and how many flights at what seed. A stored cloud is shown only where this matches
+   *  verbatim — anything else re-flies, because a dispersion shown for inputs it was not flown under
+   *  is the recovery area for a rocket nobody has.
+   *
+   *  Built from `settled` rather than `dispersions`, so it names what the run actually uses. `SAMPLES`
+   *  and `SEED` are in it because they decide the cloud as surely as the tolerances do: raise the
+   *  sample count and a stored 300-flight answer is no longer this panel's answer. */
+  const runKey = `${SAMPLES}|${SEED}|${designId ?? ""}|${designKey}|${conditionsId}|${keyOf(settled)}`;
+
+  /** Come back to the cloud you left — and ONLY to a cloud that is still this run's.
+   *
+   *  **Not a mount effect keyed on the design, which is what this was and which paid for itself in
+   *  flights nobody asked for.** All four workspaces render at once under `hidden`, so this panel
+   *  mounts on every design load rather than when the Sweep tab is opened. Opening it on the design
+   *  alone therefore started 300 flights on every load whose stored entry had gone stale — a tolerance
+   *  changed, a condition edited — in a panel nobody had opened, on the phone §8 is written for. The
+   *  milestone's whole argument is that 300 flights is expensive; paying it unbidden is worse than the
+   *  problem it set out to fix.
+   *
+   *  So the open is decided against the WHOLE key, which means waiting for it to be right: the flyer's
+   *  tolerances arrive from storage an effect after mount. Until it matches, nothing opens and nothing
+   *  flies. When it matches, the run effect below restores rather than flying.
+   *
+   *  `autoOpened` makes it once-only, so this cannot fight the flyer for the panel. */
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (open || autoOpened.current || !designId) return;
+    const s = loadDispersion();
+    if (s && s.runKey === runKey) {
+      autoOpened.current = true;
+      setOpen(true);
+    }
+  }, [open, designId, runKey]);
 
   // Re-fly when opened, when a dispersion changes, or when an active what-if changes. Kept off the
   // main thread (batched) so the page stays responsive; a stale run is abandoned between batches.
@@ -191,6 +284,33 @@ export default function MonteCarlo({
       return;
     }
     let live = true;
+
+    // **The cloud this run would produce may already be on the device.** Restoring it is the
+    // milestone rather than an optimisation: following one of the docs links the app plants beside
+    // these very numbers unmounts the shell, and re-flying 300 flights is what that used to cost.
+    // Compared verbatim against `runKey`, so a restored cloud always belongs to the design, the
+    // conditions and the tolerances on screen.
+    const stored = loadDispersion();
+    if (stored && stored.runKey === runKey) {
+      const restored = rehydrateResult(stored.result);
+      if (restored) {
+        setResult(restored);
+        setRunning(false);
+        setProgress(restored.n);
+        return;
+      }
+      // Written by an older shape, or hand-edited. Drop it and fly — half a dispersion is not a
+      // smaller dispersion, and `rehydrateResult` refuses all-or-nothing for that reason.
+      clearDispersion();
+    }
+    // **A stored entry for this design whose key has not matched YET is the flyer's own tolerances
+    // still arriving.** `usePersistedNumber` reads them in an effect, so the first render holds the
+    // defaults and `settled` is a further 350 ms behind that. Flying here would start 300 flights
+    // that are abandoned the moment the real values land, on the way to a result already stored.
+    // The panel's existing busy state covers the wait, which is the same one it shows for the first
+    // 350 ms of any run.
+    if (stored && designId && stored.designId === designId && dispKey !== keyOf(settled)) return;
+
     setRunning(true);
     setProgress(0);
     const sim = doc.simulations[simIndex] ?? doc.simulations[0];
@@ -215,6 +335,11 @@ export default function MonteCarlo({
       if (!live || r === null) return;
       setResult(r);
       setRunning(false);
+      // Written ONCE, here, when the run has actually finished. The partial clouds above are
+      // deliberately not stored: each is a refinement of the last, and a flyer coming back to a
+      // 40-flight cloud labelled as the 300-flight answer is the wrong-number case this panel's
+      // whole read path is built to refuse.
+      if (designId) saveDispersion({ designId, runKey, result: plainResult(r), at: Date.now() });
     });
     return () => {
       live = false;
@@ -230,7 +355,14 @@ export default function MonteCarlo({
       title="Flight dispersion (Monte-Carlo)"
       aside={<span className="text-xs text-zinc-500 dark:text-zinc-400">{SAMPLES} flights on your device</span>}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(v) => {
+        setOpen(v);
+        // **Closing the panel is the flyer saying they are done with this run, and it already threw
+        // the result away** — the effect below nulls it on close, and always has. The stored copy has
+        // to go with it, or a close is undone by the next navigation: the panel would come back open,
+        // restoring a cloud the flyer had dismissed, with no way to make it stay shut.
+        if (!v) clearDispersion();
+      }}
       run="Run dispersion"
       what="the dispersion run"
     >

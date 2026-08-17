@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { importOrk } from "../ork/import";
 import { overridesFromStored, runFlight } from "./run";
-import { monteCarlo, exceedanceProbability, landingSpeedExceedance, type MonteCarloOptions } from "./montecarlo";
+import { monteCarlo, exceedanceProbability, landingSpeedExceedance, plainResult, rehydrateResult, type MonteCarloOptions, type MonteCarloResult } from "./montecarlo";
 import { newDesign } from "../model/starter";
 
 async function load(name: string) {
@@ -322,4 +322,127 @@ describe("monteCarlo", () => {
     },
     T,
   );
+});
+
+describe("storing a finished dispersion", () => {
+  /** A result whose landing figures are the withheld sentinel — the state this file documents as
+   *  "`NaN` throughout when none landed". Built by hand rather than flown, because forcing a real
+   *  300-flight run in which nothing reaches the ground takes a pathological recovery and the point
+   *  here is the SHAPE, not the physics that produces it. */
+  function withheld(): MonteCarloResult {
+    const nan = { p5: NaN, p50: NaN, p95: NaN, mean: NaN, sd: NaN, min: NaN, max: NaN };
+    return {
+      samples: [
+        { apogee: 100, maxVelocity: 50, driftDistance: 12, landed: false, landingX: 3, landingY: 4, landingSpeed: 0, landingEnergy: 0, extrapolated: false },
+      ],
+      apogee: { p5: 100, p50: 100, p95: 100, mean: 100, sd: 0, min: 100, max: 100 },
+      maxVelocity: { p5: 50, p50: 50, p95: 50, mean: 50, sd: 0, min: 50, max: 50 },
+      driftDistance: { ...nan },
+      landingRadiusP95: NaN,
+      landingSpeed: { ...nan },
+      landingEnergy: { ...nan },
+      n: 1,
+      landedN: 0,
+      extrapolatedN: 0,
+    };
+  }
+
+  it(
+    "gives back a real 300-flight result unchanged through storage",
+    async () => {
+      const { rocket, opts } = await baseOpts();
+      const before = monteCarlo(rocket, { ...opts, n: 300 });
+      const after = rehydrateResult(JSON.parse(JSON.stringify(plainResult(before))));
+      expect(after).not.toBeNull();
+      // Deep equality over the whole object: 300 samples and six bands, not a spot check on the
+      // two figures that happen to be on the card.
+      expect(after).toEqual(before);
+    },
+    120_000,
+  );
+
+  it("carries the withheld sentinel across storage, which the READER is what does", () => {
+    const before = withheld();
+    // The failure this exists to prevent, stated first: a plain round trip turns every one of those
+    // NaNs into `null`, and `null` is not a withheld measurement — it is a number-typed field
+    // holding something that is not a number.
+    const naive = JSON.parse(JSON.stringify(before)) as MonteCarloResult;
+    expect(naive.driftDistance.p50).toBeNull();
+    expect(Number.isNaN(naive.landingRadiusP95)).toBe(false);
+
+    // **And this is the half that fixes it.** `JSON.stringify` writes `NaN` as `null` on its own, so
+    // reading `null` back as `NaN` is the entire mechanism — `plainResult` is write-side discipline,
+    // not the sentinel's carrier, and a test that credited it would be describing the wrong half.
+    // Fed the NAIVE bytes, with no write-side transform anywhere, the reader still restores it:
+    const fromNaive = rehydrateResult(naive);
+    expect(fromNaive).not.toBeNull();
+    expect(Number.isNaN(fromNaive!.driftDistance.p50)).toBe(true);
+
+    const after = rehydrateResult(JSON.parse(JSON.stringify(plainResult(before))));
+    expect(after).not.toBeNull();
+    expect(Number.isNaN(after!.driftDistance.p50)).toBe(true);
+    expect(Number.isNaN(after!.landingSpeed.p95)).toBe(true);
+    expect(Number.isNaN(after!.landingEnergy.mean)).toBe(true);
+    expect(Number.isNaN(after!.landingRadiusP95)).toBe(true);
+    // …and the figures that were NOT withheld are still numbers, so the sentinel is being carried
+    // rather than smeared over everything.
+    expect(after!.apogee.p50).toBe(100);
+    expect(after!.landedN).toBe(0);
+  });
+
+  it("refuses a record whose counts disagree with the samples it carries", () => {
+    const r = withheld();
+    const stored = plainResult(r) as Record<string, unknown>;
+    // `landedN` is what four of the six figures are withheld on, so a record claiming a landing it
+    // does not carry would publish a drift band computed from nothing.
+    expect(rehydrateResult({ ...stored, landedN: 1 })).toBeNull();
+    expect(rehydrateResult({ ...stored, n: 2 })).toBeNull();
+    expect(rehydrateResult({ ...stored, extrapolatedN: 1 })).toBeNull();
+  });
+
+  it("refuses a malformed record all-or-nothing rather than reading part of it", () => {
+    const r = withheld();
+    const stored = plainResult(r) as Record<string, unknown>;
+    expect(rehydrateResult(null)).toBeNull();
+    expect(rehydrateResult("not a result")).toBeNull();
+    expect(rehydrateResult({ ...stored, samples: "nope" })).toBeNull();
+    expect(rehydrateResult({ ...stored, apogee: { p5: 1 } })).toBeNull();
+    // A missing field is not a withheld one. `undefined` must fail where `null` succeeds, or a
+    // record written by an older shape reads as a run whose figures were deliberately withheld.
+    expect(rehydrateResult({ ...stored, landingRadiusP95: undefined })).toBeNull();
+    expect(rehydrateResult({ ...stored, landingRadiusP95: null })).not.toBeNull();
+    // A sample missing its booleans is not a sample.
+    expect(rehydrateResult({ ...stored, samples: [{ apogee: 1 }] })).toBeNull();
+  });
+
+  it("refuses a record whose landing figures disagree with its landed count", () => {
+    // The invariant the counts exist to express, and which counting alone does not check. Every
+    // surface withholds drift, the recovery radius, landing speed and landing energy on `landedN === 0`
+    // — so a record claiming landings while storing those four as withheld would be RENDERED, reading
+    // NaN as a measurement on the surface a flyer sizes a recovery area from.
+    const withheldButLanded = plainResult({
+      ...withheld(),
+      samples: [{ apogee: 100, maxVelocity: 50, driftDistance: 12, landed: true, landingX: 3, landingY: 4, landingSpeed: 5, landingEnergy: 6, extrapolated: false }],
+      landedN: 1,
+    }) as Record<string, unknown>;
+    expect(rehydrateResult(withheldButLanded)).toBeNull();
+
+    // …and the mirror: no landings, but finite landing figures — a band computed from nothing.
+    const measuredButNoneLanded = plainResult({
+      ...withheld(),
+      driftDistance: { p5: 1, p50: 2, p95: 3, mean: 2, sd: 1, min: 1, max: 3 },
+      landingRadiusP95: 4,
+      landingSpeed: { p5: 1, p50: 2, p95: 3, mean: 2, sd: 1, min: 1, max: 3 },
+      landingEnergy: { p5: 1, p50: 2, p95: 3, mean: 2, sd: 1, min: 1, max: 3 },
+    }) as Record<string, unknown>;
+    expect(rehydrateResult(measuredButNoneLanded)).toBeNull();
+  });
+
+  it("stores an infinity as withheld rather than reading it back as a measurement", () => {
+    const r = withheld();
+    r.apogee.max = Infinity;
+    const after = rehydrateResult(JSON.parse(JSON.stringify(plainResult(r))));
+    expect(after).not.toBeNull();
+    expect(Number.isNaN(after!.apogee.max)).toBe(true);
+  });
 });

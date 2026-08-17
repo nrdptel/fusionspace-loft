@@ -11,7 +11,7 @@ import { Button, Card, ErrorState, NumberField, Segmented, Select } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
-import { aftOuterRadius, canAnchorAfter, flattenRocket, statedCGBounds } from "@/lib/model/geometry";
+import { aftOuterRadius, flattenRocket, statedCGBounds } from "@/lib/model/geometry";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import { storedTag } from "@/lib/validation/stored-status";
 import {
@@ -84,6 +84,7 @@ import {
   hasGeometryEdits,
   primaryParachute,
   defaultPayloadStation,
+  addOptionsFor,
   canAddStage,
   canAddMount,
   stageSeedBase,
@@ -118,7 +119,9 @@ import { statedAirframeMass } from "@/lib/model/edit";
 import { fetchConditions, geocode, plainConditions, type WeatherConditions } from "@/lib/weather";
 import {
   clearDiscardedSession,
+  clearDispersion,
   clearSession,
+  designFingerprint,
   forgetRecent,
   fromBase64,
   loadDiscardedSession,
@@ -458,15 +461,19 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *  an undo stack that survived a load would offer to restore one design's edits onto another. */
   const [history, setHistory] = useState<History<WhatIf>>(EMPTY_HISTORY as History<WhatIf>);
   const [weather, setWeather] = useState<WeatherConditions | null>(null);
-  /** When the conditions on screen were FETCHED — not when they were last written down.
+  /** When the forecast on screen was FETCHED (epoch ms), and the identity of that forecast.
    *
-   *  The session's freshness rule expires a stored forecast after an hour, and the stamp it reads has
-   *  to be the fetch or the rule measures nothing: the save effect runs on every edit, every
-   *  workspace click and every resume, so a stamp taken there is re-taken continuously and a profile
-   *  from this morning stays "fresh" all afternoon for anyone who keeps working. It is a ref rather
-   *  than state because nothing renders it — it travels with the conditions and is read only by the
-   *  writer. */
-  const weatherAt = useRef<number | null>(null);
+   *  **Stamped where the forecast LANDS, and nowhere else.** It used to be set in `applyWhatIfState`,
+   *  which every what-if goes through, so the age was renewed continuously and a profile fetched in
+   *  the morning still read as this hour's all day — see `lib/session.ts`, whose reader restores
+   *  stored conditions only while they are still this hour's, and whose docblock states the rule this
+   *  keeps: "the FETCH, not the write".
+   *
+   *  State rather than a ref, because it is now read by a renderer as well as by the writer: it is the
+   *  only thing that can tell one forecast's air from another ACROSS A REMOUNT, which `weatherSerial`
+   *  cannot — that is a counter and it restarts at zero. The dispersion panel files a finished run
+   *  under it. */
+  const [weatherAt, setWeatherAt] = useState<number | null>(null);
   /** Bumped once per forecast fetched, and by nothing else. The analysis panels watch the launch
    *  conditions by VALUE, and a forecast's atmosphere and wind profile are FUNCTIONS — there is no
    *  value to compare, so a presence flag cannot tell a new forecast from the last one. Re-fetching
@@ -519,6 +526,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *  rather than by any field the flyer can edit — the name used to stand in for it, so renaming a
    *  design re-flew the analysis panels a keystroke at a time. */
   const [loadSerial, setLoadSerial] = useState(0);
+  /** The loaded design's content-addressed identity — see `designFingerprint`. Held beside
+   *  `loadSerial` because they answer different questions: that one says "a load happened", this one
+   *  says "which design", and only the second survives the container being torn down and rebuilt. */
+  const [designId, setDesignId] = useState<string | null>(null);
   /** Designs opened before, kept on the device so a flyer working across a build can pick any of
    *  them back up without the file. Read on mount (localStorage is client-only, so the first render
    *  must match the server's empty one) and kept in step as designs are opened and dropped. */
@@ -608,7 +619,22 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     // on every untouched import and replaced their rows with Loft's re-export. The full gate caught
     // exactly that — it broke the shelf's put-it-back offer, which matches rows by id.
     if (next === designBytes.current) return;
-    designBytes.current = next;
+    // **`designBytes.current` is deliberately NOT updated to the baked bytes, and that is a Sev-1 fix
+    // rather than a tidy-up.** This ref's own docblock says it is "the design as it was OPENED", and
+    // every consumer relies on that: the session and the discarded-session slot store these bytes
+    // BESIDE the unbaked edit bag, and the restore path replays the bag on top of them. Writing the
+    // edits-baked serialisation here left the two describing the same edits twice, so "Pick it back
+    // up" — the undo for the app's one destructive act — handed back a rocket with the authored parts
+    // applied a second time.
+    //
+    // Reproduced through the real importer and exporter on the from-scratch starter: **pristine 6
+    // parts → add a tube 7 → export-and-reimport 7 → replay the edit bag 8.** Filed 2026-08-02 and
+    // unreproduced until 2026-08-17; the cause the ledger claimed (duplicate ids from `applyAdds`) is
+    // NOT what happens — duplicate ids measured zero, because the round trip re-mints them and the
+    // replayed part arrives as a genuinely new one.
+    //
+    // The shelf still gets the baked bytes: `replaceRecent` is handed `next` directly, which is the
+    // whole job this function exists to do.
     setRecents(replaceRecent(id, { design: next, name, rocket: rocket.name || name }, Date.now()));
     shelfRowId.current = null;
   }, []);
@@ -672,12 +698,18 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       setWeather(resume?.weather ?? null);
       // A resumed forecast keeps the age it was stored with; re-stamping here would make every
       // reload renew it, which is the bug this stamp exists to avoid.
-      weatherAt.current = resume?.weatherAt ?? null;
+      setWeatherAt(resume?.weatherAt ?? null);
       setScenario(resume?.scenario ?? "design");
       setSimIndex(idx);
       setError(null);
       setRestored(resume !== undefined);
       if (bytes) designBytes.current = toBase64(bytes);
+      // **Which design this is, content-addressed, so a stored dispersion can be filed under it.**
+      // `loadSerial` below cannot serve: it counts loads from zero on every mount, so the navigation
+      // a stored result exists to survive re-mints it, and two designs opened in different orders can
+      // be handed the same number. Minted here and nowhere else, so it is stable for the life of the
+      // loaded design; what the flyer then edits is `designKey`'s job, not this one's.
+      setDesignId(designBytes.current ? designFingerprint(name, designBytes.current) : null);
       // Every design that gets opened joins the shelf, so history builds itself rather than asking
       // the flyer to curate it. A resumed session is already the newest entry; re-recording it
       // would only rewrite its timestamp.
@@ -1027,7 +1059,6 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     if (!fly(w)) return false;
     setEdits(w.edits);
     setWeather(w.weather);
-    weatherAt.current = Date.now();
     setScenario(w.scenario);
     setSimIndex(w.simIndex);
     return true;
@@ -1286,14 +1317,13 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     if (!doc || !removableFrom) return;
     const anchor = flattenRocket(removableFrom).find((p) => p.component.id === afterId)?.component;
     if (!anchor) return;
-    // **Two rules, not one, and they were collapsed into "is it a body tube".** A part authored
-    // BEHIND another needs an aft face to fair to, which `canAnchorAfter` answers for a nose cone and
-    // a transition as well; a part authored INSIDE one, or mounted ON it, needs a tube. The tube and
-    // transition arms of `buildAdded` have always sized themselves through `aftOuterRadius` and could
-    // answer for all three, so the old guard refused a gesture the model could already perform — on
-    // the nose cone of every design, which is the first part a from-scratch build has.
-    const goesAfter = kind === "bodytube" || kind === "transition";
-    if (goesAfter ? !canAnchorAfter(anchor) : anchor.kind !== "bodytube") return;
+    // **Asked of the same function the panel asks, which is the whole point of it existing.** This
+    // used to spell the rule a second time — two rules collapsed differently in each copy — and the
+    // two agreed for every rendered control while already disagreeing about a mass object, with
+    // nothing pinning the agreement. A control the panel offers and this refuses is a click that does
+    // nothing; a control this accepts and the panel hides is a capability nobody can reach. Both are
+    // now the same sentence.
+    if (!addOptionsFor(removableFrom, afterId).some((x) => x.kind === kind && x.offered)) return;
     const id = newPartId(doc.rocket, edits.added, afterId);
     let part: AddedPart;
     if (kind === "trapezoidfinset") {
@@ -1321,7 +1351,8 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       // Read through `aftOuterRadius` rather than off `outerRadius`, because the anchor may now be a
       // nose cone or a transition — neither of which has one. The default is unchanged for a tube
       // anchor: half its length, or two calibers of the face the new tube fairs to, whichever is
-      // longer. `canAnchorAfter` above guarantees the radius is defined and positive.
+      // longer. The verdict above guarantees the radius is defined and positive — that is exactly
+      // what `canAnchorAfter` answers inside `addOptionsFor`.
       const faceR = aftOuterRadius(anchor)!;
       const anchorLen = "length" in anchor && typeof anchor.length === "number" ? anchor.length : 0;
       part = { id, kind: "bodytube", after: afterId, length: Math.max(anchorLen / 2, 2 * faceR) };
@@ -1579,7 +1610,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     setEdits({});
     setHistory(EMPTY_HISTORY as History<WhatIf>);
     setWeather(null);
-    weatherAt.current = null;
+    setWeatherAt(null);
     setScenario("design");
     setSimIndex(0);
     setRestored(false);
@@ -1616,7 +1647,12 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       }
     }
     designBytes.current = null;
+    setDesignId(null);
     clearSession();
+    // The one destructive act in the app takes the stored dispersion with it. It is keyed, so a stale
+    // entry could never be shown against another design — but leaving 77 KB filed under a design the
+    // flyer has just discarded is spent quota, and the same click already clears the session.
+    clearDispersion();
     // No design, no workspace — go back to the import screen rather than leaving the address on a
     // workspace route that now has nothing to show.
     router.replace("/");
@@ -1740,9 +1776,9 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       // The FETCH time, carried from where the forecast landed. Taking `Date.now()` here instead
       // would stamp the write, and this effect runs on every edit — so the age the reader checks
       // would reset continuously and a morning profile would never expire.
-      weatherAt: weather ? (weatherAt.current ?? undefined) : undefined,
+      weatherAt: weather ? (weatherAt ?? undefined) : undefined,
     });
-  }, [doc, fileName, workspace, units, simIndex, edits, history, weather, scenario]);
+  }, [doc, fileName, workspace, units, simIndex, edits, history, weather, scenario, weatherAt]);
 
   const choices = doc ? configChoices(doc) : [];
 
@@ -2384,6 +2420,16 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               // `Num`'s own re-sync effect exists to guarantee a field never sits there showing a
               // value that is not the one in the flight; this is the same rule one level up.
               const kept = { ...edits, windSpeed: undefined, launchAltitude: undefined };
+              // **The stamp belongs HERE, at the fetch, and it used to be taken in
+              // `applyWhatIfState` — which every edit goes through.** `lib/session.ts` documents the
+              // rule this restores in as many words ("the fetch, not the write"), and the writer's
+              // own comment one screen down says a stamp taken on every edit "would reset
+              // continuously and a morning profile would never expire". That is exactly what was
+              // happening, one function away from the comment forbidding it: an 09:00 profile stayed
+              // "this hour's" all day for anyone who kept typing, and the Conditions panel prints
+              // the hour with no date. This file's own measurement puts an unmatched profile up to
+              // 154° from the actual hour's wind.
+              setWeatherAt(Date.now());
               setWeatherSerial((n) => n + 1);
               commitWhatIf({ edits: kept, weather: wx, scenario: "today", simIndex }, {
                 label: "the forecast",
@@ -2399,9 +2445,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               run={run}
               doc={doc}
               loadId={loadSerial}
+              designId={designId ?? undefined}
               units={units}
               flownOverrides={flownOverridesNow}
               weatherSerial={weatherSerial}
+              // Withheld exactly as the session withholds it — `weatherAt: weather ? … : undefined`
+              // one screen down. Passing it while the conditions are design air would key a run under
+              // a forecast that is not being flown, so the same run keys differently either side of a
+              // "Reset to as-designed" and never restores.
+              weatherAt={weather ? (weatherAt ?? undefined) : undefined}
               conditions={{
                 // What each panel should SAY about the nominals it flew. One boolean could not:
                 // it made a surface-wind edit flip the two sweeps' captions to "the launch
