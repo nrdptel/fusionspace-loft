@@ -16,8 +16,20 @@ big for one pass. Newest first.
 Sev-1 candidates were against this run's own uncommitted work and were fixed before it shipped; one
 was the ledger's own open Sev-1, and it REPRODUCES (below).
 
-- **CORRECTION to the entry below, and to `HANDOFF.md`: the discarded-session replay is REPRODUCED,
-  and its stated root cause is wrong.** Driven here through the real importer and exporter on the
+- **On a phone, the answer to "what can I add here?" appears 738 px ABOVE the row you just tapped.**
+  Measured 2026-08-17 on the built export at a 390x664 viewport, on the 38 mm single-deploy sample:
+  tapping the fin-set row in the parts table puts the add region's card at `y = -738`, entirely
+  off-screen above the fold, at 324x134 px. **This is not new with the refusal — the add BUTTONS have
+  always sat there**, so every authoring gesture on a phone is a tap followed by an unprompted scroll
+  upward to find out what happened. The refusal inherits it and makes it more visible: a button you
+  cannot see reads as "nothing here", a sentence you cannot see reads as nothing at all.
+  `components/GeometryInspector.tsx` renders the add region above the parts table, and on a phone the
+  table is what the flyer is working in. Two candidate fixes, neither costed: move the add region
+  below the table at the touch breakpoint, or scroll it into view on selection. Ranks as "a task that
+  costs steps a mature tool doesn't charge".
+
+- **FIXED 2026-08-17 — the discarded-session replay. It reproduced, and its stated root cause was
+  WRONG.** Driven here through the real importer and exporter on the
   from-scratch starter: **pristine 6 parts → add a tube 7 → export-and-reimport (baked) 7 → replay
   the edit bag 8.** So "Pick it back up" hands back a rocket one part longer than the one that was
   discarded, from the button whose only job is to undo the app's one destructive act. **But the
@@ -26,7 +38,13 @@ was the ledger's own open Sev-1, and it REPRODUCES (below).
   and the replayed part arrives as a genuinely new one. The real cause is one line up:
   `syncShelfRow` overwrites `designBytes.current` with edits-baked bytes, and `designBytes`'s own
   docblock says it is "the design as it was OPENED". `reset()` then pairs those baked bytes with the
-  unbaked edit bag. Fixing the id insert would not have fixed this.
+  unbaked edit bag. Fixing the id insert would not have fixed this. **The fix is one line:
+  `syncShelfRow` no longer writes the baked bytes back over `designBytes.current`.** The shelf still
+  gets them — `replaceRecent` is handed the serialisation directly — while the session and the
+  discarded slot keep the bytes the design was opened with, which is what the edit bag is a patch
+  against. Pinned by `e2e/smoke.spec.ts`'s *picking a discarded build back up returns the rocket that
+  was discarded, not a longer one*; control: putting the write back fails it
+  **"Expected: 7, Received: 8"**.
 - **`lib/model/edit.test.ts` carries ~12 TypeScript errors that NOTHING in the gate can see.**
   `npx tsc --noEmit -p tsconfig.json` reports them (missing `placement` on an `InnerTube` literal,
   `length` read off a `TrapezoidFinSet`, a spread of a non-object); `npm run build` type-checks the
@@ -2647,6 +2665,10 @@ fixed in that increment rather than filed. The rest are below.
   `applyMountAdds` which is explicitly idempotent — which also makes one authored UUID appear twice
   in one tree, and `lib/model/id.ts:81` names that as exactly what `uniqueUuidFrom` exists to
   prevent. **Sev-1 if it reproduces** (one-way door on an undo).
+  **RESOLVED 2026-08-17 — it reproduces, this entry's stated cause is WRONG, and the fix is
+  elsewhere.** Duplicate ids after the restore measured ZERO, because the export/reimport re-mints
+  them; the double-apply comes from `syncShelfRow` overwriting `designBytes.current` with edits-baked
+  bytes that are then paired with the unbaked edit bag. See the newest entry at the top of this file.
 
 - **A from-scratch build stops being tracked by its shelf row after any reload.** Filed 2026-08-02
   from the opening fan-out; **UNREPRODUCED by me.** `components/LoftApp.tsx:515` `syncShelfRow` no-ops
