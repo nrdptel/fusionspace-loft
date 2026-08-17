@@ -2807,6 +2807,136 @@ test.describe("Loft", () => {
     await expect(field(/Fin span/)).toHaveValue("");
   });
 
+  test("a finished Monte-Carlo survives the docs link the app plants beside it", async ({ page }) => {
+    // **P17's second clause.** The dispersion is 300 flights, and `components/MonteCarlo.tsx` held it
+    // in a plain `useState` — so following one of the docs links Loft plants directly beside these
+    // numbers unmounted the shell and threw the whole run away. Coming back re-flew it from nothing.
+    //
+    // **The pin is that the panel comes back OPEN and POPULATED without anyone clicking Run.** The
+    // fixed seed means a re-fly reproduces the identical cloud, so the numbers alone cannot tell a
+    // restore from a re-run — but a panel that re-flew would have to be opened first, and today it
+    // came back closed. Open-and-populated is reachable only from the stored entry.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Sweep" }).click();
+
+    const panel = page.getByRole("region", { name: /dispersion/i });
+    await panel.getByRole("button", { name: /Run dispersion/ }).click();
+
+    // Wait for the RUN to finish rather than for the first partial: each partial replaces the last,
+    // and reading a refining cloud would compare two different numbers either side of the link.
+    // A `Readout` tile is a plain div, not a labelled region — so the label is the handle, and its
+    // parent is the tile carrying label AND value.
+    const radius = panel.getByText("Recovery radius (95%)").locator("..");
+    await expect(radius).toBeVisible({ timeout: 60_000 });
+    await expect(panel.locator('[role="status"]')).toHaveCount(0, { timeout: 60_000 });
+    const before = (await radius.textContent())?.trim();
+    expect(before, "the run produced a recovery radius to compare").toBeTruthy();
+
+    // Out through the app's own link, and back the way a flyer goes. Clicked, not typed: a
+    // `page.goto` would pass unchanged if the affordance were deleted.
+    await page.getByRole("link", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "where it's weak" }).click();
+    await expect(page).toHaveURL(/\/docs\/limitations/);
+    await page.goBack();
+    await page.getByRole("link", { name: "Sweep" }).click();
+
+    // **Open, and holding its numbers, with no Run click on this side of the navigation.**
+    const radiusAfter = panel.getByText("Recovery radius (95%)").locator("..");
+    await expect(radiusAfter, "the dispersion did not survive the docs link").toBeVisible({ timeout: 30_000 });
+    expect(
+      (await radiusAfter.textContent())?.trim(),
+      "the restored cloud is the one that was flown",
+    ).toBe(before);
+
+    // …and it is the SAME run, not a fresh one: a re-fly re-runs 300 flights and passes through the
+    // live "Flying 300…" status on the way. Asserted after the numbers are already on screen, so
+    // this is "it never had to fly again", not a race against the run starting.
+    await expect(panel.locator('[role="status"]')).toHaveCount(0);
+  });
+
+  test("an edit does not renew the forecast's age, so a stale profile still expires", async ({ page }) => {
+    // **Sev-1, found by this run's fan-out and reproduced here.** `lib/session.ts` restores stored
+    // conditions only while they are still this hour's, and its docblock states the rule the guard
+    // depends on: "the FETCH, not the write". The writer's own comment repeats it — a stamp taken on
+    // every edit "would reset continuously and a morning profile would never expire".
+    //
+    // It was being taken on every edit anyway, one function away from that comment.
+    // `applyWhatIfState` stamped `Date.now()` on each call, and EVERY what-if goes through it — so a
+    // profile fetched at 09:00 still read as this hour's at 17:00 for anyone who kept working, and
+    // the Conditions panel prints the hour with no date. This file's own measurement puts an
+    // unmatched profile up to 154° from the actual hour's wind, which is the number a flyer walks on.
+    test.setTimeout(150_000);
+    await page.route("**geocoding-api.open-meteo.com/v1/search*", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          results: [{ name: "Lucerne Valley", latitude: 34.4436, longitude: -116.9711, admin1: "California", country: "United States" }],
+        }),
+      }),
+    );
+    await page.route("**api.open-meteo.com/v1/forecast*", (route) => {
+      const time = Array.from({ length: 24 }, (_, i) => `2026-07-30T${String(i).padStart(2, "0")}:00`);
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          elevation: 1000,
+          current: { time: "2026-07-30T18:15", temperature_2m: 20, surface_pressure: 900, wind_speed_10m: 4, wind_direction_10m: 270 },
+          hourly: {
+            time,
+            wind_speed_1000hPa: time.map(() => 4),
+            wind_direction_1000hPa: time.map(() => 270),
+            geopotential_height_1000hPa: time.map(() => 110),
+            wind_speed_500hPa: time.map(() => 18),
+            wind_direction_500hPa: time.map(() => 270),
+            geopotential_height_500hPa: time.map(() => 5600),
+          },
+        }),
+      });
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    await page.getByLabel("Launch site").fill("Lucerne Valley, CA");
+    await page.getByRole("button", { name: "Fetch" }).click();
+    await expect(page.getByText(/aloft levels/)).toBeVisible({ timeout: 60_000 });
+
+    const stamp = async () =>
+      page.evaluate(() => {
+        const raw = localStorage.getItem("loft.session");
+        return raw ? (JSON.parse(raw) as { weatherAt?: number }).weatherAt ?? null : null;
+      });
+    // Poll rather than read once: the session write is an effect, so the stamp lands a tick after the
+    // forecast does. A null here would make the comparison below vacuously true.
+    await expect.poll(stamp, { timeout: 15_000 }).not.toBeNull();
+    const atFetch = await stamp();
+    expect(atFetch, "the fetch stamped the session").toBeTruthy();
+
+    // Now edit something — the ordinary gesture, on a field that has nothing to do with the weather.
+    await page.getByRole("link", { name: "Design" }).click();
+    const span = page.locator("input").and(page.getByLabel(/Fin span/)).first();
+    await span.fill("75");
+    await span.blur();
+    // The edit reached the session, so the write this asserts about definitely happened.
+    await expect
+      .poll(async () => page.evaluate(() => {
+        const raw = localStorage.getItem("loft.session");
+        return raw ? Object.keys((JSON.parse(raw) as { edits?: Record<string, unknown> }).edits ?? {}).length : 0;
+      }), { timeout: 15_000 })
+      .toBeGreaterThan(0);
+
+    expect(
+      await stamp(),
+      "an edit renewed the forecast's age — a morning profile would never expire",
+    ).toBe(atFetch);
+  });
+
   test("leaving a design is undoable, and the undo brings the what-ifs with it", async ({ page }) => {
     // "Import another" is a text-link-styled button 12 px from the design-name input, and one click on
     // it discarded the loaded design, every what-if on it and the session, with no confirmation and no

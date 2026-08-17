@@ -172,6 +172,8 @@ export default function ResultsView({
   run,
   doc,
   loadId,
+  designId,
+  weatherAt,
   units,
   flownOverrides,
   weatherSerial,
@@ -214,6 +216,14 @@ export default function ResultsView({
    *  The heavy panels cache an answer against it, so anything the flyer can edit without changing
    *  the rocket (the name) has to stay out of it. */
   loadId: string | number;
+  /** Which DESIGN is loaded, content-addressed and stable across a load — see `designFingerprint`.
+   *  Passed through to the dispersion panel, which files its finished run under it. Distinct from
+   *  `loadId`, which is a per-mount counter and cannot identify a design across a navigation. */
+  designId?: string;
+  /** When the forecast on screen was FETCHED (epoch ms), or undefined on design air. The forecast's
+   *  stable identity — passed through to the dispersion panel, which cannot use `weatherSerial` for
+   *  that job because it is a per-mount counter. */
+  weatherAt?: number;
   units: UnitSystem;
   /** The launch conditions the run in view was flown under — the design file's stored setup with the
    *  flyer's Conditions edits and today's weather folded in, exactly as the Flight card flew them.
@@ -1104,6 +1114,8 @@ export default function ResultsView({
       {run.hasPropulsion && (
         <MonteCarlo
           designKey={dkey}
+          designId={designId}
+          weatherAt={weatherAt}
           flownOverrides={flownOverrides}
           weatherSerial={weatherSerial}
           conditions={conditions}

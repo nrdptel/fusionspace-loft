@@ -118,7 +118,9 @@ import { statedAirframeMass } from "@/lib/model/edit";
 import { fetchConditions, geocode, plainConditions, type WeatherConditions } from "@/lib/weather";
 import {
   clearDiscardedSession,
+  clearDispersion,
   clearSession,
+  designFingerprint,
   forgetRecent,
   fromBase64,
   loadDiscardedSession,
@@ -466,7 +468,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *  from this morning stays "fresh" all afternoon for anyone who keeps working. It is a ref rather
    *  than state because nothing renders it — it travels with the conditions and is read only by the
    *  writer. */
-  const weatherAt = useRef<number | null>(null);
+  const [weatherAt, setWeatherAt] = useState<number | null>(null);
   /** Bumped once per forecast fetched, and by nothing else. The analysis panels watch the launch
    *  conditions by VALUE, and a forecast's atmosphere and wind profile are FUNCTIONS — there is no
    *  value to compare, so a presence flag cannot tell a new forecast from the last one. Re-fetching
@@ -519,6 +521,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *  rather than by any field the flyer can edit — the name used to stand in for it, so renaming a
    *  design re-flew the analysis panels a keystroke at a time. */
   const [loadSerial, setLoadSerial] = useState(0);
+  /** The loaded design's content-addressed identity — see `designFingerprint`. Held beside
+   *  `loadSerial` because they answer different questions: that one says "a load happened", this one
+   *  says "which design", and only the second survives the container being torn down and rebuilt. */
+  const [designId, setDesignId] = useState<string | null>(null);
   /** Designs opened before, kept on the device so a flyer working across a build can pick any of
    *  them back up without the file. Read on mount (localStorage is client-only, so the first render
    *  must match the server's empty one) and kept in step as designs are opened and dropped. */
@@ -672,12 +678,18 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       setWeather(resume?.weather ?? null);
       // A resumed forecast keeps the age it was stored with; re-stamping here would make every
       // reload renew it, which is the bug this stamp exists to avoid.
-      weatherAt.current = resume?.weatherAt ?? null;
+      setWeatherAt(resume?.weatherAt ?? null);
       setScenario(resume?.scenario ?? "design");
       setSimIndex(idx);
       setError(null);
       setRestored(resume !== undefined);
       if (bytes) designBytes.current = toBase64(bytes);
+      // **Which design this is, content-addressed, so a stored dispersion can be filed under it.**
+      // `loadSerial` below cannot serve: it counts loads from zero on every mount, so the navigation
+      // a stored result exists to survive re-mints it, and two designs opened in different orders can
+      // be handed the same number. Minted here and nowhere else, so it is stable for the life of the
+      // loaded design; what the flyer then edits is `designKey`'s job, not this one's.
+      setDesignId(designBytes.current ? designFingerprint(name, designBytes.current) : null);
       // Every design that gets opened joins the shelf, so history builds itself rather than asking
       // the flyer to curate it. A resumed session is already the newest entry; re-recording it
       // would only rewrite its timestamp.
@@ -1027,7 +1039,6 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     if (!fly(w)) return false;
     setEdits(w.edits);
     setWeather(w.weather);
-    weatherAt.current = Date.now();
     setScenario(w.scenario);
     setSimIndex(w.simIndex);
     return true;
@@ -1579,7 +1590,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     setEdits({});
     setHistory(EMPTY_HISTORY as History<WhatIf>);
     setWeather(null);
-    weatherAt.current = null;
+    setWeatherAt(null);
     setScenario("design");
     setSimIndex(0);
     setRestored(false);
@@ -1616,7 +1627,12 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       }
     }
     designBytes.current = null;
+    setDesignId(null);
     clearSession();
+    // The one destructive act in the app takes the stored dispersion with it. It is keyed, so a stale
+    // entry could never be shown against another design — but leaving 77 KB filed under a design the
+    // flyer has just discarded is spent quota, and the same click already clears the session.
+    clearDispersion();
     // No design, no workspace — go back to the import screen rather than leaving the address on a
     // workspace route that now has nothing to show.
     router.replace("/");
@@ -1740,9 +1756,9 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       // The FETCH time, carried from where the forecast landed. Taking `Date.now()` here instead
       // would stamp the write, and this effect runs on every edit — so the age the reader checks
       // would reset continuously and a morning profile would never expire.
-      weatherAt: weather ? (weatherAt.current ?? undefined) : undefined,
+      weatherAt: weather ? (weatherAt ?? undefined) : undefined,
     });
-  }, [doc, fileName, workspace, units, simIndex, edits, history, weather, scenario]);
+  }, [doc, fileName, workspace, units, simIndex, edits, history, weather, scenario, weatherAt]);
 
   const choices = doc ? configChoices(doc) : [];
 
@@ -2384,6 +2400,16 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               // `Num`'s own re-sync effect exists to guarantee a field never sits there showing a
               // value that is not the one in the flight; this is the same rule one level up.
               const kept = { ...edits, windSpeed: undefined, launchAltitude: undefined };
+              // **The stamp belongs HERE, at the fetch, and it used to be taken in
+              // `applyWhatIfState` — which every edit goes through.** `lib/session.ts` documents the
+              // rule this restores in as many words ("the fetch, not the write"), and the writer's
+              // own comment one screen down says a stamp taken on every edit "would reset
+              // continuously and a morning profile would never expire". That is exactly what was
+              // happening, one function away from the comment forbidding it: an 09:00 profile stayed
+              // "this hour's" all day for anyone who kept typing, and the Conditions panel prints
+              // the hour with no date. This file's own measurement puts an unmatched profile up to
+              // 154° from the actual hour's wind.
+              setWeatherAt(Date.now());
               setWeatherSerial((n) => n + 1);
               commitWhatIf({ edits: kept, weather: wx, scenario: "today", simIndex }, {
                 label: "the forecast",
@@ -2399,9 +2425,11 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               run={run}
               doc={doc}
               loadId={loadSerial}
+              designId={designId ?? undefined}
               units={units}
               flownOverrides={flownOverridesNow}
               weatherSerial={weatherSerial}
+              weatherAt={weatherAt ?? undefined}
               conditions={{
                 // What each panel should SAY about the nominals it flew. One boolean could not:
                 // it made a surface-wind edit flip the two sweeps' captions to "the launch
