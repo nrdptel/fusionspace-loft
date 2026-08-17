@@ -15,6 +15,24 @@ big for one pass. Newest first.
 **Filed 2026-08-17, from run 18's opening fan-out (8 lenses, 0 errors, 0 Sev-1 claimed) and its
 pre-push review (10 findings on one diff, of which 4 were fixed before it shipped).**
 
+**From run 18's done-check cold walk — `/sweep` at 390x664, a journey this run had not touched.**
+
+- **41 controls render under 44 px in at least one dimension on `/sweep` at phone width, and no check
+  counts the route as a whole.** Measured on the built export of the shipped tree. **This is a RAW
+  count and not 41 violations** — say that plainly, because the number invites the wrong conclusion.
+  Most are shared chrome with documented treatment: the skip link is `e2e/touch.spec.ts`'s one NAMED
+  exemption, the wordmark is a recorded structural gap, and the header's Docs/Tip/theme controls are
+  34 px tall. The finding is the SHAPE of the coverage rather than the number: `touch.spec.ts` checks
+  `/sweep` region by region — its own comment says *"scoped to the tiles rather than to everything in
+  `main`, deliberately"* — so a control that is on the route but in neither a checked region nor the
+  named exemptions is counted by nothing. That is the enumerate-and-subtract lesson §9 keeps
+  recording, one suite over: a whole-route count minus a named exemption list would say something a
+  region-scoped one cannot.
+- **`/sweep` is 3.5 screens deep at 390x664.** Horizontal overflow is 0 and the empty state does say
+  what a sweep would produce before one is run, so the surface is not broken — but the phone contract
+  in the fan-out's own walk brief treats anything past two screens as a finding, and this is the
+  deepest workspace measured this run.
+
 **From P18 increment 1's pre-push review (16 findings on one diff; 13 fixed before it shipped).**
 
 - **Two `Toast`s mount at the same fixed position, and the second hides the first.**
@@ -251,6 +269,15 @@ was the ledger's own open Sev-1, and it REPRODUCES (below).
   except for `border-2 border-dashed` and a dark fill of `/40` where §2 sanctions `zinc-900/50`. §9
   requires each to become "its own named primitive rather than a shadow prop on Card"; neither has
   one. **This is a P-track slice with a count that moves 3 → 1**, not a defect to clear ad hoc.
+  **CORRECTED AND HALF-CLOSED 2026-08-17 (run 18).** Two things in the entry above are wrong and both
+  mattered. (1) *"every other §9 count is at target"* was false — an ELEVATION count did not exist,
+  and `Segmented`'s thumb had carried an undeclared `shadow-sm` throughout; §2 now names two values
+  and `offSystemElevation` counts them. (2) *"a count that moves 3 → 1"* was the framing that made
+  P18's first draft self-contradictory: a primitive that COMPOSES `Card` removes the string, so a
+  milestone whose *done when* held the count at 3 would have gone red on a correct implementation.
+  The count P18 actually moves is a new one — treatments hand-rolled OUTSIDE the primitives file,
+  2 → 0. **`Toast` shipped, so the counts are now 2 and 1**; `components/ImportPanel.tsx:168` is the
+  one string left and P18 increment 2 takes both to target. See `ROADMAP.md` P18.
 - **`ErrorState` has exactly ONE adopter app-wide while the app's most-hit failure surface hand-rolls
   its own.** `components/RocketpyCrossCheck.tsx:313` renders `Card tone="danger"` with free-form
   prose; `components/PartPicker.tsx:695` renders the catalogue failure as a bare `<p>` in `red-600`.
