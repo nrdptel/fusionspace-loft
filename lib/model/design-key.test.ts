@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { designKey } from "./design-key";
-import { AIM_SLOTS } from "./edit";
+import { AIM_SLOTS, type GeometryEdits } from "./edit";
 
 const key = (over: Partial<Parameters<typeof designKey>[0]> = {}) =>
   designKey({ loadId: 1, simIndex: 0, configId: "c", ...over });
@@ -147,3 +147,28 @@ describe("designKey", () => {
     );
   });
 });
+
+describe("surviving storage", () => {
+  it("keys a cleared what-if the same before and after a JSON round trip", () => {
+    // **The key is written down now** — `lib/session.ts` files a finished Monte-Carlo and a finished
+    // RocketPy cross-check under it — so it has to mean the same thing on both sides of a reload.
+    //
+    // The edit bag is a patch, so clearing a field leaves its key behind holding `undefined`, and
+    // `JSON.stringify` DELETES such a property. Before this was fixed the same design keyed
+    // `finMaterial=,finSpan=0.075` live and `finSpan=0.075` restored, so every stored answer belonging
+    // to a flyer who had ever set a field and cleared it was unreachable for good.
+    const live = { finSpan: 0.075, finMaterial: undefined } as unknown as GeometryEdits;
+    const restored = JSON.parse(JSON.stringify(live)) as GeometryEdits;
+    const k = (g: GeometryEdits) => designKey({ loadId: "d1", simIndex: 0, configId: "c", geometry: g });
+    expect(k(live)).toBe(k(restored));
+    // …and it still tells a SET field from a cleared one, which is what the key is for.
+    expect(k({ finSpan: 0.075, finMaterial: "oak" } as unknown as GeometryEdits)).not.toBe(k(live));
+  });
+
+  it("keys an absent field and a present-but-unset one identically", () => {
+    const k = (g: GeometryEdits) => designKey({ loadId: "d1", simIndex: 0, configId: "c", geometry: g });
+    expect(k({ finSpan: 0.075 } as unknown as GeometryEdits)).toBe(
+      k({ finSpan: 0.075, noseLength: undefined } as unknown as GeometryEdits),
+    );
+  });
+})

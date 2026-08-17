@@ -8,6 +8,7 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import type { RocketpyFlightResult } from "@/lib/validation/rocketpy-engine";
 import { engineFailure } from "@/lib/validation/engine-error";
+import { loadCrossCheck, saveCrossCheck } from "@/lib/session";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { Button, Card, Extrapolated, Panel } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
@@ -76,6 +77,8 @@ export default function RocketpyCrossCheck({
   motorSwap,
   geometry,
   designKey,
+  stableKey,
+  designId,
 }: {
   doc: OrkDocument;
   config: MotorConfiguration;
@@ -94,13 +97,29 @@ export default function RocketpyCrossCheck({
    *  the design changes — it keeps the answer and says it is now for a different rocket, which is
    *  also the comparison a flyer editing toward a target actually wants. */
   designKey: string;
+  /** The same key, identified by which DESIGN rather than by how many have been opened — the one a
+   *  STORED comparison is filed under. `designKey` leads with a per-mount counter, so a restored
+   *  result compared against it would read as being "for a different rocket" the moment the shell
+   *  remounts, which is the opposite of true. See `ResultsView`. */
+  stableKey?: string;
+  /** Which design this is, content-addressed, so a stored comparison can never surface on another. */
+  designId?: string;
 }) {
   const [state, setState] = useState<State>({ phase: "idle" });
   const [done, setDone] = useState<Completed | null>(null);
   // A run in flight replaces the figures with its own progress; anything else shows the last
   // completed comparison, whether this panel is idle, stopped or reporting a failure.
   const showing = state.phase === "running" ? null : done;
-  const stale = showing !== null && showing.ranFor !== designKey;
+  /** The key a completed comparison is judged against — the STABLE one, not `designKey`.
+   *
+   *  `designKey` leads with a per-mount load counter, so opening a second design from the shelf and
+   *  coming back bumped it and marked a comparison genuinely for the rocket on screen as *"the design
+   *  or motor configuration has changed since this ran"*. That is the wrong label in the more
+   *  dangerous direction: it tells a flyer to distrust numbers that are correct, on the surface whose
+   *  whole job is saying whether two solvers agree. Falls back to `designKey` where no stable key is
+   *  supplied, which is the previous behaviour. */
+  const judgeKey = stableKey ?? designKey;
+  const stale = showing !== null && showing.ranFor !== judgeKey;
   /** The controller for the run in flight, so Stop can reach it. One per run, never reused. */
   const abortRef = useRef<AbortController | null>(null);
 
@@ -162,8 +181,14 @@ export default function RocketpyCrossCheck({
         },
         signal: controller.signal,
       });
-      setDone({ loft, rp, ranFor: designKey });
+      setDone({ loft, rp, ranFor: judgeKey });
       setState({ phase: "done" });
+      // Written ONCE, on completion. A stopped or failed run stores nothing: the panel keeps the
+      // previous figures on screen deliberately, and persisting a run that did not finish would turn
+      // "the last comparison, kept" into "a comparison that never happened".
+      if (designId && stableKey) {
+        saveCrossCheck({ designId, stableKey, loft: { ...loft }, rp: { ...rp }, at: Date.now() });
+      }
     } catch (e) {
       // A stop is not a failure, and must not read as one: no traceback, no "couldn't run". Matched
       // on `name` rather than `instanceof Error` because the abort arrives as a DOMException, whose
@@ -179,7 +204,41 @@ export default function RocketpyCrossCheck({
           offline: typeof navigator !== "undefined" && navigator.onLine === false,
         });
     }
-  }, [doc, config, simIndex, ballastKg, motorSwap, geometry, designKey]);
+  }, [doc, config, simIndex, ballastKg, motorSwap, geometry, judgeKey, designId, stableKey]);
+
+  /** Come back to the comparison you left.
+   *
+   *  **Restored only where the whole design key matches, and then relabelled as CURRENT.** The stored
+   *  entry carries `stableKey`, which is `designKey` with the per-mount load counter replaced by the
+   *  design's own fingerprint; `ranFor` is set to today's `designKey` on the way back in, because the
+   *  figures genuinely are for the design on screen and the panel's staleness banner reads that
+   *  field. Restoring `ranFor` verbatim would have marked every restored comparison stale — a label
+   *  saying "these numbers are for a different rocket" about the rocket in front of the flyer.
+   *
+   *  **Reactive, not mount-only, because this panel is not remounted when the design changes.**
+   *  `ResultsView` carries no `key`, so opening another design from the shelf swaps the props under a
+   *  panel that stays mounted — a mount-only effect would restore the first design's comparison and
+   *  never the second's, and could never retry after a miss. It never starts a run: the worst case is
+   *  that the flyer presses Run, which is what they would have had to do anyway.
+   *
+   *  Guarded so it cannot interrupt: a run in flight owns the panel, and a comparison already showing
+   *  for this key is the one that would be restored. */
+  useEffect(() => {
+    if (!designId || !stableKey) return;
+    if (state.phase === "running") return;
+    if (done?.ranFor === stableKey) return;
+    const stored = loadCrossCheck();
+    if (!stored || stored.designId !== designId || stored.stableKey !== stableKey) return;
+    setDone({
+      loft: stored.loft as unknown as LoftBallistic,
+      rp: stored.rp as unknown as RocketpyFlightResult,
+      ranFor: stored.stableKey,
+    });
+    setState({ phase: "done" });
+    // `state.phase` and `done` are read as guards, not watched: re-running on either would re-enter
+    // this the moment it sets them. The identity that decides a restore is the design and its key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [designId, stableKey]);
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
@@ -230,6 +289,24 @@ export default function RocketpyCrossCheck({
             <Button onClick={stop}>Stop</Button>
           )}
         </div>
+      )}
+      {/* **What leaving costs, said before it happens rather than discovered afterwards.**
+          P17's third clause asks for the run to survive a navigation OR for the flyer to be told
+          before leaving that it will be discarded. A blocking prompt is not available honestly here:
+          the App Router has no navigation-blocking API, `beforeunload` does not fire on the in-app
+          link this milestone is actually about, and intercepting every anchor would still miss the
+          browser's Back button. A statement is what can be made true, so it is made plainly.
+
+          It is scoped to a RUNNING check because that is the only thing genuinely lost: a FINISHED
+          one is stored and comes back. What leaving mid-run costs, precisely: the ~40 MB itself is
+          served cache-first by the service worker, so it is NOT downloaded again — but the panel's
+          unmount aborts the run, and `teardown()` terminates the shared worker, so the next run pays
+          the boot again. That is the same price the panel's own stopped-state copy already names. */}
+      {state.phase === "running" && (
+        <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+          Following a link out of the app — to the docs, or the wordmark — ends this run. Moving
+          between workspaces does not. A finished comparison is kept; one still going is not.
+        </p>
       )}
 
       {/* A failure reads before the way out of it, so the button below is the next thing reached. */}

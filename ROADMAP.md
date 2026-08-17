@@ -6285,7 +6285,60 @@ totals would make every legitimate utility addition a failure.
 
 ## P17 — The shell survives every navigation, including the ones it does not own
 
-**Status: IN PROGRESS** — increment 2 shipped 2026-08-17. Increment 1 shipped 2026-08-14 on the
+**Status: increments 1-3 SHIPPED 2026-08-14 / 2026-08-17.** All three *done when* clauses now have a
+pinning check; see increment 3 for the one clause that was answered honestly rather than literally.
+
+**Increment 3 — the finished cross-check survives, and a running one says what leaving costs,
+2026-08-17.** The RocketPy panel sits under a table comparing two solvers, and the app plants links to
+the methods and limitations pages *directly beside it* — so the gesture that destroyed the comparison
+was the one the product invites. It lived in a plain `useState`.
+
+**The measurement that reshaped the milestone's own wording.** `ROADMAP.md` framed this as the hardest
+of the three because "a 40 MB download cannot follow the flyer to a docs page". Measured: it does not
+have to. The worker is a **module singleton** in `lib/validation/rocketpy-engine.ts`, `/docs/*` is a
+client-side transition under the shared root layout, and the runtime is served **cache-first by the
+service worker** (`public/sw.js`). What a docs link actually costs after a finished run is the panel's
+React state — thirteen numbers, **354 bytes**, against the dispersion's 78,649. Storing them is the
+whole of the fix for the common case.
+
+**One half of that was overstated and the pre-push review caught it.** The worker survives a remount
+only for a run that has already FINISHED: the panel's unmount aborts, and `teardown()` terminates the
+shared worker, so leaving mid-run does pay the boot again. The 40 MB is still not re-downloaded. Both
+the source comment and the on-screen sentence now say that rather than the flattering version.
+
+**A second departure from the dispersion slot, and it is the one that would have been a wrong label.**
+`Completed.ranFor` is compared against `designKey` to decide whether to show *"the design or motor
+configuration has changed since this ran"* — and `designKey` leads with `loadId`, a per-mount counter.
+Restoring `ranFor` verbatim would have marked **every** restored comparison stale: a banner saying
+these numbers are for a different rocket, about the rocket in front of the flyer. So the stored entry
+carries `stableKey` — the same key with the design's own fingerprint in `loadId`'s place — and `ranFor`
+is set to today's key on the way back in.
+
+**That fix was applied to increment 2 as well, where it was a silent miss rather than a wrong label.**
+The dispersion's `runKey` also carried `designKey`, so a flyer who had opened two designs before
+leaving came back with the counter at 1 where it was 2 and the stored cloud never matched. It re-flew,
+which is correct but slow, and the e2e passed only because the test opens one design. `ResultsView`
+now builds one `stableKey` and both panels use it.
+
+**The third clause is answered honestly rather than literally, and this is the reasoning.** It asks
+for a running check to survive OR for the flyer to be told before leaving. A blocking prompt cannot be
+made true here: the App Router has no navigation-blocking API, `beforeunload` does not fire on the
+in-app link this milestone is actually about, and intercepting every anchor would still miss the
+browser's Back button. So the running panel states the cost plainly — *"Leaving this workspace ends
+the run — a finished comparison is kept, one still going is not"* — and the blocking prompt stays
+open in this file rather than being claimed as shipped.
+
+**Pinned at both layers, deliberately split.** `lib/session.test.ts` pins the read path with no
+runtime: every one of the twelve figures refused when missing, a non-finite refused (unlike the
+dispersion there is NO withheld sentinel here — `staticMarginCal` is guarded to 0, so a null is
+corruption), and the extrapolation flag required rather than defaulted, because defaulting it would
+publish an extrapolated comparison as a validated one. `e2e/rocketpy-selfhosted.spec.ts` pins the
+journey with the real engine, where the vendored Pyodide gate already lives. Control: keying the
+restore against a key that cannot match fails it with *"the cross-check did not survive the docs
+link"* — and the first attempt at that control **failed to BUILD**, which is not a control, exactly as
+`HANDOFF.md` warns.
+
+**Status: increment 2 shipped 2026-08-17.** Increment 1 shipped 2026-08-14 on the
 second attempt; that first attempt's withdrawal, and the seven requirements it left, are recorded
 below the increment entries.
 

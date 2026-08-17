@@ -119,6 +119,7 @@ import { statedAirframeMass } from "@/lib/model/edit";
 import { fetchConditions, geocode, plainConditions, type WeatherConditions } from "@/lib/weather";
 import {
   clearDiscardedSession,
+  clearCrossCheck,
   clearDispersion,
   clearSession,
   designFingerprint,
@@ -1653,6 +1654,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     // entry could never be shown against another design — but leaving 77 KB filed under a design the
     // flyer has just discarded is spent quota, and the same click already clears the session.
     clearDispersion();
+    clearCrossCheck();
     // No design, no workspace — go back to the import screen rather than leaving the address on a
     // workspace route that now has nothing to show.
     router.replace("/");
@@ -1698,8 +1700,13 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
         });
       } catch {
         // A design Loft can no longer read (a format change, a truncated write) is dropped rather
-        // than shown as an error on a page the flyer never asked to be on.
+        // than shown as an error on a page the flyer never asked to be on. The two DERIVED slots go
+        // with it: they are keyed, so neither could ever be shown against another design — but an
+        // entry nothing will ever match again is spent quota, and a stored dispersion is ~77 KB.
+        // `reset()` already clears both for the same reason.
         clearSession();
+        clearDispersion();
+        clearCrossCheck();
       } finally {
         if (!cancelled) setSessionChecked(true);
       }

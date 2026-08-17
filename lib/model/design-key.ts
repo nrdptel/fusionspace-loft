@@ -76,6 +76,16 @@ export function designKey(d: FlownDesign): string {
   const aimMatters = (k: string) =>
     (AIM_SLOTS[k]?.targets ?? []).some((f) => g[f] !== undefined && g[f] !== "");
   const edits = Object.keys(g)
+    // **A key holding `undefined` is not an edit, and leaving it in made this key unstable across
+    // storage.** The edit bag is a patch spread over the previous bag, so clearing a what-if leaves
+    // its key behind holding `undefined` — `countWhatIfs` and `isEditedValue` already say so. `value()`
+    // renders that as the empty string, which is harmless while the key only ever lives in memory and
+    // fatal the moment it is written down: `JSON.stringify` DELETES an `undefined` property, so the
+    // same design keyed `finMaterial=,finSpan=0.075` before a reload and `finSpan=0.075` after it.
+    // Measured directly. Any stored answer filed under this key could therefore never be matched
+    // again by a flyer who had ever set a field and cleared it — which is the ordinary way of trying
+    // something out. Absent and present-but-unset are the same state, so they must key the same.
+    .filter((k) => g[k] !== undefined)
     .filter((k) => !(k in AIM_SLOTS) || aimMatters(k))
     .sort()
     .map((k) => `${k}=${value(g[k])}`)

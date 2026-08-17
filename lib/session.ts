@@ -643,7 +643,11 @@ export function clearSession(): void {
 const DISPERSION_KEY = "loft.dispersion";
 
 export interface StoredDispersion {
-  v: 1;
+  /** Bumped to 2 on 2026-08-17. A v1 entry's `runKey` was built from `designKey`, whose leading field
+   *  is a per-mount load counter, and from an edit segment that was not stable across `JSON.stringify`
+   *  — so a v1 key can no longer be produced and every stored entry would be dead weight nobody could
+   *  match. The version field exists for exactly this: discard it once rather than carry it forever. */
+  v: 2;
   /** Which design this was flown for, stable across a load — see `designFingerprint`. Held apart
    *  from `runKey` because the two answer different questions: this one decides whether the panel
    *  should be OPEN at all when the flyer comes back, and it can be answered on the first render;
@@ -688,11 +692,11 @@ export function loadDispersion(): StoredDispersion | null {
     const raw = localStorage.getItem(DISPERSION_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw) as StoredDispersion;
-    if (p?.v !== 1) return null;
+    if (p?.v !== 2) return null;
     if (typeof p.designId !== "string" || !p.designId) return null;
     if (typeof p.runKey !== "string" || !p.runKey) return null;
     if (!p.result || typeof p.result !== "object") return null;
-    return { v: 1, designId: p.designId, runKey: p.runKey, result: p.result, at: Number.isFinite(p.at) ? p.at : 0 };
+    return { v: 2, designId: p.designId, runKey: p.runKey, result: p.result, at: Number.isFinite(p.at) ? p.at : 0 };
   } catch {
     return null;
   }
@@ -704,7 +708,7 @@ export function loadDispersion(): StoredDispersion | null {
  *  rather than trimming it: half a dispersion is not a smaller dispersion. */
 export function saveDispersion(entry: Omit<StoredDispersion, "v">): boolean {
   try {
-    localStorage.setItem(DISPERSION_KEY, JSON.stringify({ v: 1, ...entry }));
+    localStorage.setItem(DISPERSION_KEY, JSON.stringify({ v: 2, ...entry }));
     return true;
   } catch {
     // Out of room, or storage disabled outright (Safari private browsing). Clear rather than leave a
@@ -748,4 +752,103 @@ export function useSettled<T>(value: T, key: string, ms = 350): T {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, ms]);
   return settled;
+}
+
+/** --- the finished cross-check ---------------------------------------------------------------
+ *
+ *  The RocketPy cross-check is the heaviest thing Loft can do: a ~40 MB runtime, booted in a worker,
+ *  then a flight. It is also the surface that most invites a flyer to go and read something — the
+ *  panel sits under a table comparing two solvers, and the app plants links to the methods and the
+ *  limitations pages directly beside it. Following one of those unmounts the shell and the
+ *  comparison was gone.
+ *
+ *  **The runtime itself already survives, and that changes what this has to be.** The worker is a
+ *  module singleton in `lib/validation/rocketpy-engine.ts`, `/docs/*` is a client-side transition
+ *  under the shared root layout, and the 40 MB is served cache-first by the service worker — so what
+ *  a docs link actually costs after a FINISHED run is the panel's own React state, not the download.
+ *  Storing thirteen numbers is therefore the whole of the fix for the common case, and it is 354
+ *  bytes rather than the dispersion's 78,649.
+ *
+ *  Same shape as the dispersion slot above — own key, one version, written on completion, refused
+ *  all-or-nothing — with one deliberate departure: there is no `NaN` sentinel anywhere in this
+ *  result, so the reader is a flat finiteness check and there is no plain/rehydrate pair to keep. */
+const CROSSCHECK_KEY = "loft.crosscheck";
+
+export interface StoredCrossCheck {
+  v: 1;
+  /** Which design this was run for, content-addressed — see `designFingerprint`. */
+  designId: string;
+  /** The full design key, identified by design rather than by load count, so a stored comparison is
+   *  only ever restored onto the inputs it was actually computed from. */
+  stableKey: string;
+  /** Loft's own ballistic figures and RocketPy's, as the panel holds them. Typed loosely for the
+   *  reason `edits` is: this module is storage, and the shapes belong to the app. */
+  loft: Record<string, number | boolean>;
+  rp: Record<string, number>;
+  at: number;
+}
+
+/** Every field of both records, checked. **All-or-nothing, and finite**: this panel publishes a Δ
+ *  column between two solvers, and a half-read record would put a difference on screen that neither
+ *  solver produced. Unlike the dispersion there is no withheld sentinel here — `staticMarginCal` is
+ *  guarded to 0 rather than left `NaN` — so anything non-finite is corruption, not a withholding. */
+function readNumbers(x: unknown, keys: readonly string[]): Record<string, number> | null {
+  if (!x || typeof x !== "object") return null;
+  const src = x as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  for (const k of keys) {
+    const v = src[k];
+    if (typeof v !== "number" || !Number.isFinite(v)) return null;
+    out[k] = v;
+  }
+  return out;
+}
+
+const LOFT_KEYS = ["apogee", "maxVelocity", "maxMach", "timeToApogee", "railExitVelocity", "staticMarginCal"] as const;
+const RP_KEYS = ["apogee", "maxVelocity", "maxMach", "timeToApogee", "railExitVelocity", "staticMarginLiftoff"] as const;
+
+export function loadCrossCheck(): StoredCrossCheck | null {
+  try {
+    const raw = localStorage.getItem(CROSSCHECK_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as StoredCrossCheck;
+    if (p?.v !== 1) return null;
+    if (typeof p.designId !== "string" || !p.designId) return null;
+    if (typeof p.stableKey !== "string" || !p.stableKey) return null;
+    const loft = readNumbers(p.loft, LOFT_KEYS);
+    const rp = readNumbers(p.rp, RP_KEYS);
+    if (!loft || !rp) return null;
+    // The one non-number, and it decides whether the whole table carries an extrapolation marker —
+    // so it is required rather than defaulted. A record written without it is not this shape.
+    const extrapolated = (p.loft as Record<string, unknown> | undefined)?.extrapolatedTransonic;
+    if (typeof extrapolated !== "boolean") return null;
+    return {
+      v: 1,
+      designId: p.designId,
+      stableKey: p.stableKey,
+      loft: { ...loft, extrapolatedTransonic: extrapolated },
+      rp,
+      at: Number.isFinite(p.at) ? p.at : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function saveCrossCheck(entry: Omit<StoredCrossCheck, "v">): boolean {
+  try {
+    localStorage.setItem(CROSSCHECK_KEY, JSON.stringify({ v: 1, ...entry }));
+    return true;
+  } catch {
+    clearCrossCheck();
+    return false;
+  }
+}
+
+export function clearCrossCheck(): void {
+  try {
+    localStorage.removeItem(CROSSCHECK_KEY);
+  } catch {
+    /* storage disabled */
+  }
 }

@@ -16,6 +16,17 @@ big for one pass. Newest first.
 Sev-1 candidates were against this run's own uncommitted work and were fixed before it shipped; one
 was the ledger's own open Sev-1, and it REPRODUCES (below).
 
+- **`designKey` drops `motorSwap.diameter`, and that key now gates two STORED answers.**
+  `lib/model/design-key.ts`'s `FlownDesign.motorSwap` carries `manufacturer` and `designation` only,
+  while `lib/sim/run.ts` flies `swap.diameter ?? i.motor.diameter` — so two swap options that share a
+  manufacturer and a designation but differ in casing diameter key identically. Pre-existing in the
+  re-fly key, where the cost was a panel not resetting; as of 2026-08-17 the same key also decides
+  whether a stored Monte-Carlo and a stored RocketPy comparison are handed back, and the cross-check
+  additionally RELABELS a restored comparison as current. Found by the pre-push review. Not fixed in
+  the increment that exposed it, because widening the key resets every panel for a field most designs
+  do not vary, and that trade deserves its own measurement: count how many corpus designs actually
+  offer two same-designation swaps at different diameters before deciding.
+
 - **On a phone, the answer to "what can I add here?" appears 738 px ABOVE the row you just tapped.**
   Measured 2026-08-17 on the built export at a 390x664 viewport, on the 38 mm single-deploy sample:
   tapping the fin-set row in the parts table puts the add region's card at `y = -738`, entirely
