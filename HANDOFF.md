@@ -9,10 +9,17 @@ is at `0576ebc` after PR #185, which is **merged and live**. P18 increment 1 is 
 green gate. **The ledger's open Sev-1 count is zero**, and the opening fan-out claimed none.
 
 **The shared `DESIGN.md` change went to BOTH repos in the same run, as §10 requires.**
-`nrdptel/fusionspace-debrief` PR #199 carries §2's elevation row and §5's `Toast` entry. The shared
-digest needed no update and that was verified rather than assumed — `SHARED_SECTIONS` is 4, 6, 7, 8,
-10, and both copies still hash to `3ec05348…f45fd` over 11,084 bytes. The two copies remain **892
-diff lines apart** overall, in both directions, so neither can be pasted over the other.
+`nrdptel/fusionspace-debrief` **PR #199 is merged** (§2's elevation row, §5's `Toast`) and **PR #200
+is open** with the correction below. The shared digest needed no update and that was verified rather
+than assumed — `SHARED_SECTIONS` is 4, 6, 7, 8, 10, and both copies still hash to `3ec05348…f45fd`
+over 11,084 bytes. The two copies remain **892 diff lines apart** overall, in both directions, so
+neither can be pasted over the other.
+
+**One thing the sibling is still OWED, and it is the reason #200 exists.** Loft ships a §9 grep and an
+exact `offSystemElevation` ratchet for the new token; the sibling has the declaration and no
+instrument. A declared token with no check is exactly the state that let §2's first version ship
+claiming one value while two shipped — so porting that ratchet is the next thing to do over there,
+and it is one increment.
 
 **READ THIS BEFORE YOU BELIEVE A RED E2E GATE: two shards are no longer enough.** `MAINTAINING.md`
 still says `--shard=1/2 && --shard=2/2`, and at **207 tests** that advice has expired. Measured this
@@ -103,6 +110,14 @@ rather than a number in a manual that goes stale as the suite grows.
 - **Git identity arrived as the harness vendor's default** and was set per-repo before the first
   commit.
 - **No pull requests were open at session start** — the first run in a while where that was true.
+- **The sibling repo attaches and clones fine, but its clone only tracks `main`.** `add_repo` with
+  `access: "push"` for `nrdptel/fusionspace-debrief` succeeded and
+  `git clone --depth 1 …` took seconds. Its `remote.origin.fetch` is
+  `+refs/heads/main:refs/remotes/origin/main` only, so `git fetch origin <branch>` writes `FETCH_HEAD`
+  and no tracking ref, and a `--force-with-lease` push then fails with **"stale info"** on a branch
+  that already exists remotely. One line fixes it:
+  `git config --replace-all remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'`. Set the git
+  identity in that checkout too — it arrives as the harness vendor's default there as well.
 
 ## The arc across sessions
 

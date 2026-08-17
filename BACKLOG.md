@@ -15,6 +15,29 @@ big for one pass. Newest first.
 **Filed 2026-08-17, from run 18's opening fan-out (8 lenses, 0 errors, 0 Sev-1 claimed) and its
 pre-push review (10 findings on one diff, of which 4 were fixed before it shipped).**
 
+**From P18 increment 1's pre-push review (16 findings on one diff; 13 fixed before it shipped).**
+
+- **Two `Toast`s mount at the same fixed position, and the second hides the first.**
+  `components/ui.tsx` — there is no stack, offset or queue. One caller today, so it is not reachable;
+  but §5 declares `Toast` for three concurrent-capable events ("a new build is ready, a save landed,
+  a background run finished"), so the second adopter walks into it. A `ToastRegion` that stacks them
+  is the shape; it is a real increment, not a line, which is why it is filed rather than folded into
+  the extraction.
+
+- **`Popover` is a dialog covering the page on a phone, separated from it by a hairline.**
+  `components/ui.tsx:1269` renders `max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-auto
+  max-sm:bottom-4` at `z-30` and carries no elevation at all. §2 now names `floating` and `Popover`
+  is its obvious second adopter. Deliberately not converted in the extraction pass so that pass stayed
+  an extraction rather than a repaint — but it is now a surface the design system says should have
+  something it does not.
+
+- **§9's readable block and its executable copy disagree about the card target.** `DESIGN.md`'s
+  comment still reads `# target: 1 (+ any named non-card primitive, see below)` in spirit, while
+  `lib/design-system.test.ts` now says a composing primitive contributes no treatment at all, so the
+  honest target is a plain 1. The block was updated with the two new commands this run; the
+  parenthetical and the honest-floor paragraph at §9's foot still need reconciling with that, and
+  `DESIGN.md` is shared, so it is a both-repos change.
+
 **From the fan-out's five audit lenses. Reported by an agent with a repro; NOT reproduced by the
 session unless the entry says so** — `MAINTAINING.md`'s rule is that a finding is a claim until
 someone has seen it, so these are filed as claims with the command that would settle each.

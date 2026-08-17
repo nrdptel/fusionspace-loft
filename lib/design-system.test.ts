@@ -441,6 +441,12 @@ const BUDGET = {
    *  `components/<dir>/ui.tsx`, which is the "wrong scope" shape §9 already records twice. Target 0;
    *  2 before this run, 1 after `Toast`. */
   cardTreatmentsOutsidePrimitives: 1,
+  /** Elevations outside §2's two sanctioned values (`shadow-lg` = `floating`, `shadow-sm` = the
+   *  `Segmented` thumb). Target 0, and at 0 — but the check is the point rather than the number:
+   *  §2's elevation table was written declaring ONE value while two shipped, and nothing in either
+   *  repo's gate could say so, because an elevation is not a radius, a border colour, a spacing step
+   *  or a type size. */
+  offSystemElevation: 0,
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
   offScaleSpacing: 0,
   /** Components importing the shared primitives. Target: most of the 27. This one only goes UP.
@@ -581,10 +587,13 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  than later: an unratcheted primitive is the state `Section` sat in for five runs at zero
    *  adopters with nothing failing.
    *
-   *  **`Card` did NOT move when this arrived, and that is correct.** This map counts what a file
-   *  RENDERS, and `ServiceWorker` renders a `Toast`; the `Card` is one level down, inside the
-   *  primitive. Same reason `Panel` absorbing three containers took `Card` from 12 to 11 — adoption
-   *  moving a count down through composition is the system working. */
+   *  **`Card` did NOT move when this arrived, and the reason is not the one the note above this map
+   *  gives.** That note says the map "counts what a file RENDERS". It does not — the check below
+   *  matches the IMPORT LIST of `./ui` per file, so a component that imports a primitive and renders
+   *  nothing still counts, and one that renders a primitive through another primitive does not.
+   *  Corrected here rather than left to mislead the next session reasoning about a
+   *  composition-driven count. `Card` stays at 11 because `ServiceWorker` imports `Toast` and never
+   *  imported `Card`; the composition is real, but it is not what this number measures. */
   Toast: 1,
   Button: 12,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
@@ -914,22 +923,68 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
   });
 
   it(`hand-rolls exactly ${BUDGET.cardTreatmentsOutsidePrimitives} card treatments outside the primitives file, on the way to none`, () => {
-    // **P18's own count.** The one above says how many distinct treatments exist; this says how many
-    // are written somewhere a call site can copy. A treatment inside `components/ui.tsx` is the
-    // vocabulary; the same string in a feature component is the vocabulary being re-invented, which
-    // is what produced all twelve measured variants.
+    // **P18's own count.** The one above says how many DISTINCT treatments exist; this says how many
+    // OCCURRENCES are written somewhere a call site can copy. A treatment inside `components/ui.tsx`
+    // is the vocabulary; the same string in a feature component is the vocabulary being re-invented,
+    // which is what produced all twelve measured variants.
     //
-    // Matched on the FILE PATH rather than on a basename, because `--exclude=ui.tsx` would exempt a
-    // future `components/<anything>/ui.tsx` without saying so.
-    const outside = new Map<string, string>();
+    // **Occurrences, not distinct strings, and the first draft got that wrong.** It keyed a Map by
+    // the treatment, so two files hand-rolling the SAME string counted as one and the failure named
+    // only the last of them — the copy-paste case this check exists to catch was the one case it
+    // could not see. Caught by the pre-push review.
+    //
+    // **Reads STRIPPED source**, like every other class-token check here (see `uiCode` above). The
+    // draft read raw text, so writing the words `rounded-xl border` in a prose comment in any feature
+    // component would have failed it — and this very diff added such a comment one file over. The
+    // card check above is exempted from that rule on the argument that the string "does not appear
+    // in prose", which stopped being true the moment a milestone was written about it.
+    //
+    // **Matched on the FILE PATH, not a basename**, because `--exclude=ui.tsx` would exempt a future
+    // `components/<anything>/ui.tsx` without saying so.
+    //
+    // **Read one STRING LITERAL at a time, not as a regex over the joined text — and the first
+    // attempt at this fix got that wrong too.** `classText` concatenates every literal in a file
+    // with spaces, so a greedy pattern runs straight through the join: on `ImportPanel` it swallowed
+    // eleven unrelated class strings into one match, and two genuine hand-rolls in one file would
+    // have counted as ONE — which is the very defect this rewrite exists to remove, reintroduced by
+    // the tool used to remove it. Caught by its own control.
+    //
+    // **A literal counts when it carries BOTH `rounded-xl` and a `border` token, in any order.** The
+    // old pattern was anchored on the literal sequence `rounded-xl border`, so a call site writing
+    // `rounded-xl bg-white border border-zinc-200` — the same hand-roll with the words rearranged —
+    // matched nothing at all. §9 records fixing the identical stale-pattern problem in the shell
+    // copy (a missing `:`); cloning that form into a new check is how the fix gets undone.
+    const found: string[] = [];
     for (const f of components) {
       if (f.path === "components/ui.tsx") continue;
-      for (const m of f.text.match(/rounded-xl border[a-z0-9 /-]*/g) ?? []) outside.set(m.trim(), f.path);
+      for (const m of stripComments(f.text).matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)) {
+        const lit = (m[1] ?? m[2] ?? m[3] ?? "").replace(/\$\{[^}]*\}/g, " ");
+        const tokens = lit.split(/\s+/).filter(Boolean);
+        if (tokens.includes("rounded-xl") && tokens.some((t) => /^border(-|$)/.test(t))) {
+          found.push(`${f.path}: ${lit.trim()}`);
+        }
+      }
     }
     expect(
-      outside.size,
-      `card treatments outside components/ui.tsx:\n${[...outside].map(([t, p]) => `${p}: ${t}`).sort().join("\n")}`,
+      found.length,
+      `card treatments outside components/ui.tsx:\n${found.sort().join("\n")}`,
     ).toBe(BUDGET.cardTreatmentsOutsidePrimitives);
+  });
+
+  it(`uses exactly ${BUDGET.offSystemElevation} elevations outside §2's two`, () => {
+    // **§2's elevation table shipped WRONG because nothing could contradict it.** Written
+    // 2026-08-17 declaring one value while two shipped — `shadow-lg` on the toast and `shadow-sm` on
+    // `Segmented`'s thumb, in the same file the section was written in. Every other check here reads
+    // radius, border colour, spacing or type; an elevation is none of those, so all of them read past
+    // it. This is the instrument that section now ships with.
+    //
+    // Enumerate-and-subtract, like the radius and border greps: `shadow-lg` is `floating` and
+    // `shadow-sm` is the thumb, and a third value fails rather than passing unnamed.
+    const { total, byFile } = countMatches(
+      uiCode,
+      /\bshadow-(?!lg\b|sm\b)(?:2xs|xs|md|xl|2xl|inner|none|\[[^\]]+\])\b/g,
+    );
+    expect(total, `elevations outside §2:\n${byFile.join("\n")}`).toBe(BUDGET.offSystemElevation);
   });
 
   it(`uses exactly ${BUDGET.offScaleSpacing} off-scale spacing values, on the way to none`, () => {

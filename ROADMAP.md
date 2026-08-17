@@ -6666,11 +6666,54 @@ unless `NODE_ENV` is production AND a worker already controls the page AND a new
 `installed`; the e2e suite serves a static export, so it never registers one. `lib/toast.test.tsx`
 renders the primitive directly and asserts all four things §5 declares about it.
 
-**Three checks, three controls, all fired.** `cardTreatmentsOutsidePrimitives` — restoring the
-hand-rolled call site fails it with *"expected 2 to be 1"*, naming the file and the string.
-`lib/toast.test.tsx` — removing the elevation fails it with *"expected … to contain 'shadow-lg'"*.
-`lib/design-doc.test.ts` needs no control of its own: it is two-directional by construction, and an
-export undeclared in §5 fails the suite.
+**The pre-push review returned SIXTEEN findings on this diff and thirteen were fixed before it
+shipped. Three of them were in the section and the checks this increment wrote**, which is worth
+recording because each is the same failure this repo keeps cataloguing — an instrument that cannot
+contradict the claim beside it.
+
+1. **§2's elevation table declared "one value" while TWO shipped.** `Segmented`'s active thumb has
+   carried `shadow-sm` throughout, in the same file the section was written in, and the draft
+   asserted that `ServiceWorker`'s `shadow-lg` was the only undeclared elevation in the tree. Both
+   are named now — `floating` for a surface that leaves the flow, `thumb` for the one sanctioned
+   in-flow affordance — and enumerate-and-subtract is what lets a third value fail.
+2. **The token shipped with no instrument.** §9 says *"Pin what you fix. A drift you correct without
+   a check comes back"*, and a declared elevation had no grep and no ratchet, because every other
+   check here reads radius, border colour, spacing or type and reads straight past a shadow.
+   `offSystemElevation` is that check; control — a `shadow-2xl` on the toast fails it.
+3. **The new outside-the-primitives count had three defects of its own, and its own control found
+   the worst.** It read RAW source where every class-token check here reads stripped (a `rounded-xl
+   border` written in a prose comment would have failed it — and this diff added such a comment one
+   file over); it keyed a Map by treatment, so two files hand-rolling the SAME string counted as one,
+   which is the copy-paste case it exists to catch; and the pattern was anchored on the literal order
+   `rounded-xl border`, so `rounded-xl bg-white border …` matched nothing. The first rewrite then ran
+   a greedy regex over `classText`'s joined output and swallowed eleven unrelated class strings into
+   one match — reintroducing the counted-as-one defect with the tool used to remove it. It reads one
+   string literal at a time now.
+
+**Four checks, four controls, all fired.** `cardTreatmentsOutsidePrimitives` — restoring the
+hand-rolled call site fails it with *"expected 2 to be 1"*, naming the file and the string; a
+reordered hand-roll in a second file takes it to 2, and two in one file to 3; a prose mention does
+not move it. `offSystemElevation` — a third shadow value fails it. `lib/toast.test.tsx` — removing
+the elevation fails it with *"expected … to contain 'shadow-lg'"*. `lib/design-doc.test.ts` needs no
+control of its own: it is two-directional by construction, and an export undeclared in §5 fails the
+suite.
+
+**The Toast test was rewritten for the same reason.** Its first draft asserted `rounded-xl`,
+`border-zinc-200` and `dark:bg-zinc-900` as substrings of the whole document — which is `Card`'s tone
+rather than anything about `Toast`, and `dark:bg-zinc-900` passes on `dark:bg-zinc-900/50`, so the
+toast could switch to the SUNKEN surface level with the test green. It asserted none of `fixed`,
+`inset-x-0`, `bottom-0`, `z-50` or `justify-center` — the wrapper classes the extraction actually
+moved and the ones the "rendered output is unchanged" claim rests on. And its `not.toContain(
+'role="alert"')` could only ever fail alongside the positive assertion above it, which is not a
+control. It reads class attributes as SETS, per element, now.
+
+**Two defects in the primitive itself, both fixed.** The full-width positioning wrapper had no
+`pointer-events-none`, so the toast swallowed every click in a roughly 76 px strip across the bottom
+of the viewport for as long as it was up — the hand-rolled version had the same hole and one caller,
+and a primitive §5 invites three more callers to use would have institutionalised it, while §2's new
+text promises the flyer that what is behind a floating surface is still theirs. And the dismiss
+hand-rolled `TOUCH_TARGET_SQUARE` onto its class string inside the primitives file, which is exactly
+the pattern `Button`'s `square` prop exists to end.
 
 **Increment 2 is `DropZone`**, and the hazard below is the thing to settle first.
 

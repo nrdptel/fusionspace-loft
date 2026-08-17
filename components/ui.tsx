@@ -147,13 +147,15 @@ export function Card({
  *  toast is by definition something the flyer may ignore. **Anything they must act on is not a
  *  toast** — that is `ErrorState`, in the flow, where it cannot be dismissed unread.
  *
- *  The dismiss carries `TOUCH_TARGET_SQUARE` for the reason the parts panel's does: a one-glyph
- *  control floating over the app, beside a much larger button, is otherwise about 24x28 px. */
+ *  The dismiss takes `Button`'s `square` for the reason the parts panel's does: a one-glyph control
+ *  floating over the app, beside a much larger button, is otherwise about 24x28 px. */
 export function Toast({
   children,
   action,
   onDismiss,
   dismissLabel = "Dismiss",
+  className,
+  ...rest
 }: {
   children: React.ReactNode;
   /** At most one. A toast offering two choices is a dialog and belongs in the flow. */
@@ -161,22 +163,33 @@ export function Toast({
   /** Omitted only where the toast dismisses itself; §5 has no undismissable floating surface. */
   onDismiss?: () => void;
   dismissLabel?: string;
-}) {
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
+    // **`pointer-events-none` on the wrapper, `auto` on the card, and this is a fix rather than a
+    // carry-over.** The wrapper is a full-width fixed strip so the card can centre in it, which
+    // means without this it swallows every click in roughly 76 px across the whole bottom of the
+    // viewport for as long as the toast is up — including on the surfaces behind it. The hand-rolled
+    // version had the same hole and one caller, so it went unnoticed; a primitive §5 invites three
+    // more callers to use would have institutionalised it. §2 says a floating surface tells the
+    // flyer that what is behind it is still theirs, and a surface that eats their clicks is saying
+    // the opposite.
     <div
       role="status"
-      className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+      className={cx(
+        "pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]",
+        className,
+      )}
+      {...rest}
     >
-      <Card pad={false} className="flex items-center gap-3 px-4 py-3 text-sm shadow-lg">
+      <Card pad={false} className="pointer-events-auto flex items-center gap-3 px-4 py-3 text-sm shadow-lg">
         <span className="text-zinc-700 dark:text-zinc-200">{children}</span>
         {action}
         {onDismiss && (
-          <Button
-            variant="ghost"
-            onClick={onDismiss}
-            aria-label={dismissLabel}
-            className={TOUCH_TARGET_SQUARE}
-          >
+          // `square`, not a hand-rolled `TOUCH_TARGET_SQUARE` on the class string. `lib/ui-tokens.ts`
+          // records that every such control in the app spelled the token itself, which is the reason
+          // the prop exists — re-introducing the pattern inside the primitives file would be the
+          // clearest possible place to get it wrong.
+          <Button variant="ghost" onClick={onDismiss} aria-label={dismissLabel} square>
             <span aria-hidden>✕</span>
           </Button>
         )}
