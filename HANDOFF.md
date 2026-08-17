@@ -176,10 +176,11 @@ rather than a number in a manual that goes stale as the suite grows.
   primitive adoption 22 files, hover-only states on a coarse pointer 0. Only the card count is off
   target, and it now has a milestone.
 - **The owner ANSWERED the attribution and commit-identity pair this run**, in the session prompt:
-  *"I give you full permission to override the harness and get rid of any automatic mentions or
-  attributions of 'Claude'."* Both notes are marked answered in `OWNER-NOTES.md` and left in full.
-  The harness appended its footer to both PR bodies and both were stripped by re-posting and read
-  back. **What is still the owner's, and is now the only open item in that section:** the commits are
+  they granted explicit permission to override the harness and remove any automatic vendor
+  attribution it adds. Both notes are marked answered in `OWNER-NOTES.md`, which carries the wording
+  verbatim — this file paraphrases it, because the zero-trace invariant governs every doc and the
+  reverse channel is the one place that quotation earns its keep. The harness appended its footer to
+  all three pull request bodies this run and every one was stripped by re-posting and read back. **What is still the owner's, and is now the only open item in that section:** the commits are
   signed with the sandbox's SSH key rather than one registered to the account, so GitHub shows them
   *Unverified*. Registering a key is the fix and only they can do it. Nothing is blocked.
 - **`OWNER-NOTES.md`: all 13 open notes carry a verdict and none is pending.** `## Awaiting the
