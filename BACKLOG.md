@@ -12,6 +12,158 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-17, from run 18's opening fan-out (8 lenses, 0 errors, 0 Sev-1 claimed) and its
+pre-push review (10 findings on one diff, of which 4 were fixed before it shipped).**
+
+**From the fan-out's five audit lenses. Reported by an agent with a repro; NOT reproduced by the
+session unless the entry says so** — `MAINTAINING.md`'s rule is that a finding is a claim until
+someone has seen it, so these are filed as claims with the command that would settle each.
+
+- **Flight warnings separate red from amber by container colour ALONE.**
+  `components/ResultsView.tsx:556-568` — `SEVERITY.warning.text` and `.caution.text` are both `""`:
+  no icon, no word, no heading, no count, and the list is emitted in solver order rather than
+  severity order. Reported measurement: **10 of 27 `.ork` corpus designs put a red card below an
+  amber one**; `APEX_K_Dart.ork` lands six unlabelled cards with red `upper-stage-stability` below
+  amber `mould-line-step`. WCAG 1.4.1. `app/globals.css:371` flattens every text colour to ink when
+  printing a dark-theme page, so a printed range card distinguishes them by a 1 px rule and nothing
+  else. Severity is the only thing telling a flyer which of six paragraphs is the go/no-go one.
+
+- **Duplicate React keys on the warnings list.** `components/ResultsView.tsx:561` uses
+  `key={w.code}`, and codes repeat — `fin-count-assumption` is raised once per offending fin set.
+  Reported: 3 of 27 corpus designs hit it (`Pods--airframes and winglets.ork` ×5, ARC payload ×3,
+  sim-scripting ×4), the console logs the duplicate-key error, and the flight screen leads with five
+  verbatim repetitions of one 40-word paragraph.
+
+- **Every remediation instruction on the results surface is unlinked prose.**
+  `components/ResultsView.tsx:1425,1742,1818,1843,620` — `EDIT_POINTER = "in the Design workspace"`
+  and *"Swap in a bundled motor under Design and they fill in."* are plain text, while `next/link` is
+  already imported in that file and `/design` is a real route. Four sites tell a flyer to go
+  somewhere and refuse to take them.
+
+- **The wind, rail and field elevation a flight was flown under are on screen nowhere on Flight.**
+  `components/LoftApp.tsx:4453` renders the Conditions panel as `<Card as="details">` with no `open`,
+  and `app/globals.css:404` drops a closed panel's summary from print entirely. Drift, ground-hit
+  speed, landing energy and rail-exit velocity are all read off conditions the page will not state,
+  and an RSO printout omits them.
+
+- **Apogee is published with a unit and no datum.** `components/ResultsView.tsx:651`,
+  `lib/display.ts:88` — the value is AGL, the Conditions panel one card up takes "Field elev." as an
+  MSL figure, and neither the accent readout, the summary strip (`:1553`), the CSV header
+  `Altitude (m)` (`:73`) nor the plot axis says which. Reported: the strings "AGL", "above ground"
+  and "above the pad" appear on no readout in the app. Correct value, unstated basis, on the one
+  number a flyer takes to a waiver. **Judged NOT Sev-1** — every tool in the field quotes apogee AGL
+  and a flyer reads it that way — but it is the closest thing this run found to one.
+
+- **No route back to the import screen that is not destructive.**
+  `components/SiteHeader.tsx:61` with `components/LoftApp.tsx:1748` — the "Loft" wordmark is the only
+  home affordance and is a no-op once a design is loaded, because an effect `router.replace`s `/`
+  back to the last workspace. The only way back is "← Import another", which is `reset()`. A flyer
+  who wants a second bundled example, the shelf, or the landing copy must discard their design.
+
+- **A wheel notch over a focused number field re-flies the design.** `components/ui.tsx:1471` — every
+  numeric input is a bare `<input type="number">` and `grep -rn onWheel components/ lib/` returns
+  nothing, so scrolling the page with a dimension field focused fires `onChange` → `applyEdit`. The
+  gesture nobody means as an edit is the ordinary one: type a dimension, then scroll to see its
+  effect. Undoable, so not a one-way door, but it silently changes a number the flyer typed.
+
+- **Four warn text pairs in `components/ui.tsx` and §2 names one.** `:37,493,650,685,1512` — §2 names
+  `amber-600` and not one of the four is it: `text-amber-900 dark:text-amber-200` (`CARD_TONES.warn`),
+  `text-amber-700 dark:text-amber-400` (`Extrapolated`, the `Readout` row flag, `NumberField`'s
+  refusal), and others. §9's border grep enumerates `border-zinc-*` only, so it is blind to all of
+  them — the same "wrong text" blindness §9 already records about the radius grep.
+
+- **The drag-over state of the import drop zone is drawn in unsanctioned accent colours.**
+  `components/ImportPanel.tsx:171` uses `border-indigo-400` / `bg-indigo-50/60` where §2's accent is
+  `indigo-500/30` over `indigo-500/5`. No §9 check can see it. Settle it inside `DropZone` when P18
+  increment 2 writes that primitive rather than porting the strings across.
+
+- **`/docs/faq`'s in-page jump strip is 27 chips in one `overflow-x-auto sticky` bar.**
+  `components/SectionNav.tsx:31,45` with `components/DocsContents.tsx:36` — it falls back to `h3`s,
+  and at ~45 characters a chip the strip's content is roughly **9,300 px read through a 358 px
+  window** on a phone.
+
+- **The corpus deployment-split floors are calibrated to prose the same file contradicts.**
+  `lib/corpus/sweep.test.ts:3099-3103` says *"Only `.rkt` files state it and the corpus carries four
+  of them"* and sets `deployed>=4 / ballistic>=8`, while `:237` and `lib/ork/adapt.ts:157,1036` say
+  OpenRocket states it on **77 of 91** stored flights. A floor two orders of magnitude below the real
+  population is a check that cannot fire.
+
+- **The `.rkt` adapter writes RockSim's free-text label into OpenRocket's closed enum.**
+  `lib/rkt/adapt.ts:507` sets `massType: childText(node, "Name")` — the same string `baseOf` already
+  used as the component's `name` — and `lib/ork/export.ts:460` writes it straight into
+  `<masscomponenttype>`, whose OpenRocket enum is lowercase and closed. A `.rkt` round-tripped through
+  Loft to `.ork` can carry a `<masscomponenttype>` no OpenRocket build recognises.
+
+- **The e2e suite has outgrown TWO shards on this sandbox, and it looks exactly like 12 real
+  failures.** `MAINTAINING.md` says a two-shard split is the answer to the 4096-descriptor limit;
+  measured 2026-08-17 at **207 tests**, it is no longer. Shard 1 reported 5 failures (`docs.spec.ts`
+  offline, three `smoke.spec.ts` wind/downrange cases, one known-flaky `rocketpy-selfhosted`) and
+  shard 2 reported **7 consecutive failures at the tail of `touch.spec.ts`** — the exact clustering
+  the manual describes for descriptor exhaustion, reading as a wall of touch-target regressions.
+  **All 12 pass in isolation**: `npx playwright test e2e/touch.spec.ts` → 23 passed, `e2e/docs.spec.ts`
+  → 8 passed, the three smoke cases → 3 passed. Three shards are stable. The durable fix is a shard
+  count derived from the test count rather than a number written into a manual that goes stale as the
+  suite grows; until then, `--shard=n/3`.
+
+- **`MASS_OBJECT_STATION_FRACTION` is applied outside the population it was measured over.**
+  `lib/model/edit.ts:2786` — 0.3251 is "the median offset among the 16 corpus masses placed `top`
+  inside a BODY TUBE", and as of increment 21 it also positions a mass inside a nose cone, an inner
+  tube, a coupler and a transition. Nose ballast therefore starts **32.5% down the cone** rather than
+  at the tip, which is where a flyer putting lead in a nose wants it. Not a wrong number under a
+  confident label — it is an editable starting value and `/docs/limitations` states its basis — but
+  this repo's standard is that a default is a measurement, and a per-kind median is one probe's work
+  (nose cone, inner tube, coupler and transition masses exist in the corpus to measure).
+  `COMPETITION.md` row 51 carries it as the outstanding half of that row.
+
+- **`massHeldBy` asks the ancestor-only question, so a host that states its OWN assembly weight gets
+  no notice.** `components/ResultsView.tsx:539` calls `statedMassHolder(doc.rocket, a.after)`, which
+  looks at the anchor's ancestors. A host that is itself the holder is missed: the parts table still
+  says "in &lt;host&gt;" and the dry total still does not move, but the Mass &amp; balance warn card
+  stays silent. Reproduce: import `corpus/openrocket/…__The Red Hunter.ork`, pick the inner tube,
+  "Add a mass inside this" — total unchanged, no notice. **Newly reachable in the corpus** because an
+  inner tube became a host this run; before that only `fixtures/demo-quirks.ork` hit it. It
+  contradicts `/docs/limitations`' claim that "the panels say so, before the click and after it".
+  Measured: **22 of the 218 bay parts** hold the ballast, across 4 designs.
+
+- **An authored mass inside an authored coupler is dropped silently with the coupler.** When a
+  catalogued coupler pick is refused for not fitting, `fitAddedInternalParts`
+  (`lib/model/edit.ts:3937`) returns `[]` for the whole subtree, so a mass authored inside that
+  coupler goes with it — and the on-screen "This coupler is not in the flight" card names only the
+  coupler. Reproduce: body tube → add a coupler → add a mass inside the coupler → pick a catalogued
+  coupler wider than the tube's bore; both rows vanish, one of them unmentioned.
+
+- **The mass station is frozen against the host's PRE-EDIT length.** `lib/model/edit.ts:4121` derives
+  the station during `applyAdds`, which runs before `applyDimensionEdits` and `fitAddedInternalParts`
+  resize that host — so the mass lands outside it. Measured: author a mass in a 700 mm tube, then set
+  body length to 20 mm — the mass sits at 477.6 mm in a host spanning [250, 270] mm. Pre-existing for
+  body tubes; increment 21 extends it to the coupler, which is the one host the applier itself
+  shortens. The docblocks at `:4101` and `:1762` say the station is re-derived at every apply, and
+  that is true only of the FILE's length.
+
+- **"Add a mass inside this" renders on the boattail, which `addPartAfter` cannot resolve.** The
+  boattail is appended by `applyDimensionEdits`, after `structureOf()` — which `addPartAfter` resolves
+  the anchor against — has run. Reproduce: set a boattail length and aft diameter, pick "Boattail" in
+  the parts table, click the button; nothing happens and no undo step appears. The row already had two
+  dead controls there (tube, transition) and this run widened it to three. The honest fix is for
+  `addOptionsFor` to refuse a part the applier cannot address, which is the same one-rule principle
+  increment 20 established.
+
+- **`addOptionsFor` offers a mass on KIND alone while two callers additionally require
+  `axialLength > 0`.** `lib/model/edit.ts:3637` versus `:4112` and `withMassStation` at `:2703`. A
+  zero-length nose cone, inner tube, coupler or transition would be offered a button whose click does
+  nothing. **Zero such parts exist in the 35-design corpus** — the partition test would fail if one
+  did — so this is reachable only from a file with a degenerate part. Cheap to close by returning the
+  refusal from the same place.
+
+- **Three assertions in the new corpus mass test cannot fail, and they are labelled rather than
+  removed.** `lib/corpus/sweep.test.ts` — a `masscomponent` contributes 0 to `outerRadius`, to
+  `barrowman` and to the top-level stacking cursor, so the CP, CNa, overall-length and max-radius
+  checks hold whatever the rule allows; and the station bound holds by construction, the offset being
+  a fraction of the span it is bounded by. They are kept as regression guards against a future change
+  that gives a point mass an extent. The falsifiable assertions in that test are the kind list and the
+  50 g mass ledger. Worth a wider sweep: how many other assertions in this suite are measurements
+  banked as tests?
+
 **Filed 2026-08-17, from run 17's opening fan-out** — eight lenses, 14 agents, 0 errors. Two of the
 Sev-1 candidates were against this run's own uncommitted work and were fixed before it shipped; one
 was the ledger's own open Sev-1, and it REPRODUCES (below).

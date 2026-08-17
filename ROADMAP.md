@@ -2586,6 +2586,58 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 21 — a mass goes where a mass goes: inside anything with a bay, 2026-08-17.** Nose
+ballast is the case the North Star names in as many words, and it was refused on the nose cone of all
+35 corpus designs. So was an av-bay inside a coupler — which in the field *is* the av-bay. The
+gesture was gated on the pick being a body tube.
+
+**A point mass needs neither of the two rules that already existed, and that is why it was wrong.**
+`canAnchorAfter` asks for an aft face to fair to; the bore test asks for a tube to hold a coupler, a
+ring or a fin set concentric. A mass object has no radius and touches no mould line — what it needs
+is an interior axial bay to sit in. `canHostInsideMass` is that third rule, named in
+`lib/model/geometry.ts` beside the first, and it is an allowlist of the five kinds whose
+`axialLength` IS an interior span: nose cone, body tube, inner tube, tube coupler, transition.
+
+**A length test was the alternative, and it is wrong on four kinds — which matters because a length
+test is exactly what `buildAdded` already had.** Its mass arm asked only `after.length > 0`. That is
+true of a shock cord, whose length is the CORD (24 in the corpus, up to 0.673 m); of a launch lug,
+whose length is a rail down the outside (19); of a fin set, whose `axialLength` is its root chord
+(52); of a canopy, whose is its packed size (50); and of a mass object's own extent, which nothing
+bounds to its host — `TubeFins1.rkt` carries one **1.219 m long in a 0.629 m rocket** and
+`FullScaleModelTH.rkt` one of **6.340 m in a 3.213 m** one. It was unreachable only because the panel
+refused everything but a tube, and widening the panel is precisely what would have reached it. Both
+sites now read the one rule, and `buildAdded` reads the host's span through `axialLength` — the same
+accessor the panel and the flattener use.
+
+**The discs are refused on their own grounds**, measured: a centring ring is 1.3–32.0 mm thick (83
+parts), a bulkhead 2.0–9.5 mm (29), an engine block 3.0–25.4 mm (14). A plate is not a bay.
+
+**The half a model test could not see, and it was real.** The whole add row was gated on
+`offers.has("bodytube")` — a stand-in for "is there anything to show" that held only while every
+inside-kind was also a behind-kind. An inner tube has a bay and no aft face, so with the rule widened
+and that gate left alone the model would author the mass, the button would never render, and the
+panel would print *"Nothing can be added to this part"* over a rule saying the opposite. The gate is
+`offers.size > 0` now, the two behind-buttons ask for their own verdict like the other four, and the
+row is a `flex flex-wrap gap-2` rather than a chain of `ml-1.5` nudges that encoded which control
+came first. **The e2e caught the transition button mid-change** — it was still unconditional after
+the comment beside it said otherwise.
+
+**Measured over the corpus, before and after.** Parts offered the mass gesture: **90 → 218** (nose
+cone 35, body tube 90, inner tube 37, tube coupler 31, transition 25). Parts offered NOTHING at all:
+**419 → 351**, the 68 being every inner tube and every coupler, which had no gesture of any kind.
+Authoring a mass into all 218: overall length moved on **0**, `maxBodyRadius` on **0**, Barrowman CP
+on **0**, CNa on **0**, and the new part landed inside its own host's span on **218 of 218**.
+
+**Pinned at both layers, both controls fired.** `lib/corpus/sweep.test.ts` asserts the gesture as a
+PARTITION — every part of the five kinds offered, every part of every other kind refused with a
+reason — and names the five rather than counting them, so a rule reaching the same 218 through a
+different set fails. Control: narrowing `canHostInsideMass` back to body tubes fails it with
+*"expected [ 'bodytube' ] to deeply equal [ 'bodytube', 'innertube', …(3) ]"* and *"expected 90 to be
+greater than 150"*. `e2e/smoke.spec.ts`'s *a mass goes inside the parts that have a bay, and the panel
+does not say otherwise* drives the inner tube, the nose cone and the centring ring on the 38 mm
+single-deploy. Control (`revert → rebuild → run → restore → rebuild`): restoring the row's old gate
+fails it with *"an inner tube is a bay and must offer the gesture"*.
+
 **Increment 20 — the panel answers on every part, and the rule lives in one place, 2026-08-17.**
 Picking most of a design got NOTHING: no button, no sentence, no else branch, with an unrelated
 paragraph about stages next on screen. Measured across the 35-design corpus: **of 569 parts, 419 take
@@ -6582,6 +6634,106 @@ the first is the cheapest and is the one that must exist before the milestone is
 one surface a flyer may reach from a search engine with no design loaded, and it is also the lightest
 document Loft serves. Any structural answer that makes `/docs` carry `LoftApp` needs to show it did
 not cost that.
+
+---
+
+## P18 — The two treatments that are not cards get names
+
+**Status: NOT STARTED.** Written 2026-08-17 because the P-track was dry, and `MAINTAINING.md` says
+extending it IS the work in that case.
+
+**And it is written against a CORRECTION to the milestone the last handoff proposed.** That handoff
+named this slice as "a count that moves 3 → 1", and the count cannot move to 1 — `DESIGN.md` §9 says
+so in as many words: *"A treatment that matches the grep but is genuinely not a card — a floating
+toast that needs elevation, an interactive drop zone — gets its own named primitive rather than a
+`shadow` prop on `Card`. Record the honest floor and what each remaining string is."*
+`lib/design-system.test.ts` already records that floor as 3 for exactly these two strings. A
+milestone whose *done when* is a number that the design system forbids reaching would have been
+worked, failed, and either abandoned or satisfied by folding a drop zone into `Card` — which is the
+outcome §9 wrote that paragraph to prevent.
+
+**What is actually wrong is not the count, it is WHERE the two strings live.** Measured 2026-08-17:
+
+| string | where it is today | what it is |
+|---|---|---|
+| `rounded-xl border` | `components/ui.tsx:106` | `Card` — the sanctioned one |
+| `rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm shadow-lg dark:…` | `components/ServiceWorker.tsx:74` | the service-worker update toast |
+| `rounded-xl border-2 border-dashed p-4 text-center transition sm:p-8` | `components/ImportPanel.tsx:168` | the import drop zone |
+
+Two of the three are hand-rolled **at a call site**, which is the *"a component that exists once and
+matches nothing else"* tell from `MAINTAINING.md`'s own list — and the reason every one of the twelve
+measured card variants existed. The floor of 3 is honest; three strings living in three different
+files is not.
+
+**Outcome.** A `Toast` and a `DropZone` primitive in `components/ui.tsx`, each declared in
+`DESIGN.md` §5 with what it is for and when to reach for it, each carrying its own five states where
+the state applies. `ServiceWorker` and `ImportPanel` become callers. Nothing about the rendered pixels
+has to change, and the milestone says so up front so that a later run does not read a green diff as a
+no-op.
+
+**The first draft of this milestone got its own *done when* wrong, and the pre-scope review caught
+it before a line was written. It is left recorded rather than silently corrected**, because it is the
+same instrument failure §9 keeps recording about itself. That draft said *"`cardTreatments` stays
+3"* — while its outcome moves both hand-rolls into `components/ui.tsx`. A primitive that COMPOSES
+`Card` does not spell `rounded-xl border` itself, so the string ceases to exist and the count drops.
+`lib/design-system.test.ts:429` asserts that number with an exact `toBe`, in both directions. The
+milestone would therefore have gone **red on a correct implementation** — a done-when that fails when
+the work succeeds.
+
+**And correcting it settles the question the honest-floor paragraph left open.** §9 forbids *"a
+`shadow` prop on `Card`"* — a generic escape hatch that lets any surface opt out of the system. It
+does not forbid a NAMED primitive that renders a `Card` internally: that is the vocabulary growing a
+word, which is exactly what §5 is for. So the floor is not 3. **The target is 1, and it is reachable
+rather than exempted** — which is worth more than recording a floor, because a floor is a permanent
+excuse and this is a finish line.
+
+***Done when*:**
+
+- **`cardTreatmentsOutsidePrimitives` is 0** — card-shaped treatments hand-rolled anywhere under
+  `components/` other than `components/ui.tsx` itself. Today **2**. Added to
+  `lib/design-system.test.ts` as an exact ratchet beside `cardTreatments`, and to §9's block as the
+  readable form. **Scoped by PATH, not by basename** — `grep --exclude=ui.tsx` matches the basename
+  anywhere in the subtree, so a future `components/<dir>/ui.tsx` would be silently exempted, which is
+  the "wrong scope" shape §9 already records twice:
+  ```bash
+  grep -roh 'rounded-xl border[a-z0-9:/ -]*' components \
+    --exclude-dir=node_modules | grep -v '^components/ui\.tsx:' \
+    | sed 's/[[:space:]]*$//' | sort -u | wc -l          # target: 0
+  ```
+  (the test is the authority; `lib/design-system.test.ts` reads the path, which a shell one-liner
+  does clumsily — this block is the readable statement of it, as §9 says of every other command here)
+- **`cardTreatments` reaches 1** — `Card`'s own string, and nothing else. Both new primitives compose
+  `Card`; neither writes the treatment again.
+- **§5 declares both**, so `lib/design-doc.test.ts`'s two-direction check (every `components/ui.tsx`
+  export declared in §5, every §5 name resolving to a real export) covers them the moment they exist.
+  That is what makes this milestone self-pinning: an undeclared export fails the suite.
+- **§2 gains an ELEVATION row in the same commit as `Toast`.** `DESIGN.md` names no shadow token
+  anywhere today — the only occurrence of the word is §9's prohibition — so whoever writes `Toast`
+  invents the elevation vocabulary as a side effect unless the section is amended with it. There is
+  already a second caller waiting: `Popover` (`components/ui.tsx:1211`) is the tree's only other
+  floating surface and carries no elevation at all, so on a phone it is a dialog separated from the
+  page by a hairline.
+- **`PRIMITIVE_ADOPTERS` gains both entries.** An unratcheted primitive is the state `Section` sat in
+  for five runs at zero adopters with nothing failing.
+- **The sibling repo carries the same §2 and §5 text in the same run** — `DESIGN.md` is shared
+  verbatim and the DESIGN-IS-BINDING invariant says a change to one copy is a change to both.
+  `OWNER-NOTES.md` records that `add_repo` with `access: "push"` for `nrdptel/fusionspace-debrief`
+  succeeds from a Loft session, so this is not an owner task.
+
+**Size: 2 increments.** One per primitive, each independently shippable; the sibling mirror rides
+with whichever lands the shared text.
+
+**One hazard measured up front, so increment 2 does not discover it.** If `DropZone` composes
+`<Card tone="muted" className="border-2">`, the 2 px border wins today only by SOURCE ORDER —
+`.border-2` is emitted after `.border` in the built stylesheet, at equal specificity. That is exactly
+the hazard `components/ui.tsx:1207-1210` already documents for `left`/`inset-x`. The honest form is a
+width the primitive owns rather than a className override that happens to come second.
+
+**Notes.** Before writing `Toast`, search for the other floating status surfaces — an offline banner,
+a save confirmation — and give it the shape they would all want rather than the shape the one caller
+needs. Same for `DropZone`: the five states matter more here than anywhere, because a drop target
+with no drag-over, no rejected-file and no error state is the *"missing state that says nothing"*
+tell on the one surface every first-time visitor meets.
 
 ---
 
