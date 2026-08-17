@@ -142,6 +142,7 @@ export function buttonClass({
   variant = "secondary",
   size = "md",
   square = false,
+  unavailable = false,
   className,
 }: {
   variant?: ButtonVariant;
@@ -152,6 +153,31 @@ export function buttonClass({
    *  string because the primitive had no way to ask for it — which is the same mechanism that
    *  produced the twelve card treatments. */
   square?: boolean;
+  /** **A control that is unavailable AND still meant to be read.**
+   *
+   *  The ordinary disabled treatments dim the whole element with `opacity-50`, which is right for a
+   *  control whose label the flyer already knows — undo, redo, a zoom at the end of its range. It is
+   *  wrong for one whose label is the POINT. Measured on the built export at the parts panel's add
+   *  palette: `text-zinc-700` at 50% over white composites to a **3.78:1** ratio against WCAG AA's
+   *  4.5, and the dark pair is no better. That palette exists to teach a flyer the six-word authoring
+   *  vocabulary on parts that take none of it — 351 of the 569 corpus parts — so shipping it below AA
+   *  would be shipping the feature with its content unreadable.
+   *
+   *  So this states the muted colour instead of thinning the whole control: `zinc-500` on light
+   *  (**4.83:1** on white) and `zinc-400` on dark (**5.99:1** on `zinc-900`), with the border dropped
+   *  to §2's hairline so the control still reads as quieter than an available one. No opacity, so
+   *  nothing composites.
+   *
+   *  **This does NOT replace `aria-disabled:opacity-50`, and that is deliberate.** Changing the
+   *  app-wide disabled treatment means settling what a disabled PRIMARY looks like — white on indigo
+   *  cannot take a muted text colour — and §2's `tertiary` (`text-zinc-500` in both themes) measures
+   *  **3.65:1** on a raised dark surface, so the token this would naturally reach for does not itself
+   *  clear AA there. Both are recorded in `BACKLOG.md`; neither is a line, and neither belongs in the
+   *  increment that found them.
+   *
+   *  Callers still set `aria-disabled` themselves — this is the treatment, not the semantics, exactly
+   *  as `square` is. */
+  unavailable?: boolean;
   className?: string;
 } = {}): string {
   return cx(
@@ -163,7 +189,11 @@ export function buttonClass({
     // `disabled` button leaves the accessibility tree and drops focus to `<body>`, so undo/redo
     // announce as unavailable and stay reachable by Tab instead. That treatment was worked out once,
     // in `LoftApp`'s header, and lived in a local class string where no other surface could reuse it.
-    "aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
+    // Spelled as two whole alternatives rather than a shared prefix plus a conditional suffix, for
+    // the reason the comment above gives about Tailwind scanning source for contiguous literals.
+    unavailable
+      ? "aria-disabled:cursor-not-allowed aria-disabled:text-zinc-500 aria-disabled:border-zinc-200 dark:aria-disabled:text-zinc-400 dark:aria-disabled:border-zinc-800"
+      : "aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
     BUTTON_VARIANTS[variant],
     BUTTON_SIZES[size],
     square ? TOUCH_TARGET_SQUARE : TOUCH_TARGET,

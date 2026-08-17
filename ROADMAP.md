@@ -2586,6 +2586,87 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 22 — the whole vocabulary is on screen, dimmed where the part will not take it,
+2026-08-17.** `COMPETITION.md` row 50's still-owed half, and the one place Loft was behind every
+tool in the field. Loft is the ONLY one of the four that states in the product WHY a component
+cannot go somewhere — OpenRocket says it in its documentation and greys the button, RockSim greys,
+RASAero has no vocabulary, RocketPy has no validity concept. And Loft was worse than all four on
+WHAT, because a control it could not offer was a control it did not draw: the six-word vocabulary
+was learnable only by picking parts until one of them offered something.
+
+**A rendering change, not a rule change**, which is what increment 20 bought: `addOptionsFor` has
+returned a verdict for every kind in a stable order since then, so the palette just draws what it
+already answered. Six near-identical `<Button>` blocks — each with its label in the markup, its long
+form in an `aria-label` beside it, and its own verdict gate to remember — collapse into one map over
+`ADD_KINDS` and one `ADD_LABELS` table. One of those six had already forgotten its gate: the
+transition button was still unconditional after the comment above it said otherwise, and the e2e
+caught it mid-change in increment 21.
+
+**`aria-disabled`, not `disabled`, and the repo had already paid for the difference.**
+`lib/ui-tokens.ts` records that a `disabled` button leaves the accessibility tree and drops focus to
+`<body>` — exactly wrong here, because the whole point of drawing a refused control is that somebody
+can reach it and find out why. A keyboard flyer tabs onto it, hears the name and "dimmed", and reads
+the reason on the line below. Both forms already suppress the hover treatment;
+`BUTTON_VARIANTS` spells `not-disabled:not-aria-disabled:` for precisely that reason.
+
+**The reasons render whenever ANYTHING is refused, not only when everything is.** They used to be
+the empty state for a part that took no gesture at all — right, while a refused control was not
+drawn, because then there was nothing on screen to explain. Four dimmed controls with no sentence is
+the "greys the button and explains only in the documentation" behaviour row 50 marks Loft as BETTER
+than, so keeping the explanation only for the all-refused case would have given the gap back on the
+way to closing it. `EmptyState` remains the primitive when nothing is offered — §5 — and a plain
+line otherwise, because a part taking four of six gestures is not an empty surface.
+
+**Measured on the 38 mm single-deploy:** controls drawn on a part go from *the offered subset* to
+**six, always** — a body tube 6 offered / 0 dimmed, a nose cone 3 / 3, a centring ring 0 / 6. On the
+**351 corpus parts that take no gesture at all**, that is 0 controls → 6.
+
+**Pinned by `e2e/smoke.spec.ts`'s *the whole add vocabulary is on screen, dimmed where the part will
+not take it***, which drives all three cases and asserts the count AND the dimmed tally on each, so
+a rule that dimmed five and dropped one fails. It also asserts the reason is on screen as TEXT — a
+tooltip is a state a flyer at the pad does not have — and that a dimmed control clicked with `force`
+leaves the undo stack empty. Control: filtering the palette back to the offered kinds fails it with
+*"a nose cone draws six and takes three: Expected 6, Received 3"*.
+
+**The palette carries `data-add-palette`, and that is not decoration.** Matching the buttons by their
+words answered **8** for a set of 6 — two unrelated "Add …" controls elsewhere on the panel — which
+is the same ambiguity the parts table's own note records about matching a row by its text, and why
+that one carries `data-kind`.
+
+**And a first draft of this entry over-claimed the check behind it**, which is worth recording because
+it is the run's third instance of the same reflex. It said `scripts/check-selectors.mjs` "holds them
+against the built export, so the name cannot rot silently". That script gates **absence-only** names —
+its own docblock spells out why: a name asserted PRESENT fails its test loudly when it is renamed, so
+the suite is its own alarm and the script would add nothing, while a name asserted ABSENT goes on
+passing forever once the string is gone. `data-add-palette` is asserted present, so it needs no gate
+and gets none. The honest claim is the smaller one.
+
+**A side effect worth noting:** this increment converted four `toHaveCount(0)` add-control assertions
+into attribute assertions, which is four fewer absence-only names in the population that script
+polices — the suite got stronger and the instrument got less to do.
+
+**The review found ELEVEN things and nine are fixed here. One of them nearly shipped the increment
+with its own content unreadable.** The dimmed labels — the half of the palette that exists to be read,
+on 351 of the 569 corpus parts — rendered at **2.64:1** in light and **3.91:1** in dark against WCAG
+AA's 4.5, because `aria-disabled:opacity-50` thins the text along with the control. `Button` gains an
+`unavailable` treatment that states a muted colour instead of thinning: **4.83:1** and **6.75:1**
+measured on the built export. Control: reverting it fails the new inline assertion with *"a dimmed
+palette label must stay readable — measured 3.21:1"*.
+
+**Three things that fix does NOT do, all filed:** the app-wide `opacity-50` on every other disabled
+control is untouched, because a disabled PRIMARY is white on indigo and cannot take a muted text
+colour — the app-wide fix differs by variant and is a milestone, not a line. §2's `tertiary` token,
+the one that fix would naturally reach for, itself measures **3.66:1** on a raised dark surface. And
+`e2e/contrast.spec.ts` has never sampled a single button label in either app: its walker skips any
+element with element children, and every `Button` wraps its label beside an aria-hidden glyph.
+
+**Two more review findings worth keeping.** The refusal was being spelled into every refused
+control's `aria-label` — three copies of the bore sentence and two of the aft-face sentence on one
+fin set, then again in the text below, which is verbatim the wall the visible dedup exists to
+prevent, rebuilt where nobody was looking; it is one `aria-describedby` now. And `ADD_LABELS` was
+typed `Record<string, …>`, so a seventh kind would have thrown `undefined.label` inside render and
+blanked the whole parts table rather than failing to compile.
+
 **Increment 21 — a mass goes where a mass goes: inside anything with a bay, 2026-08-17.** Nose
 ballast is the case the North Star names in as many words, and it was refused on the nose cone of all
 35 corpus designs. So was an av-bay inside a coupler — which in the field *is* the av-bay. The

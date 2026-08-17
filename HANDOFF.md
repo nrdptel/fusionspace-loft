@@ -32,12 +32,14 @@ rather than a number in a manual that goes stale as the suite grows.
 
 **The next slice on each track:**
 
-- **R-track: R12 is at increment 22.** Increment 21 widened the mass-object gesture from body tubes
-  to the five kinds with an interior bay. The next slice is named in `COMPETITION.md` row 50's
-  still-owed clause and is the larger half of that row: **OpenRocket's add palette is ALWAYS
-  VISIBLE**, so a flyer learns the whole component vocabulary without selecting anything, while
-  Loft's verdicts are reachable only by picking a part that cannot take one. A persistent list of the
-  six kinds with their verdicts is what makes row 50 `BETTER` rather than merely different.
+- **R-track: R12 is at increment 23, and `COMPETITION.md` row 50 is fully resolved.** Increment 21
+  widened the mass gesture to the five kinds with an interior bay; increment 22 made the whole
+  six-word vocabulary persistent, dimmed where a part will not take it. **Both halves of row 50 are
+  now closed**, so the next R12 slice needs picking rather than reading off: the strongest candidates
+  are the two the fan-out surfaced against the editor — the boattail draws three add controls that
+  `addPartAfter` cannot address at all (filed), and the mass station is derived from the host's
+  PRE-EDIT length so a resize leaves the mass outside its host (filed, and increment 21 extended it
+  to the coupler). The second is the one a flyer would notice.
 - **P-track: P18 increment 1 SHIPPED; increment 2 is `DropZone`.** `Toast` now owns the floating
   surface and `cardTreatments` is **2**, `cardTreatmentsOutsidePrimitives` **1**. The one string left
   outside the primitives file is `components/ImportPanel.tsx:168`'s drop zone, and converting it takes
@@ -87,7 +89,21 @@ rather than a number in a manual that goes stale as the suite grows.
    *done when* said `cardTreatments` stays 3 while its outcome removes two of the three strings.
    Corrected before a line was written: the target is 1, reachable by composition, and a *new* count
    (`cardTreatmentsOutsidePrimitives`, 2 → 0) is what the milestone actually moves.
-4. **Measure the thing the sentence claims, not a proxy for it.** Both of this run's number errors
+4. **A feature whose purpose is to be READ shipped, in review, below AA — and the check that should
+   have caught it has never looked at a button label in either app.** The palette's dimmed controls
+   measured **2.64:1** light and **3.91:1** dark against WCAG AA's 4.5, because
+   `aria-disabled:opacity-50` thins the text with the control. `e2e/contrast.spec.ts` cannot see it:
+   its walker skips any element with element children, and every `Button` renders its label beside an
+   aria-hidden glyph — so **no button text anywhere is in its population**. Two further measurements
+   came out of chasing it and both are filed: every disabled control in the app is in the same state,
+   and §2's own `tertiary` token — the one a fix would reach for — is **3.66:1** on a raised dark
+   surface.
+   **And the measurement itself was wrong twice before it was right.** Tailwind v4 emits `oklch`, and
+   `getComputedStyle` serialises it as `lab()`; parsing those three numbers as RGB produces
+   confident nonsense (it reported 1.11:1 for a colour that is really 3.91:1). Paint the colour onto
+   a 1x1 canvas and read the pixel back — that forces sRGB. Any future contrast probe here should
+   start from that.
+5. **Measure the thing the sentence claims, not a proxy for it.** Both of this run's number errors
    were the same mistake: a predicate that is *nearly* the question. 20-versus-22 asked the design
    where the sentence asked the part; 283-versus-128 (recorded last run, corrected in
    `COMPETITION.md` row 50 this run) counted `component.length` where the panel iterates
@@ -124,11 +140,13 @@ rather than a number in a manual that goes stale as the suite grows.
 - **Run 18 (2026-08-17, this one).** **R12 increment 21** — a mass object goes inside any part with
   an interior bay, not only a body tube: **90 → 218 of 569 corpus parts**, and the parts that answer
   NOTHING fall **419 → 351**. Nose ballast in a nose cone and an av-bay inside a coupler, both of
-  which the North Star names, were refused on all 35 designs. **P18 written** after the P-track ran
-  dry, its first draft's *done when* corrected before any code, and **increment 1 shipped** — `Toast`,
-  the first primitive extracted since P13, with §2's first elevation token and the shared text
-  mirrored to the sibling repo the same run. `COMPETITION.md` row 51 added and row 50's stale clause
-  resolved.
+  which the North Star names, were refused on all 35 designs. **R12 increment 22** — the whole add
+  vocabulary is on screen on every part, dimmed where it will not apply, which closes the second half
+  of `COMPETITION.md` row 50 and puts Loft level with OpenRocket on WHAT while keeping the thing none
+  of the four does, stating WHY in the product. **P18 written** after the P-track ran dry, its first
+  draft's *done when* corrected before any code, and **increment 1 shipped** — `Toast`, the first
+  primitive extracted since P13, with §2's first elevation token and the shared text mirrored to the
+  sibling repo the same run. `COMPETITION.md` row 51 added; row 50 resolved in both halves.
 - **Run 17 (2026-08-17).** Two Sev-1s and three increments; **P17 SHIPPED**, R12 reached increment
   20. The undo for "Import another" replayed the edit bag onto bytes that already carried it; a
   fetched forecast's age was renewed by every edit. `COMPETITION.md` row 50.

@@ -363,6 +363,7 @@ export function Button({
   variant = "secondary",
   size = "md",
   square = false,
+  unavailable = false,
   className,
   type = "button",
   children,
@@ -374,6 +375,9 @@ export function Button({
    *  `buttonClass` — every one-glyph control in the app had hand-rolled this onto its own class
    *  string, which is why the prop exists rather than each site reaching for the token. */
   square?: boolean;
+  /** Unavailable, and still meant to be READ — see `buttonClass`. Sets the treatment only; the
+   *  caller still says `aria-disabled`. */
+  unavailable?: boolean;
   /** Declared explicitly because `ButtonHTMLAttributes` does not carry it. React 19 passes `ref`
    *  to a function component as an ordinary prop, so no forwarding wrapper is needed — but the type
    *  has to say so, and three of the panels hand their Run button a ref to return focus to. */
@@ -382,7 +386,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={buttonClass({ variant, size, square, className })}
+      className={buttonClass({ variant, size, square, unavailable, className })}
       {...rest}
     >
       {children}

@@ -15,6 +15,34 @@ big for one pass. Newest first.
 **Filed 2026-08-17, from run 18's opening fan-out (8 lenses, 0 errors, 0 Sev-1 claimed) and its
 pre-push review (10 findings on one diff, of which 4 were fixed before it shipped).**
 
+**From R12 increment 22's pre-push review (11 findings; 9 fixed before it shipped). The three below
+are app-wide and measured, and none of them belongs in the increment that found them.**
+
+- **Every `disabled` and `aria-disabled` control in the app renders its label below WCAG AA.**
+  `lib/ui-tokens.ts`'s `buttonClass` dims with `opacity-50`, which composites `text-zinc-700` over
+  white to **2.64:1** and `text-zinc-300` over `zinc-900` to **3.91:1**, against AA's 4.5. Measured on
+  the built export through a canvas (`getComputedStyle` serialises Tailwind v4's oklch as `lab()`, so
+  a naive parse reads nonsense — that mistake cost this run two wrong numbers before the canvas route
+  fixed it). Increment 22 added an `unavailable` treatment for the one surface whose whole purpose is
+  to be read, and deliberately did NOT change the app-wide default, because **the app-wide fix is not
+  a colour swap**: a disabled PRIMARY is white on indigo and cannot take a muted text colour, so the
+  treatment has to differ by variant. That is a milestone. Affected today: undo, redo, the diagram's
+  zoom −/+, and every other `disabled` Button.
+- **§2's `tertiary` token does not clear AA on a raised dark surface, and it is the token the fix
+  above would naturally reach for.** `text-zinc-500 dark:text-zinc-500` on `dark:bg-zinc-900`
+  measures **3.66:1**. §2 lists `tertiary` for "disabled, placeholder, timestamps" — so the design
+  system's own answer for a disabled label is below AA in one theme. `DESIGN.md` is shared, so
+  settling it is a both-repos change. **Nothing checks it**: §9's contrast rule is enforced by
+  `e2e/contrast.spec.ts` over rendered pages, and see the next entry for why that misses this whole
+  class.
+- **`e2e/contrast.spec.ts` has never sampled a single button label, in either app.** Its walker skips
+  any element that has element children, and every `Button` in the app renders its label beside an
+  `aria-hidden` glyph span — so no button text anywhere is in its population. Its one part-picked
+  case also picks a Body tube, which dims nothing. The count it reports is real for what it looks at;
+  the population is smaller than the target implies, which is the enumerate-what-you-know failure §9
+  keeps recording about its own greps. Increment 22 asserts its own palette's contrast inline as a
+  stopgap; the fix is the walker.
+
 **From run 18's done-check cold walk — `/sweep` at 390x664, a journey this run had not touched.**
 
 - **41 controls render under 44 px in at least one dimension on `/sweep` at phone width, and no check

@@ -2734,9 +2734,12 @@ test.describe("Loft", () => {
     const addTube = page.getByRole("button", { name: /Add a tube behind this/ });
     await expect(addTube, "the nose cone must offer the gesture").toBeVisible();
 
-    // The parts that go INSIDE a tube are correctly NOT offered on a cone — one rule widened, not both.
-    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Add a centering ring inside this/ })).toHaveCount(0);
+    // The parts that go INSIDE a tube are correctly refused on a cone — one rule widened, not both.
+    // **Asserted as DIMMED rather than absent since increment 22**, which draws every kind whether it
+    // is offered or not: absent would now be a rendering bug, and this pins the distinction the
+    // palette exists to show.
+    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("button", { name: /Add a centering ring inside this/ })).toHaveAttribute("aria-disabled", "true");
 
     await addTube.click();
     // The design gained a tube, and it is undoable like any other edit.
@@ -2775,9 +2778,10 @@ test.describe("Loft", () => {
       page.getByText("Nothing can be added to this part"),
       "the panel must not refuse a part it is at the same time offering a gesture on",
     ).toHaveCount(0);
-    // The behind-gestures stay refused on it — one rule widened, not all three.
-    await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Add a transition behind this/ })).toHaveCount(0);
+    // The behind-gestures stay refused on it — one rule widened, not all three. Dimmed rather than
+    // absent since increment 22.
+    await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("button", { name: /Add a transition behind this/ })).toHaveAttribute("aria-disabled", "true");
 
     await addMass.click();
     await expect(page.getByRole("button", { name: /^Undo/ })).toBeEnabled();
@@ -2789,12 +2793,12 @@ test.describe("Loft", () => {
       "nose ballast is the case the North Star names",
     ).toBeVisible();
     // A cone still has no bore, so the two concentric kinds stay refused.
-    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Add a centering ring inside this/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("button", { name: /Add a centering ring inside this/ })).toHaveAttribute("aria-disabled", "true");
 
     // 3. A centring ring is a 3 mm plate, not a bay — refused, and the refusal says what would work.
     await rowOf("centeringring").click();
-    await expect(page.getByRole("button", { name: /Add a mass inside this/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Add a mass inside this/ })).toHaveAttribute("aria-disabled", "true");
     await expect(page.getByText(/is not a bay a mass can sit in/)).toBeVisible();
   });
 
@@ -2867,16 +2871,134 @@ test.describe("Loft", () => {
     // rather than merely present.
     await expect(page.getByText(/no aft face to fair a part to/)).toBeVisible();
     await expect(page.getByText(/pick a body tube/)).toBeVisible();
-    // No add buttons at all on this part — the explanation replaces them, it does not sit beside them.
-    await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toHaveCount(0);
+    // **Every kind is still DRAWN, and every one of them is dimmed.** Until increment 22 the
+    // explanation replaced the controls; now it sits beside them, because a vocabulary a flyer can
+    // only learn by clicking the right part is the gap `COMPETITION.md` row 50 records against the
+    // field. Asserted over all six rather than a sample, so a rule that dimmed five and dropped one
+    // fails here.
+    const addButtons = page.locator("[data-add-palette] button");
+    await expect(addButtons).toHaveCount(6);
+    for (let i = 0; i < 6; i++) {
+      await expect(addButtons.nth(i)).toHaveAttribute("aria-disabled", "true");
+    }
 
     // And the converse, so this pins a distinction rather than a constant: a body tube takes
-    // everything, and shows no refusal.
+    // everything, shows no refusal, and dims nothing.
     await table.getByText("Body tube", { exact: true }).first().click();
-    await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toBeVisible();
+    // Wait on something PART-SPECIFIC before the tallies: the count is 6 on every part now, so it is
+    // no longer a barrier that a selection change has committed — it was already true of the
+    // previous part's palette. The dimmed tallies below do not retry.
+    await expect(addButtons.first()).not.toHaveAttribute("aria-disabled", "true");
+    await expect(addButtons).toHaveCount(6);
+    for (let i = 0; i < 6; i++) {
+      await expect(addButtons.nth(i)).not.toHaveAttribute("aria-disabled", "true");
+    }
     await expect(page.getByText("Nothing can be added to this part.")).toHaveCount(0);
+    // …and no refusal on the OTHER path either. The reasons moved out of the empty state into their
+    // own line when anything is refused, so asserting only the empty-state string would have let a
+    // refusal on a body tube through.
+    await expect(page.locator("#add-palette-refusals")).toHaveCount(0);
+  });
+
+  test("the whole add vocabulary is on screen, dimmed where the part will not take it", async ({ page }) => {
+    // **R12 increment 22, and the half of `COMPETITION.md` row 50 that was still owed.** Loft answered
+    // better than any of the four on WHY a component cannot go here — it is the only one that states
+    // the reason in the product rather than in its documentation — and worse than all of them on
+    // WHAT, because a control it could not offer was a control it did not draw. So the vocabulary was
+    // learnable only by picking parts until one of them offered something.
+    //
+    // Driven on the 38 mm single-deploy, which carries the three cases that matter: a body tube
+    // (all six), a nose cone (two behind-gestures and a mass, three refused) and a centring ring
+    // (none).
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+    const rowOf = (kind: string) => table.locator("tr").filter({ has: page.locator(`[data-kind="${kind}"]`) }).first();
+    const addButtons = page.locator("[data-add-palette] button");
+    const dimmed = async () => {
+      let n = 0;
+      for (let i = 0; i < (await addButtons.count()); i++) {
+        if ((await addButtons.nth(i).getAttribute("aria-disabled")) === "true") n++;
+      }
+      return n;
+    };
+
+    // The count is SIX on every part, which is the whole claim — and because it is now invariant, it
+    // is no longer a barrier that a selection change has committed. Each block waits on a
+    // PART-SPECIFIC condition first; the `dimmed()` tallies do not retry.
+    await rowOf("bodytube").click();
+    await expect(page.locator("#add-palette-refusals")).toHaveCount(0);
+    await expect(addButtons, "a body tube takes all six").toHaveCount(6);
+    expect(await dimmed()).toBe(0);
+
+    await rowOf("nosecone").click();
+    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toHaveAttribute("aria-disabled", "true");
+    await expect(addButtons, "a nose cone draws six and takes three").toHaveCount(6);
+    expect(await dimmed(), "tube, transition and mass are offered; fins, coupler and ring are not").toBe(3);
+    // The reason is on screen as TEXT beside the dimmed controls, not in a hover — a tooltip is a
+    // state a flyer at the pad does not have, and greying without a reason is exactly what row 50
+    // marks the field down for.
+    await expect(page.getByText(/no bore to hold one/)).toBeVisible();
+
+    await rowOf("centeringring").click();
+    await expect(page.getByText("Nothing can be added to this part.")).toBeVisible();
+    await expect(addButtons, "a centring ring draws six and takes none").toHaveCount(6);
+    expect(await dimmed()).toBe(6);
+
+    // **The dimmed labels are READABLE, which is the whole point of drawing them.** The ordinary
+    // `aria-disabled:opacity-50` composites this text to 2.64:1 in light and 3.91:1 in dark against
+    // WCAG AA's 4.5 — measured on the built export — so the palette takes `Button`'s `unavailable`
+    // treatment instead, which states a muted colour rather than thinning the control. Asserted here
+    // because `e2e/contrast.spec.ts` cannot see it: its walker skips any element with element
+    // children, and every `Button` in the app wraps its label beside an aria-hidden glyph, so no
+    // button label anywhere is ever sampled by it. Filed.
+    const ratio = await page.evaluate(() => {
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 1;
+      const ctx = cv.getContext("2d", { willReadFrequently: true })!;
+      const rgb = (c: string) => {
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = c;
+        ctx.fillRect(0, 0, 1, 1);
+        const d = ctx.getImageData(0, 0, 1, 1).data;
+        return [d[0], d[1], d[2]];
+      };
+      const lum = (v: number[]) =>
+        v
+          .map((x) => x / 255)
+          .map((c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)))
+          .reduce((a, c, i) => a + c * [0.2126, 0.7152, 0.0722][i], 0);
+      const btn = document.querySelector<HTMLElement>("[data-add-palette] button")!;
+      let alpha = 1;
+      for (let el: HTMLElement | null = btn; el; el = el.parentElement) {
+        alpha *= parseFloat(getComputedStyle(el).opacity || "1");
+      }
+      let bg = [255, 255, 255];
+      for (let el: Element | null = btn.parentElement; el; el = el.parentElement) {
+        const c = getComputedStyle(el).backgroundColor;
+        if (c && c !== "rgba(0, 0, 0, 0)" && c !== "transparent") {
+          bg = rgb(c);
+          break;
+        }
+      }
+      const fg = rgb(getComputedStyle(btn).color).map((c, i) => c * alpha + bg[i] * (1 - alpha));
+      const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+      return (hi + 0.05) / (lo + 0.05);
+    });
+    expect(ratio, `a dimmed palette label must stay readable — measured ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+
+    // A dimmed control does nothing when clicked, and leaves no undo step behind.
+    //
+    // **This is defence in depth and only the outer half is pinned here, said plainly rather than
+    // claimed.** `addPartAfter` independently re-asks `addOptionsFor` and returns, so the undo stack
+    // stays empty even if the palette wired an `onClick` it should not have. The assertion therefore
+    // proves the PAIR is safe, not that the palette's own gating is. Making it isolate the palette
+    // would mean reaching past the applier, which is the guard that actually protects a flyer.
+    await page.getByRole("button", { name: /Add a tube behind this/ }).click({ force: true });
+    await expect(page.getByRole("button", { name: /^Undo/ })).toBeDisabled();
   });
 
   test("a docs link the app itself planted does not throw the undo stack away", async ({ page }) => {
