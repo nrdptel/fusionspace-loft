@@ -4,8 +4,8 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Run 17 shipped two increments and a Sev-1, all on PR #183.** `main` was at `bde404d` at session
-start. Merging #183 on green is pre-authorised.
+**Run 17 shipped two increments and TWO Sev-1 fixes, all on PR #183.** `main` was at `bde404d` at
+session start. Merging #183 on green is pre-authorised. **The ledger's open Sev-1 count is zero.**
 
 **The next slice on each track:**
 
@@ -25,7 +25,7 @@ start. Merging #183 on green is pre-authorised.
   vocabulary palette is ALWAYS VISIBLE, so a flyer learns the whole set without picking anything,
   where Loft's refusal is reachable only by selecting a part that cannot take one.
 - **The one-in-four quota is CLEAR.** Both increments were queued milestone work; the Sev-1 was a
-  preemption, which the quota excludes.
+  preemption, which the quota excludes — as was the discarded-session replay below.
 
 ## What this run learned that outlasts its increments
 
@@ -53,7 +53,7 @@ start. Merging #183 on green is pre-authorised.
    Sev-1 reproduces exactly as filed — but its claimed root cause (duplicate ids from `applyAdds`)
    measured **zero duplicate ids**. See below.
 
-## The Sev-1 that is still open, reproduced this run
+## The Sev-1 this run reproduced and fixed
 
 **"Pick it back up" replays the edit bag onto bytes that already contain it.** Filed 2026-08-02 as
 UNREPRODUCED; **reproduced here** through the real importer and exporter on the from-scratch starter:
@@ -67,8 +67,11 @@ one line up: `syncShelfRow` overwrites `designBytes.current` with edits-baked by
 baked bytes with the unbaked edit bag at `components/LoftApp.tsx`, and `onRestoreDiscarded` replays
 the bag on top. Fixing the id insert would not have fixed this.
 
-**It was not fixed this run** — it was reproduced late, and the run's two increments were already
-gated and pushed. It is the first thing to take next session, ahead of either track.
+**FIXED, and the fix is one line.** `syncShelfRow` no longer writes the baked bytes back over
+`designBytes.current`; the shelf still gets them, because `replaceRecent` is handed the serialisation
+directly. Pinned by `e2e/smoke.spec.ts`'s *picking a discarded build back up returns the rocket that
+was discarded, not a longer one*, with a control that fails it **Expected: 7, Received: 8** — the same
++1 the model-level probe measured. **The ledger's Sev-1 count is now ZERO.**
 
 ## The environment, measured 2026-08-17 (run 17)
 
@@ -95,7 +98,10 @@ gated and pushed. It is the first thing to take next session, ahead of either tr
 
 ## The arc across sessions
 
-- **Run 17 (2026-08-17, this one).** A Sev-1: a fetched forecast's age was renewed by every edit, so
+- **Run 17 (2026-08-17, this one).** Two Sev-1s. One: the undo for "Import another" replayed the
+  edit bag onto bytes that already carried it, so picking a discarded build back up returned a rocket
+  a part longer than the one discarded — filed 2026-08-02, unreproduced for a fortnight, reproduced
+  and fixed here, with the ledger's stated root cause shown to be wrong. Two: a fetched forecast's age was renewed by every edit, so
   a morning profile never expired — the stamp lived in `applyWhatIfState`, one function away from the
   comment forbidding exactly that. P17 increment 2 — a finished Monte-Carlo survives a docs link,
   stored in its own slot (78,649 bytes, 77,619 of it samples) and keyed on content rather than on two
