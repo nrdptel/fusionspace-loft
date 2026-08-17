@@ -552,9 +552,13 @@ export default function Limitations() {
         airframe is fine; reading the apogee off it is not.
       </p>
       <p>
-        <strong>Adding a part works too, for three kinds so far.</strong> Pick a body tube and the panel
-        offers to put another <strong>body tube</strong>{" "}behind it, a <strong>fin set</strong> onto it, or
-        a <strong>transition</strong>{" "}behind it. The gesture is &ldquo;another one of these, here&rdquo;
+        <strong>Adding a part works too, for six kinds.</strong> Pick a body tube and the panel offers
+        to put another <strong>body tube</strong>{" "}behind it, a <strong>fin set</strong> onto it, a{" "}
+        <strong>transition</strong>{" "}behind it, and a <strong>mass object</strong>, a{" "}
+        <strong>coupler</strong> or a <strong>centring ring</strong>{" "}inside it. Pick anything else and
+        it still answers on all six: the two that go behind reach a nose cone and a transition, which have
+        an aft face to fair to, and the parts that take none of them say which would.
+        The gesture is &ldquo;another one of these, here&rdquo;
         rather than a form: the new part inherits what its neighbour can supply and derives the rest from
         the design, because a shape nobody drew is worse than one more field. A tube takes its caliber,
         wall, material and finish from the part it joins. A fin ring is <em>cloned</em>{" "}from the
@@ -568,10 +572,17 @@ export default function Limitations() {
         so the next number typed changes what you just made; each add is one undo step, named after the
         kind; and an authored part is removable, exportable and re-importable like any other, because it
         is the same internal model an imported part lands in. A <strong>mass object</strong> is the
-        fourth kind and the one whose placement <em>is</em> a station: it mounts inside the tube you
+        fourth kind and the one whose placement <em>is</em> a station: it mounts inside the part you
         picked, at 0.3251 of its length — the median of the 16 real mass objects in the corpus placed
         that way inside a body tube — carrying the corpus&apos;s median weight of 45&nbsp;g until you say
-        otherwise.
+        otherwise. Unlike a coupler or a centring ring, it has no radius and touches no outer mould
+        line, so what it needs is not a bore but somewhere inside to sit: a nose cone, a body tube, an
+        inner tube, a coupler or a transition — <strong>218 of the 569 parts</strong>{" "}across the
+        35-design corpus, which is what puts nose ballast and an av-bay inside the coupler where a
+        flyer actually builds them. Everything else says why not rather than offering: a centring ring,
+        a bulkhead and an engine block are plates 1.3–32&nbsp;mm thick rather than bays, and a fin
+        set&apos;s length is its root chord, a canopy&apos;s its packed size, a shock cord&apos;s the
+        cord itself — none of them an interior span a station could mean anything inside.
       </p>
       <DocsH3>A total that does not move when a part is added</DocsH3>
       <p>
@@ -579,7 +590,14 @@ export default function Limitations() {
         weight of a whole assembly or stage outright, Loft counts no mass for the parts inside it — so a
         part added there, or removed from there, changes the balance and not the total. The design is
         right and the model is following it; the panels say so, before the click and after it. Across
-        the corpus that covers 10 of the 91 places a mass object can be added.
+        the corpus that covers <strong>22 of the 218 places</strong>{" "}a mass object can be added — body
+        tube 10, coupler 4, nose cone 3, inner tube 3, transition 2, over four designs. That figure is
+        the one measured directly: 50&nbsp;g authored into each of the 218 in turn, counting the hosts
+        where the design&apos;s dry total does not move. Asking instead whether the whole DESIGN states a
+        lumped weight answers 20, and the two it misses are real — a stage-level override in{" "}
+        <code className="font-mono">EscapeVelocity.ork</code> and one inner tube in{" "}
+        <code className="font-mono">The Red Hunter.ork</code>{" "}— so the question has to be asked of the
+        part, not of the file.
       </p>
       <DocsH3>Undo and redo</DocsH3>
       <p>

@@ -688,7 +688,17 @@ export default function GeometryInspector({
    *  A non-null assertion here once threw inside render and blanked the whole parts table. */
   const addOptions = selectedId ? addOptionsFor(rocket, selectedId) : [];
   const offers = new Set(addOptions.filter((x) => x.offered).map((x) => x.kind));
-  const anchorAfterOk = offers.has("bodytube");
+  /** Whether this part takes ANY authoring gesture — the row's gate, and the empty state's.
+   *
+   *  **It used to be `offers.has("bodytube")`, which is the panel spelling a rule of its own again.**
+   *  That held only while the inside-kinds were a subset of the behind-kinds: every part that could
+   *  take a coupler could also take a tube, so "can it anchor a tube" happened to answer "is there
+   *  anything to show". A mass object now goes inside an inner tube and a coupler, neither of which
+   *  has an aft face — so on those the row would not have rendered at all, the button behind it
+   *  would have been unreachable, and the panel would have printed "Nothing can be added to this
+   *  part" over a rule that says otherwise. Derived from the verdicts instead, so it cannot drift
+   *  from them again. */
+  const anyOffer = offers.size > 0;
 
   // A part's host, by the host's OWN name, so "in Payload coupler" and the row reading "Payload
   // coupler" are the same string. Undefined where the design never named the host — see the prop's
@@ -968,20 +978,31 @@ export default function GeometryInspector({
             as one body-tube test, which refused "add a tube behind this" on the nose cone of every
             design: the first part a from-scratch build has, and the one place the gesture is most
             obviously wanted. */}
-        {onAddAfter && selectedId && anchorAfterOk && (
-          <p className="mt-1 text-sm">
+        {onAddAfter && selectedId && anyOffer && (
+          /* **A wrapping flex row with a gap, not a paragraph of buttons each nudged by `ml-1.5`.**
+             That chain encoded an ORDER — the first control carried no margin and every other one
+             did — and which control is first is now a property of the picked part rather than of
+             the source. `flex flex-wrap gap-2` is the idiom the rest of the app already uses for a
+             control row (`DataTable`, `ImportPanel`, `ResultsView`), and it spaces them the same
+             whichever subset renders. */
+          <div className="mt-1 flex flex-wrap gap-2 text-sm">
+            {/* Each button now asks for its OWN verdict, including the two that never used to. They
+                could be unconditional while the row's gate WAS the behind-rule; it is the
+                any-gesture rule now, so a part that offers only a mass object would otherwise have
+                rendered "Add a tube behind this" over a refusal. */}
+            {offers.has("bodytube") && (
             <Button
               onClick={() => onAddAfter(selectedId)}
               aria-label="Add a tube behind this — a body tube faired to it, and re-fly the design"
             >
               <span aria-hidden>+</span> Add a tube behind this
             </Button>
+            )}
             {/* Only where there is a set to copy — the new ring is cloned from the design's own rather
                 than derived from invented proportions, so a design with no fins has no source and the
                 control is not offered. All 35 corpus designs carry one, and so does the starter. */}
             {offers.has("trapezoidfinset") && (
               <Button
-                className="ml-1.5"
                 onClick={() => onAddAfter(selectedId, "trapezoidfinset")}
                 aria-label="Add fins to this tube — matching the design's own fins, and re-fly it"
               >
@@ -999,20 +1020,20 @@ export default function GeometryInspector({
                 holding it, which is where a real bay sits. */}
             {offers.has("masscomponent") && (
               <Button
-              className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "masscomponent")}
               aria-label="Add a mass inside this — electronics, a tracker, ballast — and re-fly the design"
             >
               <span aria-hidden>+</span> Add a mass inside this
             </Button>
             )}
-            <Button
-              className="ml-1.5"
+            {offers.has("transition") && (
+              <Button
               onClick={() => onAddAfter(selectedId, "transition")}
               aria-label="Add a transition behind this — faired to what follows it, or contracting into a tail cone where nothing does, and re-fly the design"
             >
               <span aria-hidden>+</span> Add a transition behind this
             </Button>
+            )}
             {/* The two INTERNAL parts, and they are the first authored kinds that touch no outer
                 mould line at all: a coupler joins two tubes from inside, a centring ring holds a
                 motor mount concentric. Neither changes the airframe the solver sees — they move dry
@@ -1030,7 +1051,6 @@ export default function GeometryInspector({
                 allows" rather than promising a length the tube cannot give. */}
             {offers.has("tubecoupler") && (
               <Button
-              className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "tubecoupler")}
               aria-label="Add a coupler inside this — a tube at this one's bore, as long as the tube allows, and re-fly the design"
             >
@@ -1039,14 +1059,13 @@ export default function GeometryInspector({
             )}
             {offers.has("centeringring") && (
               <Button
-              className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "centeringring")}
               aria-label="Add a centering ring inside this — a plate bored to the motor mount where this tube has one, or to a typical bore where it has none, and re-fly the design"
             >
               <span aria-hidden>+</span> Add a centering ring inside this
             </Button>
             )}
-          </p>
+          </div>
         )}
         {/* **What the panel says when it can offer nothing, which for most of a design is the case.**
             Measured across the 35-design corpus: of 569 parts, 419 take no authoring gesture at all —
@@ -1061,7 +1080,7 @@ export default function GeometryInspector({
             same statement rather than two that agree today. Deduplicated because the six kinds
             collapse to two or three distinct sentences on any given part — six lines all saying a
             fin set is not a body tube would be a wall, not an answer. */}
-        {onAddAfter && selectedId && !anchorAfterOk && addOptions.length > 0 && (
+        {onAddAfter && selectedId && !anyOffer && addOptions.length > 0 && (
           <EmptyState
             className="mt-2"
             what={

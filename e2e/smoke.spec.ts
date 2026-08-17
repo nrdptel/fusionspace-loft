@@ -2743,6 +2743,61 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: /^Undo/ })).toBeEnabled();
   });
 
+  test("a mass goes inside the parts that have a bay, and the panel does not say otherwise", async ({ page }) => {
+    // **R12 increment 21, and the e2e is the only layer that can pin the half that would have gone
+    // wrong.** Widening the rule alone was not enough: the whole add row was gated on
+    // `offers.has("bodytube")`, which held as a stand-in for "is there anything to show" only while
+    // every inside-kind was also a behind-kind. An inner tube has a bay and no aft face — so with the
+    // rule widened and the row's gate left alone, the model would author the mass, the button would
+    // never render, and the panel would print "Nothing can be added to this part" over a rule saying
+    // the opposite. A model test cannot see any of that.
+    //
+    // The 38 mm single-deploy carries exactly the three parts this needs: a motor mount tube (bay, no
+    // aft face), a nose cone (bay AND aft face — nose ballast, the North Star's headline case) and a
+    // centring ring (a 3 mm plate, correctly refused).
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+
+    // Rows are picked by `data-kind` rather than by their words: a part's label is the design's own
+    // name where it has one, and the table's own note says a text match over a row is both
+    // ambiguous and fragile.
+    const rowOf = (kind: string) => table.locator("tr").filter({ has: page.locator(`[data-kind="${kind}"]`) }).first();
+
+    // 1. The inner tube: a bay with no aft face. The row must render for the one gesture it takes.
+    await rowOf("innertube").click();
+    const addMass = page.getByRole("button", { name: /Add a mass inside this/ });
+    await expect(addMass, "an inner tube is a bay and must offer the gesture").toBeVisible();
+    await expect(
+      page.getByText("Nothing can be added to this part"),
+      "the panel must not refuse a part it is at the same time offering a gesture on",
+    ).toHaveCount(0);
+    // The behind-gestures stay refused on it — one rule widened, not all three.
+    await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Add a transition behind this/ })).toHaveCount(0);
+
+    await addMass.click();
+    await expect(page.getByRole("button", { name: /^Undo/ })).toBeEnabled();
+
+    // 2. The nose cone: nose ballast, refused on every design until now.
+    await rowOf("nosecone").click();
+    await expect(
+      page.getByRole("button", { name: /Add a mass inside this/ }),
+      "nose ballast is the case the North Star names",
+    ).toBeVisible();
+    // A cone still has no bore, so the two concentric kinds stay refused.
+    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Add a centering ring inside this/ })).toHaveCount(0);
+
+    // 3. A centring ring is a 3 mm plate, not a bay — refused, and the refusal says what would work.
+    await rowOf("centeringring").click();
+    await expect(page.getByRole("button", { name: /Add a mass inside this/ })).toHaveCount(0);
+    await expect(page.getByText(/is not a bay a mass can sit in/)).toBeVisible();
+  });
+
   test("picking a discarded build back up returns the rocket that was discarded, not a longer one", async ({ page }) => {
     // **Sev-1, filed 2026-08-02 as UNREPRODUCED and reproduced 2026-08-17.** "Import another" is the
     // app's one destructive act and "Pick it back up" is its undo — and the undo handed back a
