@@ -737,10 +737,31 @@ describe("the finished dispersion slot", () => {
     expect(loadDispersion()).toBeNull();
   });
 
-  it("is cleared by the destructive act, and by a write that could not fit", () => {
+  it("is cleared by the destructive act", () => {
     saveDispersion({ designId: "d1", runKey: "k1", result: { n: 1 }, at: 1 });
     clearDispersion();
     expect(loadDispersion()).toBeNull();
+  });
+
+  it("leaves nothing behind when the write will not fit", () => {
+    // The branch that decides whether a failed 78 KB write leaves a PREVIOUS run's entry sitting
+    // there. It is keyed, so a stale entry could never be shown against the wrong design — but it is
+    // spent quota that nothing will ever match, and the docblock says it goes. Nothing exercised this
+    // until the pre-push review pointed out that the test claiming to had never touched it.
+    saveDispersion({ designId: "d1", runKey: "k1", result: { n: 1 }, at: 1 });
+    expect(loadDispersion()).not.toBeNull();
+    const store = fakeStorage();
+    store.setItem("loft.dispersion", JSON.stringify({ v: 1, designId: "d1", runKey: "k1", result: { n: 1 }, at: 1 }));
+    vi.stubGlobal("localStorage", {
+      ...store,
+      setItem: () => {
+        throw new DOMException("QuotaExceededError");
+      },
+    });
+    expect(saveDispersion({ designId: "d2", runKey: "k2", result: { n: 2 }, at: 2 })).toBe(false);
+    // `clearDispersion` uses `removeItem`, which still works when `setItem` does not — so the old
+    // entry is actually gone rather than merely reported as gone.
+    expect(store.getItem("loft.dispersion")).toBeNull();
   });
 });
 

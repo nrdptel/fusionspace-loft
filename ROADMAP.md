@@ -2586,6 +2586,44 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 20 — the panel answers on every part, and the rule lives in one place, 2026-08-17.**
+Picking most of a design got NOTHING: no button, no sentence, no else branch, with an unrelated
+paragraph about stages next on screen. Measured across the 35-design corpus: **of 569 parts, 419 take
+no authoring gesture at all** — centring ring 83, mass object 56, fin set 52, parachute 50, inner tube
+37, coupler 31, bulkhead 29, shock cord 24, launch lug 19, engine block 14, rail button 11. A flyer
+picking any of them learned nothing: not that the gesture was unavailable, not why, not what to pick.
+
+**`addOptionsFor(rocket, id)` is now the single home of a rule that was written in three layers.**
+`canAnchorAfter` was the only shared piece; the panel spelled six more gates of its own and
+`addPartAfter` spelled the whole rule a second time. They agreed for every rendered control **while
+already disagreeing about a mass object** — panel and applier demand a body tube, `buildAdded` demands
+only a length — and nothing pinned the agreement. That is exactly how increment 19's gap survived: the
+guard was narrower than the code behind it, in two of three copies, on every design in the corpus. The
+function returns a verdict for every kind, always, in a stable order, so a caller cannot render a
+subset by forgetting one.
+
+**The refusal names the part and what WOULD take the gesture**, deduplicated — six kinds collapse to
+two sentences on any given part, and six restatements of one fact is a wall, not an answer. It uses
+the part's OWN name, exactly as `removalRefusal` does, so there is no second vocabulary table to keep
+in step with `KIND_LABEL`. `DESIGN.md` §5: a surface with no empty state is not finished, and an empty
+state "says what would fill it *and* the one action that does. Never 'No data'."
+
+**Pinned at both layers.** `lib/corpus/sweep.test.ts` drives all 569 parts of all 35 designs and
+asserts every one answers on all six kinds, that no offered gesture carries a refusal, and that every
+refusal carries a reason long enough to teach something. `e2e/smoke.spec.ts`'s *a part that takes no
+authoring gesture says so, and says what would* picks a fin set, asserts the sentence and both halves
+of its reasoning, asserts no add buttons, then picks a body tube and asserts the converse — so it pins
+a distinction rather than a constant. Control: removing the empty state fails it with *"a part that
+takes no gesture must say so rather than rendering an empty space"*.
+
+**The gap this leaves, measured and deliberately not folded in:** of the 419 silent parts, **283 have
+`length > 0`, so `buildAdded`'s mass arm would already build a mass object for them today** — nose
+ballast in a nose cone is the obvious case, and the ROADMAP's own North Star text names it. That is a
+capability being refused rather than a rule being enforced, and widening it is its own increment with
+its own verification. Filed. `COMPETITION.md` row 50 carries the field comparison: OpenRocket greys
+invalid components and explains only in its documentation; none of the four states the reason in the
+product.
+
 **Increment 19 — the gesture a build starts with, refused on the part a build starts from,
 2026-08-14.** "Add a tube behind this" was gated on the picked part being a body tube — in the panel
 and in the applier — so selecting the nose cone offered nothing. **Body tubes are 90 of the 569 parts

@@ -549,5 +549,15 @@ export function rehydrateResult(x: unknown): MonteCarloResult | null {
   if (n !== samples.length) return null;
   if (landedN !== samples.filter((s) => s.landed).length) return null;
   if (extrapolatedN !== samples.filter((s) => s.extrapolated).length) return null;
+  // **And the invariant the counts exist to express, which the counts alone do not check.** This
+  // file's own docblocks state it twice: the drift band, the recovery radius, the landing speed and
+  // the landing energy are `NaN` throughout when `landedN` is 0, and every surface withholds all four
+  // on exactly that test. A record with landings but withheld landing figures would therefore be
+  // RENDERED — NaN read as a measurement on the surface a flyer sizes recovery from — and a record
+  // with no landings but finite ones would publish a band computed from nothing.
+  const landingFigures = [driftDistance, landingSpeed, landingEnergy].flatMap((st) => [st.p5, st.p50, st.p95, st.mean, st.min, st.max]).concat(landingRadiusP95);
+  const withheld = landingFigures.every((v) => Number.isNaN(v));
+  const measured = landingFigures.every((v) => Number.isFinite(v));
+  if (landedN === 0 ? !withheld : !measured) return null;
   return { samples, apogee, maxVelocity, driftDistance, landingRadiusP95, landingSpeed, landingEnergy, n, landedN, extrapolatedN };
 }

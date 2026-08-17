@@ -10,7 +10,7 @@
 import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent,
   Stage, InnerTube, RingComponent, MinorComponent, MassProvenance,
 } from "./types";
-import { flattenRocket, aftOuterRadius, foreOuterRadius, nextTopLevel, maxBodyRadius, statedCGBounds } from "./geometry";
+import { flattenRocket, aftOuterRadius, canAnchorAfter, foreOuterRadius, nextTopLevel, maxBodyRadius, statedCGBounds } from "./geometry";
 import { uniqueUuidFrom, uuidFrom } from "./id";
 import type { Positioned } from "./geometry";
 import { LOFT_AUTHORED_PARACHUTE_CD } from "../sim/recovery-defaults";
@@ -3578,6 +3578,90 @@ function applyAddedStages(rocket: Rocket, addedStages?: readonly AddedStage[]): 
  *     documented 11.9%-low case on `Three stage low power rocket.ork`, reached from a new direction.
  *     Refusing here is what keeps that door shut.
  */
+/** One authoring gesture, and this part's verdict on it.
+ *
+ *  **The panel used to render nothing at all where nothing was offered, and that is the gap this
+ *  closes.** Measured across the 35-design corpus: of **569 parts, 416 are offered nothing** — a
+ *  centring ring, a bulkhead, a launch lug, a parachute, a fin set — and the parts panel simply had
+ *  no add row for them, with no else branch and no sibling fallback. A flyer picking one learns
+ *  nothing: not that the gesture is unavailable, not why, and not what to pick instead. `DESIGN.md`
+ *  §5 puts it plainly — a surface with no empty state is not finished, and "Never 'No data'". */
+export interface AddOption {
+  kind: AddedPart["kind"];
+  /** Whether this part takes this gesture. */
+  offered: boolean;
+  /** Why not, and what to pick instead — written for the flyer, present exactly when `offered` is
+   *  false. A refusal that does not say what WOULD work is the tooltip-restates-the-label failure. */
+  reason?: string;
+}
+
+/** Every add gesture, with a verdict, for one part. **The single home of a rule that was written in
+ *  three layers.**
+ *
+ *  Before this, `canAnchorAfter` was the only shared piece: the panel spelled six more gates of its
+ *  own (`components/GeometryInspector.tsx`) and `addPartAfter` in `components/LoftApp.tsx` spelled
+ *  the whole rule a second time. They agreed for every rendered control, so nothing was visibly
+ *  broken — but they already disagreed on `masscomponent`, where both demanded a body tube while
+ *  `buildAdded` demands only a length, and nothing pinned the agreement. A rule in three places is
+ *  how increment 19's gap survived: the guard was narrower than the code behind it, in two of the
+ *  three copies, for every design in the corpus.
+ *
+ *  Returns a verdict for EVERY kind, always, in a stable order — so a caller cannot render a subset
+ *  by forgetting one, and so a test can assert that all 569 corpus parts answer on all six. */
+export function addOptionsFor(rocket: Rocket, hostId: string): AddOption[] {
+  const parts = flattenRocket(rocket);
+  const host = parts.find((p) => p.component.id === hostId)?.component;
+  // A part that is not in the tree is the ordinary case for a moment after a removal, not an error —
+  // see the panel's own note about `selectedId` outliving the part it names. Every kind is refused,
+  // with a reason, rather than the caller getting an empty list it has to interpret.
+  if (!host) return ADD_KINDS.map((kind) => ({ kind, offered: false, reason: "That part is no longer in this design." }));
+
+  // The part's OWN name, exactly as `removalRefusal` names one — the parts table, the property
+  // heading and this sentence then say the same word, and there is no second vocabulary table to keep
+  // in step with `KIND_LABEL`. Unnamed parts are rare and read fine as "This part".
+  const named = host.name || "This part";
+  // **Rule one: a part authored BEHIND another needs an aft face to fair the new one to.** True of a
+  // body tube, a nose cone and a transition — `canAnchorAfter` — and of nothing else.
+  const behind = canAnchorAfter(host);
+  const behindReason = `${named} has no aft face to fair a part to — a part goes behind a nose cone, a body tube or a transition.`;
+  // **Rule two: a part authored INSIDE another, or mounted ON it, needs a tube to sit in.** Spelled
+  // separately because collapsing the two into one body-tube test is exactly what refused "add a tube
+  // behind this" on the nose cone of every design until increment 19.
+  const inside = host.kind === "bodytube";
+  const insideReason = `${named} has no bore to hold one — pick a body tube.`;
+  // The fin set is cloned from the design's OWN rather than derived from invented proportions, so a
+  // design with no fin set has no source. Stated rather than silently dropped: "this design has none
+  // to copy" is a different fact from "not here", and a flyer can act on it.
+  const hasFinSource = parts.some((p) => p.component.kind === "trapezoidfinset");
+
+  return ADD_KINDS.map((kind) => {
+    if (kind === "bodytube" || kind === "transition") {
+      return behind ? { kind, offered: true } : { kind, offered: false, reason: behindReason };
+    }
+    if (kind === "trapezoidfinset") {
+      // Deliberately the SAME sentence as the other inside-kinds when the pick is not a tube, so the
+      // panel's deduplicated list reads as two facts rather than six restatements of one.
+      if (!inside) return { kind, offered: false, reason: insideReason };
+      if (!hasFinSource) {
+        return { kind, offered: false, reason: "This design has no fin set to copy, so there is nothing to match a new one to." };
+      }
+      return { kind, offered: true };
+    }
+    return inside ? { kind, offered: true } : { kind, offered: false, reason: insideReason };
+  });
+}
+
+/** Every authoring gesture, in the order the panel offers them. Derived from nothing — spelled once,
+ *  here, so `addOptionsFor` cannot answer for five kinds and leave the sixth silent. */
+export const ADD_KINDS: readonly AddedPart["kind"][] = [
+  "bodytube",
+  "trapezoidfinset",
+  "transition",
+  "masscomponent",
+  "tubecoupler",
+  "centeringring",
+];
+
 export function canAddMount(rocket: Rocket, hostId: string): boolean {
   const host = flattenRocket(rocket).find((p) => p.component.id === hostId)?.component;
   if (!host) return false;

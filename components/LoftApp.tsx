@@ -11,7 +11,7 @@ import { Button, Card, ErrorState, NumberField, Segmented, Select } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
-import { aftOuterRadius, canAnchorAfter, flattenRocket, statedCGBounds } from "@/lib/model/geometry";
+import { aftOuterRadius, flattenRocket, statedCGBounds } from "@/lib/model/geometry";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import { storedTag } from "@/lib/validation/stored-status";
 import {
@@ -84,6 +84,7 @@ import {
   hasGeometryEdits,
   primaryParachute,
   defaultPayloadStation,
+  addOptionsFor,
   canAddStage,
   canAddMount,
   stageSeedBase,
@@ -460,14 +461,18 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *  an undo stack that survived a load would offer to restore one design's edits onto another. */
   const [history, setHistory] = useState<History<WhatIf>>(EMPTY_HISTORY as History<WhatIf>);
   const [weather, setWeather] = useState<WeatherConditions | null>(null);
-  /** When the conditions on screen were FETCHED — not when they were last written down.
+  /** When the forecast on screen was FETCHED (epoch ms), and the identity of that forecast.
    *
-   *  The session's freshness rule expires a stored forecast after an hour, and the stamp it reads has
-   *  to be the fetch or the rule measures nothing: the save effect runs on every edit, every
-   *  workspace click and every resume, so a stamp taken there is re-taken continuously and a profile
-   *  from this morning stays "fresh" all afternoon for anyone who keeps working. It is a ref rather
-   *  than state because nothing renders it — it travels with the conditions and is read only by the
-   *  writer. */
+   *  **Stamped where the forecast LANDS, and nowhere else.** It used to be set in `applyWhatIfState`,
+   *  which every what-if goes through, so the age was renewed continuously and a profile fetched in
+   *  the morning still read as this hour's all day — see `lib/session.ts`, whose reader restores
+   *  stored conditions only while they are still this hour's, and whose docblock states the rule this
+   *  keeps: "the FETCH, not the write".
+   *
+   *  State rather than a ref, because it is now read by a renderer as well as by the writer: it is the
+   *  only thing that can tell one forecast's air from another ACROSS A REMOUNT, which `weatherSerial`
+   *  cannot — that is a counter and it restarts at zero. The dispersion panel files a finished run
+   *  under it. */
   const [weatherAt, setWeatherAt] = useState<number | null>(null);
   /** Bumped once per forecast fetched, and by nothing else. The analysis panels watch the launch
    *  conditions by VALUE, and a forecast's atmosphere and wind profile are FUNCTIONS — there is no
@@ -1297,14 +1302,13 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     if (!doc || !removableFrom) return;
     const anchor = flattenRocket(removableFrom).find((p) => p.component.id === afterId)?.component;
     if (!anchor) return;
-    // **Two rules, not one, and they were collapsed into "is it a body tube".** A part authored
-    // BEHIND another needs an aft face to fair to, which `canAnchorAfter` answers for a nose cone and
-    // a transition as well; a part authored INSIDE one, or mounted ON it, needs a tube. The tube and
-    // transition arms of `buildAdded` have always sized themselves through `aftOuterRadius` and could
-    // answer for all three, so the old guard refused a gesture the model could already perform — on
-    // the nose cone of every design, which is the first part a from-scratch build has.
-    const goesAfter = kind === "bodytube" || kind === "transition";
-    if (goesAfter ? !canAnchorAfter(anchor) : anchor.kind !== "bodytube") return;
+    // **Asked of the same function the panel asks, which is the whole point of it existing.** This
+    // used to spell the rule a second time — two rules collapsed differently in each copy — and the
+    // two agreed for every rendered control while already disagreeing about a mass object, with
+    // nothing pinning the agreement. A control the panel offers and this refuses is a click that does
+    // nothing; a control this accepts and the panel hides is a capability nobody can reach. Both are
+    // now the same sentence.
+    if (!addOptionsFor(removableFrom, afterId).some((x) => x.kind === kind && x.offered)) return;
     const id = newPartId(doc.rocket, edits.added, afterId);
     let part: AddedPart;
     if (kind === "trapezoidfinset") {
@@ -1332,7 +1336,8 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       // Read through `aftOuterRadius` rather than off `outerRadius`, because the anchor may now be a
       // nose cone or a transition — neither of which has one. The default is unchanged for a tube
       // anchor: half its length, or two calibers of the face the new tube fairs to, whichever is
-      // longer. `canAnchorAfter` above guarantees the radius is defined and positive.
+      // longer. The verdict above guarantees the radius is defined and positive — that is exactly
+      // what `canAnchorAfter` answers inside `addOptionsFor`.
       const faceR = aftOuterRadius(anchor)!;
       const anchorLen = "length" in anchor && typeof anchor.length === "number" ? anchor.length : 0;
       part = { id, kind: "bodytube", after: afterId, length: Math.max(anchorLen / 2, 2 * faceR) };
@@ -2429,7 +2434,11 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               units={units}
               flownOverrides={flownOverridesNow}
               weatherSerial={weatherSerial}
-              weatherAt={weatherAt ?? undefined}
+              // Withheld exactly as the session withholds it — `weatherAt: weather ? … : undefined`
+              // one screen down. Passing it while the conditions are design air would key a run under
+              // a forecast that is not being flown, so the same run keys differently either side of a
+              // "Reset to as-designed" and never restores.
+              weatherAt={weather ? (weatherAt ?? undefined) : undefined}
               conditions={{
                 // What each panel should SAY about the nominals it flew. One boolean could not:
                 // it made a surface-wind edit flip the two sweeps' captions to "the launch

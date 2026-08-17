@@ -415,6 +415,29 @@ describe("storing a finished dispersion", () => {
     expect(rehydrateResult({ ...stored, samples: [{ apogee: 1 }] })).toBeNull();
   });
 
+  it("refuses a record whose landing figures disagree with its landed count", () => {
+    // The invariant the counts exist to express, and which counting alone does not check. Every
+    // surface withholds drift, the recovery radius, landing speed and landing energy on `landedN === 0`
+    // — so a record claiming landings while storing those four as withheld would be RENDERED, reading
+    // NaN as a measurement on the surface a flyer sizes a recovery area from.
+    const withheldButLanded = plainResult({
+      ...withheld(),
+      samples: [{ apogee: 100, maxVelocity: 50, driftDistance: 12, landed: true, landingX: 3, landingY: 4, landingSpeed: 5, landingEnergy: 6, extrapolated: false }],
+      landedN: 1,
+    }) as Record<string, unknown>;
+    expect(rehydrateResult(withheldButLanded)).toBeNull();
+
+    // …and the mirror: no landings, but finite landing figures — a band computed from nothing.
+    const measuredButNoneLanded = plainResult({
+      ...withheld(),
+      driftDistance: { p5: 1, p50: 2, p95: 3, mean: 2, sd: 1, min: 1, max: 3 },
+      landingRadiusP95: 4,
+      landingSpeed: { p5: 1, p50: 2, p95: 3, mean: 2, sd: 1, min: 1, max: 3 },
+      landingEnergy: { p5: 1, p50: 2, p95: 3, mean: 2, sd: 1, min: 1, max: 3 },
+    }) as Record<string, unknown>;
+    expect(rehydrateResult(measuredButNoneLanded)).toBeNull();
+  });
+
   it("stores an infinity as withheld rather than reading it back as a measurement", () => {
     const r = withheld();
     r.apogee.max = Infinity;

@@ -2743,6 +2743,46 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: /^Undo/ })).toBeEnabled();
   });
 
+  test("a part that takes no authoring gesture says so, and says what would", async ({ page }) => {
+    // **R12: the parts panel answered NOTHING on most of a design.** Measured across the 35-design
+    // corpus: of 569 parts, 419 take no add gesture at all — a fin set, a parachute, a centring ring,
+    // a bulkhead — and the add row simply did not render for any of them. No button, no sentence, no
+    // else branch; the next thing on screen was an unrelated paragraph about stages. A flyer who
+    // picked one learned nothing: not that the gesture was unavailable, not why, not what to pick.
+    //
+    // `DESIGN.md` §5 — "a surface with no empty state is not finished", and an empty state "says what
+    // would fill it *and* the one action that does. Never 'No data'."
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+
+    // A fin set takes nothing: it has no aft face to fair a part to, and no bore to hold one.
+    // By ROW. Neither cell is an exact match for a readable string: a nested part's Component cell is
+    // prefixed "└ " and its Type cell carries the host too ("Trapezoidal finsin Body tube").
+    await table.locator("tr").filter({ hasText: "Trapezoidal fins" }).first().click();
+    await expect(
+      page.getByText("Nothing can be added to this part."),
+      "a part that takes no gesture must say so rather than rendering an empty space",
+    ).toBeVisible();
+    // …and the refusal TEACHES: it names what would work, which is the half that makes it actionable
+    // rather than merely present.
+    await expect(page.getByText(/no aft face to fair a part to/)).toBeVisible();
+    await expect(page.getByText(/pick a body tube/)).toBeVisible();
+    // No add buttons at all on this part — the explanation replaces them, it does not sit beside them.
+    await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toHaveCount(0);
+
+    // And the converse, so this pins a distinction rather than a constant: a body tube takes
+    // everything, and shows no refusal.
+    await table.getByText("Body tube", { exact: true }).first().click();
+    await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Add a coupler inside this/ })).toBeVisible();
+    await expect(page.getByText("Nothing can be added to this part.")).toHaveCount(0);
+  });
+
   test("a docs link the app itself planted does not throw the undo stack away", async ({ page }) => {
     // **P17's first clause, and the seam the shell was built to close everywhere except here.**
     // `app/(app)/layout.tsx` holds the design above the four workspace routes precisely so moving
@@ -2854,6 +2894,37 @@ test.describe("Loft", () => {
     // live "Flying 300…" status on the way. Asserted after the numbers are already on screen, so
     // this is "it never had to fly again", not a race against the run starting.
     await expect(panel.locator('[role="status"]')).toHaveCount(0);
+
+    // **And the restore must not cost the panel its staleness.** A restored cloud is only safe while
+    // an edit still throws it away: the caption under these numbers names the conditions they were
+    // flown in, and this file's own measurement of the mismatch is a 1,203 m recovery radius shown
+    // where the true figure is 2,519 m. So change the wind and the numbers must move.
+    //
+    // **What this does NOT pin, stated so nobody reads more into it.** The pre-push review raised a
+    // related hazard — the stored run's identity and the key the run effect watches were settled on
+    // two independent 350 ms timers, so the identity could lag by one commit and match a stale cloud.
+    // That was fixed, but reverting the fix and re-running this case PASSES: both timers drain before
+    // React commits. The fix is argued from the shape of the code, not from this test.
+    await page.getByRole("link", { name: "Flight" }).click();
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    const wind = page.locator("input").and(page.getByLabel(/Surface wind/i)).first();
+    await wind.fill("9");
+    await wind.blur();
+    await page.getByRole("link", { name: "Sweep" }).click();
+    // **Polled, not read once.** The dispersion inputs are debounced by 350 ms, so a single read
+    // straight after the edit sees the restored cloud still on screen and the panel not yet flying —
+    // which is indistinguishable from the regression this is here to catch. Waiting for the value to
+    // MOVE is the assertion; the timeout is what makes it fail if it never does.
+    await expect
+      .poll(async () => (await panel.getByText("Recovery radius (95%)").locator("..").textContent())?.trim(), {
+        timeout: 60_000,
+        message: "a Conditions edit did not re-fly the dispersion — the panel is showing another wind's recovery area",
+      })
+      .not.toBe(before);
+    await expect(panel.locator('[role="status"]')).toHaveCount(0, { timeout: 60_000 });
   });
 
   test("an edit does not renew the forecast's age, so a stale profile still expires", async ({ page }) => {

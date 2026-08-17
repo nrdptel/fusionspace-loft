@@ -699,9 +699,9 @@ export function loadDispersion(): StoredDispersion | null {
 }
 
 /** Returns whether it was stored. A cache that could not be written is not an error worth surfacing —
- *  the panel simply re-flies next time — but the caller is told so it never reasons about an entry
- *  that is not there. Quota failures drop the entry entirely rather than trimming it: half a
- *  dispersion is not a smaller dispersion. */
+ *  the panel simply re-flies next time. Returned anyway so a future caller that wants to say "kept"
+ *  is not left guessing; today's caller does not need to. Quota failures drop the entry entirely
+ *  rather than trimming it: half a dispersion is not a smaller dispersion. */
 export function saveDispersion(entry: Omit<StoredDispersion, "v">): boolean {
   try {
     localStorage.setItem(DISPERSION_KEY, JSON.stringify({ v: 1, ...entry }));
