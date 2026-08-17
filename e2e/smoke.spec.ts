@@ -2743,6 +2743,47 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: /^Undo/ })).toBeEnabled();
   });
 
+  test("picking a discarded build back up returns the rocket that was discarded, not a longer one", async ({ page }) => {
+    // **Sev-1, filed 2026-08-02 as UNREPRODUCED and reproduced 2026-08-17.** "Import another" is the
+    // app's one destructive act and "Pick it back up" is its undo — and the undo handed back a
+    // DIFFERENT rocket: every authored part applied a second time.
+    //
+    // `syncShelfRow` re-serialises a from-scratch build with its edits BAKED IN so the shelf row is
+    // true, and it was writing those bytes over `designBytes.current` — whose own docblock says it is
+    // "the design as it was OPENED". `reset()` then stored the discarded session from the baked bytes
+    // while still carrying the unbaked edit bag beside them, and the restore replayed the bag on top.
+    // Measured through the real importer and exporter: pristine 6 parts, add a tube 7, export and
+    // reimport 7, replay the bag 8.
+    //
+    // Damage order 1 AND 2 at once: a one-way door on the only undo for a destructive act, and an
+    // unlabelled rocket that is longer and heavier than the one the flyer built.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("link", { name: "Design" })).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+    const rows = () => table.locator("tbody tr");
+
+    // Author a part, so the edit bag carries something the bytes will also carry once baked.
+    await table.getByText("Body tube", { exact: true }).first().click();
+    await page.getByRole("button", { name: /Add a tube behind this/ }).click();
+    await expect.poll(async () => rows().count(), { timeout: 15_000 }).toBeGreaterThan(0);
+    const built = await rows().count();
+
+    // The destructive act, and its undo.
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await page.getByRole("button", { name: "Pick it back up" }).click();
+    await expect(page.getByRole("link", { name: "Design" })).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    expect(
+      await rows().count(),
+      "the undo replayed the edit bag onto bytes that already contained it — the restored rocket has a part the discarded one did not",
+    ).toBe(built);
+  });
+
   test("a part that takes no authoring gesture says so, and says what would", async ({ page }) => {
     // **R12: the parts panel answered NOTHING on most of a design.** Measured across the 35-design
     // corpus: of 569 parts, 419 take no add gesture at all — a fin set, a parachute, a centring ring,

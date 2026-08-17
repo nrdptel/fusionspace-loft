@@ -619,7 +619,22 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     // on every untouched import and replaced their rows with Loft's re-export. The full gate caught
     // exactly that — it broke the shelf's put-it-back offer, which matches rows by id.
     if (next === designBytes.current) return;
-    designBytes.current = next;
+    // **`designBytes.current` is deliberately NOT updated to the baked bytes, and that is a Sev-1 fix
+    // rather than a tidy-up.** This ref's own docblock says it is "the design as it was OPENED", and
+    // every consumer relies on that: the session and the discarded-session slot store these bytes
+    // BESIDE the unbaked edit bag, and the restore path replays the bag on top of them. Writing the
+    // edits-baked serialisation here left the two describing the same edits twice, so "Pick it back
+    // up" — the undo for the app's one destructive act — handed back a rocket with the authored parts
+    // applied a second time.
+    //
+    // Reproduced through the real importer and exporter on the from-scratch starter: **pristine 6
+    // parts → add a tube 7 → export-and-reimport 7 → replay the edit bag 8.** Filed 2026-08-02 and
+    // unreproduced until 2026-08-17; the cause the ledger claimed (duplicate ids from `applyAdds`) is
+    // NOT what happens — duplicate ids measured zero, because the round trip re-mints them and the
+    // replayed part arrives as a genuinely new one.
+    //
+    // The shelf still gets the baked bytes: `replaceRecent` is handed `next` directly, which is the
+    // whole job this function exists to do.
     setRecents(replaceRecent(id, { design: next, name, rocket: rocket.name || name }, Date.now()));
     shelfRowId.current = null;
   }, []);
