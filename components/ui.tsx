@@ -127,6 +127,64 @@ export function Card({
   );
 }
 
+/** A short, dismissible message that floats over the page — `DESIGN.md` §5.
+ *
+ *  **A `Card` COMPOSED, not a `Card` with a shadow prop, and §9 draws that line deliberately.** A
+ *  generic `elevated` flag would let any surface opt out of §2's rule that a card does not float; a
+ *  named primitive says which surfaces may, and there is exactly one kind. Because the treatment
+ *  lives in `Card`, this file still holds the only `rounded-xl border` string in the tree.
+ *
+ *  **What was hand-rolled here, and why the wrapper is the half worth moving.** The service-worker
+ *  update prompt spelled the whole thing at its call site: the tone half was character-identical to
+ *  `CARD_TONES.default`, so only two things were ever not a card — the elevation, and a tighter pad
+ *  than `p-4`. Above the card sat the part a second floating surface would have copied wholesale: the
+ *  fixed full-width centring row, the stacking context, `role="status"`, and the bottom pad that adds
+ *  the device's own safe-area inset to a scale step. That inset is the one arbitrary spacing value
+ *  §9 exempts by name, and it is exempted by EXPRESSION rather than by file, so moving it here keeps
+ *  both the arbitrary-spacing count and its floor assertion green.
+ *
+ *  `role="status"` rather than `alert`: this is announced politely and never steals focus, because a
+ *  toast is by definition something the flyer may ignore. **Anything they must act on is not a
+ *  toast** — that is `ErrorState`, in the flow, where it cannot be dismissed unread.
+ *
+ *  The dismiss carries `TOUCH_TARGET_SQUARE` for the reason the parts panel's does: a one-glyph
+ *  control floating over the app, beside a much larger button, is otherwise about 24x28 px. */
+export function Toast({
+  children,
+  action,
+  onDismiss,
+  dismissLabel = "Dismiss",
+}: {
+  children: React.ReactNode;
+  /** At most one. A toast offering two choices is a dialog and belongs in the flow. */
+  action?: React.ReactNode;
+  /** Omitted only where the toast dismisses itself; §5 has no undismissable floating surface. */
+  onDismiss?: () => void;
+  dismissLabel?: string;
+}) {
+  return (
+    <div
+      role="status"
+      className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+    >
+      <Card pad={false} className="flex items-center gap-3 px-4 py-3 text-sm shadow-lg">
+        <span className="text-zinc-700 dark:text-zinc-200">{children}</span>
+        {action}
+        {onDismiss && (
+          <Button
+            variant="ghost"
+            onClick={onDismiss}
+            aria-label={dismissLabel}
+            className={TOUCH_TARGET_SQUARE}
+          >
+            <span aria-hidden>✕</span>
+          </Button>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 interface PanelBase {
   title: React.ReactNode;
   /** The landmark's accessible name. This is a `<section>`, and much of the e2e suite reaches these

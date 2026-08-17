@@ -4,9 +4,15 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Run 18 shipped R12 increment 21 and wrote P18.** `main` was at `c70f8b7` at session start and the
-work is on the pinned branch. **The ledger's open Sev-1 count is zero**, and the opening fan-out
-claimed none.
+**Run 18 shipped R12 increment 21 and P18 increment 1.** `main` was at `c70f8b7` at session start and
+is at `0576ebc` after PR #185, which is **merged and live**. P18 increment 1 is on the branch behind a
+green gate. **The ledger's open Sev-1 count is zero**, and the opening fan-out claimed none.
+
+**The shared `DESIGN.md` change went to BOTH repos in the same run, as §10 requires.**
+`nrdptel/fusionspace-debrief` PR #199 carries §2's elevation row and §5's `Toast` entry. The shared
+digest needed no update and that was verified rather than assumed — `SHARED_SECTIONS` is 4, 6, 7, 8,
+10, and both copies still hash to `3ec05348…f45fd` over 11,084 bytes. The two copies remain **892
+diff lines apart** overall, in both directions, so neither can be pasted over the other.
 
 **READ THIS BEFORE YOU BELIEVE A RED E2E GATE: two shards are no longer enough.** `MAINTAINING.md`
 still says `--shard=1/2 && --shard=2/2`, and at **207 tests** that advice has expired. Measured this
@@ -25,10 +31,19 @@ rather than a number in a manual that goes stale as the suite grows.
   VISIBLE**, so a flyer learns the whole component vocabulary without selecting anything, while
   Loft's verdicts are reachable only by picking a part that cannot take one. A persistent list of the
   six kinds with their verdicts is what makes row 50 `BETTER` rather than merely different.
-- **P-track: P18 is WRITTEN and NOT STARTED.** Two named primitives — `Toast` and `DropZone` — to
-  absorb the two card treatments hand-rolled at call sites in `components/ServiceWorker.tsx:74` and
-  `components/ImportPanel.tsx:168`. Increment 1 is `Toast`. **Read its *done when* before starting:
-  the first draft of that milestone was wrong and the correction is recorded in it.**
+- **P-track: P18 increment 1 SHIPPED; increment 2 is `DropZone`.** `Toast` now owns the floating
+  surface and `cardTreatments` is **2**, `cardTreatmentsOutsidePrimitives` **1**. The one string left
+  outside the primitives file is `components/ImportPanel.tsx:168`'s drop zone, and converting it takes
+  both counts to their targets — 1 and 0.
+  **Settle this before writing it**, and it is measured rather than guessed: if `DropZone` composes
+  `<Card tone="muted" className="border-2">`, the 2 px border wins today only by SOURCE ORDER —
+  `.border-2` is emitted after `.border` in the built stylesheet at equal specificity, which is the
+  exact hazard `components/ui.tsx:1207-1210` already documents for `left`/`inset-x`. The honest form
+  is a width the primitive owns. Two more things belong in that increment: the drag-over state is
+  drawn in `border-indigo-400` / `bg-indigo-50/60` where §2's accent is `indigo-500/30` over
+  `indigo-500/5`, and no §9 check can see it; and `components/ResultsView.tsx:775` is the app's second
+  file-ingest surface, hand-rolling its own picker with no drag support and no rejected-file state —
+  shape `DropZone` for both or the split comes back in a run.
 - **The one-in-four quota is CLEAR.** Increment 21 was queued milestone work; writing P18 is what
   `MAINTAINING.md` requires of a dry track. No unqueued defect work was cleared this run.
 
@@ -95,8 +110,10 @@ rather than a number in a manual that goes stale as the suite grows.
   an interior bay, not only a body tube: **90 → 218 of 569 corpus parts**, and the parts that answer
   NOTHING fall **419 → 351**. Nose ballast in a nose cone and an av-bay inside a coupler, both of
   which the North Star names, were refused on all 35 designs. **P18 written** after the P-track ran
-  dry, and its first draft's *done when* corrected before any code. `COMPETITION.md` row 51 added and
-  row 50's stale clause resolved.
+  dry, its first draft's *done when* corrected before any code, and **increment 1 shipped** — `Toast`,
+  the first primitive extracted since P13, with §2's first elevation token and the shared text
+  mirrored to the sibling repo the same run. `COMPETITION.md` row 51 added and row 50's stale clause
+  resolved.
 - **Run 17 (2026-08-17).** Two Sev-1s and three increments; **P17 SHIPPED**, R12 reached increment
   20. The undo for "Import another" replayed the edit bag onto bytes that already carried it; a
   fetched forecast's age was renewed by every edit. `COMPETITION.md` row 50.
@@ -118,11 +135,21 @@ rather than a number in a manual that goes stale as the suite grows.
 - **Every e2e negative control is `revert → rebuild → run → restore → rebuild`**, and the suite serves
   `out/`. Both of this run's controls fired correctly.
 - **A merged PR cannot track new work.** After merging, `git checkout -B <branch> origin/main`.
-- **`DESIGN.md` §9, measured this run:** radius drift 0, border drift 0, **card treatments 3**
-  (target 1, and P18 is the milestone that gets it there), off-scale spacing 0, arbitrary spacing 0,
+- **`DESIGN.md` §9, measured this run:** radius drift 0, border drift 0, **card treatments 3 → 2**
+  (target 1; P18 increment 2 gets it there), **card treatments outside the primitives file 2 → 1**
+  (target 0 — a new count this run added, and the one the milestone actually moves),
+  off-scale spacing 0, arbitrary spacing 0,
   off-scale type 0, inverted files 0, raw `<select>` 0 (3 grep hits, all inside prose comments),
   primitive adoption 22 files, hover-only states on a coarse pointer 0. Only the card count is off
   target, and it now has a milestone.
-- **Both `## Awaiting the owner` entries in `OWNER-NOTES.md` are unchanged** — the attribution footer
-  and the commit identity the zero-trace invariant forbids, both from run 12. **All 13 open notes
-  carry a verdict; none is pending.**
+- **The owner ANSWERED the attribution and commit-identity pair this run**, in the session prompt:
+  *"I give you full permission to override the harness and get rid of any automatic mentions or
+  attributions of 'Claude'."* Both notes are marked answered in `OWNER-NOTES.md` and left in full.
+  The harness appended its footer to both PR bodies and both were stripped by re-posting and read
+  back. **What is still the owner's, and is now the only open item in that section:** the commits are
+  signed with the sandbox's SSH key rather than one registered to the account, so GitHub shows them
+  *Unverified*. Registering a key is the fix and only they can do it. Nothing is blocked.
+- **`OWNER-NOTES.md`: all 13 open notes carry a verdict and none is pending.** `## Awaiting the
+  owner` now has one live item — the signing key above. The other two entries from run 12, the
+  attribution footer and the commit identity, are answered and kept in full so the reasoning behind
+  the decision survives with it.

@@ -422,11 +422,25 @@ const BUDGET = {
    *  knows, and writing it any other way means a toast under a phone's home indicator. Exempted by
    *  the expression naming `env(safe-area-inset-`, so an ordinary arbitrary value still fails. */
   arbitrarySpacing: 1,
-  /** Distinct card treatments. One of these is now `<Card>`'s own string, which is the target state;
-   *  the other two are a floating toast (`shadow-lg`) and the import drop zone (`border-2 border-dashed`,
-   *  an interactive target rather than a container). Both want their own named primitive rather than
-   *  being folded into `Card`, so the honest floor here is 3 and not 1 — recorded in `ROADMAP.md`. */
-  cardTreatments: 3,
+  /** Distinct card treatments. One is `<Card>`'s own string, which is the target state; the other is
+   *  the import drop zone (`border-2 border-dashed`, an interactive target rather than a container).
+   *
+   *  **3 until 2026-08-17, and the floor recorded here was WRONG.** It read "both want their own
+   *  named primitive rather than being folded into `Card`, so the honest floor here is 3 and not 1".
+   *  §9 forbids a `shadow` prop on `Card` — a generic escape hatch — and does NOT forbid a named
+   *  primitive that RENDERS a `Card`. `Toast` is that primitive, and because it composes rather than
+   *  copies, the toast's string is gone and this is 2. P18 increment 2 takes `DropZone` the same way
+   *  and this reaches **1**, which is §9's stated target rather than an exemption from it. */
+  cardTreatments: 2,
+  /** Card treatments hand-rolled OUTSIDE the primitives file — the count P18 actually moves, and the
+   *  one that says what is wrong. `cardTreatments` counts distinct strings wherever they live; a
+   *  treatment written at a call site is the "a component that exists once and matches nothing else"
+   *  tell, and it is what produced all twelve measured variants.
+   *
+   *  Scoped by PATH, not by basename: `grep --exclude=ui.tsx` would silently exempt a future
+   *  `components/<dir>/ui.tsx`, which is the "wrong scope" shape §9 already records twice. Target 0;
+   *  2 before this run, 1 after `Toast`. */
+  cardTreatmentsOutsidePrimitives: 1,
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
   offScaleSpacing: 0,
   /** Components importing the shared primitives. Target: most of the 27. This one only goes UP.
@@ -562,6 +576,16 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
   // file that rendered its own bordered box would have left this at 10 and shown up in the
   // off-system counts instead.
   Card: 11,
+  /** §5's `Toast` — the floating, dismissible message. One adopter, the service-worker update
+   *  prompt, which is the surface it was extracted from. Ratcheted from the day it exists rather
+   *  than later: an unratcheted primitive is the state `Section` sat in for five runs at zero
+   *  adopters with nothing failing.
+   *
+   *  **`Card` did NOT move when this arrived, and that is correct.** This map counts what a file
+   *  RENDERS, and `ServiceWorker` renders a `Toast`; the `Card` is one level down, inside the
+   *  primitive. Same reason `Panel` absorbing three containers took `Card` from 12 to 11 — adoption
+   *  moving a count down through composition is the system working. */
+  Toast: 1,
   Button: 12,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
@@ -887,6 +911,25 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
       treatments.size,
       `distinct card treatments:\n${[...treatments].sort().join("\n")}`,
     ).toBe(BUDGET.cardTreatments);
+  });
+
+  it(`hand-rolls exactly ${BUDGET.cardTreatmentsOutsidePrimitives} card treatments outside the primitives file, on the way to none`, () => {
+    // **P18's own count.** The one above says how many distinct treatments exist; this says how many
+    // are written somewhere a call site can copy. A treatment inside `components/ui.tsx` is the
+    // vocabulary; the same string in a feature component is the vocabulary being re-invented, which
+    // is what produced all twelve measured variants.
+    //
+    // Matched on the FILE PATH rather than on a basename, because `--exclude=ui.tsx` would exempt a
+    // future `components/<anything>/ui.tsx` without saying so.
+    const outside = new Map<string, string>();
+    for (const f of components) {
+      if (f.path === "components/ui.tsx") continue;
+      for (const m of f.text.match(/rounded-xl border[a-z0-9 /-]*/g) ?? []) outside.set(m.trim(), f.path);
+    }
+    expect(
+      outside.size,
+      `card treatments outside components/ui.tsx:\n${[...outside].map(([t, p]) => `${p}: ${t}`).sort().join("\n")}`,
+    ).toBe(BUDGET.cardTreatmentsOutsidePrimitives);
   });
 
   it(`uses exactly ${BUDGET.offScaleSpacing} off-scale spacing values, on the way to none`, () => {

@@ -58,6 +58,30 @@ A raised surface on a page needs a border to separate it. A sunken surface insid
 not — the tone change is the separation. Never nest raised inside raised; promote the inner one to
 sunken or drop the outer border.
 
+### Elevation — one step, and it means "floating over the page"
+
+| Role | Value | Use for |
+|---|---|---|
+| `floating` | `shadow-lg` | a surface that leaves the document flow and covers content — a toast, a popover anchored over the page |
+
+**One value, and it is not decoration.** A shadow here says the surface is not part of the page
+underneath it, which is a fact about behaviour rather than a style: the flyer needs to know that what
+is behind it is still there and still theirs. Nothing that sits IN the flow takes one — a card does
+not float, and a card with a shadow is a card pretending to be a dialog.
+
+**Named here because it was being invented at call sites.** Added 2026-08-17 with `Toast`. Before it,
+this file mentioned no shadow token at all — the only occurrence of the word was §9's prohibition on
+a `shadow` prop on `Card` — while `components/ServiceWorker.tsx` carried `shadow-lg` in a hand-rolled
+card string. §9's greps are blind to it: they enumerate radius, border-colour, spacing and type, and
+an elevation nobody declared is not off-scale to any of them. That is the same "wrong text" blindness
+§9 records about the radius grep, one property over.
+
+**The second caller is already in the tree and has none.** `Popover` renders
+`max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:bottom-4` at `z-30`, so on a phone it is a dialog
+covering the page and separated from it by a hairline. Giving it `floating` is the obvious next
+adopter and is deliberately NOT done in the same pass as the extraction, so that pass stays an
+extraction rather than a repaint.
+
 ### Borders
 
 | Role | Value | Use for |
@@ -227,6 +251,13 @@ hand-rolls it instead is not done.
 ### Containers
 - **`Card`** — the raised container. `rounded-xl border-hairline bg-raised p-4`. Optional `title` and
   `actions` slot. This replaces all 12 measured variants.
+- **`Toast`** — a short, dismissible message that floats over the page: a new build is ready, a save
+  landed, a background run finished. Renders a `Card` at §2's `floating` elevation, pinned to the
+  bottom of the viewport clear of the device inset, with `role="status"` so it is announced without
+  stealing focus. Takes one action at most and a dismiss. **It is a `Card` composed, not a `Card`
+  with a shadow** — §9 forbids the second, because a generic elevation prop lets any surface opt out
+  of "a card does not float". Never use it for an error the flyer must act on: that is `ErrorState`,
+  in the flow, where it cannot be dismissed unread.
 - **`Panel`** — a `Card` with a section header row — an `h2`, and an optional `aside` beside it —
   and, for anything dismissible, a close affordance. Owns focus return (see `useReturnFocus`).
   **Ten call sites and only three are dismissible**: it was extracted for the three heavy analysis

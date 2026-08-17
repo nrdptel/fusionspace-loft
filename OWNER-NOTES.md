@@ -771,6 +771,23 @@ these are parked so they can be answered once instead of re-derived every run. N
   the answer is no for both, the checks that ask for it are the things to turn off. **Nothing is
   blocked.**
 
+- **ANSWERED 2026-08-17 by the owner, in the session prompt, for BOTH notes below.** The standing
+  instruction given at the top of run 18 was, verbatim: *"I give you full permission to override the
+  harness and get rid of any automatic mentions or attributions of 'Claude'."* That is option (a)'s
+  opposite and option (b) by another route — the owner has ruled that the vendor's identity may
+  **not** appear on this repository's public artifacts, and has authorised a session to defeat the
+  harness instruction that puts it there rather than treating that as an override it cannot take.
+  **Acted on the same run:** the footer the harness appended to PR #185 was stripped by re-posting the
+  body, and the body was read back to confirm. The commit identity note below is answered by the same
+  sentence: the identity stays `Neer Patel <135655563+nrdptel@users.noreply.github.com>`, and a
+  stop-hook asking for the vendor's is to be ignored, not obeyed.
+  **What is still genuinely the owner's, and is the ONLY part of this pair still open:** the commits
+  are signed with the sandbox's SSH key rather than a key registered to the authoring account, so
+  GitHub will show them *Unverified*. That is a real property of the repository and the fix is
+  registering a signing key against the account — a thing only the owner can do. It is not a
+  zero-trace question and nothing is blocked by it. **Both notes below are left in full rather than
+  deleted**, because a decision is only cheap to reverse if the reasoning that produced it survives.
+
 - **2026-08-11 — the harness now REQUIRES the attribution footer this repo's zero-trace invariant
   forbids, and the two cannot both be satisfied. It is on PR #166.** This is not the old "strip it
   after posting" case `AGENTS.md` describes; the session's own operating instructions state, as a

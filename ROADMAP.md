@@ -6639,8 +6639,40 @@ not cost that.
 
 ## P18 — The two treatments that are not cards get names
 
-**Status: NOT STARTED.** Written 2026-08-17 because the P-track was dry, and `MAINTAINING.md` says
-extending it IS the work in that case.
+**Status: IN PROGRESS — increment 1 SHIPPED 2026-08-17.** Written the same run, because the P-track
+was dry and `MAINTAINING.md` says extending it IS the work in that case.
+
+**Increment 1 — `Toast`, 2026-08-17.** The service-worker update prompt spelled the entire floating
+surface at its call site. Only two things about it were ever not a `Card`: the elevation, and a
+tighter pad than `p-4` — the tone half was character-identical to `CARD_TONES.default`. Above the
+card sat the part a second floating surface would have copied wholesale: the fixed full-width
+centring row, the stacking context, `role="status"`, and the bottom pad that adds the device's own
+safe-area inset to a scale step.
+
+`Toast` composes `Card` rather than copying it, so **`cardTreatments` is 2** — the target of 1 is
+reachable and increment 2 gets there — and **`cardTreatmentsOutsidePrimitives` is 1**, from 2.
+`components/ServiceWorker.tsx` is 25 lines shorter and holds only the part that is about a service
+worker: the sentence, and the button that tells the waiting worker to take over.
+
+**§2 gained the elevation row in the same commit**, as the milestone requires. `DESIGN.md` named no
+shadow token anywhere before — the only occurrence of the word was §9's prohibition — while a
+`shadow-lg` shipped in a hand-rolled string, invisible to every §9 grep because they enumerate
+radius, border-colour, spacing and type. One value, `floating`, and it means the surface has left the
+document flow. `Popover` is the second caller waiting and deliberately not converted in this pass, so
+the pass stays an extraction rather than a repaint.
+
+**The toast had NO test of any kind, and the reason is structural.** Its only caller returns `null`
+unless `NODE_ENV` is production AND a worker already controls the page AND a newer one has reached
+`installed`; the e2e suite serves a static export, so it never registers one. `lib/toast.test.tsx`
+renders the primitive directly and asserts all four things §5 declares about it.
+
+**Three checks, three controls, all fired.** `cardTreatmentsOutsidePrimitives` — restoring the
+hand-rolled call site fails it with *"expected 2 to be 1"*, naming the file and the string.
+`lib/toast.test.tsx` — removing the elevation fails it with *"expected … to contain 'shadow-lg'"*.
+`lib/design-doc.test.ts` needs no control of its own: it is two-directional by construction, and an
+export undeclared in §5 fails the suite.
+
+**Increment 2 is `DropZone`**, and the hazard below is the thing to settle first.
 
 **And it is written against a CORRECTION to the milestone the last handoff proposed.** That handoff
 named this slice as "a count that moves 3 → 1", and the count cannot move to 1 — `DESIGN.md` §9 says
