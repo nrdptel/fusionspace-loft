@@ -40,6 +40,7 @@ import {
   overallLength,
   maxBodyRadius,
   statedCGBounds,
+  canHostInsideMass,
 } from "../model/geometry";
 import type { Rocket, RocketComponent } from "../model/types";
 import {
@@ -67,6 +68,7 @@ import {
   ADD_KINDS,
 } from "../model/edit";
 import { dryMassProperties, localBodyCGx, massByComponent, statedCGReachesDesign, statedMassHolder } from "../sim/mass";
+import { barrowman } from "../sim/aero";
 
 const CORPUS_DIR = process.env.LOFT_CORPUS_DIR ?? resolve(process.cwd(), "corpus");
 const TOLERANCE_PCT = 12;
@@ -3886,4 +3888,134 @@ describe("real-design corpus — the authoring panel answers on every part", () 
     // part can be added to, which is false and should be, but that none is silent about it.
     expect(parts).toBeGreaterThan(500);
   }, 120_000);
+
+  it("offers a mass object on every part with an interior bay, and on nothing else", async () => {
+    // **R12 increment 21's *done when*.** A point mass needs neither an aft face to fair to nor a
+    // bore to sit concentric in — only somewhere inside to sit — and it was gated on the bore test
+    // anyway. So nose ballast, which the North Star names as the headline case, was refused on the
+    // nose cone of all 35 designs, and an av-bay was refused on the coupler that in the field IS the
+    // av-bay.
+    //
+    // Asserted as a PARTITION over the real corpus rather than a count: the offered set is named by
+    // KIND and the names are checked, so a rule reaching the same 218 parts through a different set
+    // fails. A count alone would not.
+    //
+    // **The obvious assertion here — `expect(opt.offered).toBe(canHostInsideMass(part))` — was
+    // written first and it is CIRCULAR**, because `addOptionsFor` computes `offered` by calling that
+    // exact predicate. It compares a function with itself and cannot fail for any rule. Caught by
+    // the pre-push review, and recorded rather than quietly deleted: it is the same "a check that
+    // cannot fire" shape this file already carries twice, arriving inside the test written to close
+    // a gap. What carries the control is the KIND LIST below — narrowing the rule to body tubes
+    // fails it with *"expected [ 'bodytube' ] to deeply equal [ 'bodytube', 'innertube', …(3) ]"*.
+    const files = corpusFiles();
+    if (files.length === 0) return;
+    let offered = 0;
+    let refused = 0;
+    const offeredKinds = new Map<string, number>();
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      for (const p of flattenRocket(doc.rocket)) {
+        const opt = addOptionsFor(doc.rocket, p.component.id).find((o) => o.kind === "masscomponent")!;
+        if (!opt.offered) {
+          // A refusal teaches, or it is not a refusal — the same bar the whole-panel test sets.
+          expect(opt.reason, `${f.name}: ${p.component.kind} refused with no reason`).toBeTruthy();
+          refused++;
+          continue;
+        }
+        offered++;
+        offeredKinds.set(p.component.kind, (offeredKinds.get(p.component.kind) ?? 0) + 1);
+      }
+    }
+    const shape = [...offeredKinds.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(", ");
+    console.log(`mass-object hosts across ${files.length} design files: ${offered} offered (${shape}), ${refused} refused`);
+    // The five kinds and no others. Named rather than counted, so a rule that reached the same total
+    // through a different set would fail here.
+    expect([...offeredKinds.keys()].sort()).toEqual(["bodytube", "innertube", "nosecone", "transition", "tubecoupler"]);
+    expect(offered).toBeGreaterThan(150);
+  }, 120_000);
+
+  it("authoring a mass into every bay leaves the mould line and the stability solve where they were", async () => {
+    // **What makes the widening safe to ship, measured rather than argued.** A point mass has no
+    // radius and is not on the outer mould line, so authoring one must move the airframe's length,
+    // its reference radius, its Barrowman CP and its CNa by exactly nothing — while moving the mass
+    // and the CG, which is the whole point of adding ballast.
+    //
+    // **Three of the assertions here CANNOT FAIL for this rule, and saying so is the point of this
+    // paragraph.** A `masscomponent` contributes 0 to `outerRadius`, nothing to `barrowman`'s switch
+    // and nothing to the top-level stacking cursor, so the CP, CNa, length and radius checks hold
+    // whatever `canHostInsideMass` allows — and the station bound holds by construction, because the
+    // offset is a fraction of the very span it is bounded by. They are kept as REGRESSION guards
+    // against a future change that gives a point mass an extent, which is a real hazard, and they are
+    // labelled rather than credited with a control they do not carry. Pointed out by the pre-push
+    // review after the first draft's docblock claimed they would have caught the old length test.
+    //
+    // **The falsifiable one is the MASS**, and it is the assertion that carries this test: 50 g
+    // authored into a host either arrives in the design's dry total or it does not, and which hosts
+    // swallow it is a fact about real files rather than about the rule.
+    const files = corpusFiles();
+    if (files.length === 0) return;
+    const ADD_KG = 0.05;
+    let hosts = 0;
+    let cgMoved = 0;
+    // Hosts whose weight a design already states as part of a whole assembly or stage. Loft counts no
+    // mass for the parts inside such a holder, so ballast added there moves the balance and not the
+    // total — correctly, and the panels say so. NAMED rather than counted: `EscapeVelocity.ork`'s is a
+    // STAGE-level `<overridesubcomponents>`, which a whole-design "does this file lump its airframe"
+    // test does not see, and asking that question instead answers 20 where the truth is 22.
+    const held: string[] = [];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const before = doc.rocket;
+      const baseLen = overallLength(before);
+      const baseR = maxBodyRadius(before);
+      const baseCP = barrowman(before);
+      const baseCG = dryMassProperties(before).cg;
+      const baseMass = dryMassProperties(before).mass;
+      for (const p of flattenRocket(before)) {
+        if (!canHostInsideMass(p.component)) continue;
+        hosts++;
+        const id = newPartId(before, undefined, p.component.id);
+        const after = applyGeometryEdits(before, {
+          added: [{ id, kind: "masscomponent", after: p.component.id, length: 0, mass: ADD_KG }],
+        });
+        const parts = flattenRocket(after);
+        const made = parts.find((q) => q.component.id === id);
+        expect(made, `${f.name}: ${p.component.kind} offered the gesture and built nothing`).toBeDefined();
+        // Inside the part that holds it, not merely somewhere in the design — the station is derived
+        // from the host's own length, so a host whose length is not a bay would land it outside.
+        const hostPos = parts.find((q) => q.component.id === p.component.id)!;
+        expect(made!.xFore, `${f.name}: ${p.component.kind} · mass authored outside its host`)
+          .toBeGreaterThanOrEqual(hostPos.xFore - 1e-9);
+        expect(made!.xFore).toBeLessThanOrEqual(hostPos.xFore + hostPos.length + 1e-9);
+        // Nothing aerodynamic moves.
+        const cp = barrowman(after);
+        expect(overallLength(after)).toBeCloseTo(baseLen, 12);
+        expect(maxBodyRadius(after)).toBeCloseTo(baseR, 12);
+        expect(cp.cp, `${f.name}: ${p.component.kind} moved the CP`).toBeCloseTo(baseCP.cp, 12);
+        expect(cp.cnAlpha, `${f.name}: ${p.component.kind} moved CNa`).toBeCloseTo(baseCP.cnAlpha, 12);
+        // The CG stays inside the airframe, and 50 g of ballast is allowed to move it — that is the
+        // capability. Only its staying a real station is asserted.
+        const cg = dryMassProperties(after).cg;
+        expect(Number.isFinite(cg) && cg > 0 && cg <= baseLen, `${f.name}: CG left the airframe`).toBe(true);
+        if (Math.abs(cg - baseCG) > 1e-9) cgMoved++;
+        // **The ballast arrives, or the design already stated a weight that contains it.** No third
+        // outcome: a host that silently swallows 50 g without stating a lumped weight is mass the
+        // flyer typed and the solver never flew.
+        const gained = dryMassProperties(after).mass - baseMass;
+        if (Math.abs(gained - ADD_KG) > 1e-9) {
+          expect(gained, `${f.name}: ${p.component.kind} · authored mass neither arrived nor was held`).toBeCloseTo(0, 12);
+          held.push(`${shortName(f.name)}:${p.component.kind}`);
+        }
+      }
+    }
+    console.log(
+      `mass authored into ${hosts} bay parts: ${hosts - held.length} carried the 50 g, ${held.length} held it ` +
+        `inside a stated assembly, ${cgMoved} moved the CG, 0 moved the mould line or the stability solve`,
+    );
+    expect(hosts).toBeGreaterThan(150);
+    // An EXACT ratchet, like §9's counts: this number moving in either direction is a change to what
+    // the corpus says about lumped designs, and it should fail until somebody has looked at why.
+    expect(held.length, `hosts that hold the ballast: ${held.sort().join(", ")}`).toBe(22);
+    expect(cgMoved, "adding ballast that moves no CG anywhere would mean the solve ignores it").toBeGreaterThan(150);
+  }, 300_000);
 });

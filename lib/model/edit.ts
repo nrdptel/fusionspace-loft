@@ -10,7 +10,7 @@
 import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent,
   Stage, InnerTube, RingComponent, MinorComponent, MassProvenance,
 } from "./types";
-import { flattenRocket, aftOuterRadius, canAnchorAfter, foreOuterRadius, nextTopLevel, maxBodyRadius, statedCGBounds } from "./geometry";
+import { flattenRocket, aftOuterRadius, axialLength, canAnchorAfter, canHostInsideMass, foreOuterRadius, nextTopLevel, maxBodyRadius, statedCGBounds } from "./geometry";
 import { uniqueUuidFrom, uuidFrom } from "./id";
 import type { Positioned } from "./geometry";
 import { LOFT_AUTHORED_PARACHUTE_CD } from "../sim/recovery-defaults";
@@ -3629,6 +3629,13 @@ export function addOptionsFor(rocket: Rocket, hostId: string): AddOption[] {
   // behind this" on the nose cone of every design until increment 19.
   const inside = host.kind === "bodytube";
   const insideReason = `${named} has no bore to hold one — pick a body tube.`;
+  // **Rule three: a POINT MASS needs an interior bay, which is a weaker thing than a bore.** A
+  // coupler, a ring and a fin set all have to sit concentric in a tube; a mass object has no radius
+  // and touches no mould line, so what it needs is somewhere inside to sit. `canHostInsideMass`
+  // names the five kinds whose length is an interior span. Collapsing this into rule two is what
+  // refused nose ballast — the North Star's own headline case — on the nose cone of every design.
+  const bay = canHostInsideMass(host);
+  const bayReason = `${named} is not a bay a mass can sit in — put one inside a nose cone, a body tube, an inner tube, a coupler or a transition.`;
   // The fin set is cloned from the design's OWN rather than derived from invented proportions, so a
   // design with no fin set has no source. Stated rather than silently dropped: "this design has none
   // to copy" is a different fact from "not here", and a flyer can act on it.
@@ -3637,6 +3644,9 @@ export function addOptionsFor(rocket: Rocket, hostId: string): AddOption[] {
   return ADD_KINDS.map((kind) => {
     if (kind === "bodytube" || kind === "transition") {
       return behind ? { kind, offered: true } : { kind, offered: false, reason: behindReason };
+    }
+    if (kind === "masscomponent") {
+      return bay ? { kind, offered: true } : { kind, offered: false, reason: bayReason };
     }
     if (kind === "trapezoidfinset") {
       // Deliberately the SAME sentence as the other inside-kinds when the pick is not a tube, so the
@@ -4091,7 +4101,15 @@ function buildAdded(
     // down the tube that holds it when that tube is later resized. `top` is the modal corpus method
     // (31 of 56) and the only one that keeps meaning the same thing under a length edit; `absolute`
     // (12 of 56) would pin it in space while the airframe moved underneath.
-    const host = "length" in after && typeof after.length === "number" ? after.length : 0;
+    //
+    // **Gated on `canHostInsideMass`, and read through `axialLength` — the same rule and the same
+    // accessor the panel uses.** This arm used to duck-type `after.length > 0`, which is the rule
+    // written a second time and written wrong: it accepts a shock cord's cord length, a launch lug's
+    // external rail and a mass object's own extent, and `TubeFins1.rkt` carries one 1.219 m long in a
+    // 0.629 m rocket. It was unreachable while the panel refused everything but a body tube; widening
+    // the panel to the five kinds that have a bay is exactly what would have made it reachable.
+    if (!canHostInsideMass(after)) return null;
+    const host = axialLength(after);
     if (!(host > 0)) return null;
     const mass = part.mass !== undefined && part.mass >= 0 ? part.mass : MASS_OBJECT_DEFAULT_KG;
     return {

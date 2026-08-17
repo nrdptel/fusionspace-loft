@@ -239,6 +239,45 @@ export function canAnchorAfter(c: RocketComponent): boolean {
   return r !== undefined && r > 0;
 }
 
+/** Can a point mass be authored INSIDE this one?
+ *
+ *  **The third rule, and it is neither of the other two.** `canAnchorAfter` asks for an aft face to
+ *  fair to; the bore test asks for a tube to hold a coupler, a ring or a fin set concentric. A point
+ *  mass needs neither — it has no radius and touches no mould line. What it needs is an **interior
+ *  axial bay to sit in**, and the five kinds below are the ones that have one: their `axialLength`
+ *  IS an interior span, so a station a third of the way down it lands inside the part.
+ *
+ *  **Spelled as an allowlist of kinds rather than a length test, because a length test is what was
+ *  there and it is wrong on four kinds.** `buildAdded` asked only `after.length > 0`, which is true
+ *  of parts whose length is not a bay at all: a shock cord's is the CORD (24 in the corpus, up to
+ *  0.673 m), a launch lug's is a rail that runs down the outside (19), a fin set's `axialLength` is
+ *  its root chord (52), a canopy's is its packed length (50). And it is true of a mass object's own
+ *  extent, which is not bounded by its host at all — `TubeFins1.rkt` carries one **1.219 m long in a
+ *  0.629 m rocket** and `FullScaleModelTH.rkt` one of **6.340 m in a 3.213 m** one, so a mass
+ *  authored a third of the way down either would land behind the tail.
+ *
+ *  **The discs are refused on the same grounds and they are the bulk of the refusals.** Measured
+ *  across the 35-design corpus: a centring ring is 1.3–32.0 mm thick (83 parts), a bulkhead
+ *  2.0–9.5 mm (29), an engine block 3.0–25.4 mm (14). A plate is not a bay, and offering to hide an
+ *  av-bay inside a 2 mm bulkhead would be a gesture that flies a number nobody meant.
+ *
+ *  Measured over the same corpus for the five that ARE offered: **128 parts** in the four kinds this
+ *  adds — nose cone 35, inner tube 37, tube coupler 31, transition 25 — plus the 90 body tubes that
+ *  already had it. Authoring a mass into all 128 moves the overall length on 0, `maxBodyRadius` on 0,
+ *  the Barrowman CP on 0 and CNa on 0, and leaves a CG inside the airframe on all 128. */
+export function canHostInsideMass(c: RocketComponent): boolean {
+  switch (c.kind) {
+    case "nosecone":
+    case "bodytube":
+    case "innertube":
+    case "tubecoupler":
+    case "transition":
+      return true;
+    default:
+      return false;
+  }
+}
+
 /** The outer radius (m) a part presents at its FORE face. A nose cone comes to a point, so 0. */
 export function foreOuterRadius(c: RocketComponent): number | undefined {
   return c.kind === "bodytube"
