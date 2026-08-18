@@ -20,6 +20,15 @@ import { join } from "node:path";
  *  the set of files presenting the figure is asserted exactly, so a new surface, or an old one that
  *  starts presenting it, fails until it is added here with a note saying how it is gated.
  *
+ *  **There are now TWO reasons to withhold this figure, and this census covers both.** The second
+ *  arrived 2026-08-18: `X_cp` itself is not always defined. Barrowman's CP is the line of action of
+ *  the resultant normal force, a contracting transition contributes negative `CNa`, and as the sum
+ *  approaches zero the loads become a pure couple with no line of action — the quotient then returns
+ *  a station outside the parts that produce it, and the margin computed from it is a number about no
+ *  rocket. Measured: one corpus design published **12.81 cal** that way, and two typed fields from
+ *  the from-scratch starter reach it. `FlightResult.marginUndefinedWhy` is the solver's one
+ *  statement of it, for the same reason `motorsComplete` is one predicate rather than nine.
+ *
  *  Both defects this exists for were real, shipped, and found by a reviewer rather than by the gate:
  *  `lib/sim/sweep.ts` published a whole curve of the figure directly under the cell withholding it
  *  (1.098 / 1.290 / 1.487 cal on a two-mount design), and `WhatIfDelta` published two margins AND a
@@ -48,21 +57,30 @@ function tsxUnder(dir: string): string[] {
  *  presents the figure. Neither is something to do to make a red test go green. */
 const MARGIN_SURFACES: Record<string, string> = {
   "components/ResultsView.tsx":
-    "the summary strip and the what-if comparison card — both `run.motorsComplete`, and the card also " +
-    "requires `baseline.motorsComplete` because it prints a CHANGE between two independently-resolved flights",
+    "the summary strip and the what-if comparison card — both `MARGIN_GAP(run)`, which is " +
+    "`marginUndefinedWhy` first and `motorsComplete` second, and the card also requires BOTH ends to " +
+    "pass BOTH gates because it prints a CHANGE between two independently-flown rockets. The trim " +
+    "advice below the strip is prescriptive and returns null on either gate",
   "components/GeometryInspector.tsx":
     "the diagram's CG/CP marks and its accessible name — the caller passes `marginCal` only when " +
     "`run.motorsComplete`, and the panel says why when it is absent",
   "components/ParameterSweep.tsx":
     "the swept curve and its CSV — the metric is removed from the picker, and the reason printed, when " +
-    "the caller passes `marginWithheld`",
+    "the caller passes `marginWithheld`, which is now whichever of the two reasons applies; and " +
+    "`lib/sim/sweep.ts` additionally withholds PER POINT, because a sweep over fin span or boattail " +
+    "exit can cross the boundary partway along one curve",
   "components/MotorSweep.tsx":
-    "the Margin column — safe because every row is flown with a `motorSwap`, and a swap replaces every " +
-    "instance in the configuration, so the set is always complete (asserted in lib/sim/sweep.test.ts)",
+    "the Margin column — safe on the motor gate because every row is flown with a `motorSwap`, and a " +
+    "swap replaces every instance in the configuration, so the set is always complete (asserted in " +
+    "lib/sim/sweep.test.ts); safe on the CP gate because `lib/sim/sweep.ts` writes NaN per row, and a " +
+    "swap changes mass rather than aerodynamics so the verdict is identical for every row anyway",
   "components/RocketpyCrossCheck.tsx":
     "the Loft-vs-RocketPy comparison row — its caller in ResultsView gates the whole panel on " +
     "`run.motorsComplete` and says why in a comment; this was the surface that got it RIGHT first, " +
-    "and the two fixed on 2026-08-08 are the ones that did not copy it",
+    "and the two fixed on 2026-08-08 are the ones that did not copy it. The CP gate it carries " +
+    "ITSELF, because it runs its own `runFlight`: `LoftBallistic.marginUndefinedWhy` comes off that " +
+    "flight, is stored with the comparison (record v2), and withdraws Loft's cell and the delta " +
+    "column while leaving RocketPy's own figure standing",
   "components/AirframeStrip.tsx":
     "the persistent strip above the workspace spine — it is a thin wrapper over RocketDiagram and " +
     "passes `marginCal` straight through, and its caller in ResultsView gates it on " +
@@ -136,5 +154,37 @@ describe("every surface that publishes a static margin", () => {
     // number with a fallback — a `?? 0` in either would print a margin of zero calibers, which is a
     // worse failure than the one this whole census exists to stop. If any of these starts reading a
     // `FlightRun` directly, this assertion is where that has to be argued rather than quietly absorbed.
+  });
+
+  it("gates it on the SECOND predicate too — that there is a centre of pressure to measure from", () => {
+    // The same census question asked of the 2026-08-18 defect. A surface that consults
+    // `motorsComplete` and nothing else is exactly the shape the first defect had: a figure gated on
+    // one of the two reasons it can be undefined, published under the other. Kept as a separate
+    // assertion rather than widened into the one above, because the legitimate-absence lists are
+    // DIFFERENT — `RocketpyCrossCheck` carries this gate itself and does not carry the first, and
+    // `ResultsView` carries both — so one combined check would pass with either half missing.
+    const offenders = Object.keys(MARGIN_SURFACES).sort().filter((path) => {
+      const text = readFileSync(join(ROOT, path), "utf8");
+      return !/\bmarginUndefinedWhy\b/.test(text) && !/\bmarginWithheld\b/.test(text);
+    });
+    expect(
+      offenders,
+      "these present a static margin without ever consulting marginUndefinedWhy or a withheld reason from a caller",
+    ).toEqual([
+      "app/docs/validation/page.tsx",
+      "components/AirframeStrip.tsx",
+      "components/GeometryInspector.tsx",
+      "components/MotorSweep.tsx",
+      "components/RocketDiagram.tsx",
+    ]);
+    // Five legitimate absences, and NOT the same five as above — the difference is the point.
+    // `AirframeStrip` moves onto this list because the strip's own `marginCal` is now gated by a
+    // reason its caller computes rather than by `motorsComplete` spelled at the call site, and
+    // `RocketpyCrossCheck` moves off it because it runs its own flight and must therefore ask for
+    // itself. The three prop-takers (`AirframeStrip`, `GeometryInspector`, `RocketDiagram`) render
+    // nothing without a number, which is what makes caller-gating safe; `MotorSweep` reads sweep rows
+    // that `lib/sim/sweep.ts` has already withheld as NaN; and `app/docs/validation` flies committed
+    // fixtures at build time, where a design with no centre of pressure would fail the validation
+    // build long before a row rendered.
   });
 });

@@ -815,13 +815,13 @@ describe("the finished cross-check slot", () => {
     for (const k of ["apogee", "maxVelocity", "maxMach", "timeToApogee", "railExitVelocity", "staticMarginCal"]) {
       const bad = { ...loft } as Record<string, unknown>;
       delete bad[k];
-      localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft: bad, rp, at: 1 }));
+      localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 2, designId: "d", stableKey: "k", loft: bad, rp, at: 1 }));
       expect(loadCrossCheck(), `a record missing loft.${k} was accepted`).toBeNull();
     }
     for (const k of ["apogee", "maxVelocity", "maxMach", "timeToApogee", "railExitVelocity", "staticMarginLiftoff"]) {
       const bad = { ...rp } as Record<string, unknown>;
       delete bad[k];
-      localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft, rp: bad, at: 1 }));
+      localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 2, designId: "d", stableKey: "k", loft, rp: bad, at: 1 }));
       expect(loadCrossCheck(), `a record missing rp.${k} was accepted`).toBeNull();
     }
   });
@@ -829,9 +829,9 @@ describe("the finished cross-check slot", () => {
   it("refuses a non-finite figure, because nothing here is a withheld sentinel", () => {
     // Unlike the dispersion, `NaN` is not a contract in this result — `staticMarginCal` is guarded to
     // 0 rather than left NaN — so a null that JSON produced from a NaN is corruption, not withholding.
-    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft: { ...loft, apogee: null }, rp, at: 1 }));
+    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 2, designId: "d", stableKey: "k", loft: { ...loft, apogee: null }, rp, at: 1 }));
     expect(loadCrossCheck()).toBeNull();
-    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft, rp: { ...rp, maxMach: "0.6" }, at: 1 }));
+    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 2, designId: "d", stableKey: "k", loft, rp: { ...rp, maxMach: "0.6" }, at: 1 }));
     expect(loadCrossCheck()).toBeNull();
   });
 
@@ -840,12 +840,39 @@ describe("the finished cross-check slot", () => {
     // would silently publish an extrapolated comparison as a validated one.
     const { extrapolatedTransonic: _drop, ...noFlag } = loft;
     void _drop;
-    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft: noFlag, rp, at: 1 }));
+    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 2, designId: "d", stableKey: "k", loft: noFlag, rp, at: 1 }));
+    expect(loadCrossCheck()).toBeNull();
+  });
+
+  it("carries a WITHHELD margin's reason across the restore, so a stored panel cannot republish it", () => {
+    // The v2 field, and the case the version bump exists for. A design whose centre of pressure is
+    // not a point on it has no margin; the live panel withholds it and says why; and a restore that
+    // dropped the reason would put the figure back on screen a moment later, which is the failure
+    // mode "restore the last comparison" is most able to hide.
+    const why = "the tail taper removes almost as much normal force as the nose and fins add";
+    expect(saveCrossCheck({ designId: "d1", stableKey: "k1", loft: { ...loft, marginUndefinedWhy: why }, rp, at: 5 })).toBe(true);
+    expect(loadCrossCheck()?.loft.marginUndefinedWhy).toBe(why);
+
+    // Absent means "the margin is real" — not "unknown" — so a record without the key restores as a
+    // published margin and the key does not appear at all.
+    expect(saveCrossCheck({ designId: "d1", stableKey: "k1", loft, rp, at: 5 })).toBe(true);
+    expect(loadCrossCheck()?.loft).not.toHaveProperty("marginUndefinedWhy");
+
+    // A stored non-string would reach the panel as a truthy reason with no sentence in it — a
+    // withheld cell above an empty explanation. Refused whole, like every other malformed field.
+    localStorage.setItem(
+      "loft.crosscheck",
+      JSON.stringify({ v: 2, designId: "d", stableKey: "k", loft: { ...loft, marginUndefinedWhy: 7 }, rp, at: 1 }),
+    );
     expect(loadCrossCheck()).toBeNull();
   });
 
   it("discards an older schema whole rather than half-reading it", () => {
-    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 2, designId: "d", stableKey: "k", loft, rp, at: 1 }));
+    // **v1 is the shape that shipped, and it is refused rather than upgraded.** A v1 record carries
+    // a static margin with no way to say whether Loft would publish it — the panel now withholds the
+    // figure on a design whose centre of pressure is not a point on the rocket — so reading one
+    // forward would restore exactly the number the live panel refuses. See `StoredCrossCheck.v`.
+    localStorage.setItem("loft.crosscheck", JSON.stringify({ v: 1, designId: "d", stableKey: "k", loft, rp, at: 1 }));
     expect(loadCrossCheck()).toBeNull();
     localStorage.setItem("loft.crosscheck", "{not json");
     expect(loadCrossCheck()).toBeNull();

@@ -769,13 +769,20 @@ export function useSettled<T>(value: T, key: string, ms = 350): T {
  *  Storing thirteen numbers is therefore the whole of the fix for the common case, and it is 354
  *  bytes rather than the dispersion's 78,649.
  *
- *  Same shape as the dispersion slot above — own key, one version, written on completion, refused
+ *  Same shape as the dispersion slot above — own key, own version, written on completion, refused
  *  all-or-nothing — with one deliberate departure: there is no `NaN` sentinel anywhere in this
- *  result, so the reader is a flat finiteness check and there is no plain/rehydrate pair to keep. */
+ *  result, so the reader is a flat finiteness check and there is no plain/rehydrate pair to keep.
+ *  A figure Loft withholds is carried as its REASON rather than as a sentinel value (see
+ *  `marginUndefinedWhy` below), which is why the record is no longer numbers-and-one-boolean. */
 const CROSSCHECK_KEY = "loft.crosscheck";
 
 export interface StoredCrossCheck {
-  v: 1;
+  /** **2: the record gained `marginUndefinedWhy`, 2026-08-18.** A v1 record cannot say whether the
+   *  margin it carries was one Loft would publish — a design whose centre of pressure is not a point
+   *  on the airframe has no margin, and the panel now withholds it. Restoring a v1 record would
+   *  therefore republish exactly the figure the live panel refuses, so v1 is discarded rather than
+   *  upgraded: the cost is one re-run of a comparison the flyer is looking at. */
+  v: 2;
   /** Which design this was run for, content-addressed — see `designFingerprint`. */
   designId: string;
   /** The full design key, identified by design rather than by load count, so a stored comparison is
@@ -783,7 +790,7 @@ export interface StoredCrossCheck {
   stableKey: string;
   /** Loft's own ballistic figures and RocketPy's, as the panel holds them. Typed loosely for the
    *  reason `edits` is: this module is storage, and the shapes belong to the app. */
-  loft: Record<string, number | boolean>;
+  loft: Record<string, number | boolean | string>;
   rp: Record<string, number>;
   at: number;
 }
@@ -791,7 +798,10 @@ export interface StoredCrossCheck {
 /** Every field of both records, checked. **All-or-nothing, and finite**: this panel publishes a Δ
  *  column between two solvers, and a half-read record would put a difference on screen that neither
  *  solver produced. Unlike the dispersion there is no withheld sentinel here — `staticMarginCal` is
- *  guarded to 0 rather than left `NaN` — so anything non-finite is corruption, not a withholding. */
+ *  guarded to 0 rather than left `NaN` — so anything non-finite is corruption, not a withholding.
+ *  **That still holds with `marginUndefinedWhy` in the record**, and it is why the withholding is
+ *  carried as a separate reason rather than as a `NaN` margin: this reader stays a flat finiteness
+ *  check, and a withheld margin is a v2 record that is complete rather than a v1 record that is not. */
 function readNumbers(x: unknown, keys: readonly string[]): Record<string, number> | null {
   if (!x || typeof x !== "object") return null;
   const src = x as Record<string, unknown>;
@@ -812,7 +822,7 @@ export function loadCrossCheck(): StoredCrossCheck | null {
     const raw = localStorage.getItem(CROSSCHECK_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw) as StoredCrossCheck;
-    if (p?.v !== 1) return null;
+    if (p?.v !== 2) return null;
     if (typeof p.designId !== "string" || !p.designId) return null;
     if (typeof p.stableKey !== "string" || !p.stableKey) return null;
     const loft = readNumbers(p.loft, LOFT_KEYS);
@@ -822,11 +832,21 @@ export function loadCrossCheck(): StoredCrossCheck | null {
     // so it is required rather than defaulted. A record written without it is not this shape.
     const extrapolated = (p.loft as Record<string, unknown> | undefined)?.extrapolatedTransonic;
     if (typeof extrapolated !== "boolean") return null;
+    // Optional, and its ABSENCE is the meaningful value — a design with a defined centre of
+    // pressure writes nothing here, so a missing key is "the margin is real" rather than "unknown".
+    // Type-checked all the same: a stored non-string would otherwise reach the panel as a truthy
+    // reason with no sentence in it, printing a withheld cell above an empty explanation.
+    const noMarginWhy = (p.loft as Record<string, unknown> | undefined)?.marginUndefinedWhy;
+    if (noMarginWhy !== undefined && typeof noMarginWhy !== "string") return null;
     return {
-      v: 1,
+      v: 2,
       designId: p.designId,
       stableKey: p.stableKey,
-      loft: { ...loft, extrapolatedTransonic: extrapolated },
+      loft: {
+        ...loft,
+        extrapolatedTransonic: extrapolated,
+        ...(noMarginWhy === undefined ? {} : { marginUndefinedWhy: noMarginWhy }),
+      },
       rp,
       at: Number.isFinite(p.at) ? p.at : 0,
     };
@@ -837,7 +857,7 @@ export function loadCrossCheck(): StoredCrossCheck | null {
 
 export function saveCrossCheck(entry: Omit<StoredCrossCheck, "v">): boolean {
   try {
-    localStorage.setItem(CROSSCHECK_KEY, JSON.stringify({ v: 1, ...entry }));
+    localStorage.setItem(CROSSCHECK_KEY, JSON.stringify({ v: 2, ...entry }));
     return true;
   } catch {
     clearCrossCheck();

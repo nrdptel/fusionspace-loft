@@ -128,6 +128,15 @@ export default function ParameterSweep({
    *  the strip calls incomplete is incomplete at every point on the curve, and one flag answers all
    *  of them. (The motor sweep is the case where that is NOT true, and it is why that panel takes no
    *  such prop: every row there is flown with a `motorSwap`, which replaces every instance.) */
+  /** Why the static-margin metric is not on offer, or undefined when it is — the caller's
+   *  `MARGIN_GAP`, which is whichever of the two reasons applies.
+   *
+   *  **The sentence around it used to prescribe the motor fix, and that outlived its one cause.**
+   *  It read "…so it cannot be computed until every motor in this configuration resolves … Swap in a
+   *  bundled motor under Design" — hard-coded advice that is simply wrong for a design whose motor
+   *  is fine and whose centre of pressure is not a point on it. Found 2026-08-18 by a cold walk of
+   *  the built export, in the same change that gave this prop its second reason. The reason string
+   *  carries its own fix now; this panel adds only the fact that the strip above agrees. */
   marginWithheld?: string;
 }) {
   // Only the conditions a BALLISTIC ascent actually reads. Wind is excluded on purpose: `runFlight`
@@ -430,10 +439,9 @@ export default function ParameterSweep({
               It names the same gap the summary strip names, in the strip's own words. */}
           {marginWithheld && (
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">
-              <strong>Static margin is not offered here:</strong> {marginWithheld}. The margin is
-              measured from the loaded centre of gravity, so it cannot be computed until every motor
-              in this configuration resolves — the same reason it reads &ldquo;&mdash;&rdquo; on the
-              flight summary above. Swap in a bundled motor under Design, and it comes back on both.
+              <strong>Static margin is not offered here:</strong> {marginWithheld}
+              {marginWithheld.endsWith(".") ? " " : ". "}It reads &ldquo;&mdash;&rdquo; on the flight
+              summary above for the same reason, and comes back on both together.
             </p>
           )}
 

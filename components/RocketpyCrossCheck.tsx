@@ -22,6 +22,11 @@ interface LoftBallistic {
   timeToApogee: number;
   railExitVelocity: number;
   staticMarginCal: number;
+  /** Why Loft has no static margin for this design, or undefined when it has one — the solver's own
+   *  `FlightResult.marginUndefinedWhy`. Carried across rather than re-derived because this panel
+   *  runs its OWN `runFlight`: the flight in this table is not the flight the summary strip is
+   *  showing, so a reason read off the parent would be about a different rocket. */
+  marginUndefinedWhy?: string;
   /** Loft's ascent left the drag model's validated subsonic envelope.
    *
    *  **The panel that most needs this is the one whose own Δ column cannot show it.** The footnote
@@ -162,6 +167,7 @@ export default function RocketpyCrossCheck({
         timeToApogee: s.timeToApogee,
         railExitVelocity: s.railExitVelocity,
         staticMarginCal: loftRun.result.staticMarginCal,
+        marginUndefinedWhy: loftRun.result.marginUndefinedWhy,
         extrapolatedTransonic: loftRun.result.extrapolatedTransonic,
       };
       // `config` is already the swapped configuration (runFlight returns it), so the motor is right;
@@ -431,7 +437,18 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
     { label: "Max Mach", loft: d.mach(loft.maxMach), rp: d.mach(rp.maxMach), delta: d.changePercent(rp.maxMach, loft.maxMach) },
     { label: "Rail-exit velocity", loft: d.speed(loft.railExitVelocity, units), rp: d.speed(rp.railExitVelocity, units), delta: d.changePercent(rp.railExitVelocity, loft.railExitVelocity) },
     { label: "Time to apogee", loft: d.seconds(loft.timeToApogee), rp: d.seconds(rp.timeToApogee), delta: d.changePercent(rp.timeToApogee, loft.timeToApogee) },
-    { label: "Static margin", loft: d.calibers(loft.staticMarginCal), rp: d.calibers(rp.staticMarginLiftoff), delta: d.changeAbsolute(rp.staticMarginLiftoff, loft.staticMarginCal, "cal") },
+    // **Withheld on BOTH sides when Loft has no centre of pressure, not just on Loft's.** A Δ column
+    // against RocketPy's figure would read as an accuracy gap between two tools, when the real fact
+    // is that one of them has no figure at all — the same argument the panel's own gate makes about
+    // an unresolved motor. RocketPy's number stays visible; it is the comparison that is withdrawn.
+    loft.marginUndefinedWhy
+      ? {
+          label: "Static margin",
+          loft: { value: "—", unit: "" },
+          rp: d.calibers(rp.staticMarginLiftoff),
+          delta: { text: "withheld" },
+        }
+      : { label: "Static margin", loft: d.calibers(loft.staticMarginCal), rp: d.calibers(rp.staticMarginLiftoff), delta: d.changeAbsolute(rp.staticMarginLiftoff, loft.staticMarginCal, "cal") },
   ];
   // Loft's half of this comparison is the extrapolated half, and the agreement is not evidence
   // against that — RocketPy is fed Loft's own Cd(Mach) (see the footnote), so above M0.8 the two
@@ -440,6 +457,16 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
   const extrapolatedWhy = transonicReason(loft.extrapolatedTransonic, loft.maxMach);
   return (
     <div className="mt-3">
+      {/* A withheld CELL in a data table has nowhere to carry its reason — the em dash is the whole
+          cell — so the sentence goes above the table, in the slot the transonic caveat already uses.
+          Without it the row reads as a solver that declined to answer rather than a design that has
+          no figure to answer with. */}
+      {loft.marginUndefinedWhy && (
+        <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+          <strong className="font-medium">Static margin is withheld on Loft&rsquo;s side:</strong>{" "}
+          {loft.marginUndefinedWhy} RocketPy&rsquo;s own figure is still shown, and the &Delta; is not.
+        </p>
+      )}
       {extrapolatedWhy && (
         <div className="mb-3">
           <Extrapolated

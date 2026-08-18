@@ -439,6 +439,7 @@ export default function GeometryInspector({
   cp,
   marginCal,
   cgWithheldReason,
+  cpWithheldReason,
   edited = false,
   motors,
   onEdit,
@@ -487,6 +488,15 @@ export default function GeometryInspector({
    *  sentence, a flyer whose motor did not resolve sees a stability picture quietly lose half its
    *  marks and has nothing on this surface telling them why or how to get it back. */
   cgWithheldReason?: string;
+  /** Why the CP mark and the margin are absent when the CG is drawn perfectly well — a DIFFERENT
+   *  absence from `cgWithheldReason`'s and it needs its own sentence.
+   *
+   *  The CG depends on the motor; the centre of pressure does not, which is why a motor gap retires
+   *  one mark and not the other. A design whose CP is not a point on it (see `noCpWhy`) is the
+   *  mirror case: the CG is fine and the CP is the one that cannot be drawn. Without this the marks
+   *  simply stopped appearing, which is the "surface that vanishes instead of saying why" §5 names —
+   *  found 2026-08-18 by a cold walk of the built export, in the same change that created it. */
+  cpWithheldReason?: string;
   /** True when `rocket` reflects active what-if geometry edits rather than the imported design, so
    *  the panel can say so — it's then a live preview of the edit, not the parsed original. */
   edited?: boolean;
@@ -1351,6 +1361,11 @@ export default function GeometryInspector({
             and the caption asserted a margin the summary strip was withholding two panels up. */}
         {cgWithheldReason && cg === undefined && (
           <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{cgWithheldReason}</p>
+        )}
+        {cpWithheldReason && cp === undefined && (
+          <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+            The centre of pressure and the static margin are not marked: {cpWithheldReason}
+          </p>
         )}
         {onEdit && (
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
