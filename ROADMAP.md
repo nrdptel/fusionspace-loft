@@ -2586,6 +2586,53 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 24 — the add controls a part cannot take are no longer drawn as if it could, 2026-08-18.
+SEV-1.** Three of the six authoring gestures were live on three parts of every design and did nothing
+at all. Clicking one returned in silence: no part, no refusal, no undo step, no message. **3 dead
+controls on every one of the 35 corpus designs**, and on any design at all that sets a boattail, a
+drogue or a payload mass.
+
+**Two trees, one question asked of the wrong one.** `applyDimensionEdits` synthesises three parts
+AFTER `structureOf` has run — a boattail from `boattailLength`/`boattailAftDiameter`, a drogue from
+the dual-deploy pair, a payload bay from `payloadMassKg`. So they are in the tree the diagram draws
+and the parts table lists, and they are not in the tree `addPartAfter` resolves an anchor against.
+The panel asked `addOptionsFor` of the flown tree alone, a synthesised boattail is a transition, and a
+transition has an aft face and a bore — so three kinds came back "offered" and drew as live controls
+over an applier that could not find the host. `addPartAfter` re-asks the rule and returns, which is
+why nothing was thrown and nothing was said; increment 20's note about that second ask reads as a
+belt-and-braces guard and was in fact the only thing standing between this and a crash.
+
+**Rule zero, ahead of the other three.** `addOptionsFor` gains an optional `addressable` set: before
+any question about aft faces or bores, the applier has to be able to ADDRESS the host. The set is
+derived in `ResultsView` through `structureOf` rather than listed by hand, so a fourth synthesised
+part cannot be forgotten the way these three were. Optional, so a read-only mount of the panel
+behaves exactly as it did — and the unit case exercises both arms, because a default that silently
+changed behaviour for a caller with no set would be a second defect wearing the first one's clothes.
+
+**The remove control on the same part was saying something the flyer could see was false.** It printed
+*"That part is no longer in this design"* over a row the table was drawing at that moment.
+`derivedPartRefusal` is now the one sentence both surfaces print — *"Boattail is made by the design
+fields rather than added as a part, so the editor cannot change it here. Clear the field that creates
+it, or pick a part the design itself carries."* — which names the part, says which field made it, and
+says what to do instead. `COMPETITION.md` row 50 marks Loft as BETTER than the field for stating WHY
+a component cannot go somewhere; on these three parts it was stating a reason that was not true.
+
+**Pinned at two layers, both controlled.** `lib/model/edit.test.ts` gains a case that builds the two
+trees, finds the part in one and not the other, and asserts all six kinds refused with the reason that
+names the field — carrying its control INSIDE the case, an `addOptionsFor` call with no set that must
+still answer "offered" for at least one kind, so the assertion cannot quietly go vacuous if the
+synthesis ever moves. `e2e/smoke.spec.ts` gains the case only e2e can carry, because the rule is
+correct in isolation either way and the defect was which tree the panel asked about: type the two
+boattail fields, pick the row that appears, and all six controls are dimmed with both surfaces
+printing the sentence. Control, run through `revert → rebuild → run → restore → rebuild`: pointing the
+set at the flown tree instead of `structureOf`'s fails it with *"/Add a tube behind this/ must be
+dimmed on a derived part … Expected: \"true\", Received: \"\""*.
+
+**What this does NOT do.** It does not make the three synthesised parts editable as parts — that is a
+product decision about whether a field-made part becomes an authored one when you touch it, and it is
+filed rather than taken here. The flyer's route to changing a boattail is the field that made it,
+which is the sentence the refusal now points at.
+
 **Increment 23 — an authored mass stays inside the part that holds it, 2026-08-18. SEV-1.**
 `HANDOFF.md` named this as one of two candidates and called it "the one a flyer would notice". It is
 worse than filed: it is not a corner, it is **every design**, and it is reachable in one drag.

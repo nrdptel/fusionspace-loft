@@ -80,6 +80,7 @@ import {
   type GeometryEdits,
   type PickedRing,
   addedStageIds,
+  addOptionsFor,
 } from "./edit";
 import type {
   BodyTube,
@@ -2683,6 +2684,48 @@ describe("authoring a mass object", () => {
     // assertions and stay green, which is the shape the corpus sweep already guards against with its
     // own per-branch counters. It is the only control for "do not rewrite another tool's geometry".
     expect(checked, "no design-arrived mass was examined — this case proves nothing").toBeGreaterThan(0);
+  });
+});
+
+describe("a part the DIMENSION FIELDS made", () => {
+  const SINGLE2 = "fixtures/demo-single-deploy.ork";
+  const load2 = async (f: string) => importOrk(readFileSync(resolve(process.cwd(), f)));
+
+  it("takes no authoring gesture, and says why instead of saying it is gone", async () => {
+    // **R12 increment 24.** A boattail from `boattailLength`/`boattailAftDiameter`, a drogue from the
+    // dual-deploy pair and a payload bay from `payloadMassKg` are appended by `applyDimensionEdits`,
+    // AFTER `structureOf` has run — so they are in the tree the diagram draws and NOT in the tree
+    // `addPartAfter` resolves an anchor against. Asked of the flown tree alone, `addOptionsFor`
+    // answered "offered" for three of the six kinds, the panel drew live controls, and every click
+    // returned in silence: no part, no refusal, no undo step. **3 dead controls on every design.**
+    const doc = await load2(SINGLE2);
+    const edits = { boattailLength: 0.06, boattailAftDiameter: 0.02 };
+    const flown = applyGeometryEdits(doc.rocket, edits);
+    const structural = structureOf(doc.rocket, edits);
+
+    const addressable = new Set(flattenRocket(structural).map((p) => p.component.id));
+    const boattail = flattenRocket(flown).find((p) => !addressable.has(p.component.id));
+    expect(boattail, "the dimension edits synthesised no part — this case would prove nothing").toBeTruthy();
+
+    // Without the addressable set — today's behaviour for any caller that has none — the flown tree
+    // says yes to three kinds. This is the control living inside the case: it fails if the defect
+    // stops being reachable, so the assertion below cannot quietly become vacuous.
+    const blind = addOptionsFor(flown, boattail!.component.id);
+    expect(blind.filter((o) => o.offered).length).toBeGreaterThan(0);
+
+    // With it, every kind is refused, and the reason names what the part IS.
+    const seen = addOptionsFor(flown, boattail!.component.id, addressable);
+    expect(seen.every((o) => !o.offered)).toBe(true);
+    for (const o of seen) {
+      expect(o.reason).toContain("made by the design fields");
+      // NOT "no longer in this design" — the diagram is drawing it, so that sentence is one the
+      // flyer can see is false, and it is what the remove control used to say about the same part.
+      expect(o.reason).not.toContain("no longer in this design");
+    }
+
+    // A part the design DOES carry is unaffected, or the rule would have closed the editor.
+    const tube = primaryBodyTube(flown)!;
+    expect(addOptionsFor(flown, tube.id, addressable).some((o) => o.offered)).toBe(true);
   });
 });
 

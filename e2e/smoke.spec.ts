@@ -2716,6 +2716,66 @@ test.describe("Loft", () => {
     await expect.poll(async () => parseFloat((await span.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
   });
 
+  test("a part the design FIELDS made offers no authoring gesture, and says so", async ({ page }) => {
+    // **R12 increment 24 — three dead controls on every design.** `applyDimensionEdits` appends a
+    // boattail, a drogue and a payload bay AFTER `structureOf` has run, so those parts are in the
+    // tree the diagram draws and the parts table lists, and NOT in the tree `addPartAfter` resolves
+    // an anchor against. The panel asked `addOptionsFor` of the flown tree alone: a synthesised
+    // boattail is a transition, transitions have an aft face and a bore, so three of the six kinds
+    // came back "offered", drew as live controls — and every click returned in silence. No part, no
+    // refusal, no undo step. The remove control on the same part meanwhile said "That part is no
+    // longer in this design", over a row the table was at that moment drawing.
+    //
+    // Only e2e can pin this. `addOptionsFor` is correct in isolation either way; the defect is that
+    // the panel was asking it about a tree the applier does not work in, and the fix is the SET the
+    // panel passes. A model test can prove the rule; this proves the wiring.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+
+    // Two numbers into the fields that create one. The starter carries no transition of its own, so
+    // the row that appears is the synthesised part and nothing else.
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+    const cones = table.locator("tr").filter({ has: page.locator('[data-kind="transition"]') });
+    await expect(cones, "the starter must arrive with no transition, or this proves nothing").toHaveCount(0);
+    await page.getByLabel(/Boattail length/).fill("60");
+    await page.getByLabel(/Boattail exit/).fill("30");
+    await expect(cones).toHaveCount(1);
+
+    await cones.first().click();
+    // Every one of the six is dimmed. Named individually rather than counted, because the three that
+    // were live are exactly the three a count over "how many are disabled" would let regress if the
+    // palette ever stopped drawing a kind.
+    for (const name of [
+      /Add a tube behind this/,
+      /Add fins to this tube/,
+      /Add a transition behind this/,
+      /Add a mass inside this/,
+      /Add a coupler inside this/,
+      /Add a centering ring inside this/,
+    ]) {
+      await expect(page.getByRole("button", { name }), `${name} must be dimmed on a derived part`).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+    }
+
+    // And BOTH surfaces say the true thing — which field made it, and what to do — rather than the
+    // false one they used to say about a part sitting in front of the flyer. Pinned separately
+    // because they are two independent call sites that were separately wrong: the add palette's
+    // refusals line, and the remove control's live region.
+    const sentence = /made by the design fields rather than added as a part/;
+    await expect(page.locator("#add-palette-refusals"), "the add palette must explain the dimming").toHaveText(sentence);
+    await expect(page.getByRole("status").filter({ hasText: sentence }), "so must the remove control").toBeVisible();
+    await expect(page.getByText("That part is no longer in this design")).toHaveCount(0);
+
+    // The control: a part the design DOES carry still authors, in the same panel, one click later.
+    await table.getByText("Nose cone", { exact: true }).first().click();
+    await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toBeEnabled();
+  });
+
   test("a tube can be added behind the nose cone, which is where a build starts", async ({ page }) => {
     // **The gesture R12 is named for, refused on the first part a from-scratch build has.** "Add a
     // tube behind this" was gated on the pick being a body tube — in the panel and in the applier —

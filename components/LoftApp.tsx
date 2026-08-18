@@ -47,6 +47,7 @@ import {
   transitionDefaults,
   authoredTransitionName,
   removalRefusal,
+  derivedPartRefusal,
   newPartId,
   type AddedPart,
   type MovedPart,
@@ -1211,6 +1212,25 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     [doc, edits],
   );
 
+  /** The FULLY edited tree — structure and dimensions both — for the one readback that is DERIVED
+   *  from geometry the flyer edits somewhere else.
+   *
+   *  Every other entry in `designDims` below is deliberately read from `designBase`, which excludes
+   *  the dimension edits: those fields show the value being edited FROM, and a body length that
+   *  updated to what the flyer just typed would be a field showing its own input back. A mass
+   *  object's STATION is not that. Nobody types it to change a tube; it is a fraction of the host's
+   *  length, so the moment a length edit lands the station the flight is using moves and the field
+   *  has typed nothing. Reading it off `designBase` would advertise the pre-edit station — which is
+   *  exactly the "field showing a number that is not the one in the flight" the comment above forbids.
+   *
+   *  **This became reachable on 2026-08-18 and not before.** Until `seatAddedMasses`, the flown
+   *  station did not move with its host either, so the stale placeholder agreed with the flight by
+   *  sharing its bug. Fixing the flight is what put the two out of step. */
+  const flownForReadback = useMemo(
+    () => (doc ? applyGeometryEdits(doc.rocket, edits) : null),
+    [doc, edits],
+  );
+
   /** The design a booster is seeded FROM, which is NOT `removableFrom`. `applyAddedStages` runs first in
    *  the pipeline, on the pristine rocket plus the stages already authored — an added tube, a removal or
    *  a reorder is invisible to it. Asking `canAddStage` the fully-structured tree instead disagrees with
@@ -1222,8 +1242,21 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
   /** Why this part cannot be removed, or null. The panel asks THIS rather than judging for itself, so the
    *  reason it shows and the guard that enforces it cannot disagree about which design they are judging. */
   const refuseRemoval = useCallback(
-    (id: string) => (removableFrom ? removalRefusal(removableFrom, id) : "No design is loaded."),
-    [removableFrom],
+    (id: string) => {
+      if (!removableFrom) return "No design is loaded.";
+      // **A part the DIMENSION FIELDS made is on screen and is not in this tree**, so the plain
+      // lookup answered "That part is no longer in this design" — a sentence the flyer can see is
+      // false, because the diagram is drawing it. Asked of the flown tree first, and answered with
+      // the same sentence the add row gives, so the two controls on one part agree about why.
+      if (!flattenRocket(removableFrom).some((p) => p.component.id === id)) {
+        const shown = flownForReadback
+          ? flattenRocket(flownForReadback).find((p) => p.component.id === id)?.component
+          : undefined;
+        if (shown) return derivedPartRefusal(shown.name || "This part");
+      }
+      return removalRefusal(removableFrom, id);
+    },
+    [removableFrom, flownForReadback],
   );
 
   const removeComponent = (id: string) => {
@@ -1831,24 +1864,6 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
   const swapInfo = useMemo<SwapInfo | null>(() => (doc ? swapInfoFor(doc, simIndex) : null), [doc, simIndex]);
 
   const designBase = removableFrom ?? doc?.rocket;
-  /** The FULLY edited tree — structure and dimensions both — for the one readback that is DERIVED
-   *  from geometry the flyer edits somewhere else.
-   *
-   *  Every other entry in `designDims` below is deliberately read from `designBase`, which excludes
-   *  the dimension edits: those fields show the value being edited FROM, and a body length that
-   *  updated to what the flyer just typed would be a field showing its own input back. A mass
-   *  object's STATION is not that. Nobody types it to change a tube; it is a fraction of the host's
-   *  length, so the moment a length edit lands the station the flight is using moves and the field
-   *  has typed nothing. Reading it off `designBase` would advertise the pre-edit station — which is
-   *  exactly the "field showing a number that is not the one in the flight" the comment above forbids.
-   *
-   *  **This became reachable on 2026-08-18 and not before.** Until `seatAddedMasses`, the flown
-   *  station did not move with its host either, so the stale placeholder agreed with the flight by
-   *  sharing its bug. Fixing the flight is what put the two out of step. */
-  const flownForReadback = useMemo(
-    () => (doc ? applyGeometryEdits(doc.rocket, edits) : null),
-    [doc, edits],
-  );
   // The design's own dimensions, shown as the starting points for the builder edits.
   //
   // Read from the design plus the flyer's STRUCTURE (`removableFrom` — the pristine design with the

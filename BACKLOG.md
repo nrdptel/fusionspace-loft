@@ -448,13 +448,15 @@ someone has seen it, so these are filed as claims with the command that would se
   body-length grip, not a typed extreme. `seatAddedMasses` re-seats authored masses over the finished
   tree; see `ROADMAP.md` R12 increment 23.**
 
-- **"Add a mass inside this" renders on the boattail, which `addPartAfter` cannot resolve.** The
-  boattail is appended by `applyDimensionEdits`, after `structureOf()` — which `addPartAfter` resolves
-  the anchor against — has run. Reproduce: set a boattail length and aft diameter, pick "Boattail" in
-  the parts table, click the button; nothing happens and no undo step appears. The row already had two
-  dead controls there (tube, transition) and this run widened it to three. The honest fix is for
-  `addOptionsFor` to refuse a part the applier cannot address, which is the same one-rule principle
-  increment 20 established.
+- ~~**"Add a mass inside this" renders on the boattail, which `addPartAfter` cannot resolve.**~~
+  **FIXED 2026-08-18.** The boattail is appended by `applyDimensionEdits`, after `structureOf()` —
+  which `addPartAfter` resolves the anchor against — has run, so three of six controls were live and
+  did nothing on the boattail, the drogue and the payload bay of every design. The fix was the one
+  this entry called honest: `addOptionsFor` takes an optional set of addressable ids and refuses on
+  rule zero, ahead of every other rule. `ROADMAP.md` R12 increment 24. **The product question this
+  entry did not ask stays open and is the remaining half:** a field-made part is refused with a true
+  sentence, but there is still no way to select a boattail and edit it AS a part — the flyer's only
+  route is the field that made it.
 
 - **`addOptionsFor` offers a mass on KIND alone while two callers additionally require
   `axialLength > 0`.** `lib/model/edit.ts:3637` versus `:4112` and `withMassStation` at `:2703`. A

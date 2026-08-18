@@ -3624,13 +3624,47 @@ export interface AddOption {
  *
  *  Returns a verdict for EVERY kind, always, in a stable order — so a caller cannot render a subset
  *  by forgetting one, and so a test can assert that all 569 corpus parts answer on all six. */
-export function addOptionsFor(rocket: Rocket, hostId: string): AddOption[] {
+/** What to tell a flyer about a part the DIMENSION FIELDS made, when they ask the editor to do
+ *  something to it.
+ *
+ *  Three parts are in this position: a boattail from `boattailLength`/`boattailAftDiameter`, a drogue
+ *  from the dual-deploy pair, and a payload bay from `payloadMassKg`. `applyDimensionEdits` appends
+ *  them AFTER `structureOf` has run, so they are in the tree the diagram draws and not in the tree
+ *  `addPartAfter` and `removalRefusal` resolve an id against.
+ *
+ *  **One sentence, exported, because two surfaces were saying different things about the same part.**
+ *  The add row silently did nothing; the remove control said *"That part is no longer in this
+ *  design"* — a sentence the flyer can see is false, because the diagram is drawing it. Neither
+ *  named the actual reason, which is that the part has no entry of its own to take away: what makes
+ *  it is a field, so what unmakes it is clearing that field. */
+export function derivedPartRefusal(name: string): string {
+  return `${name} is made by the design fields rather than added as a part, so the editor cannot change it here. Clear the field that creates it, or pick a part the design itself carries.`;
+}
+
+export function addOptionsFor(rocket: Rocket, hostId: string, addressable?: ReadonlySet<string>): AddOption[] {
   const parts = flattenRocket(rocket);
   const host = parts.find((p) => p.component.id === hostId)?.component;
   // A part that is not in the tree is the ordinary case for a moment after a removal, not an error —
   // see the panel's own note about `selectedId` outliving the part it names. Every kind is refused,
   // with a reason, rather than the caller getting an empty list it has to interpret.
   if (!host) return ADD_KINDS.map((kind) => ({ kind, offered: false, reason: "That part is no longer in this design." }));
+
+  // **Rule zero: the applier has to be able to ADDRESS the host, and three parts on screen cannot be
+  // addressed at all.** A boattail, a drogue and a payload bay are synthesised by
+  // `applyDimensionEdits` — they exist in the flown tree the panel draws and NOT in `structureOf`,
+  // which is the tree `addPartAfter` resolves an anchor against. Asked of the flown tree alone this
+  // function answered "offered" for all three, so the panel drew live controls that the applier then
+  // returned from in silence: no part, no refusal, no undo step. Measured across the corpus,
+  // **3 dead controls on every design**.
+  //
+  // The caller passes the ids the applier can reach; when it does not, this argument is absent and
+  // the behaviour is exactly what it was. The refusal names what the part IS rather than claiming it
+  // is gone — the diagram is drawing it, so "no longer in this design" would be a sentence the flyer
+  // can see is false, and it is what `removalRefusal` says today for the same three (filed).
+  if (addressable && !addressable.has(hostId)) {
+    const reason = derivedPartRefusal(host.name || "This part");
+    return ADD_KINDS.map((kind) => ({ kind, offered: false, reason }));
+  }
 
   // The part's OWN name, exactly as `removalRefusal` names one — the parts table, the property
   // heading and this sentence then say the same word, and there is no second vocabulary table to keep

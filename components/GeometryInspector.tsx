@@ -433,6 +433,7 @@ function describeDims(c: RocketComponent, units: UnitSystem): string {
 
 export default function GeometryInspector({
   rocket,
+  addressableIds,
   units,
   cg,
   cp,
@@ -463,6 +464,14 @@ export default function GeometryInspector({
   propertiesFor,
 }: {
   rocket: Rocket;
+  /** The ids the EDITOR can address — `structureOf`'s tree, not this one.
+   *
+   *  Three parts on screen are not in it: a boattail, a drogue and a payload bay are synthesised by
+   *  `applyDimensionEdits`, so the diagram draws them and `addPartAfter` cannot resolve an anchor to
+   *  them. Without this the add row drew six live controls on each of them and every click returned
+   *  in silence — measured at 3 dead controls on every corpus design. Optional so a read-only mount
+   *  of this panel behaves exactly as it did. */
+  addressableIds?: ReadonlySet<string>;
   units: UnitSystem;
   /** Loaded CG / CP stations (m from the nose tip) and static margin (cal), marked on the diagram
    *  — the same loaded values the results panel reports. Omitted for a design shown without a flight. */
@@ -739,7 +748,7 @@ export default function GeometryInspector({
    *  name a part that is no longer in the tree — the moment after a removal is the ordinary case — and
    *  `addOptionsFor` answers "refused, with a reason" for an id it cannot find rather than throwing.
    *  A non-null assertion here once threw inside render and blanked the whole parts table. */
-  const addOptions = selectedId ? addOptionsFor(rocket, selectedId) : [];
+  const addOptions = selectedId ? addOptionsFor(rocket, selectedId, addressableIds) : [];
   const offers = new Set(addOptions.filter((x) => x.offered).map((x) => x.kind));
   /** Whether this part takes ANY authoring gesture — the row's gate, and the empty state's.
    *

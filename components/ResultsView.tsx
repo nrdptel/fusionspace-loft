@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Button, Card, Figure, Panel, Readout, Section, Select, type CardTone } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
@@ -38,7 +38,7 @@ import { mToFt, ftToM, mpsToFtps, ftpsToMps, mphToMps, KMH_PER_MPS, kgToLb } fro
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { impulseClass } from "@/lib/motors/eng";
-import { overallLength } from "@/lib/model/geometry";
+import { flattenRocket, overallLength } from "@/lib/model/geometry";
 import { dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { Rocket } from "@/lib/model/types";
 import { noseBallastStation, configChoices } from "@/lib/sim/run";
@@ -460,6 +460,11 @@ export default function ResultsView({
   // itself as stale while they waited. Comparing two candidates cost two complete re-sweeps.
   const sweepKey = designKey({ loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, geometry });
   const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
+  /** The ids the editor can address, for the parts panel — see its `addressableIds` prop. */
+  const addressableIds = useMemo(
+    () => new Set(flattenRocket(structureOf(doc.rocket, geometry ?? {})).map((p) => p.component.id)),
+    [doc, geometry],
+  );
   /** Why the descent figures are rough, when they are — six readouts here share it, and so does the
    *  dispersion panel. **The condition and its wording live in `lib/sim/withheld.ts`**, moved there
    *  2026-08-18 for exactly the reason `notLandedWhy` is there: two other surfaces read the same
@@ -953,6 +958,12 @@ export default function ResultsView({
             picture drew an empty motor tube beside a CG that assumed a motor was in it. */}
         <GeometryInspector
           rocket={shownRocket}
+          // `structureOf`'s ids — the tree `addPartAfter` resolves an anchor against — so the panel
+          // can only offer an add on a part the applier can actually reach. Computed here rather than
+          // threaded from `LoftApp` because this component already holds both halves, and derived
+          // through `structureOf` rather than listed, so a fourth synthesised part cannot be
+          // forgotten the way the first three were.
+          addressableIds={addressableIds}
           units={units}
           cg={run.motorsComplete ? run.result.cgLoaded : undefined}
           cp={run.result.stability.cp}
