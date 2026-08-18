@@ -2641,12 +2641,25 @@ describe("authoring a mass object", () => {
     expect((m.xFore - host.xFore) / host.length).not.toBeCloseTo(0.3251, 4);
   });
 
-  it("leaves a mass the DESIGN FILE brought exactly where the file put it", async () => {
-    // **The reason this is a rule about AUTHORED masses and not a blanket clamp.** 4 of the 56
-    // design-arrived mass objects in the corpus already sit outside their host as their own file
+  it("leaves a mass the DESIGN FILE brought exactly where the file put it — including where that is wrong", async () => {
+    // **The reason this is a rule about AUTHORED masses and not a blanket clamp.** 12 of the 56
+    // design-arrived mass objects in the corpus already leave their host's span as their own file
     // states them — `APEX_K_Dart.ork`'s "Avionics 1" and "Ejection Charge" among them. A clamp over
     // every mass would silently rewrite another tool's geometry, which is the one thing Loft does not
     // do to a number a file states.
+    //
+    // **READ THIS BEFORE TRUSTING THE NAME: on this fixture, the position this case pins is one the
+    // flyer cannot build.** The pre-push review caught it. The starter's own mass sits at `top` 0.15
+    // in a 0.70 m tube; shrink that tube to 20 mm and the assertion below green-checks a 70 g point
+    // mass roughly 130 mm BEHIND the tail, with CG and static margin carrying it. That is the same
+    // Sev-1 this file's other cases close for authored masses, still live for design-arrived ones,
+    // and **nothing in the app owns it** — the shrink clamp is `isRing` and `RING_KINDS` has no
+    // `masscomponent`. It is in `BACKLOG.md`.
+    //
+    // The case is kept as written anyway, because what it controls is the seating pass OVER-reaching,
+    // and that control has to assert the file's number survives. What is added is this paragraph: an
+    // assertion that passes BECAUSE a defect is present, under a name that reads like coverage, is
+    // worse than no assertion — so the name and the comment both say which it is.
     const doc = await load(SINGLE);
     const tube = primaryBodyTube(doc.rocket)!;
     const before = new Map(

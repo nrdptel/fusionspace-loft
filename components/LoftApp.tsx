@@ -4484,6 +4484,25 @@ function ConditionsControls({
     .filter(([k, , edit]) => flown.defaulted[k] && edit === undefined)
     .map(([, label]) => label);
 
+  /** Whether the flyer has typed any of the four launch-condition fields this panel owns.
+   *
+   *  **The same predicate `ConditionsSource` is built from**, so the label on the summary row and the
+   *  sentence every other panel prints through `conditionsPhrase` cannot disagree about whether the
+   *  flyer has set anything. Spelled from `edits` rather than passed in because this panel is the one
+   *  that owns all four fields; the panels downstream each ask about the subset they read.
+   *
+   *  **SEV-1, 2026-08-18.** The summary was `scenario === "today" ? "· today" : "· as designed"` with
+   *  no third state, so it kept asserting the design's own setup after the flyer had replaced it.
+   *  Measured on the 38 mm single-deploy: typing 9 m/s of surface wind takes DRIFT FROM PAD from
+   *  292 m to 1,312 m — 4.5x — while the one control on screen naming the basis of every number below
+   *  it says those numbers are the design's. Collapsed, which is how it sits by default, that label is
+   *  the only thing on the page that names the basis at all. */
+  const conditionsEdited =
+    edits.rodLength !== undefined ||
+    edits.rodAngleDeg !== undefined ||
+    edits.windSpeed !== undefined ||
+    edits.launchAltitude !== undefined;
+
   const findWeather = async () => {
     if (!place.trim()) return;
     setWxBusy(true);
@@ -4507,7 +4526,14 @@ function ConditionsControls({
   return (
     <Card as="details" pad={false} className="group">
       <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        <span>Conditions {scenario === "today" && weather ? "· today" : "· as designed"}</span>
+        {/* Three states, and the flyer's own outranks both of the others: their numbers are what is
+            flown whether the base was the design's setup or today's weather, and
+            `conditionsPhrase` already says exactly that in prose ("the launch conditions you set").
+            "As you set them" is the parallel of "as designed" rather than a fourth way of saying it. */}
+        <span>
+          Conditions{" "}
+          {conditionsEdited ? "· as you set them" : scenario === "today" && weather ? "· today" : "· as designed"}
+        </span>
         <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
       </summary>
       <div className="space-y-4 border-t border-zinc-200 px-4 py-4 dark:border-zinc-800">

@@ -5166,6 +5166,41 @@ test.describe("Loft", () => {
     await expect(rows).toHaveCount(1);
   });
 
+  test("the conditions summary names the flyer's own setup, not the design's", async ({ page }) => {
+    // **SEV-1, 2026-08-18.** The summary had two states — `· today` and `· as designed` — and no
+    // third for "the flyer typed one of these four fields". It is a collapsed `<details>`, which is
+    // how it sits by default, so that label is the ONLY thing on the page naming the basis of every
+    // number below it. Measured: typing 9 m/s of surface wind takes DRIFT FROM PAD from 292 m to
+    // 1,312 m while the label still asserts the numbers are the design's — on the figure a flyer
+    // sizes a recovery area and a waiver with.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({
+      timeout: 20000,
+    });
+
+    const summary = page.locator("summary").filter({ hasText: /Conditions/ }).first();
+    const drift = async () => {
+      const t = await page.locator("#panel-flight").innerText();
+      const m = t.match(/Drift from pad\s*\n?\s*([0-9.,]+)/i);
+      return m ? parseFloat(m[1].replace(/,/g, "")) : NaN;
+    };
+
+    await expect(summary).toContainText("as designed");
+    const before = await drift();
+    expect(before).toBeGreaterThan(0);
+
+    await summary.click();
+    await page.locator("label").filter({ hasText: /Surface wind/ }).first().locator("input").fill("9");
+
+    // The number moves…
+    await expect.poll(drift, { timeout: 20000 }).toBeGreaterThan(before * 2);
+    // …and the label stops calling it the design's. Both directions, so a label hard-coded to the
+    // new string would fail the first assertion above.
+    await expect(summary).toContainText("as you set them");
+    await expect(summary, "the numbers are no longer the design's").not.toContainText("as designed");
+  });
+
   test("an untyped mass position advertises the station the flight is actually using", async ({
     page,
   }) => {
