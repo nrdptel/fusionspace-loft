@@ -4,9 +4,9 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Run 19 shipped eight increments: two queued milestone slices and six Sev-1s.** Seven of them are
+**Run 19 shipped nine increments: two queued milestone slices and seven Sev-1s.** Seven of them are
 **merged and live** (`main` at `ec228a8`, deployed and verified — see *The production gap* below).
-The eighth is **PR #189**, green on CI at `b5a2ccf` with two more commits behind it.
+The last two are **PR #189**.
 
 | | what | state |
 |---|---|---|
@@ -18,6 +18,7 @@ The eighth is **PR #189**, green on CI at `b5a2ccf` with two more commits behind
 | SEV-1 | the fallback-canopy caveat reached one surface of three | **live** |
 | R12 increment 24 | three add controls on every design were live and did nothing | **live** |
 | SEV-1 | a design with no centre of pressure was given one, and a band to go with it | **PR #189** |
+| SEV-1 | a RASAero boattail described twice was built twice | **PR #189** |
 
 **The next slice on each track:**
 
@@ -36,15 +37,15 @@ The eighth is **PR #189**, green on CI at `b5a2ccf` with two more commits behind
 
 **The two best defects still open, both reproduced, both measured:**
 
-1. **`Show-off.CDX1` gets its boattail built TWICE.** `inlineBoattail` builds one from the tube's own
-   `<BoattailLength>`/`<BoattailRearDiameter>` and `parseParts` builds the following `<BoatTail>`
-   element — the same physical cone, verified by reading the file: the tube at `Location 17` with
-   `Length 2` carries `BoattailLength 1` / `BoattailRearDiameter 0.25`, and the `<BoatTail>` at
-   `Location 19` is `Length 1` / `Diameter 2.73` / `RearDiameter 0.25`. Identical station, length and
-   both diameters. Each contributes **−1.9832 CNα**, which is the whole reason that design has a
-   summed CNα of −1.93 and is the corpus's only no-CP case. **A de-duplication is defensible without
-   any format reading** — two identical boattails at one station are one boattail — where changing
-   the `Location` semantics is not. Take this one; leave the `Location` question alone.
+1. **RASAero parts are all placed `{after, offset: 0}` and a part's own `<Location>` is never read.**
+   This is the last big RASAero defect and it is now the ONLY thing between `Show-off.CDX1` and its
+   stated length: after this run's boattail de-duplication it imports at 567.4 mm (22.34 in) against
+   the file's own 20.00 in, **+11.7%**, down from +17%. `Complex.Two-Stage.CDX1` is 72.00 in against
+   63.00 in. And the file itself shows why it matters beyond length: `Show-off.CDX1`'s fin can and
+   the tube behind it BOTH say `Location 8`, so the parts genuinely overlap and stacking them
+   end-to-end is not a rounding error. **Unlike the fin `Location` question, a part-level
+   `<Location>` is unambiguous** — the corpus's own chains resolve (nose at 0 length 1, tube at 1
+   length 7, next part at 8) — so this one is readable from the files rather than needing a manual.
 2. **The fin-position sweep slides a fin set past the tail of the airframe and flies it there.**
    `parameterSweep(rocket, "finStation", …)` has no clamp: `lib/sim/sweep.test.ts` drives the fins to
    **1,005 mm and 1,030 mm on a 950 mm rocket**, and the CP dutifully follows to 953.6 mm and
@@ -126,20 +127,31 @@ red in either copy. What to paste over there:
    The correct test is the convex hull of the contributions — exact, because a weighted average with
    non-negative weights cannot leave the interval it averages over. **The proxy would have hidden a
    real bug behind a caveat about a different one.**
-4. **Bumping a stored record's version silently rearms every test that writes one.** `session.test.ts`
+4. **NOT EVERY FIX CAN BE PINNED BY THE CORPUS, and saying so beats shipping a check that cannot
+   fail.** Three drafts of a corpus rule for the double-boattail, three different failures. Asked of
+   every KIND it found **11 duplicates across the corpus, all legitimate** (two fin sets at one
+   station is a real design; every parachute hashed identically because a canopy has none of
+   `length`/`outerRadius`/`foreRadius`/`aftRadius`). Narrowed to ADJACENT transitions it went inert —
+   after the fix there is not one adjacent pair of transitions in the whole corpus, so it compared
+   zero pairs and would have passed forever. Widened to every same-stage PAIR it ran green **with the
+   fix reverted**, because RASAero places everything `{after, offset: 0}`: the duplicate APPENDS
+   rather than overlaps (551.2 mm and 576.6 mm), so "same station" cannot see it. The unit case with
+   its own in-file control — a thousandth of an inch of difference must build two cones — is the
+   honest instrument, and the corpus's contribution is that all 35 still fly.
+5. **Bumping a stored record's version silently rearms every test that writes one.** `session.test.ts`
    has five cases that write a v1 record with a field deleted and assert a null read. With the reader
    moved to v2 they all still passed — on the VERSION check, having stopped testing the missing field
    entirely. Move the fixtures with the reader.
-5. **The pre-push review is nine-for-nine.** This time it stopped a wrong refusal on the front door:
+6. **The pre-push review is nine-for-nine.** This time it stopped a wrong refusal on the front door:
    `DropZone`'s first version refused a file whose NAME did not match `accept`, and Loft's importer
    sniffs BYTES. **The place was the defect. The check never was.**
-6. **A binding rule written with nothing able to contradict it is worth less than no rule.** Third
+7. **A binding rule written with nothing able to contradict it is worth less than no rule.** Third
    consecutive run where a §2 addition shipped without its own check. Invert it: **write the check
    first, then the section.**
-7. **Subagents driving Playwright collide with the gate.** `reuseExistingServer` is true locally, so an
+8. **Subagents driving Playwright collide with the gate.** `reuseExistingServer` is true locally, so an
    agent's `npx playwright test` shares the suite's own server on port 3000. Forbid Playwright in the
    agent brief, not just writes.
-8. **Measure the consequence, not just the defect.** "The mass sits outside its host" is a geometry
+9. **Measure the consequence, not just the defect.** "The mass sits outside its host" is a geometry
    statement nobody can price. "Static margin moves by up to 2.73 cal on 35 of 35 corpus designs" is
    the same fact in the units a flyer acts in.
 
@@ -171,10 +183,10 @@ red in either copy. What to paste over there:
   zone the file landed on), **R12 increment 24** (three dead add controls on every design), and **six
   Sev-1s** — the offline reload loop, an authored mass hanging out of its host for up to 2.73 cal, real
   part masses printing as a flat zero on 18 of 35 designs, a Conditions summary claiming "as designed"
-  after the flyer replaced them, the fallback-canopy caveat reaching one surface of three, and a
-  design with no centre of pressure being given one **with a band on it** — ±15 cal and +12.81 cal,
-  flagged LOW and HIGH, from the same undefined figure. `COMPETITION.md` rows 52 and 53. PRs #188
-  (merged) and #189.
+  after the flyer replaced them, the fallback-canopy caveat reaching one surface of three, a
+  design with no centre of pressure being given one **with a band on it** (−15 cal flagged LOW and
+  +12.81 cal flagged HIGH, from the same undefined figure), and a RASAero boattail described twice
+  and built twice. `COMPETITION.md` rows 52 and 53. PRs #188 (merged) and #189.
 - **Run 18 (2026-08-17).** R12 increments 21 and 22 — a mass goes inside anything with a bay; the whole
   add vocabulary on screen. P18 written and increment 1 shipped (`Toast`). PRs #185, #186, #187.
 - **Run 17 (2026-08-17).** Two Sev-1s and three increments; **P17 SHIPPED**, R12 reached increment 20.

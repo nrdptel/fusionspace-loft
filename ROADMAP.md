@@ -7203,6 +7203,23 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-08-18 — a RASAero boattail described twice is DE-DUPLICATED, while the fin `Location`
+  question next door is still left alone.** These two look like one decision and are not, and the
+  line between them is the whole point. **Taken: skip the inline boattail when the immediately
+  following part is a `<BoatTail>` of identical length and identical rear diameter.** That is a claim
+  about GEOMETRY — two cones of the same length and the same exit, at one station, are one cone, and
+  no reading of any format definition makes them two. The fin `Location` change is a claim about what
+  the FORMAT MEANS, resting on 6 of 8 blocks reading consistently one way and one reading the other,
+  with a cross-tool twin that agrees approximately rather than exactly. `MAINTAINING.md` forbids the
+  second and does not touch the first. **Rejected: taking both together**, which is what
+  `BACKLOG.md` and the previous handoff both proposed on the grounds that they are the same file and
+  the same pass. They are not the same KIND of claim, and bundling them would have made a shippable
+  fix wait on an unanswerable question. **Rejected: dropping the `<BoatTail>` part instead of the
+  inline field** — arbitrary, where this way round keeps the part the file declares as a part.
+  Measured: 3 inline boattails across the four corpus `.CDX1` files, the rule fires on 1, and
+  `Show-off.CDX1` goes from −1.926 to +0.0574 summed CNα and from 592.8 to 567.4 mm. It still has no
+  centre of pressure and is still withheld.
+
 - **2026-08-18 — a design with no centre of pressure gets a WITHHELD margin, not a caveated one, and
   the stored cross-check record is discarded rather than upgraded.** Two decisions in one Sev-1.
 

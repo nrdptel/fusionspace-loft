@@ -213,6 +213,84 @@ describe("adaptRasAeroXml", () => {
   });
 });
 
+/** The one physical cone `Show-off.CDX1` describes twice: a tube carrying `BoattailLength` /
+ *  `BoattailRearDiameter`, immediately followed by a `<BoatTail>` part of the same length and the
+ *  same exit. Numbers taken verbatim from that file — the tube at `Location 17` of `Length 2`, and
+ *  the `<BoatTail>` at `Location 19`, which is its aft face. */
+const DOUBLE_BOATTAIL = `<RASAeroDocument>
+  <FileVersion>2</FileVersion>
+  <RocketDesign>
+    <NoseCone>
+      <PartType>NoseCone</PartType><Length>1</Length><Diameter>2.73</Diameter>
+      <Shape>Von Karman Ogive</Shape><Location>0</Location>
+    </NoseCone>
+    <BodyTube>
+      <PartType>BodyTube</PartType><Length>2</Length><Diameter>2.73</Diameter>
+      <Location>17</Location>
+      <BoattailLength>1</BoattailLength><BoattailRearDiameter>0.25</BoattailRearDiameter>
+    </BodyTube>
+    <BoatTail>
+      <PartType>BoatTail</PartType><Length>1</Length><Diameter>2.73</Diameter>
+      <RearDiameter>0.25</RearDiameter><Location>19</Location>
+    </BoatTail>
+    <Surface>Smooth Paint</Surface>
+  </RocketDesign>
+  <LaunchSite><Altitude>0</Altitude><RodLength>8</RodLength></LaunchSite>
+  <SimulationList><Simulation><SustainerEngine>C4  (AP)</SustainerEngine>
+    <SustainerLaunchWt>1</SustainerLaunchWt><SustainerCG>2</SustainerCG></Simulation></SimulationList>
+</RASAeroDocument>`;
+
+/** The same file with the inline boattail one thousandth of an inch shorter, so the two are no
+ *  longer the same cone. Not a realistic design — a control, and the ONLY thing that separates
+ *  "de-duplicated" from "the inline boattail is never built when a `<BoatTail>` follows". */
+const NEARLY = DOUBLE_BOATTAIL.replace("<BoattailLength>1</BoattailLength>", "<BoattailLength>1.001</BoattailLength>");
+
+/** The other real shape: an inline boattail with NOTHING after it — `Show-off.CDX1`'s own
+ *  `<Booster>`, which is a legitimate single cone and must survive. */
+const INLINE_ONLY = DOUBLE_BOATTAIL.replace(
+  /<BoatTail>[\s\S]*?<\/BoatTail>/,
+  "",
+);
+
+describe("adaptRasAeroXml — a boattail the file describes twice", () => {
+  const transitionsOf = (xml: string) =>
+    flattenRocket(adaptRasAeroXml(xml).rocket)
+      .map((p) => p.component)
+      .filter((c) => c.kind === "transition") as Transition[];
+
+  it("builds ONE cone from two descriptions of it", () => {
+    // Before this, `inlineBoattail` made one and the `<BoatTail>` case made another: on the real
+    // file, two contributions of −1.9832 CNα apiece, which is the whole reason `Show-off.CDX1`
+    // summed to −1.93 /rad and is the corpus's only design with no centre of pressure. It also
+    // imported 25.4 mm — exactly the duplicated inch — longer than the file describes.
+    const cones = transitionsOf(DOUBLE_BOATTAIL);
+    expect(cones).toHaveLength(1);
+    expect(cones[0].aftRadius).toBeCloseTo((0.25 * 0.0254) / 2, 9);
+    expect(cones[0].length).toBeCloseTo(1 * 0.0254, 9);
+  });
+
+  it("builds TWO when they are not the same cone, which is what makes the rule a claim about geometry", () => {
+    // The control, and it is inside the test file rather than in a comment: a thousandth of an inch
+    // is enough to make them two different cones, and two different cones are two parts. Without it
+    // "de-duplicated" and "an inline boattail is dropped whenever a <BoatTail> follows" are the same
+    // passing test, and the second of those is a rule about the FORMAT that nothing here can support.
+    expect(transitionsOf(NEARLY)).toHaveLength(2);
+  });
+
+  it("keeps an inline boattail with nothing behind it", () => {
+    // `Show-off.CDX1`'s own `<Booster>` is this shape and is not a duplicate. Measured across the
+    // four corpus `.CDX1` files: three parts carry an inline boattail, and the rule fires on one.
+    expect(transitionsOf(INLINE_ONLY)).toHaveLength(1);
+  });
+
+  it("leaves the airframe an inch shorter, which is the length the duplicate added", () => {
+    const doubled = overallLength(adaptRasAeroXml(DOUBLE_BOATTAIL).rocket);
+    const control = overallLength(adaptRasAeroXml(NEARLY).rocket);
+    // The near-miss file builds both cones, so it is longer by the second one's own length.
+    expect(control - doubled).toBeCloseTo(1.001 * 0.0254, 6);
+  });
+});
+
 describe("adaptRasAeroXml — booster stages", () => {
   /** A two-stage design shaped like the corpus's: a 4 in sustainer over a booster that carries its
    *  own fins and inline boattail, and a simulation stating the stack's weight with Booster 1

@@ -68,10 +68,39 @@ newest lens first. Each was verified by the agent that filed it unless marked UN
   twin as the oracle. The consequence if it is wrong is not small — a fan-out lens measured the same
   physical rocket at **+2.74 cal stable against −2.16 cal** across the two formats, with a "statically
   unstable" warning attached to one of them.
-- **`Show-off.CDX1` gets its boattail built TWICE** — `inlineBoattail` builds one from the body tube's
-  `<BoattailLength>`/`<BoattailRearDiameter>` and `parseParts` builds the following `<BoatTail>` part,
-  the same physical cone, at 21.34 in and 22.34 in, both 1 in long and both ending at 0.25 in
-  diameter. Same file, same pass, and it is the likeliest cause of that design's negative CNα.
+- ~~**`Show-off.CDX1` gets its boattail built TWICE**~~ **FIXED 2026-08-18.** `inlineBoattail` built
+  one from the body tube's `<BoattailLength>`/`<BoattailRearDiameter>` and `parseParts` built the
+  following `<BoatTail>` part — the same physical cone, verified against the file: the tube at
+  `Location 17` of `Length 2` and the `<BoatTail>` at `Location 19` (its aft face), both `Length 1`,
+  both `RearDiameter 0.25`. Each contributed **−1.9832 CNα**. The entry's guess was right: it was the
+  cause of the negative sum. After the fix the design's summed CNα is **−1.926 → +0.0574** and its
+  imported length **592.8 → 567.4 mm**, exactly the duplicated inch. `inlineBoattailIsDuplicatedBy`
+  is the rule, and it is a claim about geometry rather than about the format — two cones of identical
+  length and identical exit at one station are one cone — which is what makes it shippable while the
+  fin-`Location` question above is not.
+  **Still true after it: that design has no centre of pressure.** +0.0574 /rad puts the CP at
+  −10,885 mm, so `noCpWhy` withholds it exactly as before. The de-duplication is an accuracy fix, not
+  the reason the withholding exists.
+  **No corpus rule pins this, and the two drafts that failed are worth recording** because each
+  failed in a different way. A duplicate-part sweep over every KIND reported **11 duplicates across
+  the corpus, all legitimate** — `ARC payload rocket.ork` and `Simulation scripting.ork` each carry
+  two fin sets at one station, `USLI2025-FULLSCALE-10.15 (2).ork` has paired mass components, and the
+  two `.CDX1` drogues matched only because a parachute has none of `length`/`outerRadius`/`foreRadius`
+  /`aftRadius` so every canopy hashed identically. Narrowed to adjacent TRANSITIONS it became inert:
+  after the fix there is not one adjacent pair of transitions anywhere in the corpus, so it compared
+  zero pairs and would have passed forever. And a same-station test cannot see the defect at all —
+  RASAero parts are all placed `{after, offset: 0}`, so the duplicate APPENDS rather than overlaps
+  (551.2 mm and 576.6 mm). The unit case in `lib/rasaero/adapt.test.ts` carries its own control (a
+  thousandth of an inch of difference must build two cones) and that is the honest instrument.
+
+- **`Complex.Two-Stage.CDX1`'s booster carries an inline "boattail" that is a FLARE.** The
+  `<Booster>` has `Diameter 6` and `BoattailRearDiameter 6.5` — an expanding cone, built by
+  `inlineBoattail` and named "Boattail". It contributes **+0.2959 CNα** rather than a negative term,
+  which is aerodynamically right for a flare and makes the part's name a lie. Found 2026-08-18 while
+  surveying the three inline boattails in the corpus. Two open questions and neither is obvious:
+  whether RASAero means a rear diameter larger than the tube as a flare or as an unset default (the
+  same file's other `RearDiameter` fields are all contractions), and whether Loft should name a part
+  by what it does rather than by the field that made it.
 
 - ~~**A negative summed CNα yields a CP behind the tail, published unqualified.**~~ **FIXED
   2026-08-18, and it was worse than this entry said.** The entry called it Sev-1-shaped and deferred

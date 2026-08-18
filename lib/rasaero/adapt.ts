@@ -151,6 +151,42 @@ function externals(node: XmlNode): RocketComponent[] {
   return out;
 }
 
+/** Whether a part's own inline boattail is the SAME CONE as the `<BoatTail>` part that follows it.
+ *
+ *  **RASAero writes some boattails twice**, and Loft built both. `Show-off.CDX1` carries a
+ *  `<BodyTube>` at `Location 17` of `Length 2` whose `<BoattailLength>` is 1 and
+ *  `<BoattailRearDiameter>` is 0.25 — and the very next part is a `<BoatTail>` at `Location 19`
+ *  (= 17 + 2, the tube's aft face) with `<Length>` 1 and `<RearDiameter>` 0.25. One physical cone,
+ *  two descriptions, and the adapter made a transition from each: two contributions of
+ *  **−1.9832 CNα** apiece, which is the entire reason that design's summed CNα is −1.93 /rad and it
+ *  is the corpus's only design with no centre of pressure. It also imported 1 in longer than it is.
+ *
+ *  **This is a claim about geometry, not about the format**, and that distinction is the whole
+ *  reason it is shippable while the fin-`Location` question next door is not. Two boattails of
+ *  identical length and identical exit diameter, at one station, are one boattail — no reading of
+ *  any format definition makes them two. The stations agree here as well (17 + 2 = 19), and that is
+ *  recorded as corroboration rather than tested, because this file's own `<Location>` values overlap
+ *  elsewhere in the same design (`Show-off.CDX1`'s fin can and the tube behind it both say 8) and a
+ *  station test would be the fragile half of a rule whose other half is exact.
+ *
+ *  **Measured across all four corpus `.CDX1` files: three parts carry an inline boattail and this
+ *  fires on exactly one of them.** The other two are kept and are not duplicates —
+ *  `Show-off.CDX1`'s `<Booster>` has an inline boattail with nothing following it, and
+ *  `Complex.Two-Stage.CDX1`'s `<Booster>` has one whose rear diameter (6.5 in) is LARGER than the
+ *  booster it sits on (6 in), so it is a flare rather than a boattail and is filed separately. */
+function inlineBoattailIsDuplicatedBy(node: XmlNode, next: XmlNode | undefined): boolean {
+  if (!next) return false;
+  const nextType = childText(next, "PartType") ?? next.name;
+  if (nextType !== "BoatTail") return false;
+  // Compared in the file's own inches, before any conversion, so the test is against what the file
+  // literally says rather than against two independently-rounded metres.
+  const same = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+  return (
+    same(n(node, "BoattailLength", 0), n(next, "Length", 0)) &&
+    same(n(node, "BoattailRearDiameter", 0), n(next, "RearDiameter", 0))
+  );
+}
+
 /** A boattail declared inline on a body tube (RASAero lets a tube carry its own tapered tail
  *  rather than a separate part) → a contracting transition appended after the tube. */
 function inlineBoattail(node: XmlNode, foreRadius: number): Transition | null {
@@ -182,7 +218,10 @@ function parseParts(
   const boosters: RocketComponent[][] = [];
   let lastRadius = 0;
 
-  for (const node of design.children) {
+  // Indexed rather than `for…of`, because one rule needs to see the NEXT part — see
+  // `inlineBoattailIsDuplicatedBy`.
+  for (let partIndex = 0; partIndex < design.children.length; partIndex++) {
+    const node = design.children[partIndex];
     const type = childText(node, "PartType") ?? node.name;
     const length = n(node, "Length", 0) * IN;
     const radius = (n(node, "Diameter", 0) * IN) / 2;
@@ -229,7 +268,11 @@ function parseParts(
         };
         lastRadius = tube.outerRadius;
         into.push(tube);
-        const bt = inlineBoattail(node, tube.outerRadius);
+        // The same cone described twice is built once. `nextPart` skips nothing else: every other
+        // part type falls through to its own case as before, and a `<BoatTail>` that is NOT a
+        // duplicate still builds normally below.
+        const nextPart = design.children[partIndex + 1];
+        const bt = inlineBoattailIsDuplicatedBy(node, nextPart) ? null : inlineBoattail(node, tube.outerRadius);
         if (bt) {
           into.push(bt);
           lastRadius = bt.aftRadius;
