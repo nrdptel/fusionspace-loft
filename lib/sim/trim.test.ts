@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, noseBallastStation, overridesFromStored } from "./run";
 import { marginTrim, finStationTrim, type MarginTrimInput } from "./trim";
+import { finStationBounds, primaryFinStation } from "../model/edit";
 
 async function load(name: string) {
   const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures", name)));
@@ -120,15 +121,55 @@ describe("finStationTrim (fin-position stability trim)", () => {
     // The solved station reproduces the target margin in a real flight (linear, so it lands close).
     expect(Math.abs(flownDown.staticMarginCal - 2.0)).toBeLessThan(0.1);
 
-    // Trim UP to 6.0 cal: the fins move aft.
+    // **Trim UP to 6.0 cal: the fins would have to move aft, and on this design there is nowhere aft
+    // to move them.** Its fins sit flush with the tail — 830 mm with a 120 mm root on a 950 mm
+    // airframe — so the station the solve asks for is off the airframe and the answer is
+    // INFEASIBLE. That is the half this case used to get wrong: it flew `up.targetStation` and
+    // asserted the flight reached 6.0 cal, which it could only do while `applyGeometryEdits` was
+    // willing to hang the fins behind the rocket. `components/ResultsView.tsx` already gates the
+    // suggestion on `feasible`, so the flyer is now offered nothing here rather than a station the
+    // model would silently refuse.
     const up = finStationTrim(doc.rocket, cur, nominal.liftoffMass, refD, 6.0)!;
     expect(up.shiftM).toBeGreaterThan(0);
+    expect(up.feasible, "a station off the tail must not be offered as achievable").toBe(false);
+    expect(up.targetStation).toBeGreaterThan(finStationBounds(doc.rocket)!.hi);
+    // ...and flying it anyway lands short of the target, which is the measurement that makes the
+    // infeasibility real rather than a label: the model clamps the station, so the margin the flyer
+    // would have got is nowhere near the 6.0 the solve named.
     const flownUp = runFlight(doc.rocket, {
       configId: sim.conditions.configId,
       overrides: over,
       geometry: { finStation: up.targetStation },
     }).result;
-    expect(Math.abs(flownUp.staticMarginCal - 6.0)).toBeLessThan(0.1);
+    expect(Math.abs(flownUp.staticMarginCal - 6.0)).toBeGreaterThan(0.5);
+    expect(flownUp.staticMarginCal).toBeCloseTo(cur, 6);
+  }, 20000);
+
+  it("probes forward when there is no room aft, and still solves", async () => {
+    // **A clamp breaks every finite difference that steps blind, and this one stepped aft.** The
+    // slope is measured by moving the fins 5 cm and reading the margin change; once
+    // `keepFinsOnAirframe` bounds the station, a design whose fins are flush with the tail — which is
+    // where fins usually are, and is true of all seven committed fixtures — had its probe clamped
+    // straight back to where it started. The difference quotient then divided zero, the slope failed
+    // the authority test, and this function returned null: the trim silently stopped existing on
+    // exactly the designs it is most useful on. It probes in whichever direction has room now.
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const over = overridesFromStored(sim);
+    const nominal = runFlight(doc.rocket, { configId: sim.conditions.configId, overrides: over }).result;
+    const refD = nominal.stability.refRadius * 2;
+    // There is genuinely no room aft — the premise of the case.
+    expect(finStationBounds(doc.rocket)!.hi).toBeCloseTo(primaryFinStation(doc.rocket)!, 9);
+    const trim = finStationTrim(doc.rocket, nominal.staticMarginCal, nominal.liftoffMass, refD, 2.0);
+    expect(trim, "the trim returned null on a design with a perfectly good forward direction").not.toBeNull();
+    expect(trim!.feasible).toBe(true);
+    // And the slope it measured is the real one: flying the station it names reaches the target.
+    const flown = runFlight(doc.rocket, {
+      configId: sim.conditions.configId,
+      overrides: over,
+      geometry: { finStation: trim!.targetStation },
+    }).result;
+    expect(Math.abs(flown.staticMarginCal - 2.0)).toBeLessThan(0.1);
   }, 20000);
 
   it("returns null when there is nothing to solve (no fins, no diameter, no mass)", async () => {

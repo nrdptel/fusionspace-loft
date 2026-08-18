@@ -239,6 +239,20 @@ export default function Limitations() {
         boattail is anchored to the <em>aft-most</em> tube
         whatever is picked, because a tail cone part-way up an airframe is not a tail cone.
       </p>
+      <DocsH3>A fin set&apos;s root stays on the airframe</DocsH3>
+      <p>
+        <strong>The group is what moves.</strong> A
+        fin is bonded to the body, so the whole of its root chord has to sit on the stage it is
+        attached to. The fin-position field states that range and holds you to it: a station outside
+        it never reaches the flight while you are typing, and is pulled to the nearest end when you
+        leave the box — the same way every bounded field here behaves. Because the fields slide the
+        sets <em>together</em>, the limit is the tightest set&apos;s rather than the one the field is
+        holding: on a design carrying six sets that difference is the whole airframe. A root longer
+        than its stage has no station that fits at all, so it is <em>shortened</em>{" "}to the length
+        the stage can carry, with the tip and sweep scaled to keep the fin&apos;s shape. A fin&apos;s{" "}
+        <em>tip</em>{" "}may still overhang the tail — that is an ordinary shape, and nine of the
+        corpus&apos;s designs are drawn that way — because what is bonded is the root.
+      </p>
       <p>
         <strong>Motor cluster count follows the same rule the fin fields do.</strong> It reads back off
         one mount and writes to every mount <em>already holding that count</em> — so its value stays a

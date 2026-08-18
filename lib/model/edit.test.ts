@@ -28,6 +28,8 @@ import {
   FIN_MATERIALS,
   primaryNose,
   structureOf,
+  finStationBounds,
+  finStageRoom,
   derivedPartAim,
   derivedPartId,
   DERIVED_PARTS,
@@ -171,12 +173,25 @@ describe("applyGeometryEdits — a design with several fin sets", () => {
       return undefined;
     };
     const first = findFin(stage.components)!;
+    // **Placed ABSOLUTE, at a station that is actually on the airframe.** It used to inherit
+    // `first`'s `{ method: "bottom", offset: 0 }` — which means "flush with the aft of my PARENT",
+    // and this set's parent is the stage rather than the tube `first` hangs on. Resolved against the
+    // stage it landed at station **−240 mm**: 240 mm ahead of the nose tip, on a rocket that starts
+    // at zero. Nothing noticed, because nothing bounded a fin set until `keepFinsOnAirframe`, and
+    // every assertion in this describe held just as well on the unphysical version. Stated rather
+    // than quietly corrected: a fixture that cannot be built is a fixture whose failures mean
+    // nothing, and this one underpins six cases.
+    //
+    // 400 mm with a 240 mm root puts it at 400…640 on a 950 mm airframe, forward of `first`'s
+    // 830…950 and clear of it — two independent sets at different stations with different
+    // dimensions, which is what these cases are about.
     const second: TrapezoidFinSet = {
       ...first,
       id: `${first.id}-second`,
       name: "Booster fin set",
       height: first.height * 4,
       rootChord: first.rootChord * 2,
+      placement: { ...first.placement, method: "absolute", offset: 0.4 },
       children: [],
     };
     // Appended beside the first set's parent-level siblings so flattenRocket sees both.
@@ -350,15 +365,29 @@ describe("applyGeometryEdits — a design with several fin sets", () => {
     // The two sets are a real distance apart; measuring from the wrong one moves everything by it.
     expect(Math.abs(shown - primaryFinStation(rocket)!)).toBeGreaterThan(0.1);
     const before = sets.map((p) => p.xFore);
-    const shifted = applyGeometryEdits(rocket, { finSetId: second.id, finStation: shown + 0.01 });
+    // **Forward, not aft, and that is the fixture rather than the rule.** Both of this design's sets
+    // sit flush with the aft end of the stage they are on, which is where fins usually are — so
+    // `keepFinsOnAirframe` has nothing to give in that direction and an aft nudge would be measuring
+    // the clamp instead of the delta. A forward nudge exercises exactly the same arithmetic.
+    const shifted = applyGeometryEdits(rocket, { finSetId: second.id, finStation: shown - 0.01 });
     const after = flattenRocket(shifted)
       .filter((p) => p.component.kind === "trapezoidfinset")
       .map((p) => p.xFore);
     // Every set still moves together — position stays a group-wide delta — but by the 10 mm asked
     // for, not by 10 mm plus the distance between the sets.
-    expect(after[0] - before[0]).toBeCloseTo(0.01, 9);
-    expect(after[1] - before[1]).toBeCloseTo(0.01, 9);
-    expect(primaryFinStation(shifted, second.id)).toBeCloseTo(shown + 0.01, 9);
+    expect(after[0] - before[0]).toBeCloseTo(-0.01, 9);
+    expect(after[1] - before[1]).toBeCloseTo(-0.01, 9);
+    expect(primaryFinStation(shifted, second.id)).toBeCloseTo(shown - 0.01, 9);
+
+    // **And the aft direction is BOUNDED rather than flown**, which is the half that did not exist
+    // before. Asking for a metre aft on a design with no room leaves every set exactly where it was:
+    // the group-wide delta is applied and then clamped back, per set, against its own stage.
+    const far = applyGeometryEdits(rocket, { finSetId: second.id, finStation: shown + 1 });
+    const farAfter = flattenRocket(far)
+      .filter((p) => p.component.kind === "trapezoidfinset")
+      .map((p) => p.xFore);
+    expect(farAfter[0]).toBeCloseTo(before[0], 9);
+    expect(farAfter[1]).toBeCloseTo(before[1], 9);
   });
 
   it("still slides the whole fin GROUP for a position edit, keeping its spacing", async () => {
@@ -367,14 +396,16 @@ describe("applyGeometryEdits — a design with several fin sets", () => {
       .filter((p) => p.component.kind === "trapezoidfinset")
       .map((p) => p.xFore);
     const station = primaryFinStation(rocket)!;
-    const shifted = applyGeometryEdits(rocket, { finStation: station + 0.05 });
+    // Forward, because the primary set is flush with the tail and the aft direction is now bounded —
+    // see the note in the case above. The delta is what is under test and its sign is not.
+    const shifted = applyGeometryEdits(rocket, { finStation: station - 0.05 });
     const after = flattenRocket(shifted)
       .filter((p) => p.component.kind === "trapezoidfinset")
       .map((p) => p.xFore);
     // Every set moves by the same delta — position is a delta edit and stays group-wide on
     // purpose, so the design keeps its layout and finStationTrim's slope holds.
-    expect(after[0] - before[0]).toBeCloseTo(0.05, 9);
-    expect(after[1] - before[1]).toBeCloseTo(0.05, 9);
+    expect(after[0] - before[0]).toBeCloseTo(-0.05, 9);
+    expect(after[1] - before[1]).toBeCloseTo(-0.05, 9);
   });
 });
 
@@ -383,7 +414,11 @@ describe("applyGeometryEdits — fin position (stability lever)", () => {
     const rocket = await load("demo-single-deploy.ork");
     const before = primaryFinStation(rocket)!;
     expect(before).toBeGreaterThan(0);
-    const target = before + 0.05; // 5 cm aft
+    // **5 cm FORWARD, because this design's fins are already flush with the tail** — 830 mm with a
+    // 120 mm root on a 950 mm airframe, which is where fins normally are and is true of all seven
+    // committed fixtures. An aft request is now bounded by `keepFinsOnAirframe`, so it would measure
+    // the clamp rather than the placement, and the case below is where the clamp belongs.
+    const target = before - 0.05;
     const edited = applyGeometryEdits(rocket, { finStation: target });
     // The primary fin set's fore edge lands exactly on the requested station.
     expect(primaryFinStation(edited)).toBeCloseTo(target, 9);
@@ -391,12 +426,107 @@ describe("applyGeometryEdits — fin position (stability lever)", () => {
     expect(primaryFinStation(rocket)).toBeCloseTo(before, 9);
   });
 
+  it("cuts a root longer than its stage rather than sliding the fin off the back", async () => {
+    // **The hole in this bound's FIRST version, and the reason a cut and a shift cannot share a
+    // measurement.** 42 of the 62 bounded corpus fin sets and all seven committed fixtures are placed
+    // `bottom`, which measures from the parent's aft face — so shortening a root slides the fore edge
+    // AFT by exactly what was removed. Computing the group correction from the flatten taken BEFORE
+    // the cut and applying both together put a 1900 mm root, cut to 950 mm, at station 950 mm on a
+    // 950 mm airframe: **the entire fin set behind the tail**, from one typed number, through the
+    // pass written to prevent that. `barrowman` then reported a CP at 1006.7 mm and the sweep plotted
+    // +2.02 cal for it — the Sev-1 this increment closes, re-opened through a different field.
+    // Cut, re-flatten, then correct.
+    const rocket = await load("demo-single-deploy.ork");
+    const room = finStageRoom(rocket)!;
+    expect(room).toBeGreaterThan(0);
+    for (const asked of [room * 1.05, room * 2, room * 5]) {
+      const edited = applyGeometryEdits(rocket, { finRootChord: asked });
+      const set = flattenRocket(edited).find((p) => p.component.kind === "trapezoidfinset")!;
+      // On the airframe at BOTH ends, asserted from the flattened geometry rather than from the
+      // number that was clamped.
+      expect(set.xFore, `root ${asked} landed at ${set.xFore}`).toBeGreaterThanOrEqual(-1e-9);
+      expect(set.xFore + set.length).toBeLessThanOrEqual(overallLength(edited) + 1e-9);
+      // ...and it is still a trapezoid: the tip came down with the root, so the fin keeps its shape
+      // rather than becoming one whose tip is longer than its root — which both the planform and the
+      // flutter estimate read.
+      const c = set.component as { rootChord: number; tipChord: number };
+      expect(c.rootChord).toBeCloseTo(room, 9);
+      expect(c.tipChord).toBeLessThanOrEqual(c.rootChord + 1e-9);
+      expect(c.tipChord).toBeGreaterThan(0);
+    }
+
+    // **The control.** A root that FITS is applied verbatim and the set is not moved off its seat —
+    // the cut must not be a blanket rewrite, or every assertion above passes on a no-op.
+    const fits = room * 0.5;
+    const ok = applyGeometryEdits(rocket, { finRootChord: fits });
+    const set = flattenRocket(ok).find((p) => p.component.kind === "trapezoidfinset")!;
+    expect((set.component as { rootChord: number }).rootChord).toBeCloseTo(fits, 9);
+    expect(set.xFore + set.length).toBeCloseTo(overallLength(ok), 9);
+  });
+
+  it("refuses to hang the fins off the tail, however far aft they are asked for", async () => {
+    // **The Sev-1 this bound exists for, and it was reachable in two typed fields.** Before
+    // `keepFinsOnAirframe`, a Fin position of 1030 mm on this 950 mm design put the whole fin set 80
+    // mm behind the airframe and the Flight card restated CG, CP and static margin from it — an
+    // arithmetically correct answer about a rocket nobody can build, with no flag of any kind. The
+    // Design wall's field had `min={0} positive` and no `max`, while the diagram's own grip and the
+    // sweep panel both already clamped: one rule, three places, and the applier — the only one every
+    // caller goes through — enforced none of it.
+    const rocket = await load("demo-single-deploy.ork");
+    const bounds = finStationBounds(rocket)!;
+    // The bound is the stage's aft end less the root chord, and on this design the fins already sit
+    // exactly on it — so there is no room aft at all, which is what makes the case sharp. Spelled
+    // out from the geometry rather than trusting the bound, so a bound that agrees with itself and
+    // not with the rocket still fails.
+    const set0 = flattenRocket(rocket).find((p) => p.component.kind === "trapezoidfinset")!;
+    expect(set0.xFore + set0.length).toBeCloseTo(overallLength(rocket), 9);
+    expect(bounds.hi).toBeCloseTo(primaryFinStation(rocket)!, 9);
+
+    for (const asked of [bounds.hi + 0.001, bounds.hi + 0.08, bounds.hi + 1]) {
+      const edited = applyGeometryEdits(rocket, { finStation: asked });
+      const at = primaryFinStation(edited)!;
+      expect(at, `asked for ${asked}, landed at ${at}`).toBeLessThanOrEqual(bounds.hi + 1e-9);
+      expect(at).toBeGreaterThanOrEqual(bounds.lo - 1e-9);
+      // ...and the trailing edge is genuinely on the airframe, which is the thing the bound is FOR.
+      // Asserted from the flattened geometry rather than from the number just clamped, so a bound
+      // that is arithmetically self-consistent and physically wrong still fails.
+      const set = flattenRocket(edited).find((p) => p.component.kind === "trapezoidfinset")!;
+      expect(set.xFore + set.length).toBeLessThanOrEqual(overallLength(edited) + 1e-9);
+    }
+
+    // **The forward end, on a design where it is not zero.** A first draft asked for 0.0001 mm on
+    // this fixture, where `lo` IS zero and `applyDimensionEdits` ignores a non-positive station
+    // anyway — so no clamp could fire and the assertion could not fail. A staged design is where the
+    // fore bound means something: a sustainer's fins cannot be slid ahead of the stage they are on.
+    const staged = await importOrk(new Uint8Array(readFileSync(resolve("e2e/fixtures/two-stage-firm-booster.ork"))));
+    const sBounds = finStationBounds(staged.rocket)!;
+    expect(sBounds.lo, "this fixture's fore bound is zero — the case would prove nothing").toBeGreaterThan(0);
+    const forced = applyGeometryEdits(staged.rocket, { finStation: sBounds.lo / 2 });
+    for (const p of flattenRocket(forced)) {
+      if (p.component.kind !== "trapezoidfinset") continue;
+      expect(p.xFore, `${p.component.name} was slid ahead of its stage`).toBeGreaterThanOrEqual(-1e-9);
+    }
+    expect(primaryFinStation(forced)!).toBeGreaterThanOrEqual(sBounds.lo - 1e-9);
+
+    // **The control.** A station inside the bound is applied verbatim — the clamp must not be a
+    // blanket refusal, or every one of the assertions above would pass on a no-op.
+    const inside = bounds.hi - 0.05;
+    expect(primaryFinStation(applyGeometryEdits(rocket, { finStation: inside }))).toBeCloseTo(inside, 9);
+  });
+
   it("moving the fins aft raises the static margin; forward lowers it, apogee ~unchanged", async () => {
     const rocket = await load("demo-single-deploy.ork");
     const s0 = primaryFinStation(rocket)!;
-    const nominal = runFlight(rocket, {}).result;
-    const aft = runFlight(applyGeometryEdits(rocket, { finStation: s0 + 0.05 }), {}).result;
-    const fore = runFlight(applyGeometryEdits(rocket, { finStation: s0 - 0.05 }), {}).result;
+    // **Measured from a station 100 mm forward of where this design carries its fins**, so that BOTH
+    // directions have room. The fins sit flush with the tail as designed — 830 mm with a 120 mm root
+    // on a 950 mm airframe — so "5 cm aft of as-designed" is off the airframe and
+    // `keepFinsOnAirframe` now bounds it. Comparing a clamped station against an unclamped one would
+    // be comparing one rocket with itself. Both edits below are inside the bound, so the physics
+    // under test is untouched and the three flights are three different rockets.
+    const mid = s0 - 0.1;
+    const nominal = runFlight(applyGeometryEdits(rocket, { finStation: mid }), {}).result;
+    const aft = runFlight(applyGeometryEdits(rocket, { finStation: mid + 0.05 }), {}).result;
+    const fore = runFlight(applyGeometryEdits(rocket, { finStation: mid - 0.05 }), {}).result;
     // Fins aft ⇒ centre of pressure aft ⇒ more stable; fins forward ⇒ less stable.
     expect(aft.staticMarginCal).toBeGreaterThan(nominal.staticMarginCal);
     expect(fore.staticMarginCal).toBeLessThan(nominal.staticMarginCal);
@@ -413,13 +543,16 @@ describe("applyGeometryEdits — fin position (stability lever)", () => {
       ["trapezoidfinset", "ellipticalfinset", "freeformfinset"].includes(p.component.kind),
     );
     const s0 = primaryFinStation(rocket)!;
-    const edited = applyGeometryEdits(rocket, { finStation: s0 + 0.1 });
+    // Forward: this design's fins are flush with the tail, so an aft delta is bounded — see the
+    // fin-position bound case above. The sign is not what is under test; the equality of the delta
+    // across every set is.
+    const edited = applyGeometryEdits(rocket, { finStation: s0 - 0.1 });
     const finAfter = flattenRocket(edited).filter((p) =>
       ["trapezoidfinset", "ellipticalfinset", "freeformfinset"].includes(p.component.kind),
     );
     expect(finAfter.length).toBe(finBefore.length);
     for (let i = 0; i < finBefore.length; i++) {
-      expect(finAfter[i].xFore - finBefore[i].xFore).toBeCloseTo(0.1, 9);
+      expect(finAfter[i].xFore - finBefore[i].xFore).toBeCloseTo(-0.1, 9);
     }
   });
 

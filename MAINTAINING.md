@@ -150,6 +150,17 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
     same false all-clear this file warns about for the corpus, arriving by a different road. **Every
     e2e negative control is `revert → rebuild → run → restore → rebuild`.** A vitest control needs no
     rebuild, which is part of why the trap is easy to walk into.
+- **The gate's own order makes one unit test measure the PREVIOUS build, every time.**
+  `lib/docs-nav.test.ts` counts anchors and prose budgets on the export in `out/`, and the gate order
+  above runs `npm test` BEFORE `npm run build` — so a docs change that breaks a §3 budget passes the
+  test run in the same gate that builds it, and fails the NEXT one, pointing at a source file you
+  already fixed. Measured 2026-08-18: a paragraph added to the limitations page failed at 862 words
+  against the 800 budget on a run whose `out/` predated the heading that fixed it, and passed on
+  re-run with nothing changed. **CI has this right and says so** — `.github/workflows/test.yml` runs
+  Build then Test, with a comment recording that five checks were green and asserting nothing until
+  the order was corrected. Locally: after any change under `app/docs/`, re-run
+  `npx vitest run lib/docs-nav.test.ts` AFTER the build, or read the build's own
+  `check-text-gaps`/`check-links` output first — those are postbuild scripts and see the fresh export.
 - **Throwaway probes** are named `*-tmp.*` and gitignored. Check the glob covers the exact name you
   chose.
 

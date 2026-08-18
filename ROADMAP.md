@@ -23,7 +23,8 @@ work, and a queue containing only the first can only ever ship the first.
   design stated on 2026-08-10, increment 24 stopped three dead add controls on every design on
   2026-08-18, and increment 25 gave the field-made BOATTAIL the Properties panel it had never had on
   2026-08-18 — with the drogue and the payload withdrawn by that increment's own pre-push review and
-  queued as increment 26. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
+  queued as increment 27; increment 26 bounded a fin set's root to the airframe on 2026-08-18, a
+  Sev-1 that preempted the queue. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
   shipped; R4 is IN PROGRESS" until 2026-08-08, six milestones after it stopped being true — and it
   then went stale again inside the very commit that added this warning, caught by review rather than
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
@@ -2589,6 +2590,146 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 26 — a fin set's root stays on the airframe, and the group is what moves, 2026-08-18.
+SEV-1.** The Fin position field shipped with `min={0} positive` and no `max`, on the one field a
+flyer sizes fins against. Typing 1030 mm on the bundled 950 mm `demo-single-deploy` put the whole set
+**80 mm behind the airframe**, and the Flight card restated CG, CP and static margin from it with no
+flag of any kind — an arithmetically correct answer about a rocket nobody can build, which is
+`MAINTAINING.md`'s safety posture word for word.
+
+**One rule, in three places, enforced in none of them.** The diagram's own grip clamps
+(`RocketDiagram.tsx`: *"keep the root on the airframe (never past the aft end)"*) and the sweep
+panel clamps (`ParameterSweep.tsx`: `hi = airframeLen − finChord`). The applier — the one thing every
+caller goes through, including the field, the sweep library, the Monte-Carlo and the trim — enforced
+nothing. `keepFinsOnAirframe` is now that one place and it runs LAST over the flown tree, for the
+reason `fitAddedInternalParts` does: which lengths exist is settled only after the adds, the
+removals, the moves, the dimension edits and the boattail splice have all run. A bound computed
+earlier is measured on a rocket the flyer has since shortened, which is precisely the filed Sev-1
+against the sweep panel.
+
+**Four decisions, each settled by measurement over the 35-design corpus rather than by argument:**
+
+| question | answer | the measurement that decided it |
+|---|---|---|
+| what is "the airframe"? | the **stage** the set is on | 9 designs are staged and 7 put 16 sets in a non-final stage. On `Two stage high power rocket.ork` the stage-0 set has **6.4 mm** of room in its stage and **641.4 mm** in the stack — a stack bound would drive the sustainer's fins 635 mm into the booster. Control: substituting the stack for the stage drives fins past their stage on **4** real designs |
+| the parent tube instead? | **no** | 3 corpus sets already overhang the tube they are attached to — `APEX_K_Dart.ork` by 20.0 mm, `Base drag hack (short-wide).ork` by 27.7 mm, `02.Two-stage.ork` by 15.0 mm. A parent bound silently moves three designs that import correctly today |
+| per set, or the group? | the **group**, rigidly | Fin position is one delta over every set on purpose — the panel says *"Fin position moves all of them together"* and the limitations page says the same. A first version corrected each set independently and rewrote the spacing on **9** designs, making both those sentences false in the commit that made them false. **12 of the 13 multi-set designs** have sets whose room differs in one direction or the other. Control: the per-set version fails the corpus case with spreads up to **500.0 mm** |
+| can it be unconditional? | **yes** | **0 of 62 fin sets overhang their own stage as imported** (42 placed `bottom`, 16 `top`, 4 `absolute`), and an empty edit bag moves **0** of them on all 35 designs. The clamp changes no real design |
+| the stage's whole body, or only its tubes? | **the whole body, cone included** | **1 of the 62 sets already starts before its stage's nose cone ends** — a canard is a fin on a nose cone — so excluding the cone would move a design that imports correctly. More permissive than "on the airframe" sounds; filed rather than tightened |
+
+**A newly AUTHORED set is seated on its own, and the corpus is what found that.** Authoring a booster
+clones the source stage's fin set into the new stage, and on `APEX_K_Dart.ork` the clone lands 20 mm
+past its new stage's aft end. Treated as part of the group, that 20 mm dragged both existing stages'
+fins forward with it — caught as *"authoring a booster changed a stage above it"*, which is the
+invariant that corpus check exists for. A part the flyer just added is seated to fit, exactly as
+`fitAddedInternalParts` and `seatAddedMasses` already seat theirs.
+
+**A root longer than its stage is CUT, and that hole was in the first version of the fix.** Pinning an
+oversized set at the stage's fore end is not enough: measured on `demo-single-deploy`, a Fin root of
+1900 mm on a 950 mm airframe pinned the set at station 0 and flew it overhanging the tail by **950 mm
+— a full airframe length, from one typed number, through the guard written to prevent it.** Found by
+this increment's own scoping fan-out. Only a trapezoid set can reach it, because `axialLength` is the
+root chord for a trapezoid and derived for the other two kinds, and `finRootChord` is the only field
+in the app that writes an axial fin dimension; the tip follows the root down so the cut leaves a fin
+of the same shape.
+
+**Three more surfaces now read the same number from the same function**, because a bound quoted from
+one place and applied from another is a promise the validator never made — a defect this file records
+shipping once already, on the boattail's exit:
+
+- **The field** carries `max` and a `hint` naming the room its stage leaves, computed from
+  `flownForReadback` rather than `structureOf`, so lengthening the body genuinely grows the ceiling.
+  **Precisely what that does, because "refused in words" would overstate it:** `NumberField`'s
+  `wouldNotFly` withholds an out-of-range entry from the flight at the KEYSTROKE, so the solver never
+  holds a station the field calls impossible, and `commit` pulls it to the nearest bound on blur —
+  the same behaviour every other bounded field in the app has, Rail angle included. What the `hint`
+  adds is that the ceiling is stated before the flyer meets it rather than discovered by being
+  overridden. It also suppresses `rangeWords`, deliberately: `guidance = hint ?? ranged`, and a field
+  that explains itself in a sentence is not also made to recite its arithmetic.
+- **`parameterSweep` DROPS candidates outside the bound** rather than flying them. Without this the
+  sweep would be worse after the clamp than before: the model would pull the fins back and the curve
+  would go on plotting the point at the station the flyer asked for, so the x-axis would name a
+  rocket the y-axis did not describe. Two lies that agree with each other are harder to see than one.
+- **`finStationTrim` calls a target beyond the bound INFEASIBLE**, where `feasible` used to mean only
+  `targetStation > 0`. `components/ResultsView.tsx` already gates the suggestion on that flag, so the
+  flyer is now offered nothing instead of a station the model would refuse. The same function's probe
+  also had to stop stepping blind aft — on a design whose fins are flush with the tail, which is all
+  seven committed fixtures, the 5 cm probe was clamped back to zero, the difference quotient divided
+  zero and the trim silently returned null on exactly the designs it is most useful on. It probes in
+  whichever direction has room now.
+
+**Pinned in the corpus, over every real design, with both controls fired.** `lib/corpus/sweep.test.ts`
+asserts across **62 fin sets on 35 designs**: 0 move under an empty edit bag, 0 are driven off their
+stage by a station a metre past the bound, and 0 groups are torn apart. `lib/model/edit.test.ts` adds
+the reachability case with the numbers from the report above. Controls: a stack datum fails with 4
+named designs, a per-set correction fails with 9 and spreads up to 500 mm, and the rigidity assertion
+was itself rewritten after its first draft passed the per-set version — it asked for exactly
+`bounds.hi`, which is by construction the largest station at which nothing is corrected.
+
+**SEVEN existing tests encoded the defect and were corrected, which is stated rather than done quietly.**
+All seven committed fixtures carry their fins flush with the tail, so every case that moved fins
+"5 cm aft" was exercising an unbuildable configuration. Each was rewritten to make the same assertion
+from a valid one — the physics under test is untouched — and the multi-set fixture itself was corrected:
+its synthetic second set inherited a parent-relative placement and resolved to station **−240 mm**, 240
+mm ahead of the nose tip, on a rocket that starts at zero. Nothing had noticed, because nothing bounded
+a fin set. The seventh is `e2e/smoke.spec.ts`'s *"moving the fins aft re-flies the design stiffer"*,
+which asserted a POSITIVE caliber delta it could only get from a rocket with its fin set hanging behind
+the airframe; it drives the field forward now, and it also asserts the ceiling is ON the control and
+that typing past it leaves the flight as designed — the half a `max` attribute alone cannot prove.
+
+**The pre-push review returned eleven findings on this diff and every one was acted on. Four were
+defects this increment had CREATED, which is the part worth recording:**
+
+1. **The cut and the shift shared a measurement, and that re-opened the Sev-1 through a different
+   field.** 42 of the 62 bounded corpus sets and all seven fixtures are placed `bottom`, which measures from
+   the parent's aft face — so cutting a root SLIDES the fore edge aft by what was removed. Computing
+   the group correction from the flatten taken BEFORE the cut put a 1900 mm root, cut to 950 mm, at
+   station 950 mm on a 950 mm airframe: **the entire set behind the tail**, worse than the defect
+   being fixed, with `barrowman` reporting a CP at 1006.7 mm and the sweep plotting +2.02 cal for it.
+   Reproduced before being believed. The pass is cut → re-flatten → correct now, and
+   `lib/model/edit.test.ts` drives roots at 1.05×, 2× and 5× the stage with both controls firing.
+2. **`min` stayed at 0 while `max` became the group's — the Sev-1's mirror image.** On
+   `Two stage high power rocket.ork` the fore bound is **781.0 mm**, because a sustainer's fins cannot
+   be slid ahead of the stage they are on; typing 100 was accepted, the field went on showing 100, and
+   the model flew 781. The field carries both ends now, and the fore-clamp case is driven on a staged
+   design because on the single-stage fixture `lo` is zero and the assertion could not fail.
+3. **`Fin root` had no ceiling at all**, so the same two-typed-field reachability argument this
+   increment was written against applied verbatim to the other fin field. It carries a `max` and a
+   hint naming the stage's extent now.
+4. **The ceiling was computed from the flown tree while the placeholder still read the pristine one**,
+   so the field could advertise a max BELOW its own placeholder: a 360 mm root moves the set 830 → 590
+   mm, and retyping the 830 the field was showing committed 590. The placeholder reads the flown
+   station now — the exception `massObjectStation` already makes, for the identical reason.
+
+**And three more surfaces were wired to the same function rather than left contradicting it**, which
+the surfaces rule required and the first draft had filed instead:
+
+- `components/RocketDiagram.tsx`'s station grip offered ~641 mm of aft travel on a staged design
+  where the model allows 6.4 mm, and its root grip could not grow a tail-flush root at all while the
+  field beside it took 1900 mm. Three answers to one question on one screen.
+- `components/ParameterSweep.tsx`'s band was `[max(0.02, noseLen, station − band),
+  min(station + band, airframeLen − finChord)]` off `structureOf` — three errors in one expression:
+  the wrong TREE (dimension edits dropped), the wrong DATUM (the stack, not the stage) and the wrong
+  SET (the primary, not the tightest of the group). Once `lib/sim/sweep.ts` began dropping candidates
+  the model will not fly, that mismatch stopped being theoretical: **10 of the 33 designs offering
+  this axis lost points, three kept 1 of 13, and `Pods--airframes and winglets.ork` kept 0 of 13** and
+  fell through to *"Not enough of the range could be flown to draw a curve"* — a chart emptied by its
+  own panel. It reads `finStationBounds` off the flown tree now.
+
+**A residual, stated rather than left to be found:** a committed fin edit is not re-clamped when a
+LATER edit shrinks the airframe, so the field can display a number the flight does not use —
+`{finStation: 500 mm, bodyLength: 100 mm}` flies station 0 while the field shows 500. The model is
+right; the display is stale. It is strictly better than before the bound, which flew the unbuildable
+rocket *and* showed 500, so it is a residual rather than a regression, and it is filed with the
+measurement. Whether a field should surrender a number the flyer typed once it stops meaning anything
+is a product call, not part of a Sev-1 fix.
+
+**What this does NOT do.** Tip chord and sweep are untouched: they move a fin's OUTLINE past the tail
+without moving its root, which is a real and common shape — 9 corpus designs are drawn that way. The
+bound is per stage rather than per parent tube, which the table above explains. `ParameterSweep.tsx`
+still builds its own band from `structureOf`, so on a staged design points can now vanish from a range
+the panel still draws; that is the filed Sev-1 and it is the next slice.
+
 **Increment 25 — a part the design FIELDS made opens the fields that made it, 2026-08-18.** Increment
 24 stopped the add and the remove controls lying about the boattail, the drogue and the payload bay.
 A flyer standing on one still had nothing they could do with it. This is the half that gives them
@@ -2647,7 +2788,7 @@ stays "no Properties control" rather than becoming "a Properties control that op
 `AIM_FIELDS` filtering on the same field is a second, weaker consequence: it only feeds the
 `designDims` mask, and whether a fieldset opens is a hand-written `only === "…"` literal in the JSX.
 `lib/model/edit.test.ts` asserts those literals and the registry agree, in both directions, because
-nothing else holds two files together across a rename. **Increment 26 below is the rest of the work**,
+nothing else holds two files together across a rename. **Increment 27 below is the rest of the work**,
 and it starts with the mask, because the leak above is subtraction reaching one key short.
 
 **A second regression the same review caught, in the gate rather than the panel.** `boattailFairsTo`
@@ -2689,7 +2830,7 @@ material of its own, or a name — those are properties of a transition the desi
 them to a field-made one is the promotion this increment declined. Each is a field the pair would have
 to grow, which is a milestone about the dimension fields rather than about the tree.
 
-**Increment 26 — the other two field-made parts get their panels, once the mask stops leaking.**
+**Increment 27 — the other two field-made parts get their panels, once the mask stops leaking.**
 *Done when* picking the synthesised drogue and the synthesised payload bay each opens a Properties
 panel holding that part's own fields **and nothing belonging to another component**, pinned by an
 e2e that names the labels present AND the labels absent on each. Start with the mask: it blanks
@@ -7345,7 +7486,7 @@ cheaply instead of re-derived. Newest first.
   the field group that describes it, and the existing property popover opens exactly those fields.
   Shipped for the BOATTAIL only** — the drogue and the payload were written, driven and withdrawn by
   this increment's own pre-push review, for reasons recorded against the increment above and queued
-  as increment 26. **Rejected: promotion** — converting the synthesised
+  as increment 27. **Rejected: promotion** — converting the synthesised
   part into a real entry in the tree the moment the flyer edits it. Promotion reads like the more
   capable answer and is a one-way door: the fields that made the part would have to be silently
   cleared to stop it being built twice, discarding a number the flyer typed, and nothing turns an

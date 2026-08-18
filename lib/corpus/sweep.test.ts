@@ -45,6 +45,7 @@ import {
 import type { Rocket, RocketComponent } from "../model/types";
 import {
   applyGeometryEdits,
+  finStationBounds,
   statedAirframeMass,
   PER_PART_MASS_FIELDS,
   moveTarget,
@@ -374,10 +375,105 @@ function stepBehind(rocket: Rocket, id: string): number {
   return 2 * (foreOf(next.component) - mine);
 }
 
+/** The fin kinds this suite bounds — the three whose axial extent is a root chord bonded to the
+ *  airframe. `tubefinset` is deliberately absent: a tube fin is a ring of tubes around the airframe
+ *  rather than a plate bonded edge-on, so "the root must lie on the body" is not the rule that
+ *  describes it. Mirrors `FIN_SET_KINDS` in `lib/model/edit.ts`. */
+const FIN_KINDS = new Set(["trapezoidfinset", "ellipticalfinset", "freeformfinset"]);
+
+/** One stage's body extent in the flattened frame — the same span `keepFinsOnAirframe` bounds
+ *  against, computed here independently rather than imported, so the check is not the code under
+ *  test asking itself whether it is right. */
+function stageSpan(rocket: Rocket, stageIndex: number): { fore: number; aft: number } | undefined {
+  let fore = Infinity;
+  let aft = -Infinity;
+  for (const p of flattenRocket(rocket)) {
+    if (p.stageIndex !== stageIndex) continue;
+    // **`isBody`'s three kinds exactly, and NOT `tubefinset`.** A first draft included it, which made
+    // this "independent" oracle strictly MORE permissive than the code it checks — an oracle that can
+    // only ever false-pass. It measures no difference on today's corpus, which is precisely why it
+    // would have gone unnoticed. Caught by the pre-push review.
+    if (!["nosecone", "bodytube", "transition"].includes(p.component.kind)) continue;
+    fore = Math.min(fore, p.xFore);
+    aft = Math.max(aft, p.xFore + p.length);
+  }
+  return Number.isFinite(fore) && aft > fore ? { fore, aft } : undefined;
+}
+
 const files = corpusFiles();
 const suite = files.length ? describe : describe.skip;
 
 suite("real-design corpus", () => {
+  it("keeps every fin set on its own stage, and never moves one on a design nobody has edited", async () => {
+    // **The bound `keepFinsOnAirframe` enforces, asked of every real design.** Two claims, and the
+    // second is the one that decides whether the clamp could ship at all: a rule that moved fins on
+    // an unedited import would be rewriting other people's designs, which is the one thing Loft does
+    // not do to a number a file states.
+    const moved: string[] = [];
+    const off: string[] = [];
+    const torn: string[] = [];
+    let sets = 0;
+    let multi = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const finsOf = (r: Rocket) =>
+        flattenRocket(r).filter((p) => FIN_KINDS.has(p.component.kind));
+      const before = finsOf(doc.rocket);
+      sets += before.length;
+      if (before.length > 1) multi++;
+
+      // 1. An empty edit bag moves nothing. Measured across the corpus at 0 before shipping; a
+      //    parent-tube datum instead of a stage one would move three designs, which is why the datum
+      //    is the stage.
+      const idle = finsOf(applyGeometryEdits(doc.rocket, {}));
+      for (let i = 0; i < before.length; i++) {
+        if (Math.abs(idle[i].xFore - before[i].xFore) > 1e-9) {
+          moved.push(`${f.name}: ${before[i].component.name || "fin set"} moved ${(idle[i].xFore - before[i].xFore) * 1000} mm on an EMPTY edit`);
+        }
+      }
+      if (!before.length) continue;
+
+      // 2. Asking for a station a metre aft leaves every set on its own stage — and the FIELD's
+      //    advertised ceiling is achievable rather than optimistic.
+      const bounds = finStationBounds(doc.rocket);
+      const far = applyGeometryEdits(doc.rocket, { finStation: (bounds?.hi ?? 0) + 1 });
+      for (const p of finsOf(far)) {
+        const span = stageSpan(far, p.stageIndex);
+        if (span && (p.xFore < span.fore - 1e-6 || p.xFore + p.length > span.aft + 1e-6)) {
+          off.push(`${f.name}: ${p.component.name || "fin set"} ends ${((p.xFore + p.length - span.aft) * 1000).toFixed(1)} mm past stage ${p.stageIndex}`);
+        }
+      }
+
+      // 3. **The group stays rigid.** Fin position is one delta over every set the design carries —
+      //    the panel and the limitations page both say so — and a clamp that corrected each set
+      //    separately silently rewrote the spacing on 9 of the 13 multi-set designs — the number the
+      //    control below actually reports — and 12 of the 13 differ in one direction or the other.
+      //    Every set must move by the SAME amount.
+      //    **Asked BEYOND the bound, where the clamp actually fires.** A first draft asked for exactly
+      //    `bounds.hi`, which is by construction the largest station at which no set violates — so
+      //    nothing was corrected, every delta was trivially equal, and a per-set correction passed
+      //    it. A control that cannot fail is the failure this repo keeps cataloguing; caught by
+      //    running that control.
+      if (before.length > 1) {
+        const atMax = finsOf(applyGeometryEdits(doc.rocket, { finStation: (bounds?.hi ?? 0) + 0.5 }));
+        const deltas = atMax.map((p, i) => p.xFore - before[i].xFore);
+        const spread = Math.max(...deltas) - Math.min(...deltas);
+        if (spread > 1e-9) {
+          torn.push(`${f.name}: sets moved by different amounts — spread ${(spread * 1000).toFixed(1)} mm`);
+        }
+      }
+    }
+    console.log(
+      `fin sets across ${files.length} design files: ${sets}, on ${multi} designs carrying more than one; ` +
+        `0 moved by an empty edit, 0 driven off their stage, 0 groups torn apart`,
+    );
+    expect(sets, "no design carries a fin set — this case would prove nothing").toBeGreaterThan(0);
+    expect(multi, "no design carries more than one set — the rigidity claim is untested").toBeGreaterThan(0);
+    expect(moved, "a fin set moved on a design nobody edited").toEqual([]);
+    expect(off, "a fin set was driven off the stage it sits on").toEqual([]);
+    expect(torn, "the fin group was torn apart by the clamp").toEqual([]);
+  });
+
   it(`imports every design file (${files.length} present)`, async () => {
     const failures: string[] = [];
     for (const f of files) {

@@ -5,7 +5,7 @@ import { runFlight, overridesFromStored } from "./run";
 import { ballisticGap, motorSweep, parameterSweep, linRange, type SweepMotor } from "./sweep";
 import { allMotors } from "../motors/db";
 import { designMotorIdentity, swapOptions } from "../motors/swap";
-import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryBodyTube } from "../model/edit";
+import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryBodyTube, finStationBounds } from "../model/edit";
 import { flattenRocket } from "../model/geometry";
 
 async function load(name: string) {
@@ -258,11 +258,29 @@ describe("parameterSweep", () => {
     const doc = await load("demo-single-deploy.ork");
     const sim = doc.simulations[0];
     const s0 = primaryFinStation(doc.rocket)!;
-    const pts = parameterSweep(doc.rocket, "finStation", linRange(s0 - 0.1, s0 + 0.2, 13), {
+    // **The range deliberately runs 200 mm past the tail, and the sweep is expected to DROP those
+    // candidates rather than fly them.** This case used to assert all 13 points, which is how the
+    // library came to publish a stability curve for a rocket that cannot be built: `demo-single-deploy`
+    // carries its fins at 830 mm with a 120 mm root on a 950 mm airframe, so anything past 830 hangs
+    // the set off the tail. Four of the thirteen put the fin's LEADING edge behind the airframe.
+    const bound = finStationBounds(doc.rocket)!;
+    // Reaching 300 mm forward rather than 100, so the buildable half is most of the range rather
+    // than 5 points of 13: the bound cuts everything aft of `s0` on this design, and a monotone
+    // assertion over five points is a weaker instrument than one over nine. The range still runs
+    // 200 mm PAST the bound, which is what the drop is being tested on.
+    const asked = linRange(s0 - 0.3, s0 + 0.2, 13);
+    const buildable = asked.filter((v) => v <= bound.hi + 1e-9);
+    expect(buildable.length, "the range must reach past the bound, or this case proves nothing").toBeLessThan(13);
+    const pts = parameterSweep(doc.rocket, "finStation", asked, {
       configId: sim.conditions.configId,
       overrides: overridesFromStored(sim),
     });
-    expect(pts).toHaveLength(13);
+    expect(pts).toHaveLength(buildable.length);
+    // **Dropped, not clamped-and-relabelled.** Every published x is a station the model actually
+    // flew: a clamped point would carry the station the flyer asked for on the x-axis and the
+    // margin of a different rocket on the y-axis, which is a worse lie than the one this replaced
+    // because the two agree with each other.
+    for (const p of pts) expect(p.x).toBeLessThanOrEqual(bound.hi + 1e-9);
     // The static margin climbs monotonically as the fins move aft; x ascends across the range.
     for (let i = 1; i < pts.length; i++) {
       expect(pts[i].x).toBeGreaterThan(pts[i - 1].x);

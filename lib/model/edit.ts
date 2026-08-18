@@ -10,7 +10,7 @@
 import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent,
   Stage, InnerTube, RingComponent, MinorComponent, MassProvenance,
 } from "./types";
-import { flattenRocket, aftOuterRadius, axialLength, canAnchorAfter, canHostInsideMass, foreOuterRadius, nextTopLevel, maxBodyRadius, statedCGBounds } from "./geometry";
+import { flattenRocket, aftOuterRadius, axialLength, canAnchorAfter, canHostInsideMass, foreOuterRadius, isBody, nextTopLevel, maxBodyRadius, statedCGBounds } from "./geometry";
 import { uniqueUuidFrom, uuidFrom } from "./id";
 import type { Positioned } from "./geometry";
 import { LOFT_AUTHORED_PARACHUTE_CD } from "../sim/recovery-defaults";
@@ -3649,7 +3649,7 @@ export interface AddOption {
  *  - **The payload's group has the same shape of question** against the aimed mass-object fields and
  *    the `massCarriedBy` hints, and it was not driven far enough to answer it.
  *
- *  Both are queued as R12 increment 26 in `ROADMAP.md`, which starts by making the mask blank by
+ *  Both are queued as R12 increment 27 in `ROADMAP.md`, which starts by making the mask blank by
  *  allowlist instead of by subtraction — the defect above is the subtraction reaching one key short. */
 export const DERIVED_PARTS = [
   { suffix: "boattail", aim: "boattail", name: "Boattail", fields: ["boattailLength", "boattailAftDiameter"] },
@@ -4196,6 +4196,257 @@ function seatAddedMasses(rocket: Rocket, preDimensions: Rocket, edits: GeometryE
   return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: walk(s.components) })) };
 }
 
+/** The stations a fin set's ROOT may occupy on a given airframe: its fore edge at or after the nose
+ *  tip, its trailing edge at or before the tail. Exported because a bound the applier enforces and a
+ *  bound a field advertises have to be the same number — a field promising a ceiling the model does
+ *  not use is a promise the validator never made, which this file already records shipping once on
+ *  the boattail's exit.
+ *
+ *  `undefined` only when the design has no fin set to bound. *A first draft also promised `undefined`
+ *  "when the set is longer than the airframe it sits on" — unreachable, because `finGroupRoom` floors
+ *  both directions at zero, so an oversized set yields a degenerate `lo === hi` rather than nothing.
+ *  It cannot arise in practice either: `cutOversizedFinRoots` runs before anything asks. The clause
+ *  was a promise about a case that does not occur, which is worse than silence — it invites a caller
+ *  to handle a branch that never fires.* */
+export function finStationBounds(rocket: Rocket, selectedId?: string): { lo: number; hi: number } | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
+  if (!fin) return undefined;
+  const placed = flattenRocket(rocket).find((p) => p.component.id === fin.id);
+  if (!placed) return undefined;
+  const room = finGroupRoom(rocket);
+  if (!room) return undefined;
+  // The GROUP's room, expressed as stations of the set the FIELD is holding — because the field
+  // shows that set's station and the edit is one delta over all of them.
+  return { lo: placed.xFore - room.fore, hi: placed.xFore + room.aft };
+}
+
+/** The axial extent of the stage the aimed fin set sits on — the longest ROOT that stage can carry,
+ *  and the number `cutOversizedFinRoots` shortens an oversized one down to. Exported so the Fin root
+ *  field advertises exactly what the model enforces rather than a second opinion about it. */
+export function finStageRoom(rocket: Rocket, selectedId?: string): number | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
+  if (!fin) return undefined;
+  const placed = flattenRocket(rocket).find((p) => p.component.id === fin.id);
+  if (!placed) return undefined;
+  const span = stageBodySpan(rocket, placed.stageIndex);
+  return span ? span.aft - span.fore : undefined;
+}
+
+/** How far the whole fin group may slide before ANY of its sets leaves the stage it is on: `aft`
+ *  metres of room going aft, `fore` metres going forward, both non-negative.
+ *
+ *  **The tightest set decides, because the edit is one delta and the group is rigid.** Fin position
+ *  slides every set together on purpose — a multi-stage design keeps its spacing, the panel says so
+ *  in as many words, and `finStationTrim`'s slope depends on it. A bound computed from the set the
+ *  field happens to be holding is therefore the wrong bound whenever another set is tighter, and it
+ *  is wrong by a lot: measured across the corpus, the primary set's own aft room on
+ *  `Simulation scripting.ork` is **1845.0 mm** against the group's **30.0 mm**, and on
+ *  `Complex.Two-Stage.CDX1` its six sets have 1270 / 1149 / 229 / 76 / 0 / 12.7 mm of aft room.
+ *  **12 of the 13 multi-set designs** have sets whose room differs in one direction or the other —
+ *  9 of them aft, which is the number the corpus case's control fires on. *A first draft of this
+ *  sentence said 7 and counted the aft direction alone, while this function returns `fore` as well
+ *  and the field, the sweep and the trim all read `lo`. Corrected by the pre-push review, then
+ *  re-measured.* */
+function finGroupRoom(rocket: Rocket): { fore: number; aft: number } | undefined {
+  const spans = new Map<number, { fore: number; aft: number } | undefined>();
+  let aft = Infinity;
+  let fore = Infinity;
+  for (const p of flattenRocket(rocket)) {
+    if (!FIN_SET_KINDS.includes(p.component.kind as (typeof FIN_SET_KINDS)[number])) continue;
+    if (!spans.has(p.stageIndex)) spans.set(p.stageIndex, stageBodySpan(rocket, p.stageIndex));
+    const span = spans.get(p.stageIndex);
+    // A stage with no body part at all bounds nothing — `ARC payload rocket.ork`'s stage 0 is one —
+    // and skipping it is right: an absent bound is not a bound of zero.
+    if (!span) continue;
+    aft = Math.min(aft, span.aft - (p.xFore + p.length));
+    fore = Math.min(fore, p.xFore - span.fore);
+  }
+  if (!Number.isFinite(aft) || !Number.isFinite(fore)) return undefined;
+  return { fore: Math.max(0, fore), aft: Math.max(0, aft) };
+}
+
+/** The axial extent of ONE stage's body, in the flattened frame — the fore end of its first body part
+ *  to the aft end of its last.
+ *
+ *  **It is the stage's WHOLE body, nose cone included, and that is deliberate.** "The root has to be
+ *  on the airframe" is enforced as "anywhere on the stage" rather than "on a body tube", which is
+ *  more permissive than the sentence sounds — and the corpus is why: **1 of the 62 sets already
+ *  starts before its stage's nose cone ends.** A canard is a fin on a nose cone, and a datum that
+ *  excluded the cone would move a design that imports correctly today, which is the one thing this
+ *  clamp is not allowed to do. Filed rather than tightened.
+ *
+ *  **The stage, not the stack, and that is a measured decision rather than a preference.** A booster's
+ *  fins are at the aft of the BOOSTER; bounding them by the whole stack lets them be slid the length
+ *  of everything ahead of them. Measured across the 35-design corpus: 9 designs are staged, **7 of
+ *  them put 16 fin sets in a non-final stage**, and the gap is not academic — on
+ *  `Two stage high power rocket.ork` the stage-0 set has **6.4 mm** of room inside its own stage and
+ *  **641.4 mm** inside the stack, so a stack bound would permit driving the sustainer's fins 635 mm
+ *  into the booster and call it buildable.
+ *
+ *  **And NOT the parent body tube either**, which is the other obvious candidate and is the one that
+ *  would break real designs: 3 corpus fin sets already overhang the tube they are attached to —
+ *  `APEX_K_Dart.ork` by 20.0 mm, `Base drag hack (short-wide).ork` by 27.7 mm, `02.Two-stage.ork` by
+ *  15.0 mm — so a parent bound silently moves three designs that import correctly today. The stage
+ *  bound moves none: **0 of 62 corpus fin sets overhang their own stage.** */
+function stageBodySpan(rocket: Rocket, stageIndex: number): { fore: number; aft: number } | undefined {
+  let fore = Infinity;
+  let aft = -Infinity;
+  for (const p of flattenRocket(rocket)) {
+    if (p.stageIndex !== stageIndex) continue;
+    // BODY parts only, for the same reason `overallLength` counts only those: a fin's own span is
+    // what is being bounded, so including it in the bound would let it define its own room.
+    if (!isBody(p.component)) continue;
+    fore = Math.min(fore, p.xFore);
+    aft = Math.max(aft, p.xFore + p.length);
+  }
+  return Number.isFinite(fore) && aft > fore ? { fore, aft } : undefined;
+}
+
+/** Keep every fin set's root on the airframe, over the tree that is actually flown.
+ *
+ *  **The rule, once:** a fin set occupies `[xFore, xFore + rootChord]` along the body, and both ends
+ *  have to be on it. A set hanging off the tail is not a rocket anybody can build, and the numbers
+ *  Loft reports from one are arithmetically correct answers about an object that does not exist —
+ *  `MAINTAINING.md`'s safety posture in as many words: *"an input that cannot mean anything physically
+ *  is refused or bounded rather than flown into a confident number."* Measured before this existed:
+ *  the Fin position field takes 1030 mm on the 950 mm `demo-single-deploy` and the Flight card
+ *  restates CG, CP and static margin from fins 80 mm behind the tail, with no flag of any kind.
+ *
+ *  **It runs LAST, for the reason `fitAddedInternalParts` runs last**, and that is the whole of why
+ *  this is not a `max` on the field alone. Which lengths are involved is only settled once the adds,
+ *  the removals, the moves AND the dimension edits have run: `applyDimensionEdits` computes its fin
+ *  shift from the PRISTINE tree, so a bound applied there is measured on a rocket the flyer has since
+ *  shortened. That is not hypothetical — `components/ParameterSweep.tsx` builds exactly that bound
+ *  from `structureOf`, which drops every dimension edit, and then sweeps WITH them. One clamp here,
+ *  over the flown tree, is the only version every caller inherits: the field, the diagram grip, the
+ *  sweep, the Monte-Carlo and any future surface.
+ *
+ *  **Only the offset moves, and only toward the airframe.** A set already inside is untouched — this
+ *  returns the same object, so nothing downstream sees a new identity. Measured across the 35-design
+ *  corpus before shipping: **0 of the 62 bounded fin sets overhang their own stage as imported**
+ *  (42 placed `bottom`, 16 `top`, 4 `absolute`; 13 designs carry more than one set, 6 at most, 9 are
+ *  staged), so this clamp changes no real design and can be unconditional. *Those placement counts
+ *  read 43 / 17 / 4 in a first draft — 64, in a sentence about 62 — because the probe that produced
+ *  them included the two `tubefinset`s this function excludes twelve lines above. Caught by the
+ *  pre-push review and re-measured.*
+ *
+ *  **A `tubefinset` is deliberately outside this**, because it is outside `FIN_SET_KINDS`. A tube fin
+ *  is a ring of tubes around the airframe rather than a plate bonded to one edge-on, so "the root
+ *  must lie on the body" is not the rule that describes it. Two corpus designs carry one.
+ *  *A first draft of this paragraph justified the exclusion by saying `isBody` counts a `tubefinset`
+ *  so it helps DEFINE the span — that is false: `isBody` is `nosecone || bodytube || transition` and
+ *  nothing else. A tube fin is in neither the span nor the bounded set. The exclusion is right and
+ *  the reason given for it was not; corrected by the pre-push review.*
+ *
+ *  **What it does NOT do.** It does not touch tip chord or sweep. Those move a fin's OUTLINE past the
+ *  tail without moving its root, which is a real and common shape — 9 corpus designs already have a
+ *  tip trailing edge past the aft end as imported, and `components/RocketDiagram.tsx` draws it as
+ *  legitimate. The root is what is bonded to the airframe and the root is what this bounds. */
+function keepFinsOnAirframe(rocket: Rocket, groupIds: ReadonlySet<string>): Rocket {
+  // **TWO passes, and the order is the whole correctness of this function.** Cutting an oversized
+  // root MOVES the set: 42 of the 62 bounded corpus sets and all seven committed fixtures are placed
+  // `bottom`, which measures from the parent's aft face, so shortening the chord slides the fore edge
+  // aft by exactly what was removed. A first version computed the group correction from the flatten
+  // taken BEFORE the cut and applied both together — so on `demo-single-deploy` a Fin root of 1900 mm
+  // was cut to 950 mm and then shifted +950 mm, landing the whole set at 950…1900 mm on a 950 mm
+  // airframe. **The entire fin set behind the tail, from one typed number, through the pass written
+  // to prevent exactly that** — and `barrowman` duly reported a CP at 1006.7 mm and the sweep plotted
+  // +2.02 cal for it. Worse than the defect this increment exists to close, reached by a different
+  // field. Caught by the pre-push review and reproduced before being believed.
+  //
+  // So: cut, rebuild, re-flatten, then correct. The second flatten is what makes the correction a
+  // statement about the rocket that will actually be flown.
+  const cut = cutOversizedFinRoots(rocket);
+  const flat = flattenRocket(cut);
+  const spans = new Map<number, { fore: number; aft: number } | undefined>();
+  //
+  // **The group is the sets the design already had, and an AUTHORED set is seated on its own.** That
+  // split is not tidiness: authoring a booster CLONES the source stage's fin set into the new stage,
+  // and on `APEX_K_Dart.ork` the clone lands 20 mm past its new stage's aft end. Treated as part of
+  // the group, that 20 mm dragged both existing stages' fins forward with it — the corpus caught it
+  // as *"authoring a booster changed a stage above it"*, which is exactly the invariant that check
+  // exists for. A part the flyer just added is seated to fit, the way `fitAddedInternalParts` and
+  // `seatAddedMasses` already seat theirs; a part the design came with moves only with its group.
+  const solo = new Map<string, number>();
+  // **ONE correction for the whole group, not one per set**, and that is the difference between a
+  // clamp that keeps the design and a clamp that dismantles it. Fin position slides every set
+  // together on purpose: the panel says *"Fin position moves all of them together"*, the limitations
+  // page says the same, and `finStationTrim`'s slope is measured on the assumption. A first version
+  // corrected each set independently — every set ended up on its own stage, and the spacing between
+  // them was silently rewritten on **9 of the corpus's multi-set designs**, with spreads to 500 mm.
+  // Two shipped surfaces would have become false sentences in the same commit that made them false.
+  let worstOver = 0;
+  let worstUnder = 0;
+  for (const p of flat) {
+    if (!FIN_SET_KINDS.includes(p.component.kind as (typeof FIN_SET_KINDS)[number])) continue;
+    if (!spans.has(p.stageIndex)) spans.set(p.stageIndex, stageBodySpan(cut, p.stageIndex));
+    const span = spans.get(p.stageIndex);
+    if (!span) continue;
+    const over = p.xFore + p.length - span.aft;
+    const under = span.fore - p.xFore;
+    if (!groupIds.has(p.component.id)) {
+      const d = over > 1e-9 ? -over : under > 1e-9 ? under : 0;
+      if (d !== 0) solo.set(p.component.id, d);
+      continue;
+    }
+    worstOver = Math.max(worstOver, over);
+    worstUnder = Math.max(worstUnder, under);
+  }
+  // Aft first: a group both too far aft and, after correction, too far forward is longer than the
+  // room available, and the forward arm then pins it at the tightest fore end.
+  const groupShift = worstOver > 1e-9 ? -worstOver : worstUnder > 1e-9 ? worstUnder : 0;
+  if (groupShift === 0 && !solo.size) return cut;
+  const walk = (list: RocketComponent[]): RocketComponent[] =>
+    list.map((c) => {
+      const d = solo.get(c.id) ?? (groupShift !== 0 && groupIds.has(c.id) ? groupShift : undefined);
+      const kids = c.children.length ? walk(c.children) : c.children;
+      const moved = d !== undefined ? { ...c, placement: { ...c.placement, offset: c.placement.offset + d } } : c;
+      if (kids === c.children) return moved;
+      return { ...moved, children: kids };
+    });
+  return { ...cut, stages: cut.stages.map((st) => ({ ...st, components: walk(st.components) })) };
+}
+
+/** Shorten any trapezoid fin root longer than the stage it sits on, so a station exists for it at all.
+ *
+ *  **Only a TRAPEZOID set can reach this, and that is why the cut is not general:** `axialLength` is
+ *  the root chord for a trapezoid and a derived quantity for an elliptical or freeform set, and
+ *  `finRootChord` is the only field in the app that writes an axial fin dimension. A clamp for the
+ *  other two kinds would be a mechanism with no way to fire, which this repo calls a speculative
+ *  guard. The tip follows the root down, so the cut leaves a fin of the same shape rather than one
+ *  whose tip is longer than its root — not a trapezoid, and both the planform and the flutter
+ *  estimate read it. */
+function cutOversizedFinRoots(rocket: Rocket): Rocket {
+  const spans = new Map<number, { fore: number; aft: number } | undefined>();
+  const cut = new Map<string, number>();
+  for (const p of flattenRocket(rocket)) {
+    if (p.component.kind !== "trapezoidfinset") continue;
+    if (!spans.has(p.stageIndex)) spans.set(p.stageIndex, stageBodySpan(rocket, p.stageIndex));
+    const span = spans.get(p.stageIndex);
+    if (!span) continue;
+    const room = span.aft - span.fore;
+    if (p.length > room + 1e-9) cut.set(p.component.id, room);
+  }
+  if (!cut.size) return rocket;
+  const walk = (list: RocketComponent[]): RocketComponent[] =>
+    list.map((c) => {
+      const r = cut.get(c.id);
+      const kids = c.children.length ? walk(c.children) : c.children;
+      let next = c;
+      if (r !== undefined && next.kind === "trapezoidfinset") {
+        // No `rootChord > 0` guard: `cut` is set only where `p.length > room + 1e-9`, `axialLength`
+        // of a trapezoid IS its root chord, and `room` is positive by `stageBodySpan`'s own
+        // `aft > fore` — so the divisor cannot be zero here. A first draft carried the ternary, which
+        // is a speculative guard by this repo's definition: a branch that fires on no input.
+        const k = r / next.rootChord;
+        next = { ...next, rootChord: r, tipChord: next.tipChord * k, sweepLength: next.sweepLength * k };
+      }
+      if (kids === c.children) return next;
+      return { ...next, children: kids };
+    });
+  return { ...rocket, stages: rocket.stages.map((st) => ({ ...st, components: walk(st.components) })) };
+}
+
 export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // ADDS FIRST, then removals, then the dimension edits. The order is not arbitrary and each step of it
   // was chosen against a case:
@@ -4245,10 +4496,20 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   // aim falls back to the heaviest, and `massObjectMass` can reorder that — so one would have clamped
   // a station the other never applied. Derived once, passed twice.
   const dimEdits = stripPerPartMassOnLumpedAirframe(built, withoutRemovedAims(edits), fromFile);
-  return seatAddedMasses(
-    fitAddedInternalParts(applyDimensionEdits(built, dimEdits, statedByFile), edits.added),
-    built,
-    dimEdits,
+  // The sets the design ALREADY HAD, by id, resolved from the pristine tree before anything was
+  // authored — see `keepFinsOnAirframe`'s note on why an authored set is not one of them.
+  const groupFinIds = new Set(
+    flattenRocket(rocket)
+      .filter((p) => FIN_SET_KINDS.includes(p.component.kind as (typeof FIN_SET_KINDS)[number]))
+      .map((p) => p.component.id),
+  );
+  return keepFinsOnAirframe(
+    seatAddedMasses(
+      fitAddedInternalParts(applyDimensionEdits(built, dimEdits, statedByFile), edits.added),
+      built,
+      dimEdits,
+    ),
+    groupFinIds,
   );
 }
 

@@ -24,7 +24,7 @@
 import type { Rocket } from "../model/types";
 import { barrowman } from "./aero";
 import { dryMassProperties } from "./mass";
-import { applyGeometryEdits, primaryFinStation } from "../model/edit";
+import { applyGeometryEdits, primaryFinStation, finStationBounds } from "../model/edit";
 
 export interface MarginTrimInput {
   /** Centre of pressure, station from the nose tip (m). */
@@ -153,12 +153,26 @@ export function finStationTrim(
 ): FinStationTrim | null {
   const station0 = primaryFinStation(rocket);
   if (station0 === undefined || !(refDiameter > 0) || !(loadedMass > 0)) return null;
-  const DELTA = 0.05; // 5 cm probe for the finite-difference margin slope
+  // **The probe has to land somewhere the model will actually fly, and it used to be unconditionally
+  // AFT.** `applyGeometryEdits` now keeps a fin set's root on the airframe, so on any design whose
+  // fins already sit flush with the tail — which is most of them, and all seven committed fixtures —
+  // a 5 cm aft probe was clamped straight back to where it started. The difference quotient then
+  // divided zero by DELTA, the slope failed the authority test below, and this returned null: the
+  // trim silently stopped existing on exactly the designs it is most useful on. It is the shape of
+  // bug a clamp introduces everywhere a finite difference steps blind, and it is worth stating
+  // because the next such probe will look just as innocent.
+  const bounds = finStationBounds(rocket);
+  const STEP = 0.05; // 5 cm probe for the finite-difference margin slope
+  // Aft where there is room for it, forward otherwise. Signed, and the quotient below divides by the
+  // signed value, so the slope is the same number either way — a forward probe measures the same
+  // derivative from the other side.
+  const delta = !bounds || station0 + STEP <= bounds.hi ? STEP : station0 - STEP >= bounds.lo ? -STEP : 0;
+  if (delta === 0) return null; // pinned: the set fills the airframe and cannot be probed either way
   const base = barrowman(rocket);
   const dryBase = dryMassProperties(rocket);
-  const shifted = applyGeometryEdits(rocket, { finStation: station0 + DELTA });
-  const dCp = (barrowman(shifted).cp - base.cp) / DELTA;
-  const dCgLoaded = ((dryMassProperties(shifted).cg - dryBase.cg) / DELTA) * (dryBase.mass / loadedMass);
+  const shifted = applyGeometryEdits(rocket, { finStation: station0 + delta });
+  const dCp = (barrowman(shifted).cp - base.cp) / delta;
+  const dCgLoaded = ((dryMassProperties(shifted).cg - dryBase.cg) / delta) * (dryBase.mass / loadedMass);
   const dMarginPerM = (dCp - dCgLoaded) / refDiameter;
   if (!(Math.abs(dMarginPerM) > 1e-4)) return null; // no stability authority from fin position
   const targetStation = station0 + (targetMarginCal - currentMarginCal) / dMarginPerM;
@@ -168,6 +182,10 @@ export function finStationTrim(
     currentStation: station0,
     targetStation,
     shiftM: targetStation - station0,
-    feasible: targetStation > 0,
+    // **Feasible now means BUILDABLE, not merely positive.** `targetStation > 0` was the whole test,
+    // so a trim that put the fins past the tail reported feasible and the flyer typed a station the
+    // model would refuse — advice for a rocket that cannot exist. The bound is the same one the
+    // applier enforces and the field advertises, read from one function.
+    feasible: bounds ? targetStation >= bounds.lo - 1e-9 && targetStation <= bounds.hi + 1e-9 : targetStation > 0,
   };
 }
