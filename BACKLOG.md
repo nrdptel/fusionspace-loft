@@ -12,11 +12,55 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-18 from R12 increment 26's scoping fan-out — what the fin bound deliberately does
+not cover, so the next session does not re-derive the boundary.**
+
+- **A fin ROOT-CHORD edit slides the whole group forward, and the Fin position field then shows a
+  station that is not the one being flown.** Measured on `demo-single-deploy`: a root of 360 mm on
+  the 120 mm set moves it from 830 mm to **590 mm**. The slide itself is correct — the set is placed
+  flush with the tail, so the trailing edge stays put and the root grows forward, which is what a
+  real fin does — but `designDims.finStation` reads `designBase`, which excludes dimension edits, so
+  the field goes on advertising 830 mm. "A field showing a number that is not the one in the flight",
+  and the file already has the mechanism: `flownForReadback` exists for exactly this shape and
+  `massObjectStation` is its first instance. Fin station is the second.
+- **The fin bound's datum is the stage's WHOLE body, nose cone included, so a root may sit on the
+  ogive.** "The root has to be on the airframe" is enforced as "anywhere on the stage". Measured:
+  **1 of the 62 corpus fin sets already starts before its stage's nose cone ends**, which is what a
+  canard is — so a datum excluding the cone would move a design that imports correctly today, and
+  tightening it needs a rule that can tell a canard from a mistake. Not a wrongness, a permissiveness.
+- **`components/ParameterSweep.tsx:204` builds its own band from `structureOf` and the PRIMARY set**
+  while `lib/sim/sweep.ts` now drops candidates outside the model bound. On the 9 corpus designs where
+  the group bound is tighter, the panel draws a range whose points silently vanish, and the
+  "design's own" marker can sit inside a band the sweep will not fly. `finStationBounds` is the one
+  function to build it from; the grip and the field are already wired to it.
+- **The Fin position hint names one number and never which SET is binding.** On
+  `Complex.Two-Stage.CDX1` the six sets have 1270.0 / 1149.3 / 228.6 / 76.2 / 0.0 / 12.7 mm of aft
+  room, so a field holding the frontmost set advertises a ceiling equal to its own station with
+  nothing on any surface pointing at the fifth set that set it. The parts table could mark it.
+- **`finTipChord` and `finSweepLength` are unbounded, deliberately.** They move a fin's OUTLINE past
+  the tail without moving its root, and **9 corpus designs already have a tip trailing edge past the
+  aft end as imported**. Any rule here has to be a soft framing one rather than a clamp.
+- **`tubefinset` is outside `FIN_SET_KINDS` and therefore outside the bound.** A tube fin is a ring
+  of tubes around the airframe rather than a plate bonded edge-on, so "the root must lie on the body"
+  is not the rule that describes it. Two corpus designs carry one. *(An earlier version of this entry
+  justified the exclusion by saying `isBody` counts a `tubefinset` so it helps define the span. That
+  is false — `isBody` is `nosecone || bodytube || transition` — and the same false sentence was
+  written into three files before the pre-push review caught it.)*
+- **A committed fin edit is not re-clamped when a LATER edit shrinks the airframe, so the field can
+  show a number the flight does not use.** Measured on `demo-single-deploy`: `{finStation: 500 mm,
+  bodyLength: 100 mm}` flies station **0 mm** while the field displays 500 and its own `max` reads
+  230; `{finRootChord: 400, bodyLength: 100}` flies a 350 mm root with tip and sweep scaled while the
+  field displays 400. The model is right in both cases — that is the 2026-08-18 bound doing its job —
+  and the display is stale. **Strictly better than before the bound, which flew the unbuildable
+  rocket AND showed 500**, so it is a residual rather than a regression; the fix is a product call
+  about whether a field surrenders a number the flyer typed once it stops meaning anything, and it is
+  the same question as the `finStation` placeholder staleness two entries down.
+
 **Filed 2026-08-18 from run 20's opening fan-out — reproduced by the lead where marked, ranked by
 damage. The four marked SEV-1-CLASS are wrong or unlabelled numbers on surfaces a flyer acts on and
 are the next preemptions, not queue items.**
 
-- **SEV-1-CLASS · `components/LoftApp.tsx:3302` — "Fin position" has `min={0} positive` and NO `max`,
+- **FIXED 2026-08-18 by R12 increment 26 · `components/LoftApp.tsx:3302` — "Fin position" had `min={0} positive` and NO `max`,
   on the field a flyer sizes fins against.** Type 1030 mm on the 950 mm `demo-single-deploy` and the
   Flight card restates CG, CP and static margin from a fin set hanging 80 mm behind the tail. Its own
   contract (`LoftApp.tsx:4740`) says min/max are "the range in which the value means something
@@ -26,8 +70,12 @@ are the next preemptions, not queue items.**
   `rootHi = max(rootChordNow, o.length − rootLeStation)`, comment "keep the root on the airframe") and
   the sweep panel clamps (`ParameterSweep.tsx:204`) — the applier, which is the one place that would
   make all three agree, clamps nothing (`lib/model/edit.ts:1831`, `rootChord: root ?? c.rootChord`).
-- **SEV-1-CLASS · `components/ParameterSweep.tsx:164` — the fin-position clamp is measured on the
-  wrong rocket.** `axisBase = structureOf(doc.rocket, geometry)` and `structureOf` deliberately drops
+- **STILL OPEN, NARROWED by increment 26 · `components/ParameterSweep.tsx:164` — the fin-position
+  clamp is measured on the wrong rocket.** *(The model is bounded now whatever this panel computes,
+  and `lib/sim/sweep.ts` drops candidates outside the bound — so the consequence has changed rather
+  than gone: instead of flying an unbuildable rocket, the panel draws a range whose out-of-bound
+  points silently vanish. Smaller, still wrong, and the fix is unchanged: build the band from the
+  flown tree, through `finStationBounds`.)* `axisBase = structureOf(doc.rocket, geometry)` and `structureOf` deliberately drops
   every DIMENSION edit, so `airframeLen` (`:199`) and `finChord` (`:197`) are the PRISTINE values while
   `:326` flies `baseGeometry: geometry` WITH them. Shorten Body length 200 mm on `/design`, open Fin
   position on `/sweep`: every point past the new tail is flown. The clamp is correct arithmetic on a

@@ -17,9 +17,30 @@ is the failure the invariant list exists to prevent.
 
 | | what | state |
 |---|---|---|
-| R12 increment 25 | a boattail the design FIELDS made opens the two fields that made it — it had no Properties control at all | gate green, pending push |
-| SEV-1 (invariant) | `THIRD-PARTY-NOTICES.md` said RocketPy was not shipped while the build ships it; 23 wheels and 11 licences, one LGPLv3+, named nowhere | gate green, pending push |
-| — | `scripts/check-notices.mjs`, wired into `postbuild`: four claims, all four proved able to fail | gate green, pending push |
+| R12 increment 25 | a boattail the design FIELDS made opens the two fields that made it — it had no Properties control at all | **merged, live** (PR #191) |
+| SEV-1 (invariant) | `THIRD-PARTY-NOTICES.md` said RocketPy was not shipped while the build ships it; 23 wheels and 11 licences, one LGPLv3+, named nowhere | **merged, live** (PR #191) |
+| — | `scripts/check-notices.mjs`, wired into `postbuild`: four claims, all four proved able to fail | **merged, live** (PR #191) |
+| R12 increment 26 | SEV-1: a fin set's root now stays on the airframe, bounded per STAGE and moved as a rigid GROUP, in the applier every caller goes through | gate running, pending push |
+
+**The pre-push review on increment 26 returned twenty-four findings across two passes and found FOUR
+defects the increment had created — including one strictly worse than the Sev-1 it was fixing.** That
+is the number worth carrying forward, not the fix:
+
+1. **The cut and the shift shared a stale measurement.** Cutting an oversized root MOVES a
+   `bottom`-placed set (42 of the 62 bounded corpus sets, all seven fixtures), so correcting from the
+   pre-cut flatten put a 1900 mm root, cut to 950 mm, at station 950 mm on a 950 mm airframe — the
+   whole set behind the tail, with a CP at 1006.7 mm and +2.02 cal reported for it.
+2. **`min` stayed at 0 while `max` became the group's** — the Sev-1's mirror image, live on any staged
+   design (`Two stage high power rocket.ork`'s fore bound is 781 mm).
+3. **`Fin root` had no ceiling at all**, so the same two-typed-field argument applied verbatim to the
+   other fin field.
+4. **The ceiling read the flown tree while the placeholder read the pristine one**, so the field could
+   advertise a max below its own placeholder and refuse the number it was showing.
+
+**And four measurements quoted in comments were wrong** — a placement tally of 43/17/4 that summed to
+64 in a sentence about 62 sets (it counted the two `tubefinset`s the same paragraph excludes), a
+"7 of 13" that was the aft direction only, and two others. **The lesson: a fix that touches geometry
+needs its numbers re-measured after every change to the fix, not once at the start.**
 
 **What the pre-push review changed about increment 25, because it is the run's most transferable
 lesson so far.** The first version opened property panels on all THREE field-made parts. Two were
@@ -38,11 +59,23 @@ character, `addBoattail` bails on a length of zero, so backspacing removed the p
 with it. The aim now resolves against the STRUCTURAL tree, where the host lives, so the surface
 survives its own edit.
 
+**What increment 26 settled, and it is the transferable part.** Four questions, each answered by
+measuring the corpus rather than by argument: the datum is the **stage** (a stack datum drives fins
+past their stage on 4 designs), not the **parent tube** (3 designs already overhang theirs, including
+OpenRocket's own shipped example), the group moves **rigidly** (a per-set correction rewrote the
+spacing on 9 designs, spreads to 500 mm), and it can be **unconditional** (0 of 62 sets overhang as
+imported). A newly authored set is seated on its own — the corpus caught that as *"authoring a booster
+changed a stage above it"*. **The pattern worth carrying: when a bound has to be chosen, the corpus
+answers it and the answer is a number, not a preference.**
+
 **The next slice on each track:**
 
-- **R-track: R12 increment 26** — the drogue and the payload get their panels, once the `designDims`
-  mask blanks by allowlist instead of by subtraction. Written up in full under R12 in `ROADMAP.md`,
-  including which keys leak and which structural keys must survive the change.
+- **R-track: R12 increment 27** — the drogue and the payload get their property panels, once the
+  `designDims` mask blanks by allowlist instead of by subtraction. Written up in full under R12 in
+  `ROADMAP.md`, including which keys leak and which structural keys must survive the change.
+  The next-best alternative if that stalls: `ParameterSweep.tsx`'s band is still built from
+  `structureOf`, so with the model now bounded its out-of-range points silently vanish from a range
+  the panel still draws. `finStationBounds` is the one function to build it from.
 - **P-track: P18 increment 3** — the flight-log picker in `components/ResultsView.tsx`. **Its *done
   when* contradicts itself and needs amending first:** it asks to refuse "by name", while increment
   2's own paragraph one screen up records a name gate being reverted as false, and `lib/flightlog.ts`

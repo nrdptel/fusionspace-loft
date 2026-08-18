@@ -4,6 +4,8 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Rocket } from "@/lib/model/types";
 import { rocketOutline } from "@/lib/model/silhouette";
 import {
+  finStationBounds,
+  finStageRoom,
   primaryFinStation,
   primaryFinChord,
   primaryFinRootChord,
@@ -577,12 +579,24 @@ export default function RocketDiagram({
         )
       : null;
 
-  // Station handle (slide the whole group fore/aft): bounds keep the fins on the airframe — aft of
-  // the nose, and fully ahead of the body's aft end.
+  // Station handle (slide the whole group fore/aft): bounds keep the fins on the airframe.
+  //
+  // **Read from `finStationBounds`, the one function the applier enforces and the Design wall
+  // advertises**, rather than restated here from the outline. The restated version was
+  // `[max(0.01, noseEnd), o.length − finChord]`, which is the STACK and the PRIMARY set — and the
+  // model bounds by the STAGE and by the GROUP. On `Two stage high power rocket.ork` that grip
+  // offered ~641 mm of aft travel where the model allows 6.4 mm, and forward travel to the nose where
+  // the model stops at 781 mm: a dead zone the handle drags into and snaps back from, on the surface
+  // `DESIGN.md` calls the primary one. Found by the pre-push review; a fourth statement of one rule
+  // is the shape this whole increment exists to remove.
+  //
+  // The outline fallback stays for the case the model declines to bound — a design whose set fills
+  // its stage — so the grip keeps working where there is nothing to say about it.
   const nosePart = o.parts.find((p) => p.kind === "nosecone");
   const noseEnd = nosePart ? nosePart.profile[nosePart.profile.length - 1][0] : 0;
-  const finLo = Math.max(0.01, noseEnd);
-  const finHi = Math.max(finLo, o.length - (finChord ?? 0));
+  const modelBounds = onEdit ? finStationBounds(rocket, selectedFinSetId) : undefined;
+  const finLo = modelBounds ? modelBounds.lo : Math.max(0.01, noseEnd);
+  const finHi = modelBounds ? Math.max(finLo, modelBounds.hi) : Math.max(Math.max(0.01, noseEnd), o.length - (finChord ?? 0));
   const stationCx = primaryFin ? X((primaryFin.poly[0][0] + primaryFin.poly[3][0]) / 2) : 0;
   const stationCy = primaryFin ? top((primaryFin.poly[0][1] + primaryFin.poly[1][1]) / 2) : 0;
 
@@ -628,7 +642,16 @@ export default function RocketDiagram({
     primaryFin && trapezoid ? primaryFin.poly[3][0] - primaryFin.poly[0][0] : undefined;
   const rootLeStation = primaryFin ? primaryFin.poly[0][0] : 0;
   const rootLo = rootChordNow !== undefined ? Math.min(rootChordNow, 0.01) : 0;
-  const rootHi = rootChordNow !== undefined ? Math.max(rootChordNow, o.length - rootLeStation) : 0;
+  // **The stage's own extent, which is what `cutOversizedFinRoots` shortens an oversized root down
+  // to** — not `o.length − rootLeStation`, which is the stack less TODAY's leading edge and so
+  // cannot grow the root at all on a tail-flush design. Measured on `demo-single-deploy`: this grip
+  // capped the root at its current 120 mm while the field beside it took 1900 mm and the model cut
+  // to 950 — three answers to "how long may this root be" on one screen.
+  const rootRoom = onEdit ? finStageRoom(rocket, selectedFinSetId) : undefined;
+  const rootHi =
+    rootChordNow !== undefined
+      ? Math.max(rootChordNow, rootRoom ?? o.length - rootLeStation)
+      : 0;
   const rootCx = primaryFin ? X(primaryFin.poly[3][0]) : 0;
   const rootCy = primaryFin ? top(primaryFin.poly[3][1]) : 0;
 

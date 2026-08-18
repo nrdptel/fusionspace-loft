@@ -86,9 +86,21 @@ export function descentRoughWhy(rocket: Rocket | null | undefined): string | und
  *  **A first version tested the AIRFRAME's length instead, and the fin-position sweep caught it.**
  *  `parameterSweep` slides a fin set to 1,005 mm on a 950 mm rocket, so the CP dutifully follows the
  *  fins to 953.6 mm — past the tail, with CNα a healthy 18.5 /rad and every contribution positive.
- *  That CP is arithmetically right for the rocket being described; what is wrong there is that the
- *  editor let a fin set hang in space behind the airframe, which is a different defect and is filed
- *  as one. Withholding it here would have hidden a real bug behind a caveat about a different one.
+ *  That CP is arithmetically right for the rocket being described; what was wrong there is that the
+ *  editor let a fin set hang in space behind the airframe, which is a different defect and was
+ *  filed as one. Withholding it here would have hidden a real bug behind a caveat about a different
+ *  one — and that is exactly what happened next: **the fin overhang was fixed on 2026-08-18**
+ *  (`keepFinsOnAirframe` in `lib/model/edit.ts`), so a fin set's root can no longer leave the stage
+ *  it sits on by any edit, and the 1,005 mm case above is unreachable through the fin fields.
+ *
+ *  **Stated that narrowly on purpose.** A first draft said the case was "no longer reachable at
+ *  all", which is a guarantee about the whole model that this file is in no position to make — the
+ *  hull test here is about CNα summing toward zero, and nothing stops some future edit putting a
+ *  contribution somewhere strange by another route. The pre-push review found the overclaim by
+ *  reaching the same CP through the root-chord field, which was then fixed too; the lesson is that
+ *  the sentence was wrong before the second defect existed. This rule is left doing only its own job
+ *  either way, and the reasoning below stands unchanged because it is the argument for the hull test
+ *  rather than a note about one file.
  *
  *  **Measured, because "a corner case" is what this looked like until it was driven.** On the
  *  35-design corpus exactly one file trips it — `Show-off.CDX1`, summed CNα −1.93 /rad, CP 913.4 mm

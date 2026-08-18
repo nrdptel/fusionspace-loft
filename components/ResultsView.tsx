@@ -1859,9 +1859,17 @@ function StabilityTrimHint({
   // Thin margin: name the nose ballast, and the weight-free fin-aft move that reaches the same target.
   if (!trim.alreadyMet) {
     const fin = finStationTrim(rocket, trim.currentMarginCal, r.liftoffMass, refD, TRIM_TARGET_CAL);
+    // **A withheld lever says why it is withheld** — `DESIGN.md` §6, and `MAINTAINING.md`'s safety
+    // posture in as many words. `feasible` became a real test on 2026-08-18: it used to mean only
+    // that the target station was positive, so this offered "move the fin set about 287 mm aft" on a
+    // design whose fins already sit flush with the tail, and the model would have refused every
+    // millimetre of it. Dropping the sentence silently was the first fix and it was half of one —
+    // the flyer is then left wondering whether the lever exists. It does, and it is spent.
     const finAft =
       fin && fin.feasible && fin.shiftM > 0 ? (
         <> Or move the fin set about {d.q(d.lengthMm(fin.shiftM, units))} aft — weight-free — for the same margin.</>
+      ) : fin && !fin.feasible && fin.shiftM > 0 ? (
+        <> Moving the fin set aft would do it weight-free, but there is no room: the root has to stay on the airframe, and it is already as far back as this design allows.</>
       ) : null;
     return (
       <p className={box}>
@@ -1887,6 +1895,10 @@ function StabilityTrimHint({
   // Over-stable: the one case nose ballast can't fix — name the fin-forward move that eases it.
   if (trim.currentMarginCal > OVER_STABLE_CAL) {
     const fin = finStationTrim(rocket, trim.currentMarginCal, r.liftoffMass, refD, OVER_STABLE_TARGET_CAL);
+    // No withheld-reason arm on this side, and that is a decision rather than an omission: a design's
+    // fins are at the AFT end, so the forward direction is the one that has room. Writing the mirror
+    // sentence would be a guard that fires on zero real designs, which this repo names as worse than
+    // nothing. The aft case above is the shape to copy if one is ever needed.
     if (fin && fin.feasible && fin.shiftM < 0) {
       return (
         <p className={box}>

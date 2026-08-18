@@ -49,6 +49,8 @@ import {
   removalRefusal,
   derivedPartRefusal,
   derivedPartAim,
+  finStationBounds,
+  finStageRoom,
   DERIVED_PARTS,
   newPartId,
   type AddedPart,
@@ -1895,6 +1897,41 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             finTipChord: primaryFinTipChord(designBase, edits.finSetId),
             finSweepLength: primaryFinSweep(designBase, edits.finSetId),
             finStation: primaryFinStation(designBase, edits.finSetId),
+            // **The bound, read from the FLOWN tree rather than from `designBase` like everything
+            // else in this object, and the difference is the whole point.** `designBase` is
+            // `structureOf` — adds, removals and moves, with every DIMENSION edit dropped — so a
+            // ceiling computed there is measured on a rocket the flyer has since lengthened or
+            // shortened. `components/ParameterSweep.tsx` builds exactly that bound from exactly that
+            // tree and then sweeps WITH the dimension edits, which is a filed Sev-1; repeating the
+            // mistake here would put a second copy of it on the field the flyer types into.
+            //
+            // One function, `finStationBounds`, shared with the applier that enforces it, the sweep
+            // that drops candidates outside it and the trim that calls a target beyond it
+            // infeasible. A bound quoted from one place and applied from another is a promise the
+            // validator never made — this file records shipping exactly that once, on the boattail's
+            // exit.
+            finStationMax: flownForReadback ? finStationBounds(flownForReadback, edits.finSetId)?.hi : undefined,
+            /** The furthest FORWARD station the group can take, and it is not always zero. On
+             *  `Two stage high power rocket.ork` it is 781.0 mm, because a sustainer's fins cannot be
+             *  slid ahead of the stage they are on. Leaving the field at `min={0}` was the Sev-1's
+             *  mirror image: typing 100 was accepted, the field went on showing 100, and the model
+             *  flew 781. Found by the pre-push review. */
+            finStationMin: flownForReadback ? finStationBounds(flownForReadback, edits.finSetId)?.lo : undefined,
+            /** The station the flight is actually using, for the placeholder.
+             *
+             *  **Read from the FLOWN tree, which is the exception `massObjectStation` already makes
+             *  and for the identical reason.** Every other readback here comes from `designBase` so a
+             *  field shows the value it is editing FROM. A fin station is not typed to change a root
+             *  chord — but a root edit MOVES it, because 42 of the 62 bounded corpus sets are placed `bottom` and
+             *  a longer root grows forward from a fixed trailing edge. Measured: a root of 360 mm on
+             *  `demo-single-deploy` moves the set 830 → 590 mm while the field went on advertising
+             *  830. With the ceiling now read from the flown tree that stale placeholder became
+             *  actively dangerous — max 590 under a placeholder of 830 — so retyping the number the
+             *  field showed you was refused and committed 590. */
+            finStationFlown: flownForReadback ? primaryFinStation(flownForReadback, edits.finSetId) : undefined,
+            /** The longest root the aimed set's stage can carry — the same extent `keepFinsOnAirframe`
+             *  cuts an oversized root down to. Read from the flown tree for the reason above it. */
+            finRootMax: flownForReadback ? finStageRoom(flownForReadback, edits.finSetId) : undefined,
             finThickness: primaryFinThickness(designBase, edits.finSetId),
             finCrossSection: primaryFinCrossSection(designBase, edits.finSetId),
             finMaterial: primaryFinMaterial(designBase, edits.finSetId),
@@ -2174,6 +2211,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             finTipChord: undefined,
             finSweepLength: undefined,
             finStation: undefined,
+            finStationMax: undefined,
+            finStationMin: undefined,
+            finStationFlown: undefined,
+            finRootMax: undefined,
             finThickness: undefined,
             finCrossSection: undefined,
             finMaterial: undefined,
@@ -2969,6 +3010,16 @@ function DesignEditor({
     finTipChord?: number;
     finSweepLength?: number;
     finStation?: number;
+    /** The furthest aft station that still keeps the aimed fin set's ROOT on its stage — the same
+     *  bound `keepFinsOnAirframe` enforces, so the field cannot advertise a ceiling the model does
+     *  not use. Undefined for a design with no fin set, or one whose set fills its stage. */
+    finStationMax?: number;
+    /** The furthest forward station the fin group can take — not always zero on a staged design. */
+    finStationMin?: number;
+    /** The station the FLIGHT is using, which a root-chord edit moves without anyone typing it. */
+    finStationFlown?: number;
+    /** The longest root chord the aimed fin set's stage can carry. */
+    finRootMax?: number;
     finThickness?: number;
     finCrossSection?: FinCrossSection;
     finMaterial?: string;
@@ -3308,6 +3359,18 @@ function DesignEditor({
                       placeholder={toDispSpan(designDims.finRootChord)}
                       onChange={(v) => onEdit({ finRootChord: fromSpan(v) })}
                     min={0}
+                    // **The same bound from the other end, and it needs its own ceiling.** A root
+                    // longer than the stage it sits on has no station that fits, so the model cuts it
+                    // — but a field that takes 1900 mm on a 950 mm airframe and silently returns a
+                    // 950 mm fin is the "field showing a number that is not the one in the flight"
+                    // this file keeps recording. `finStationRoom` is the stage's own extent, so the
+                    // ceiling is the longest root the airframe can carry.
+                    max={designDims.finRootMax !== undefined ? Number(toDispSpan(designDims.finRootMax)) : undefined}
+                    hint={
+                      designDims.finRootMax !== undefined
+                        ? `The root is the edge bonded to the airframe, so it cannot be longer than the stage it sits on — up to ${toDispSpan(designDims.finRootMax)} ${spanU} here. The tip may still overhang the tail.`
+                        : undefined
+                    }
                     positive
                     />
                   )}
@@ -3334,9 +3397,38 @@ function DesignEditor({
                     <NumberField
                       label={`Fin position (${spanU})`}
                       value={toDispSpan(edits.finStation)}
-                      placeholder={toDispSpan(designDims.finStation)}
+                      placeholder={toDispSpan(designDims.finStationFlown ?? designDims.finStation)}
                       onChange={(v) => onEdit({ finStation: fromSpan(v) })}
-                    min={0}
+                    min={designDims.finStationMin !== undefined ? Number(toDispSpan(designDims.finStationMin)) : 0}
+                    // **The ceiling this field never had, and the Sev-1 it cost.** It shipped with
+                    // `min={0} positive` and nothing else, on the one field a flyer sizes fins
+                    // against: 1030 mm on the 950 mm bundled sample put the whole set 80 mm behind
+                    // the airframe and the Flight card restated CG, CP and static margin from it,
+                    // unflagged. `NumberField`'s own contract calls min/max "the range in which the
+                    // value means something physically, not a style choice", and Rail angle two
+                    // hundred lines below has carried `max={45}` and a reason throughout.
+                    //
+                    // Both halves, and they do different jobs. `keepFinsOnAirframe` bounds the MODEL
+                    // whatever any caller does; this `max` bounds the CONTROL, which is what stops
+                    // the solver holding an impossible station while the flyer is still typing
+                    // (`wouldNotFly` withholds at the keystroke, `commit` pulls to the bound on
+                    // blur — the same shape Rail angle has). The `hint` is the third part and the
+                    // one a flyer actually reads: it states the ceiling BEFORE they meet it, rather
+                    // than leaving them to discover it by being overridden. Passing a hint also
+                    // suppresses `NumberField`'s automatic range sentence, which is deliberate —
+                    // this one names the same number in the flyer's terms.
+                    max={designDims.finStationMax !== undefined ? Number(toDispSpan(designDims.finStationMax)) : undefined}
+                    hint={
+                      designDims.finStationMax !== undefined
+                        // **"this design", not "this stage", and the difference is load-bearing on a
+                        // design with several sets.** The ceiling is the GROUP's — every set slides
+                        // together, so the binding constraint is the tightest set's, which on a
+                        // staged design may be a set on a different stage from the one the field is
+                        // holding. A first draft said "this stage leaves room up to…", which is a
+                        // false sentence exactly when the flyer most needs a true one.
+                        ? `Where the fin root starts, from the nose tip. Every fin set moves together and each root has to stay on the stage it sits on, so this design allows ${toDispSpan(designDims.finStationMin ?? 0)}–${toDispSpan(designDims.finStationMax)} ${spanU}.`
+                        : undefined
+                    }
                     positive
                     />
                   )}

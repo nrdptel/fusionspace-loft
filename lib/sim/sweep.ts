@@ -8,6 +8,7 @@ import type { Rocket } from "../model/types";
 import type { ConditionOverrides } from "./setup";
 import type { GeometryEdits } from "../model/edit";
 import { runFlight } from "./run";
+import { finStationBounds, applyGeometryEdits } from "../model/edit";
 
 /** A candidate motor to fly, as the swap picker describes it. */
 export interface SweepMotor {
@@ -242,9 +243,37 @@ export function parameterSweep(
 ): ParamSweepPoint[] {
   const out: ParamSweepPoint[] = [];
   const isGeometry = GEOMETRY_AXES.includes(axis);
+  // The airframe every candidate is measured against: the design with the held-fixed edits applied,
+  // which is what `runFlight` below flies. `applyGeometryEdits` is what bounds the model, so asking
+  // it for the bound and then flying the same tree is the only version that cannot disagree.
+  const finBounds =
+    axis === "finStation"
+      ? finStationBounds(applyGeometryEdits(rocket, opts.baseGeometry ?? {}), opts.baseGeometry?.finSetId)
+      : undefined;
   for (const v of values) {
     // A geometry dimension must be positive; ballast may be zero (no added weight).
     if (isGeometry ? !(v > 0) : !(v >= 0)) continue;
+    // **And a fin station outside the airframe is DROPPED rather than flown, which became necessary
+    // the moment `applyGeometryEdits` started clamping it.** Before the clamp this axis flew fins
+    // hanging off the tail and reported a margin for a rocket nobody can build — the defect the clamp
+    // fixes. After it, and without this, the sweep would be worse rather than better: the model would
+    // pull the fins back to the airframe and the curve would go on plotting the point at the station
+    // the flyer asked for, so the x-axis would name a rocket the y-axis did not describe. A silent
+    // agreement between two lies is harder to see than one of them.
+    //
+    // Dropped rather than clamped-and-relabelled: `linRange` produces evenly spaced candidates, and
+    // two of them collapsing onto one station would draw two points at one x. The panel that builds
+    // this range already bounds it (`components/ParameterSweep.tsx`), so on that path this filter
+    // removes nothing — it is the guard for every OTHER caller, which is where the defect was found.
+    //
+    // **Measured on the tree the sweep actually flies, which is the base geometry APPLIED.** A first
+    // version asked `finStationBounds(rocket, …)` of the pristine design — the exact "bound measured
+    // on a rocket the flyer has since shortened" defect the paragraph above says it is fixing, in the
+    // function fixing it. Measured with `baseGeometry {bodyLength: 0.2}`: the true ceiling is 330 mm
+    // and the pristine one is 830 mm, so every candidate survived and three of them flew station 0 —
+    // three points at one rocket, on an x-axis reading 300, 376 and 451 mm. Caught by the pre-push
+    // review. Computed once outside the loop: the base geometry does not vary per candidate.
+    if (axis === "finStation" && finBounds && (v < finBounds.lo - 1e-9 || v > finBounds.hi + 1e-9)) continue;
     // A geometry axis overrides that one field of the held-fixed edits; the ballast axis leaves the
     // geometry alone and varies the added nose weight instead.
     const geometry: GeometryEdits = isGeometry ? { ...opts.baseGeometry, [axis]: v } : { ...opts.baseGeometry };

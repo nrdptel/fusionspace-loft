@@ -8,8 +8,7 @@ import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { linRange, SWEEP_AXES, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
 import { usePersistedChoice, useSettled } from "@/lib/session";
 import { runParameterSweep } from "@/lib/sim/sweep-client";
-import { AIM_SLOTS, structureOf, primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryFinChord, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
-import { overallLength } from "@/lib/model/geometry";
+import { AIM_SLOTS, structureOf, applyGeometryEdits, finStationBounds, primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
@@ -193,15 +192,26 @@ export default function ParameterSweep({
     // nose and its aft (trailing) edge no further back than the tail — so the curve never implies
     // stability you could only get by hanging the fins off the end (for tail-mounted fins that
     // makes it a forward-only sweep, which is the honest range).
+    // **The band is bounded by `finStationBounds` off the FLOWN tree, which is what the sweep flies.**
+    // It used to be `[max(0.02, noseLen, station − band), min(station + band, airframeLen − finChord)]`
+    // computed from `axisBase` — and `axisBase` is `structureOf`, which drops every dimension edit.
+    // Three separate errors in one expression: the wrong TREE (a flyer who has shortened the body gets
+    // a band measured on the long one), the wrong DATUM (the stack rather than the stage the set is
+    // on), and the wrong SET (the primary rather than the tightest of the group). Since
+    // `lib/sim/sweep.ts` began dropping candidates the model will not fly, that mismatch stopped being
+    // theoretical: measured over the corpus, **10 of the 33 designs offering this axis lost points**,
+    // three kept 1 of 13, and `Pods--airframes and winglets.ork` kept **0 of 13** and fell through to
+    // "Not enough of the range could be flown to draw a curve" — a chart emptied by its own panel.
+    //
+    // `finStation` still comes from `axisBase`, deliberately: it is the BASE of the sweep, the value
+    // the "design's own" marker sits at, and that is the station being swept FROM.
     const finStation = primaryFinStation(axisBase, geometry?.finSetId);
-    const finChord = primaryFinChord(axisBase, geometry?.finSetId);
     const bodyForStation = primaryBodyTube(axisBase)?.length;
-    const airframeLen = overallLength(axisBase);
-    const noseLen = primaryNose(axisBase)?.length ?? 0;
-    if (finStation && finStation > 0 && bodyForStation && bodyForStation > 0 && finChord && finChord > 0 && airframeLen > 0) {
+    const flownBounds = finStationBounds(applyGeometryEdits(doc.rocket, geometry ?? {}), geometry?.finSetId);
+    if (finStation && finStation > 0 && bodyForStation && bodyForStation > 0 && flownBounds) {
       const band = 0.35 * bodyForStation;
-      const lo = Math.max(0.02, noseLen, finStation - band);
-      const hi = Math.min(finStation + band, airframeLen - finChord);
+      const lo = Math.max(flownBounds.lo, finStation - band);
+      const hi = Math.min(finStation + band, flownBounds.hi);
       if (hi > lo) {
         list.push({ axis: "finStation", label: "Fin position", base: finStation, lo, hi, xToNumber: lengthX, xUnit: lengthUnit });
       }

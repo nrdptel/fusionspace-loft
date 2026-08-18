@@ -1527,7 +1527,7 @@ test.describe("Loft", () => {
     await expect.poll(summaryApogee).toBeLessThan(before);
   });
 
-  test("moving the fins aft re-flies the design stiffer — a higher static margin", async ({ page }) => {
+  test("moving the fins re-flies the design, and the field refuses a station off the tail", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
@@ -1542,23 +1542,55 @@ test.describe("Loft", () => {
     };
     const before = await apogee();
 
-    // Slide the whole fin group 100 mm aft — a "what-if" stability trim — on the Design workspace.
+    // Slide the whole fin group 100 mm FORWARD — a "what-if" stability trim — on the Design workspace.
+    //
+    // **Forward, and that is the design rather than the test being awkward.** This sample carries its
+    // fins flush with the tail (830 mm with a 120 mm root on a 950 mm airframe), which is where fins
+    // normally are, so there is no room aft at all — and since 2026-08-18 the field says so instead
+    // of flying them off the back. This case used to slide them 100 mm aft and assert a POSITIVE
+    // caliber delta, which it got from a rocket with its fin set hanging behind the airframe.
     await page.getByRole("link", { name: "Design" }).click();
     const finPos = page.getByRole("spinbutton", { name: /Fin position/ });
     await expect(finPos).toBeVisible();
     const design = parseFloat((await finPos.getAttribute("placeholder")) ?? "0");
     expect(design).toBeGreaterThan(0);
-    await finPos.fill(String(Math.round(design + 100)));
+
+    // **The ceiling is on the control, and it is the room the airframe actually has.** The field
+    // advertises it, so a flyer reads the limit before they hit it rather than after.
+    const max = parseFloat((await finPos.getAttribute("max")) ?? "");
+    expect(max, "Fin position must advertise a ceiling").not.toBeNaN();
+    expect(max).toBeCloseTo(design, 0);
+
+    await finPos.fill(String(Math.round(design - 100)));
     await page.getByRole("link", { name: "Flight" }).click();
 
-    // A "what-if vs design" delta appears: fins aft move the centre of pressure aft, so the static
-    // margin rises (a positive caliber delta in the banner).
+    // A "what-if vs design" delta appears: fins forward move the centre of pressure forward, so the
+    // static margin FALLS (a negative caliber delta in the banner).
     const panel = page.getByRole("group", { name: "What-if vs design" });
     await expect(panel).toBeVisible();
-    await expect(panel.getByText(/\+[\d.]+ cal/)).toBeVisible();
+    await expect(panel.getByText(/[−-][\d.]+ cal/)).toBeVisible();
     // The shift barely touches drag or mass, so apogee holds within a couple of per-cent.
     const after = await apogee();
     expect(Math.abs(after - before) / before).toBeLessThan(0.03);
+
+    // **And typing past the ceiling produces no what-if at all** — which is a sharper claim than
+    // "apogee barely moved". A fin shift never moves apogee much, so the old assertion passed on the
+    // UNCLAMPED code too; and `NumberField.commit` pulls an over-max entry to the bound before the
+    // model ever sees it, so this leg cannot exercise the model clamp either. What it CAN prove is
+    // that the flyer ends up flying the design rather than a rocket with fins behind it: the
+    // "What-if vs design" panel is present exactly when an edit is in force, and here the edit
+    // collapses to the design's own station. Both halves were pointed out by the pre-push review.
+    await page.getByRole("link", { name: "Design" }).click();
+    await finPos.fill(String(Math.round(design + 100)));
+    await finPos.blur();
+    await page.getByRole("link", { name: "Flight" }).click();
+    const flown = await apogee();
+    expect(Math.abs(flown - before) / before).toBeLessThan(0.03);
+    // The margin is the design's own again — the forward what-if above moved it, this one does not.
+    await expect(
+      page.getByRole("group", { name: "What-if vs design" }).getByText(/[−-][\d.]+ cal/),
+      "a station past the tail must not produce a stability what-if",
+    ).toHaveCount(0);
   });
 
   test("a bigger recovery canopy re-flies the design — a slower, softer descent, same apogee", async ({
@@ -7825,12 +7857,22 @@ test.describe("Loft", () => {
     await span.press("Enter");
     await span.blur();
 
+    // **What changed on 2026-08-18, and why this case now asserts a SENTENCE rather than a number.**
+    // The 287 mm move this test was written to pin is off the aft end of this airframe — its fins sit
+    // flush with the tail — so `keepFinsOnAirframe` would refuse every millimetre of it and
+    // `finStationTrim` now reports it infeasible. The original defect is unchanged and still worth
+    // pinning: the hint read its geometry off the FILE rather than the edited airframe, and the
+    // reason a number cannot pin it any more is that the honest answer is no longer a number.
+    //
+    // So the assertion moves to the thing a flyer acts on: the lever is named, and the reason it
+    // cannot be pulled is given. A silently dropped sentence — which is what the first version of the
+    // bound produced — passes neither leg.
     await expect(async () => {
-      const moved = await finMove();
-      expect(moved).not.toBeNull();
-      // The advice for the edited airframe. The file's own rocket asks for a visibly smaller move,
-      // so any figure at or below it means the hint is still describing the design as imported.
-      expect(Number(moved!.replace(/,/g, ""))).toBeGreaterThan(200);
+      const t = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+      expect(t, "the fin-aft lever must still be named").toMatch(/Moving the fin set aft would do it weight-free/);
+      expect(t, "and the reason it cannot be pulled must be given").toMatch(/already as far back as this design allows/);
+      // ...and no number is offered for a move that cannot be made.
+      expect(await finMove(), "an unachievable move must not be quoted as a figure").toBeNull();
     }).toPass({ timeout: 20_000 });
   });
 
