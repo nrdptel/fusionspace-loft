@@ -987,6 +987,11 @@ export default function ResultsView({
               ? undefined
               : "The centre of gravity and the static margin are not marked: a motor in this configuration could not be matched to a thrust curve, so it is left out of the build entirely and the balance would be drawn without its mass. Match the motor, or swap in a substitute, and both come back — including the live margin readout while you drag."
           }
+          // The mirror case, and it needs its own sentence: the CG depends on the motor and the CP
+          // does not, so a design with a resolved motor and no centre of pressure drops the CP mark
+          // while the CG mark stays. Gated inside the panel on `cp === undefined`, so the two
+          // reasons cannot both print.
+          cpWithheldReason={cpWhy}
           edited={editing}
           motors={shownMotors}
           onEdit={onEditGeometry}

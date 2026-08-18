@@ -2522,11 +2522,33 @@ test.describe("Loft", () => {
     if (await detail.count()) await detail.click().catch(() => {});
     await expect(page.getByText("CNα", { exact: true })).toBeVisible();
 
+    // **The diagram says why its CP mark is gone, and it is a DIFFERENT sentence from the motor
+    // one.** The CG depends on the motor and the centre of pressure does not, so a design with a
+    // resolved motor and no CP drops one mark and keeps the other — and the existing note is gated
+    // on `cg === undefined`, so before this the marks simply stopped appearing. Both halves asserted:
+    // a cold walk of the built export is what found it, and what it found was silence.
+    await page.getByRole("link", { name: "Design" }).click();
+    await expect(page.getByText(/The centre of pressure and the static margin are not marked/)).toBeVisible();
+    await expect(page.getByText(/The centre of gravity and the static margin are not marked/)).toHaveCount(0);
+
+    // **The parameter sweep withdraws the metric and no longer prescribes the wrong fix.** Its
+    // notice used to end "Swap in a bundled motor under Design, and it comes back on both" — hard
+    // wired to the one gap it had when it was written, and simply wrong for a design whose motor is
+    // fine. The pitch above it drops ", stability" from the metrics it names, which is the cheap
+    // half of the same signal and is checked without running anything.
+    await page.getByRole("link", { name: "Sweep" }).click();
+    await expect(page.getByRole("heading", { name: /Sweep a parameter/i })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/how apogee, speed or fin-flutter margin responds/)).toBeVisible();
+    await page.getByRole("button", { name: /Run parameter sweep/i }).click();
+    await expect(page.getByText(/Static margin is not offered here/)).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/Swap in a bundled motor under Design, and it comes back/)).toHaveCount(0);
+
     // And it comes back: widen the fins again and the margin is a number, so this is a boundary the
     // flyer can cross in both directions rather than a state the app gets stuck in.
     await page.getByRole("link", { name: "Design" }).click();
     await page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input").fill("60");
     await expect.poll(marginValue, { timeout: 20000 }).toMatch(/cal/);
+    await expect(page.getByText(/The centre of pressure and the static margin are not marked/)).toHaveCount(0);
   });
 
   test("dragging the fins forward on the diagram re-flies the design less stable", async ({ page }) => {

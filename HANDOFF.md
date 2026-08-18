@@ -4,53 +4,70 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Run 19 is a SEV-1 run.** The opening fan-out returned four reproducible Sev-1s and they preempted
-the queue, as `MAINTAINING.md` says they must. Everything below is on
-`claude/ultracode-maintenance-ap9naf` and **PR #188 is open against `main`** — nothing has reached
-production yet.
+**Run 19 shipped eight increments: two queued milestone slices and six Sev-1s.** Seven of them are
+**merged and live** (`main` at `ec228a8`, deployed and verified — see *The production gap* below).
+The eighth is **PR #189**, green on CI at `b5a2ccf` with two more commits behind it.
 
 | | what | state |
 |---|---|---|
-| P18 increment 2 | `DropZone` — the last hand-rolled card treatment, and the refusal moves into the zone | pushed, PR #188 |
-| SEV-1 | offline with a design open, the app reloaded itself forever | pushed, PR #188 |
-| SEV-1 | an authored mass hangs out of its host when the host is resized | pushed, PR #188 |
+| P18 increment 2 | `DropZone` — the last hand-rolled card treatment, and the refusal moves into the zone the file landed on | **live** |
+| SEV-1 | offline with a design open, the app reloaded itself forever | **live** |
+| SEV-1 | an authored mass hung out of the part holding it once that part was resized | **live** |
+| SEV-1 | a part that weighs something printed as a flat `0 kg` | **live** |
+| SEV-1 | the Conditions panel said "as designed" after the flyer replaced them | **live** |
+| SEV-1 | the fallback-canopy caveat reached one surface of three | **live** |
+| R12 increment 24 | three add controls on every design were live and did nothing | **live** |
+| SEV-1 | a design with no centre of pressure was given one, and a band to go with it | **PR #189** |
 
-**The two Sev-1s still open, both reproduced and both worth taking first next run:**
+**The next slice on each track:**
 
-1. **`lib/display.ts:114` — `mass()` prints a flat `0 kg` / `0 lb` for real parts.** Measured over the
-   corpus: **39 parts render as `0 kg` and 91 as `0 lb`, across 18 of the 35 designs**, on the mass &
-   balance table whose stated job is reconciling an import against a build sheet — beside a `%` column
-   saying the same part is up to **3.55%** of dry mass. `fmtSmall` is the fix and is ten lines above
-   in the same file (`lengthMm` already uses it for exactly this); verified output is `0.0003 kg` /
-   `0.001 lb`, widest 7 characters, so no layout consequence. **This is a one-line change with a
-   corpus measurement already behind it.**
-2. **`lib/sim/aero.ts:105` — a negative summed CNα yields a CP behind the tail, published
-   unqualified.** `corpus/rasaero/Show-off.CDX1` reads LENGTH 593 mm, **CP 913 mm**, **CNα −1.93
-   /rad**. Almost certainly downstream of the RASAero fin-station bug below, so take the two together.
-
-**And the third, larger one the corpus lens found:** `lib/rasaero/adapt.ts:106` reads a fin's
-`Location` as aft of the parent's FORE end where RASAero measures from its AFT end. On the corpus's
-own OpenRocket/RASAero pair of the same physical rocket that flips **+2.74 cal stable to −2.16 cal**
-with a "statically unstable" warning attached, and it mis-stations the fin set on all four `.CDX1`
-files. Same file also builds the boattail **twice** on `Show-off.CDX1` (`inlineBoattail` and
-`parseParts` both make it) and places every part `{method:"after", offset:0}`, ignoring
-`<Location>`/`<Offset>` — which is why that design imports 17% longer than the file says. A parser
-change: own gate, own push, and the corpus is the oracle.
-
-**The next slice on each track, once the Sev-1s are clear:**
-
+- **R-track: R12 increment 25.** The obvious one, and it comes straight out of increment 24's own
+  "what this does NOT do": the three parts the dimension fields make — a boattail, a drogue, a payload
+  bay — are now honestly refused, and a flyer still has no way to select a boattail and edit it AS a
+  part. The product question is whether touching a field-made part promotes it to an authored one.
+  That is a decision, not a bug, and it is the last thing standing between R12 and a tree where every
+  part on screen behaves the same way.
 - **P-track: P18 increment 3 is written and scoped** — `components/ResultsView.tsx`'s flight-log
   surface, the app's second file ingest. It still carries all three defects `DropZone` was extracted
-  to end, and `BACKLOG.md` lists what has to change in the primitive before it can be adopted there
-  (its prop type exposes none of `Card`'s `pad`/`as`/`tone`, and its hard-coded `text-center` is beaten
-  by a call site only through source order — the same hazard §2 gained a paragraph about this run).
-- **R-track: R12 increment 24 is the dead add controls.** `addOptionsFor` is asked of the fully-edited
-  tree, so a boattail synthesised by `boattailLength`/`boattailAftDiameter` draws three ENABLED
-  controls that `addPartAfter` cannot address — **105 live-but-dead controls across the corpus, 3 on
-  every design** — and clicking one does nothing, with no refusal and no undo step. The fix is the
-  one-rule principle increment 20 established: `addOptionsFor` refuses what the applier cannot reach.
-- **The one-in-four quota is CLEAR.** Increment 1 was queued milestone work and the other two were
-  Sev-1 preemptions, which the quota excludes by name. No unqueued defect work was cleared.
+  to end. `BACKLOG.md` lists what has to change in the primitive before it can be adopted there (its
+  prop type exposes none of `Card`'s `pad`/`as`/`tone`, and its hard-coded `text-center` is beaten by
+  a call site only through source order). **P18's remaining *done when* clause is the sibling mirror**,
+  which this session could not reach — see below.
+
+**The two best defects still open, both reproduced, both measured:**
+
+1. **`Show-off.CDX1` gets its boattail built TWICE.** `inlineBoattail` builds one from the tube's own
+   `<BoattailLength>`/`<BoattailRearDiameter>` and `parseParts` builds the following `<BoatTail>`
+   element — the same physical cone, verified by reading the file: the tube at `Location 17` with
+   `Length 2` carries `BoattailLength 1` / `BoattailRearDiameter 0.25`, and the `<BoatTail>` at
+   `Location 19` is `Length 1` / `Diameter 2.73` / `RearDiameter 0.25`. Identical station, length and
+   both diameters. Each contributes **−1.9832 CNα**, which is the whole reason that design has a
+   summed CNα of −1.93 and is the corpus's only no-CP case. **A de-duplication is defensible without
+   any format reading** — two identical boattails at one station are one boattail — where changing
+   the `Location` semantics is not. Take this one; leave the `Location` question alone.
+2. **The fin-position sweep slides a fin set past the tail of the airframe and flies it there.**
+   `parameterSweep(rocket, "finStation", …)` has no clamp: `lib/sim/sweep.test.ts` drives the fins to
+   **1,005 mm and 1,030 mm on a 950 mm rocket**, and the CP dutifully follows to 953.6 mm and
+   975.9 mm. The margins are arithmetically right for a rocket that cannot be built. Filed. The
+   interesting half is whether the diagram's own Fin-position grip has the same gap.
+
+## The production gap, measured 2026-08-18
+
+`main` is `ec228a8`; the deployed service worker reports `BUILD_ID = "d9d9e8c7b6ad"`. Walked by
+fetching the site's own precache manifest and every asset in it:
+
+- **28 assets, 14 router payloads, 11 routes, 8 samples — every one returns 200.** The offline Sev-1's
+  fix is complete in production, not merely deployed: `_rsc` and `ignoreSearch` are both in the served
+  `sw.js`.
+- Probed the served JS for this run's own strings: *"made by the design fields"* (R12 inc 24),
+  *"as you set them"* (the conditions fix) and *"the canopy's drag coefficient is Loft's fallback"*
+  are all **PRESENT**. *"outside the span of the parts"* is **absent**, which is correct — that is
+  PR #189 and it has not merged.
+
+**So the gap is exactly one increment, and it is the one still in review.** Note the method: the
+first probe read only the 11 chunks the index page's `<script>` tags name and reported two of those
+strings absent. The authoritative list is the service worker's own `BUILD_ASSETS`, because that is
+what the app promises to work from offline.
 
 ## What the sibling repo is OWED, verbatim, because this session could not reach it
 
@@ -82,43 +99,49 @@ red in either copy. What to paste over there:
 
 ## What this run learned that outlasts its increments
 
-0. **A gate you trimmed to four lines cannot show its own failure count, and that is how run 19 read
-   green over three red tests.** `npx playwright test --shard=$i/3 2>&1 | tail -4` prints three test
-   NAMES and a "N passed" line — the "3 failed" header scrolls off. The pre-push review found the
+0. **A gate you trimmed to four lines cannot show its own failure count, and that is how this run
+   read green over three red tests.** `npx playwright test --shard=$i/3 2>&1 | tail -4` prints three
+   test NAMES and a "N passed" line — the "3 failed" header scrolls off. The pre-push review found the
    failures; the gate had already reported success. **Grep for `passed|failed|did not run`, never
-   `tail -N`.** This is the same false-all-clear shape the manual records for the corpus suite,
-   arriving through the shell instead of the suite.
-1. **The pre-push review is NINE-for-nine and this time it stopped a wrong refusal on the front
-   door.** `DropZone`'s first version refused a file whose NAME did not match `accept` — obvious for a
-   drop zone, and wrong here, because Loft's importer sniffs BYTES. A renamed `.ork`, an extensionless
-   download or a share-sheet hand-off was refused with a sentence that is false; the importer's own
-   better message ("a flight log or a spreadsheet goes in the flight-log box on the results instead")
-   was thrown away; and three green e2e cases went red, two of them round-trips where Playwright hands
-   a download back under a temp name. **The place was the defect. The check never was.**
-2. **A binding rule written with nothing able to contradict it is worth less than no rule.** §2 gained
-   "one container border width" and the same diff claimed §9's card counts already policed it. They
-   cannot: both need `rounded-xl` and a border token in one string literal, and a `Card` call site
-   never writes the radius. `containerBorderWidths` is the instrument. This is the third consecutive
-   run where a §2 addition shipped without its own check and the review caught it — the pattern is now
-   predictable enough to invert: **write the check first, then the section.**
-3. **`toContain("disabled")` cannot fail anywhere in this app.** `buttonClass` emits
-   `disabled:cursor-not-allowed disabled:opacity-50` on every button whatever its state, so the
-   substring is in the resting page. Assert `disabled=""`, and assert its absence at rest.
-4. **A precache list is a load on the e2e server as well as a promise to the flyer.** Precaching all
-   102 router payloads took the service-worker install from 48 entries to 158 and put three OFFLINE
-   e2e cases red under a three-shard run while they passed in isolation — descriptor exhaustion by a
-   new road. The 14 route payloads alone close the loop and leave every workspace reachable offline.
-5. **When two fixes each independently close a defect, one check cannot speak for both.** Removing
-   either half of the offline fix leaves *"reloading a workspace settles"* green. So the payload cache
-   is pinned by a case reading the cache directly and the navigation guard by an ONLINE navigation
-   count. A single check credited with two fixes is how one of them gets quietly removed later.
-6. **Subagents driving Playwright collide with the gate.** `reuseExistingServer` is true locally, so an
-   agent running `npx playwright test` shares the suite's own server on port 3000 and produces exactly
-   the unstable counts the manual warns about for concurrent shards. **Forbid Playwright in the agent
-   brief, not just writes** — reading is free, driving a browser is not.
-7. **Measure the consequence, not just the defect.** "The mass sits outside its host" is a geometry
+   `tail -N`.** Same false-all-clear shape the manual records for the corpus suite, arriving through
+   the shell instead of the suite.
+1. **A COLD WALK OF THE BUILT EXPORT FOUND TWO DEFECTS THE WHOLE GATE COULD NOT.** Both were created
+   by the very change that was about to ship, and both are the same shape: a sentence that was written
+   when its condition had exactly one cause, and outlived it.
+   - `ParameterSweep`'s withheld-metric notice ended *"Swap in a bundled motor under Design, and it
+     comes back on both"* — hard-wired advice, now printed to a flyer whose motor is fine and whose
+     centre of pressure is not a point on their rocket.
+   - `GeometryInspector`'s explanation of the missing CG/CP marks is gated on `cg === undefined`, so a
+     design with a resolved motor and no CP dropped both marks **in silence** — §5's "a surface that
+     vanishes instead of saying why", introduced by the fix for a different vanishing.
+   **When you give an existing condition a second cause, re-read every sentence downstream of it.**
+   The type system cannot see a prose fix, and neither can 1,329 unit tests.
+2. **"Reachable in the corpus" and "reachable by a flyer" are different claims, and the second is the
+   one that sizes a Sev-1.** The no-CP defect looked like a one-file RASAero curiosity — until the
+   from-scratch starter reached it in **two typed fields**, both inside the range the Design workspace
+   offers. Drive the editor before deciding a defect is a corner.
+3. **Test the arithmetic, not a proxy for it.** The no-CP rule's first version asked whether the CP
+   was inside the AIRFRAME, which sounded obviously right and was wrong: the fin-position sweep puts
+   fins past the tail, so the CP goes past it too with every contribution positive and CNα healthy.
+   The correct test is the convex hull of the contributions — exact, because a weighted average with
+   non-negative weights cannot leave the interval it averages over. **The proxy would have hidden a
+   real bug behind a caveat about a different one.**
+4. **Bumping a stored record's version silently rearms every test that writes one.** `session.test.ts`
+   has five cases that write a v1 record with a field deleted and assert a null read. With the reader
+   moved to v2 they all still passed — on the VERSION check, having stopped testing the missing field
+   entirely. Move the fixtures with the reader.
+5. **The pre-push review is nine-for-nine.** This time it stopped a wrong refusal on the front door:
+   `DropZone`'s first version refused a file whose NAME did not match `accept`, and Loft's importer
+   sniffs BYTES. **The place was the defect. The check never was.**
+6. **A binding rule written with nothing able to contradict it is worth less than no rule.** Third
+   consecutive run where a §2 addition shipped without its own check. Invert it: **write the check
+   first, then the section.**
+7. **Subagents driving Playwright collide with the gate.** `reuseExistingServer` is true locally, so an
+   agent's `npx playwright test` shares the suite's own server on port 3000. Forbid Playwright in the
+   agent brief, not just writes.
+8. **Measure the consequence, not just the defect.** "The mass sits outside its host" is a geometry
    statement nobody can price. "Static margin moves by up to 2.73 cal on 35 of 35 corpus designs" is
-   the same fact in the units a flyer acts in, and it is what makes it a Sev-1 rather than a nit.
+   the same fact in the units a flyer acts in.
 
 ## The environment, measured 2026-08-18 (run 19)
 
@@ -129,25 +152,29 @@ red in either copy. What to paste over there:
 - **The fixtures repo IS attached** at `/home/user/loft-fixtures`; five per-tool symlinks into
   `corpus/` and the suite names **35 design files**.
 - **The SIBLING repo is NOT reachable** — see above. This is new; run 18 recorded the opposite.
-- **A full gate is ~20 minutes** (lint ~20 s, unit ~4.5 min, build ~1 min, e2e 3×1.6 min) **on a quiet
-  box**. With subagents running it is unbounded and the e2e counts stop being trustworthy.
-- **Three e2e shards, and 288 tests.** `for i in 1 2 3; do npx playwright test --shard=$i/3; done`,
+- **A full gate is ~20 minutes** on a quiet box (lint ~4 min, unit ~5 min, build ~1 min, e2e
+  4×1.2 min). With subagents running it is unbounded and the e2e counts stop being trustworthy.
+- **FOUR e2e shards, and 293 tests.** `for i in 1 2 3 4; do npx playwright test --shard=$i/4; done`,
   sequentially, and read the failure LINE.
 - **The clone is SHALLOW.**
 - **Git identity arrived as the harness vendor's default** and was set per-repo before the first
-  commit. The harness appended its attribution footer to PR #188's body; it was stripped by re-posting
-  and read back to confirm.
-- **`npx tsc --noEmit` reports 19 errors, all in `lib/model/edit.test.ts`**, which `npm run build`
-  never reads. Filed.
+  commit. **The harness appended its attribution footer to PR #189's body on creation** — it does NOT
+  append on update, so re-posting the same body strips it. Read it back to confirm; PR #188's body was
+  clean because it was created before the footer arrived and updated afterwards.
+- **`npx tsc --noEmit` reports errors in `lib/model/edit.test.ts`**, which `npm run build` never
+  reads. Filed.
 
 ## The arc across sessions
 
-- **Run 19 (2026-08-18, this one).** **P18 increment 2** — `DropZone`, taking `cardTreatments` to 1
-  and `cardTreatmentsOutsidePrimitives` to 0, and moving a refusal 765 px up into the zone the file
-  landed on. **Two Sev-1s**: the offline reload loop (38 navigations in 3 s with a design open, on the
-  app's stated primary use), and an authored mass hanging out of its host on 35 of 35 corpus designs
-  for up to 2.73 cal of static margin. `COMPETITION.md` row 52 refutes row 30's standing claim that
-  Loft's save is uniquely portable. Two more Sev-1s reproduced and handed forward.
+- **Run 19 (2026-08-18, this one).** Eight increments: **P18 increment 2** (`DropZone` —
+  `cardTreatments` 3 → 1, outside the primitives file 2 → 0, and a refusal moved 765 px up into the
+  zone the file landed on), **R12 increment 24** (three dead add controls on every design), and **six
+  Sev-1s** — the offline reload loop, an authored mass hanging out of its host for up to 2.73 cal, real
+  part masses printing as a flat zero on 18 of 35 designs, a Conditions summary claiming "as designed"
+  after the flyer replaced them, the fallback-canopy caveat reaching one surface of three, and a
+  design with no centre of pressure being given one **with a band on it** — ±15 cal and +12.81 cal,
+  flagged LOW and HIGH, from the same undefined figure. `COMPETITION.md` rows 52 and 53. PRs #188
+  (merged) and #189.
 - **Run 18 (2026-08-17).** R12 increments 21 and 22 — a mass goes inside anything with a bay; the whole
   add vocabulary on screen. P18 written and increment 1 shipped (`Toast`). PRs #185, #186, #187.
 - **Run 17 (2026-08-17).** Two Sev-1s and three increments; **P17 SHIPPED**, R12 reached increment 20.
@@ -163,18 +190,24 @@ red in either copy. What to paste over there:
 
 - **Never push straight to `main`** — the deploy fires on any push, gated on nothing.
 - **Read the gate's failure LINE, not its tail.** See point 0 above.
-- **Three e2e shards, sequentially**, and re-run a failure in isolation before believing it — but a
-  test that fails in a shard and passes alone is not automatically contention: this run had one that
-  was real and three that were not, and the difference was measurable in ten minutes.
+- **Four e2e shards, sequentially**, and re-run a failure in isolation before believing it — but a
+  test that fails in a shard and passes alone is not automatically contention: run 19 had one that was
+  real and three that were not, and the difference was measurable in ten minutes.
 - **Every e2e negative control is `revert → rebuild → run → restore → rebuild`**, because the suite
-  serves `out/`.
+  serves `out/`. And the revert has to COMPILE: `noUnusedLocals` turns the obvious one-line revert
+  into a red build that leaves the previous `out/` in place, so the control passes and proves nothing.
+  Revert by changing a VALUE the fix depends on, not by deleting the code that uses it.
 - **A merged PR cannot track new work.** After merging, `git checkout -B <branch> origin/main`.
-- **`DESIGN.md` §9, measured this run:** radius drift 0, border drift 0, mismatched border pairs 0,
-  **card treatments 3 → 1 (target reached)**, **card treatments outside the primitives file 2 → 0
-  (target reached)**, **container border widths 0 (a new count)**, off-scale spacing 0, arbitrary
-  spacing 1 (the sanctioned device inset), off-scale type 0, inverted files 0, raw dropdown elements
-  0, elevations outside §2's two 0, primitive adoption 22 files, hover-only states on a coarse pointer
-  0. Nothing moved the wrong way and two counts reached their targets.
-- **`OWNER-NOTES.md`: all 13 open notes carry a verdict and none is pending.** `## Awaiting the owner`
-  has **two** live items: the signing key only the owner can register, and — new this run — the
-  sibling repo this session could not reach.
+- **`DESIGN.md` §9, measured this run** (`npx vitest run lib/design-system.test.ts` is the authority;
+  the shell one-liners over-report two of these and say so): radius drift 0, border drift 0, mismatched
+  border pairs 0, **card treatments 3 → 1 (target reached)**, **card treatments outside the primitives
+  file 2 → 0 (target reached)**, **container border widths 0 (a new count)**, elevations outside §2's
+  two 0, off-scale spacing 0, arbitrary spacing 1 (the sanctioned device inset), off-scale type 0,
+  inverted files 0, hand-rolled `<select>` 0, hand-rolled `<button>` 3 (the three primitives),
+  primitive adoption ≥21 files. Nothing moved the wrong way and two counts reached their targets.
+- **`OWNER-NOTES.md`: all 12 open notes carry a verdict and none is pending.** *(The previous handoff
+  said 13; the Open section holds twelve distinct notes — ON-1 … ON-10 plus ON-B1 and ON-B2 — and the
+  extra count came from ON-4 being named twice, once in its own note and once in the cluster header.)*
+  No new notes arrived this run, so every verdict is the 2026-08-08 one from the run that first saw
+  them. `## Awaiting the owner` holds 11 entries; the two newest are still live — the signing key only
+  the owner can register, and the sibling repo this session could not reach.
