@@ -12,6 +12,31 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-18 from R12 increment 27 — what giving the drogue and the payload panels did not
+answer.**
+
+- **A payload weight is not checked against a design that states ONE weight for the whole airframe,
+  on either surface that offers it.** Every other per-part weight field in the editor consults
+  `designDims.massCarriedBy` and either disables itself or says which assembly already carries the
+  figure — the nose, the body tube, an internal, a fitting, a mass object and the canopy all do. The
+  payload's does not: `components/LoftApp.tsx`'s `Payload` / `Weight` field takes a literal `0`
+  placeholder and no `massCarriedBy` key exists for it, so on a design whose file states a single
+  airframe mass a typed payload is added on top of a figure that may already include it. Pre-existing
+  on the whole-design wall and unchanged by increment 27, which only gave the same field a second
+  home. The fix is a `massCarriedBy.payload` key computed the way the other six are.
+- **`payloadStation` gates the payload's WEIGHT field, which is a coupling nothing states.** Both
+  controls are rendered behind `designDims.payloadStation !== undefined`, and there is no
+  `designDims.payloadMassKg` at all — so a design where the station cannot be defaulted would hide the
+  weight field too, and the panel R12 increment 27 opens would be empty. `defaultPayloadStation`
+  always answers today, which is why nothing has been seen; that is a property of the default, not of
+  the gate.
+- **`npx tsc --noEmit` reports 20 errors, all pre-existing and all in test files** — 19 in
+  `lib/model/edit.test.ts` and 1 in `lib/sim/withheld.test.ts`. The count was
+  19 on 2026-08-08 and 28 on 2026-08-12, so the three entries already filed against it
+  are each measuring a number that has moved twice since. It is worth one entry with a live count
+  rather than three with dead ones, and worth noting that the repo's gate does not run it at all: the
+  build type-checks the app and not the suite, so a test file can hold a type error indefinitely.
+
 **Filed 2026-08-18 from P18 increment 3's print-fade fix — the print sheet is a shipped surface with
 no binding design statement and half a test.**
 

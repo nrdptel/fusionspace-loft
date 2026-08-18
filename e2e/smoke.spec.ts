@@ -2920,6 +2920,126 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toBeEnabled();
   });
 
+  test("the drogue and the payload open their own fields, and not the canopy's", async ({ page }) => {
+    // **R12 increment 27, and it is increment 25's withdrawal being paid off.** 25 gave the boattail
+    // a panel and pulled the drogue's and the payload's at its own pre-push review: the per-aim mask
+    // blanked `designDims` by SUBTRACTING the aimed fields, so a key belonging to no aim survived
+    // every popover — and the drogue's two fields live in the recovery fieldset beside the MAIN
+    // canopy's `Canopy Cd` and `Canopy mass`, which render on exactly such keys. Typing in that Cd
+    // calls `withParachuteCd`, which resolves through `edits.parachuteId`: a different part from the
+    // one the panel is headed with. 27 made the mask an allowlist, so a key nobody thought about is
+    // hidden rather than shown.
+    //
+    // Only e2e can pin it, and the reason is the same one increment 25 recorded: `maskAimedDims` is
+    // correct in isolation either way — `lib/model/edit.test.ts` drives it directly and asserts the
+    // exact surviving key set — and what was wrong is what the JSX around it renders once a fieldset
+    // gate opens for a new aim. The ABSENT labels below are the assertion; the present ones only say
+    // the panel is not empty.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+
+    // Both parts at once, from the wall, because both are made by whole-design fields and neither
+    // exists on the starter. The counts before and after are the control: a row that was always there
+    // would make every assertion below true of something else.
+    const chutes = table.locator("tr").filter({ has: page.locator('[data-kind="parachute"]') });
+    const masses = table.locator("tr").filter({ has: page.locator('[data-kind="masscomponent"]') });
+    const chutesBefore = await chutes.count();
+    const massesBefore = await masses.count();
+    await page.getByLabel(/Main deploy alt/).fill("150");
+    await page.getByLabel(/Drogue Ø/).fill("300");
+    await page.getByLabel(/^Payload \(/).fill("500");
+    await expect(chutes, "typing the dual-deploy pair must add a canopy").toHaveCount(chutesBefore + 1);
+    await expect(masses, "typing a payload weight must add a mass").toHaveCount(massesBefore + 1);
+
+    const drogueRow = table.locator("tr").filter({ hasText: /Drogue/ }).first();
+    await drogueRow.click();
+    const drogueTrigger = page.getByRole("button", { name: "Properties", exact: true });
+    await expect(drogueTrigger, "the drogue the dual-deploy fields made offered no way to edit it").toBeVisible();
+    await drogueTrigger.click();
+    const drogue = page.getByRole("dialog");
+    await expect(drogue).toBeVisible();
+    await expect(drogue).toHaveAttribute("aria-label", /Drogue/);
+
+    // **Its own field, singular.** A Loft-synthesised drogue has exactly one property a flyer can set:
+    // how big it is. It opens at apogee by construction (`applyDualDeploy` hard-codes
+    // `deployEvent: "apogee"`), so there is no deployment for this panel to offer.
+    await expect(drogue.getByLabel(/^Diameter/)).toBeVisible();
+
+    // **Three assertions, and each of them fails against a real, previously-written version of this
+    // increment.** The rest of a leak sweep is theatre, and the first draft of this case had eight
+    // more lines of it — `/Recovery size/`, `/Surface finish/`, `/Fin span/`, `/Nose length/` and the
+    // like, every one gated on `!only` or on an AIMED key the OLD mask already blanked, so not one
+    // could go red under any bug. Removed rather than left to read as coverage.
+    //
+    // 1. The MAIN canopy's drag coefficient and mass — what withdrew this panel in increment 25. Both
+    //    render on `designDims` keys belonging to no aim, so subtraction left them standing the moment
+    //    the recovery fieldset opened for a `drogue` aim. Reverting the allowlist fails here, measured.
+    for (const leak of [/Canopy Cd/, /Canopy mass/]) {
+      await expect(drogue.locator("label").filter({ hasText: leak }), `${leak} is the MAIN canopy's, on a panel headed Drogue`).toHaveCount(0);
+    }
+    // 2. The MAIN canopy's provenance line, which is TEXT rather than a label — invisible to the sweep
+    //    above, so a leak check written only over `label` would report clean with a sentence about
+    //    another part sitting on the panel.
+    await expect(drogue.getByText(/^Flying /), "the MAIN canopy's provenance line is not the drogue's").toHaveCount(0);
+    // 3. **The deploy altitude, which is the one this increment's own pre-push review caught.** It is
+    //    gated on nothing and reads `edits`, so no mask could reach it: the first version of this panel
+    //    showed it, relabelled to `Deploy altitude`, on a part that opens at apogee — and typing there
+    //    moves the MAIN's deployment, changing opening speed, drift and landing energy. Both spellings,
+    //    because the label is an `only ?` expression and a regression could restore either arm.
+    for (const wrong of [/Deploy altitude/, /Main deploy alt/]) {
+      await expect(drogue.locator("label").filter({ hasText: wrong }), `${wrong} sets when the MAIN opens, not the drogue`).toHaveCount(0);
+    }
+
+    // It EDITS, and the field that MAKES it is here: clearing the diameter takes the part away, which
+    // is the route `derivedPartRefusal` sends every remove gesture at. That is why this field is on
+    // this panel and withheld from every other — the wall's own comment says it authors a second
+    // canopy, and on the part it authored it is that part's own size.
+    await drogue.getByLabel(/^Diameter/).fill("");
+    await expect(chutes, "clearing the drogue diameter must remove it").toHaveCount(chutesBefore);
+    await expect(drogue, "the popover unmounted while the flyer was typing in it").toBeVisible();
+    await drogue.getByLabel(/^Diameter/).fill("300");
+    await expect(chutes).toHaveCount(chutesBefore + 1);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    const payloadRow = table.locator("tr").filter({ hasText: /Payload/ }).first();
+    await payloadRow.click();
+    const payloadTrigger = page.getByRole("button", { name: "Properties", exact: true });
+    await expect(payloadTrigger, "the payload the weight field made offered no way to edit it").toBeVisible();
+    await payloadTrigger.click();
+    const payload = page.getByRole("dialog");
+    await expect(payload).toBeVisible();
+    await expect(payload).toHaveAttribute("aria-label", /Payload/);
+
+    await expect(payload.getByLabel(/^Weight/)).toBeVisible();
+    await expect(payload.getByLabel(/^Position/)).toBeVisible();
+    // **The payload's panel is clean under BOTH masks, and saying so is more useful than pretending
+    // this half pins the increment.** Everything else in the mass-and-finish fieldset is either
+    // `!only`-gated (nose ballast, surface finish, airframe material) or gated on an AIMED key that
+    // subtraction blanked too (the mass object's own weight and station) — so no assertion here can
+    // fail under the defect the allowlist was written for. Increment 27's review established that by
+    // enumerating the fieldset, and the honest conclusion is that the payload rode along on a change
+    // the DROGUE needed. What these lines are is regression cover for the gates this increment added,
+    // which is worth having and is not the same claim.
+    for (const leak of [/Mass pos/, /Nose ballast/, /Surface finish/, /Airframe material/]) {
+      await expect(payload.locator("label").filter({ hasText: leak }), `${leak} is not a property of the payload`).toHaveCount(0);
+    }
+    // `Mass` on its own, which `Mass pos` above would not catch: an exact-label check, because the
+    // payload's own field is deliberately called `Weight` here for exactly this reason.
+    await expect(payload.locator("label").filter({ hasText: /^Mass \(/ })).toHaveCount(0);
+
+    await payload.getByLabel(/^Weight/).fill("");
+    await expect(masses, "clearing the payload weight must remove it").toHaveCount(massesBefore);
+    await expect(payload, "the popover unmounted while the flyer was typing in it").toBeVisible();
+    await payload.getByLabel(/^Weight/).fill("500");
+    await expect(masses).toHaveCount(massesBefore + 1);
+  });
+
   test("a part the design FIELDS made opens the fields that made it", async ({ page }) => {
     // **R12 increment 25, and the other half of increment 24.** That increment stopped the add and
     // remove controls lying about these three parts; a flyer standing on a boattail still had

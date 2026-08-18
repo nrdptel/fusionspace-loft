@@ -103,7 +103,13 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
   tests. At 207 (run 18) two reported 12 failures and ~58 tests that never ran, and three was clean.
   At 290 (run 19) three failed one case per run — a different case each time, `depth.spec.ts` twice —
   while every one passed in isolation and the thing it measures was 159 px inside its cap; **four
-  shards ran 73 + 73 + 73 + 72 = 291 clean.** So: when a single scattered failure appears that passes
+  shards ran 73 + 73 + 73 + 72 = 291 clean.** At **299** (2026-08-18, run 20's last gate) four shards
+  still run clean: 75 + 75 + 75 + 74.**And the run before that one is the counter-example worth
+  keeping**: the same four shards reported 43 passed and **32 failed** in shard 2, every one of which
+  passed in isolation — because a read-only review agent was running `npx tsc --noEmit` and `vitest`
+  on the same box. The rule above says never run two SHARDS concurrently; the real rule is that the
+  gate is measured on a quiet box. A subagent may read during a gate. It may not run anything that
+  competes for the machine, and that includes the type-checker. So: when a single scattered failure appears that passes
   alone and whose own measurement is nowhere near its bound, raise the shard count before you go
   looking for a defect. Run 19 also added a service worker precaching 68 entries per install, which
   is 68 requests at the one `serve` process for every test that registers one — a precache list is a

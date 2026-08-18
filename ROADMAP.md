@@ -23,8 +23,9 @@ work, and a queue containing only the first can only ever ship the first.
   design stated on 2026-08-10, increment 24 stopped three dead add controls on every design on
   2026-08-18, and increment 25 gave the field-made BOATTAIL the Properties panel it had never had on
   2026-08-18 — with the drogue and the payload withdrawn by that increment's own pre-push review and
-  queued as increment 27; increment 26 bounded a fin set's root to the airframe on 2026-08-18, a
-  Sev-1 that preempted the queue. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
+  queued as increment 27, which shipped them on 2026-08-18 by making the per-aim mask blank by
+  ALLOWLIST, so all three field-made parts are now editable where they are drawn; increment 26 bounded
+  a fin set's root to the airframe on 2026-08-18, a Sev-1 that preempted the queue. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
   shipped; R4 is IN PROGRESS" until 2026-08-08, six milestones after it stopped being true — and it
   then went stale again inside the very commit that added this warning, caught by review rather than
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
@@ -34,9 +35,10 @@ work, and a queue containing only the first can only ever ship the first.
   shipped** (P8 on 2026-08-09, P11 on 2026-08-09); **P10 is IN PROGRESS at 2 of 3** with its
   remaining increment blocked on a repository SETTING no session can edit; **P13 is SHIPPED
   (2026-08-09)**, its *done when* met in Loft. **P14–P17 shipped 2026-08-12/13/14/17; P18 shipped
-  2026-08-18** on its third increment, with only its sibling-mirror clause outstanding and blocked —
-  so the next unstarted P milestone is **P19**, which does not exist yet: extending this file is the
-  next P-track increment, per *After R6 and P5* below.
+  2026-08-18** on its third increment, with only its sibling-mirror clause outstanding and blocked.
+  **P19 was decomposed on 2026-08-18** — *The tool remembers the flyer, not just the design* — and is
+  NOT STARTED; it is the first P milestone taken from the North Star and `COMPETITION.md` rather than
+  from the *After R6 and P5* list, because that list turned out to be spent (see the note above it).
 
   **Corrected 2026-08-11: this line said "P13 is the next unstarted one" while P13's own Status said
   3 of 3 shipped, and it said P10 was "1 of 2" while P10's body recorded increment 2 shipped on
@@ -2833,18 +2835,74 @@ material of its own, or a name — those are properties of a transition the desi
 them to a field-made one is the promotion this increment declined. Each is a field the pair would have
 to grow, which is a milestone about the dimension fields rather than about the tree.
 
-**Increment 27 — the other two field-made parts get their panels, once the mask stops leaking.**
-*Done when* picking the synthesised drogue and the synthesised payload bay each opens a Properties
-panel holding that part's own fields **and nothing belonging to another component**, pinned by an
-e2e that names the labels present AND the labels absent on each. Start with the mask: it blanks
-`designDims` by subtracting `AIMED_FIELDS`, and the leak is every metadata key that gates a value
-field and belongs to no aim (`mainParachuteCd`, `mainParachuteMass`, `mainParachuteMassFrom`,
-`mainParachuteCdFrom`, and whatever the payload's equivalents turn out to be). An ALLOWLIST per
-derived aim cannot leak by omission, which is the property the current shape lacks; the structural
-keys (`massCarriedBy`, the seven `unreachable*` counts) have to survive it, because they are
-non-optional and read unguarded. Then settle the `drogueDiameter` question against the recorded
-decision above rather than around it, and say which way in `Decisions taken without the owner`.
-Size: 1–2 increments.
+**Increment 27 — the other two field-made parts got their panels, and the mask stopped leaking,
+2026-08-18.** Picking the synthesised drogue or the synthesised payload bay now opens a Properties
+panel holding that part's own fields and nothing belonging to another component. All three field-made
+parts are editable where they are drawn; `lib/model/edit.test.ts`'s list assertion moved from
+`["Boattail"]` to `["Boattail", "Drogue", "Payload"]`, which is the line that says how far the
+capability reaches.
+
+**The mask was 37 keys short, not one.** It blanked `designDims` by SUBTRACTING the aimed fields, and
+a key belonging to no aim is not in that set — so it survived every popover. Measured against the
+type it masks: **37 of the 67 `designDims` keys belonged to no aim** when the mask was written — 36 do
+now, `payloadStation` having joined one in this increment — and four of them gate a control whose own
+condition carries no `only` term at all (`mainParachuteCd`, `mainParachuteMass`,
+`airframeMaterialLumped`, `fittingKind`), so nothing but the enclosing fieldset keeps them off a
+popover. The reason nine surfaces looked fine is the hand-written fieldset gates, not the mask:
+a fin popover never opens the recovery group, so the canopy's `Cd` cannot appear on it. Adding
+`only === "drogue"` to that gate is precisely what removes the containment — which is why increment 25
+withdrew the panel rather than shipping it, and why this one had to start at the mask.
+
+`maskAimedDims` in `lib/model/edit.ts` is that expression extracted from the component, with an
+ALLOWLIST for a derived aim and the subtraction kept for a slot aim. **The split is deliberate and
+argued in its docblock**: a slot aim is a real component of the design whose neighbours are already
+contained by hand, and repainting the EIGHT surfaces that leg serves — seven `AIM_SLOTS` entries and
+the nose — to fix nothing is not a fix. What the allowlist
+buys is the inversion — a key nobody thought about is HIDDEN, so forgetting one costs a missing field
+rather than another component's number being edited through the panel.
+
+**The structural keys are the ones the type declares non-optional, and that is checked rather than
+judged.** `DIMS_STRUCTURAL` has ten entries; `massCarriedBy` is read as `designDims.massCarriedBy.<x>`
+on **44 lines** with no guard, so an allowlist that forgot it renders a `TypeError` rather than a thin
+panel. **This file said "the seven `unreachable*` counts" when the increment was queued and there
+are eight** — `unreachableParachutes` is the one the sentence missed. The unit case reads the type out
+of `components/LoftApp.tsx` and asserts the non-optional keys ARE `DIMS_STRUCTURAL`, so the miscount
+could not have survived being written down.
+
+**Pinned at both layers, both controls fired.** `lib/model/edit.test.ts` drives `maskAimedDims`
+directly — the first thing in this repo that could, since the mask used to be an inline expression
+inside a component and there are no component tests — parsing the key space out of the real type
+declaration rather than listing 67 names a second time, and asserting the exact surviving SET per
+derived aim. Reverting the allowlist to subtraction fails it with **64 keys surviving a boattail
+popover instead of 11** — a figure from the case's own fixture, whose `aimFields` names three keys, so
+it is the SHAPE of the leak rather than a count of the app's; dropping one entry from `DIMS_STRUCTURAL` fails the non-optional control.
+`e2e/smoke.spec.ts` carries the case only e2e can, because the mask is correct in isolation either way
+and what was wrong is what the JSX renders once a gate opens for a new aim: run through
+`revert → rebuild → run → restore → rebuild`, it fails with *"/Canopy Cd/ is not a property of the
+drogue … Expected: 0, Received: 1"* — the withdrawal's own defect, reproduced.
+
+**`drogueDiameter` is on the drogue's panel, and that overturns a recorded decision on purpose** — see
+*Decisions taken without the owner* below, which also records the field that nearly shipped BESIDE it:
+the first version carried `mainDeployAltitude`, which sets when the MAIN opens on a part that opens at
+apogee. The mask could not have caught it — that control is gated on nothing and reads `edits` — and
+the increment's own e2e leak sweep could not either, because the sweep's assertion for it was one of
+nineteen that could not fail. Both were the pre-push review's.
+
+**Nineteen of twenty-one absent-label assertions could not go red, and that is worth more than the two
+that could.** The e2e's first draft swept both panels for eleven and ten labels; the review classified
+every one against its gate. All ten on the payload panel were unfalsifiable, and so is the payload
+panel itself: everything else in the mass-and-finish fieldset is `!only`-gated or sits on an AIMED key
+that subtraction blanked too, so **the payload never needed the allowlist — it rode along on a change
+the drogue needed**. The case says so now rather than implying otherwise, and the drogue's assertions
+were cut to the three that fail against a real earlier version of this increment: the canopy's `Cd` and
+mass (fail under subtraction), the canopy's provenance line (TEXT, which a `label`-scoped sweep cannot
+see at all), and the deploy altitude (fails with the new `only` term removed). Each was driven through
+`revert → rebuild → run → restore → rebuild`.
+
+**What this does NOT do**: the payload's weight field still
+takes no account of `massCarriedBy`, exactly as the whole-design wall does not, so a design stating one
+lumped airframe weight can double-count a payload typed on either surface. Pre-existing on the wall and
+not made worse here; filed rather than folded in.
 
 **Increment 24 — the add controls a part cannot take are no longer drawn as if it could, 2026-08-18.
 SEV-1.** Three of the six authoring gestures were live on three parts of every design and did nothing
@@ -7524,6 +7582,105 @@ tell on the one surface every first-time visitor meets.
 
 ---
 
+## P19 — The tool remembers the flyer, not just the design
+
+**Status: NOT STARTED.** Decomposed 2026-08-18, when P18 shipped and the P-track's baton list below
+turned out to be exhausted — it names P6 and P7, and both shipped long ago under different subjects.
+This is the first P milestone decomposed from the North Star and `COMPETITION.md` rather than taken
+from that list, as the instruction there says to do.
+
+**Outcome.** A flyer who reloads, restarts the browser, or has a backgrounded tab reclaimed at the pad
+comes back to the tool **they set up** — their sort orders, their catalogue filter, their open panels,
+their waiver ceiling — and not to the factory default. The design already survives a reload; every
+VIEW the flyer built around it dies with the tab, on a product whose own stated scenario is a
+no-signal pad check where reloading is exactly what a phone does to you.
+
+**Why this and not the two runners-up.** The alternatives were *a results grid is a keyboard surface*
+(`COMPETITION.md` rows 24 and 26, the `Tabs` primitive with 0 call sites, 47 tab stops on a 47-part
+design) and *every plot answers a question you can point at* (all four flight plots are `role="img"`,
+no hover readout, no x tick labels). Both are real. This one wins on three counts: it closes the half
+of a standing `GAP` row that the row itself calls *"not a decision"*; the mechanism already exists and
+is barely used, so each increment is a hook swap rather than a new primitive; and it is the only one of
+the three whose done-check is a **count that moved** rather than a judgement. The chart candidate is
+ranked last for a reason worth recording: `COMPETITION.md` has **no row on chart interaction at all**,
+so it would have to open its own row rather than close one — which is allowed, but it means the gap is
+asserted rather than measured, and this file prefers the other kind.
+
+**The evidence, measured 2026-08-18.**
+
+- **The mechanism exists and is used nine times.** `lib/session.ts:361` `usePersistedNumber` and
+  `lib/session.ts:392` `usePersistedChoice` are flyer-scoped (`loft.pref.<key>`, separate from the
+  design record) and the docblock already argues this milestone's case: *"a view they set up
+  deliberately, and having it snap back to the default on the next design is the same small
+  betrayal"*. Every call site: six in `components/MonteCarlo.tsx:194-199`, two in
+  `components/ParameterSweep.tsx:286,291`, one in `components/MotorSweep.tsx:409`.
+- **The seventh control of seven.** `components/MonteCarlo.tsx:219` is `useState(0)` for the waiver
+  ceiling — five lines below its six persisted siblings, and the one input on that panel a flyer takes
+  a go/no-go from.
+- **One of seven tables has a sort that survives.** `<DataTable` renders at 7 call sites; 2 pass
+  `onSortChange` (`components/GeometryInspector.tsx:1413`, `components/MotorSweep.tsx:544`) and only
+  MotorSweep's lands in `usePersistedChoice`. The other five fall through to `DataTable`'s own
+  `useState`.
+- **The catalogue is stateless, and that is half of a standing `GAP`.** `components/PartPicker.tsx`
+  holds `open`, `text`, `maker` and `fitsOnly` in local `useState` (271, 278, 279, 280).
+  `COMPETITION.md` row 36 says it in the file's own words: OpenRocket's preset dialog *"persists column
+  widths, sort order and the filter across sessions"*, and **"the forgetting half is not a decision, it
+  is the 'controls that forget' tell on the newest surface in the app"**.
+- **`MAINTAINING.md` names the tell.** Its craft list carries *"controls that forget (a unit choice, a
+  motor selection, a view or sort order that resets)"* and *"Think in real use, not first use. What
+  does a flyer do the second time? The tenth?"*
+- **It is not P17's scope, on P17's own words.** P17 shipped the in-app navigation seam — *"follow a
+  docs link from `/flight`, come back"* — and its increment 2 explicitly parks the counter-argument
+  against the RELOAD variant. The reload seam was left, deliberately, and this is it.
+- **`BACKLOG.md` has 17 entries whose headline is a control that forgets**, the densest theme in that
+  file that is not already a shipped P-track subject.
+
+***Done when*** every flyer-set control on the four workspaces and the catalogue survives a reload, or
+is named in `DESIGN.md` §9 as a deliberate exception **with its reason**; and §9 carries a block that
+COUNTS the survivors by discovering the controls rather than listing them, so a control added later
+that forgets fails the gate.
+
+**Size.** 4 increments, smallest first, each independently shippable and each landing its own
+assertion.
+
+1. **The seventh control, and the three panels that forget they ran.** `components/MonteCarlo.tsx:219`
+   onto `usePersistedNumber`, and the three `open` flags (`MonteCarlo.tsx:189`, `MotorSweep.tsx:152`,
+   `ParameterSweep.tsx:282`) onto persisted flags that still require an explicit Run — P17's recorded
+   counter-argument (re-opening re-flies 300 flights) is honoured rather than overruled. ***Done when***
+   the repo-wide count of persisted call sites goes **9 → 13**, and an e2e sets a waiver ceiling,
+   reloads, and reads it back.
+2. **Every table's sort survives, and the parts list stays open.** All 7 `<DataTable` call sites
+   through the controlled `sort`/`onSortChange` pair into `usePersistedChoice`, keyed per surface, each
+   with its own `allowed` guard. ***Done when*** `onSortChange` call sites go **2 → 7**, a vitest case
+   fails if a `<DataTable` host holds its sort in a bare `useState`, and an e2e sorts the parts table,
+   reloads, and finds the same first row. **The `allowed` guard is load-bearing and has a scar**:
+   `components/MotorSweep.tsx:369-375` discards a remembered sort naming a column that no longer sorts,
+   because `col.sortValue!(a)` on a column without one scrambles the whole array.
+3. **The catalogue remembers, which closes `COMPETITION.md` row 36's forgetting half.** `text`,
+   `maker` and `fitsOnly` persisted; `open` deliberately NOT, because auto-open is the half row 36
+   itself calls *"a product decision and not obviously theirs to win"* — and saying so in the row is
+   part of the increment. ***Done when*** an e2e types a vendor filter, picks a tube, re-opens the
+   picker for a second tube and finds the filter still applied, and row 36 is resolved on the
+   forgetting clause with the auto-open clause left open and its reason restated.
+4. **The instrument, general rather than enumerative.** A §9 block and its executable copy: an e2e
+   sweep that, on each workspace, DISCOVERS every interactive control the way `e2e/touch.spec.ts`
+   discovers rects, records each value, reloads, and re-reads. Written against the served export
+   (P16's lesson) and written to discover rather than to list (P14's). ***Done when*** §9 carries a
+   target in the same form as the hover block's — `0 controls that forget, and >= N controls SEEN` —
+   and reverting any one site from increments 1–3 turns it red.
+
+**Deliberately NOT in the four.** The unit system is a SCOPE change, not a hook swap:
+`components/LoftApp.tsx:443` holds it in `useState` and `units` is a field of `SavedSession`, so it is
+design-scoped where the theme is flyer-scoped (`loft.theme`). Making it flyer-scoped needs a stated
+precedence rule for a restored design carrying its own `units`, and that is a decision rather than a
+move. Filed twice in `BACKLOG.md` already; take it as increment 5 with its own argument, not folded
+into increment 1. Also note the storage budget: `lib/session.ts:25` caps the session record at
+1,500,000 bytes and drops `history` first when it will not fit — preferences are keyed separately under
+`loft.pref.*` and are tiny, so they do not compete for that budget, and the increment adding the most
+keys should say so rather than leave it to be worried about.
+
+---
+
 ## After R6 and P5 — extend this file yourself, in this order
 
 **Do not ask which of these to do, and do not fall back to the defect ledger because the list above
@@ -7532,6 +7689,16 @@ decompose it here to the same shape — outcome, *done when*, size, notes — th
 decomposition is one increment's work and it IS the work when a track is dry. **A dry R-track is not a
 reason to skip the P-track or vice versa** — extend the dry one and keep alternating. The order is a
 standing decision, changeable by the owner at any time; absent that, it holds.
+
+**Both lists below are SPENT, and that is recorded here rather than left to be rediscovered.** Every
+item they name has shipped, under its own number and often under a different subject: the R list's
+R7–R10 are all `DONE`, and the P list's "P6 — Instrument what flyers actually hit" and "P7 — The suite
+as one product" were overtaken by the P6 and P7 that actually shipped (primitives, and theme
+contrast). A session reading the two lists literally would re-queue finished work. **P19 above is the
+first milestone decomposed under the closing instruction instead** — from the North Star and
+`COMPETITION.md`'s standing `GAP` rows, with the reasons for choosing it over its two runners-up
+written into the milestone. The lists are kept because their PARAGRAPHS still carry why each subject
+mattered, and that reasoning outlived the queue entries.
 
 ### R-track, after R6
 
@@ -7575,6 +7742,38 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-18 — `Drogue Ø` is offered on the drogue's OWN property panel, overturning the recorded
+  decision that withheld it from every per-part surface.** The comment above the deploy-altitude field
+  says the field is withheld because *"on a design with one canopy it AUTHORS a second, which is a
+  change to the recovery system rather than a property of the part in hand"*. **Taken: the reason is
+  exactly right on every other popover and does not reach this one.** A synthesised drogue exists only
+  because `drogueDiameter` is set, so on its own panel the field is the diameter of the canopy the
+  flyer is holding — and clearing it is the *"clear the field that creates it"* route
+  `derivedPartRefusal` already sends every remove gesture at, which would otherwise be advice pointing
+  at a control the flyer cannot reach from where they are standing. The e2e drives exactly that: clear
+  the diameter, the part goes, the popover survives, type it back, the part returns. **Rejected:
+  shipping a drogue panel holding only `Deploy altitude`** — a canopy whose size cannot be changed
+  from its own properties is a panel that answers half the question and sends the flyer back to the
+  wall for the other half, which is the twenty-fields-down problem R12 exists to remove. **Also
+  rejected: leaving both panels withdrawn until an owner rules** — increment 25 already deferred once
+  on this, and deferring a second time on the same sentence is how a queue stops moving. Reversible in
+  one line: drop `drogueDiameter` from the registry entry's `fields` and restore the `{!only && (`
+  gate. The wall's wording is unchanged for every other surface.
+
+  **And the decision this one nearly hid.** The first version of the drogue's panel carried
+  `mainDeployAltitude` too — it was in the registry entry's `fields`, and the control that renders it
+  was gated on nothing at all — so the panel headed *Drogue* read *Deploy altitude: 150 m* for a part
+  `applyDualDeploy` hard-codes to open at APOGEE, and a flyer wanting the drogue out higher would have
+  moved the MAIN's deployment instead: its opening speed, the drift and the landing energy, all from a
+  field on the wrong part's panel. **That is the exact defect increment 25 withdrew this panel over,
+  one control to the left, and it survived a whole increment written to fix that defect** — because
+  the mask cannot reach a control gated on nothing that reads `edits` rather than `designDims`, and
+  because the paragraph above was busy arguing about the field NEXT to it. Found by the pre-push
+  review. The field is now `(!only || only === "parachuteId")` and the drogue's panel holds one
+  control: its diameter. **The transferable lesson is the shape, not the field: a decision entry that
+  argues carefully about one control is evidence about that control and about nothing else on the
+  same row.**
 
 - **2026-08-18 — the notices file was corrected to match the shipped bytes; the INVARIANT it
   contradicts was left alone and parked for the owner.** `THIRD-PARTY-NOTICES.md` §3 said RocketPy
