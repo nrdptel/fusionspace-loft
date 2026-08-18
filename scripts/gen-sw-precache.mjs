@@ -84,8 +84,50 @@ const samples = allFiles
   .sort();
 if (!samples.length) throw new Error("gen-sw-precache: no bundled samples found in out/samples/");
 
+// **Next's ROUTER PAYLOADS, and leaving them out cost the app its whole offline claim.** Measured
+// 2026-08-18: with a design open and the network off, a workspace route entered an infinite reload
+// loop at roughly 12 Hz — 38 main-frame navigations in 3 s, sustained, and 50 in 4 s. The client
+// router asks for `<route>.txt` (and per-segment `__next.*.txt`) on every client-side navigation;
+// none was in this list, so the worker answered its own synthetic 504, the router downgraded to a
+// HARD navigation, the reload re-ran the session restore, the restore re-issued the same
+// navigation, and round it went. Precaching them is what makes an offline navigation soft at all.
+//
+// The router appends a per-build `?_rsc=` cache-buster, so the worker matches these with
+// `ignoreSearch` — see `public/sw.js`. On a static export the query changes nothing about what the
+// host returns, so the cached body is the one the router would have got online.
+//
+// **The ROUTE payloads only — one per prerendered route — and the 88 per-segment `__next.*.txt`
+// files are deliberately left out.** Measured 2026-08-18: precaching all 102 took the install from
+// 48 entries to 158, and the e2e suite went red on three OFFLINE cases that pass in isolation —
+// every service-worker install in the run now issues 158 requests at one `serve` process, which is
+// the file-descriptor exhaustion `MAINTAINING.md` already documents by another road. The 14 route
+// payloads alone close the loop and leave every workspace reachable offline, verified by driving it;
+// the segment payloads are prefetch detail the router re-derives from the route payload it has.
+const payloads = allFiles
+  .map(rel)
+  .filter((p) => p.endsWith(".txt") && !NOT_A_ROUTE.test(p) && !/(^|\/)__next\./.test(p))
+  .sort();
+if (!payloads.length) throw new Error("gen-sw-precache: no router payloads (*.txt) found in out/");
+
+// Everything else a page actually renders: the wordmark, the icons, the web manifest, the RocketPy
+// worker. Measured the same day: offline, `/brand/fusion-space-wordmark.svg` and
+// `/brand/fusion-space-mark.svg` both returned the worker's synthetic 504, so the app came back at
+// the pad with no logo — the asset walk above reads `out/_next/static` only, and nothing else in
+// `out/` was ever precached.
+//
+// ENUMERATE-AND-SUBTRACT rather than a list of what to include, so a file added later is cached by
+// default and a new exclusion has to be argued for here. The exclusions: `/pyodide/` is ~40 MB and
+// deliberately cache-on-demand (its own branch in the worker); `/sw.js` is the worker itself;
+// `/_headers` is the host's config and is not served; `/og/` and `/sitemap.xml` are for crawlers and
+// social cards, which by definition are never read offline.
+const NOT_PRECACHED = /^\/(?:_next|pyodide|samples|og)\/|^\/(?:sw\.js|_headers|sitemap\.xml)$/;
+const media = allFiles
+  .map(rel)
+  .filter((p) => !p.endsWith(".html") && !p.endsWith(".txt") && !NOT_PRECACHED.test(p))
+  .sort();
+
 const buildId = createHash("sha1")
-  .update([...assets, ...samples, ...routes.map((r, i) => `${r} ${pageHashes[i]}`)].join("\n"))
+  .update([...assets, ...samples, ...payloads, ...media, ...routes.map((r, i) => `${r} ${pageHashes[i]}`)].join("\n"))
   .digest("hex")
   .slice(0, 12);
 
@@ -104,8 +146,11 @@ inject("  // __BUILD_ASSETS__", assets);
 // "/" is already in the worker's list as the shell; don't precache it twice.
 inject("  // __BUILD_ROUTES__", routes.filter((r) => r !== "/"));
 inject("  // __BUILD_SAMPLES__", samples);
+inject("  // __BUILD_PAYLOADS__", payloads);
+inject("  // __BUILD_MEDIA__", media);
 
 await writeFile(swPath, sw);
 console.log(
-  `gen-sw-precache: precached ${assets.length} assets, ${samples.length} samples and ${routes.length} routes, build ${buildId}`,
+  `gen-sw-precache: precached ${assets.length} assets, ${samples.length} samples, ${routes.length} routes, ` +
+    `${payloads.length} router payloads and ${media.length} other files, build ${buildId}`,
 );

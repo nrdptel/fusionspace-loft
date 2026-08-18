@@ -1758,8 +1758,24 @@ function editComponent(
     //
     // Applied to the fittings the design ARRIVED with too, not only authored ones: the geometry is
     // equally impossible either way, and the flyer typing the length is making the same claim about
-    // the same tube. Ring kinds only — a fin set or a mass object inside a shortened tube is
-    // repositioned by `flattenRocket`, not overhung by it.
+    // the same tube. Ring kinds only.
+    //
+    // **This used to claim a fin set and a mass object are "repositioned by `flattenRocket`, not
+    // overhung by it", and BOTH halves were wrong.** `resolveChildFore`'s `top` arm is
+    // `parentFore + offset` and clamps nothing, for any kind — and 17 of the 64 fin sets in the
+    // corpus are placed `top`, so a shortened tube overhangs those exactly as it overhung a mass.
+    // The fin-set case is filed, not fixed here: a fin set has a chord and a span and its own
+    // aerodynamic consequences, so moving one is a different decision from moving a point mass.
+    //
+    // The mass half:
+    // `resolveChildFore`'s `top` arm is `parentFore + offset` with no clamp of any kind, so a mass
+    // inside a shortened tube kept its offset and hung out of the back — measured across the corpus,
+    // outside its host on 35 of 35 designs and past the whole airframe on 7, moving static margin by
+    // up to 2.73 cal. `seatAddedMasses` is what repositions it, over the finished tree, and only for
+    // masses the flyer authored — 4 of the corpus's 56 design-arrived masses already sit outside
+    // their host as their own file states them, and rewriting another tool's geometry is the one
+    // thing this app does not do to a number a file states.
+    //
     // **AUTHORED fittings are not fitted here — `fitAddedInternalParts` owns those, over the final
     // tree.** This arm can only see the length this ONE edit is setting, and an authored part has to
     // be judged against the length its host ends up with; running both rules over an authored part
@@ -3608,13 +3624,47 @@ export interface AddOption {
  *
  *  Returns a verdict for EVERY kind, always, in a stable order — so a caller cannot render a subset
  *  by forgetting one, and so a test can assert that all 569 corpus parts answer on all six. */
-export function addOptionsFor(rocket: Rocket, hostId: string): AddOption[] {
+/** What to tell a flyer about a part the DIMENSION FIELDS made, when they ask the editor to do
+ *  something to it.
+ *
+ *  Three parts are in this position: a boattail from `boattailLength`/`boattailAftDiameter`, a drogue
+ *  from the dual-deploy pair, and a payload bay from `payloadMassKg`. `applyDimensionEdits` appends
+ *  them AFTER `structureOf` has run, so they are in the tree the diagram draws and not in the tree
+ *  `addPartAfter` and `removalRefusal` resolve an id against.
+ *
+ *  **One sentence, exported, because two surfaces were saying different things about the same part.**
+ *  The add row silently did nothing; the remove control said *"That part is no longer in this
+ *  design"* — a sentence the flyer can see is false, because the diagram is drawing it. Neither
+ *  named the actual reason, which is that the part has no entry of its own to take away: what makes
+ *  it is a field, so what unmakes it is clearing that field. */
+export function derivedPartRefusal(name: string): string {
+  return `${name} is made by the design fields rather than added as a part, so the editor cannot change it here. Clear the field that creates it, or pick a part the design itself carries.`;
+}
+
+export function addOptionsFor(rocket: Rocket, hostId: string, addressable?: ReadonlySet<string>): AddOption[] {
   const parts = flattenRocket(rocket);
   const host = parts.find((p) => p.component.id === hostId)?.component;
   // A part that is not in the tree is the ordinary case for a moment after a removal, not an error —
   // see the panel's own note about `selectedId` outliving the part it names. Every kind is refused,
   // with a reason, rather than the caller getting an empty list it has to interpret.
   if (!host) return ADD_KINDS.map((kind) => ({ kind, offered: false, reason: "That part is no longer in this design." }));
+
+  // **Rule zero: the applier has to be able to ADDRESS the host, and three parts on screen cannot be
+  // addressed at all.** A boattail, a drogue and a payload bay are synthesised by
+  // `applyDimensionEdits` — they exist in the flown tree the panel draws and NOT in `structureOf`,
+  // which is the tree `addPartAfter` resolves an anchor against. Asked of the flown tree alone this
+  // function answered "offered" for all three, so the panel drew live controls that the applier then
+  // returned from in silence: no part, no refusal, no undo step. Measured across the corpus,
+  // **3 dead controls on every design**.
+  //
+  // The caller passes the ids the applier can reach; when it does not, this argument is absent and
+  // the behaviour is exactly what it was. The refusal names what the part IS rather than claiming it
+  // is gone — the diagram is drawing it, so "no longer in this design" would be a sentence the flyer
+  // can see is false, and it is what `removalRefusal` says today for the same three (filed).
+  if (addressable && !addressable.has(hostId)) {
+    const reason = derivedPartRefusal(host.name || "This part");
+    return ADD_KINDS.map((kind) => ({ kind, offered: false, reason }));
+  }
 
   // The part's OWN name, exactly as `removalRefusal` names one — the parts table, the property
   // heading and this sentence then say the same word, and there is no second vocabulary table to keep
@@ -3950,6 +4000,97 @@ function fitAddedInternalParts(rocket: Rocket, added?: readonly AddedPart[]): Ro
   return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: walk(s.components) })) };
 }
 
+/** Seat every authored point mass in its host, over the FINAL tree — the last thing that happens to
+ *  the geometry, for the same reason `fitAddedInternalParts` is the second-to-last.
+ *
+ *  **`buildAdded` derives a mass's station from the length its host has when `applyAdds` runs, and
+ *  that is the FILE's length.** `applyDimensionEdits` resizes the host afterwards and
+ *  `fitAddedInternalParts` can shorten an authored coupler after that, so the offset the mass carries
+ *  describes a part that no longer exists. It is a `top` placement, which `resolveChildFore` resolves
+ *  as `parentFore + offset` with no clamp of any kind — so the mass does not move with the shrinking
+ *  host, it hangs out of the back of it, and the solver flies it exactly there. **Measured before this
+ *  existed:** author a mass in a 700 mm tube, then set body length to 20 mm — the mass sits at
+ *  477.6 mm inside a host spanning [250, 270] mm. Its weight is then in the CG, in the static margin
+ *  and in every number computed from either, at a station the flyer never asked for and cannot see is
+ *  wrong.
+ *
+ *  Two rules, and they are different because the two masses are:
+ *
+ *  - **An authored mass the flyer has NOT stationed keeps its FRACTION**, which is what
+ *    `buildAdded`'s own comment already promises — "a bay stays a third of the way down the tube that
+ *    holds it when that tube is later resized". Re-derived here rather than frozen there, so the
+ *    promise is kept by the pipeline rather than by the moment of authoring.
+ *  - **The mass the flyer HAS stationed keeps its station, CLAMPED to the host it ends up in.** THE
+ *    mass, singular: `GeometryEdits` carries one `massObjectStation` slot aimed by `massObjectId`, so
+ *    aiming at a second authored mass clears the first one's typed station and this pass re-derives
+ *    it. That is the aim-slot model the whole editor uses, not something this pass introduces — but
+ *    it is why the sentence says "the" and not "any".
+ *    `withMassStation` already clamps, and already runs against the tree it can see — but it runs
+ *    inside `applyDimensionEdits`, and `fitAddedInternalParts` shortens couplers after that. So the
+ *    one clamp in the pipeline was upstream of the one step that can invalidate it. Re-derivation
+ *    would be wrong here: the flyer typed a number and it is not this function's to overwrite.
+ *
+ *  **A mass the DESIGN FILE brought is not touched at all**, and that exclusion is load-bearing
+ *  rather than tidy. Its station is the file's own claim about a real rocket, and **12 of the 56
+ *  design-arrived masses in the corpus already leave their host's span as their own file states
+ *  them** — measured 2026-08-18 by the mass's own extent, across 9 designs; 4 of the 12 have their
+ *  fore station outside too (`APEX_K_Dart.ork`'s "Avionics 1" and "Ejection Charge",
+ *  `3D printable nose cone and fins.ork`'s "Screw Eye", `FullScaleModelTH.rkt`'s "Deployment
+ *  Charge(s)"). A pass over every mass would silently rewrite all twelve, and rewriting another
+ *  tool's stated geometry is the one thing this app does not do.
+ *
+ *  **NOTHING owns the file-mass case, and saying so is better than implying a rule that is not
+ *  there.** A first version of this comment said it was "the shrink clamp's business, one rule and
+ *  one home" — false: that clamp is `isRing(ch)` and `RING_KINDS` has no `masscomponent`, so a file
+ *  mass inside a tube the flyer shrinks is overhung by nobody. Whether it should be re-stationed,
+ *  refused or flagged is a product question about restating a file's numbers, and it is filed rather
+ *  than answered here. */
+function seatAddedMasses(rocket: Rocket, preDimensions: Rocket, edits: GeometryEdits): Rocket {
+  const authored = new Set(
+    (edits.added ?? []).filter((a) => a.kind === "masscomponent").map((a) => a.id),
+  );
+  if (!authored.size) return rocket;
+  // The one the flyer has put somewhere by hand, resolved **exactly as `applyDimensionEdits` resolved
+  // it** — same bag, same tree. Resolving against the finished tree instead looked equivalent and is
+  // not: `primaryMassObject`'s id-less fallback picks the heaviest real mass, and both the mass edit
+  // and the removals above can change which that is. The two passes disagreeing about which mass is
+  // pinned means one clamps a station the other never wrote.
+  const pinned =
+    edits.massObjectStation !== undefined && edits.massObjectStation >= 0
+      ? primaryMassObject(preDimensions, edits.massObjectId)?.id
+      : undefined;
+
+  const walk = (list: RocketComponent[]): RocketComponent[] =>
+    list.map((c) => {
+      const kids = c.children.length ? walk(c.children) : c.children;
+      // `axialLength`, not `length` — the same accessor `buildAdded`, the panel and the flattener
+      // read, and the one that is right for a nose cone and a transition as well as a tube.
+      const span = axialLength(c);
+      if (!(span > 0)) return kids === c.children ? c : { ...c, children: kids };
+      let moved = false;
+      const seated = kids.map((ch) => {
+        if (ch.kind !== "masscomponent" || !authored.has(ch.id)) return ch;
+        // An authored mass is minted `top` by `buildAdded` and every station write goes through
+        // `withMassObject`, which forces `top` — so this cannot be false today. It is a guard rather
+        // than a filter: the whole subject of this pass is that the `top` arm does not clamp, and
+        // re-deriving an offset that means something else (`bottom` measures from the aft face) would
+        // move the mass rather than seat it. Stated here because it reads like a filter otherwise.
+        if (ch.placement.method !== "top") return ch;
+        const want =
+          ch.id === pinned
+            ? Math.min(Math.max(0, ch.placement.offset), span)
+            : span * MASS_OBJECT_STATION_FRACTION;
+        if (!(Math.abs(want - ch.placement.offset) > 1e-12)) return ch;
+        moved = true;
+        return { ...ch, placement: { ...ch.placement, offset: want } };
+      });
+      if (!moved) return kids === c.children ? c : { ...c, children: kids };
+      return { ...c, children: seated };
+    });
+
+  return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: walk(s.components) })) };
+}
+
 export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // ADDS FIRST, then removals, then the dimension edits. The order is not arbitrary and each step of it
   // was chosen against a case:
@@ -3990,9 +4131,19 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   // and 32 of the 35 corpus designs are untouched. On a lumped one it names exactly the parts whose
   // weight the stated figure already carries.
   const statedByFile: ReadonlySet<string> = statedAirframeMass(built) ? fromFile : new Set<string>();
-  return fitAddedInternalParts(
-    applyDimensionEdits(built, stripPerPartMassOnLumpedAirframe(built, withoutRemovedAims(edits), fromFile), statedByFile),
-    edits.added,
+  //  - and SEATING the authored point masses dead last, after even that, because an authored coupler
+  //    is both a fitting this pipeline resizes and a host a mass can sit in. See `seatAddedMasses`.
+  // **ONE derivation of the dimension-edit bag, read by both passes below.** `seatAddedMasses` has to
+  // agree with `applyDimensionEdits` about which mass the flyer has stationed, and the two were
+  // reading different bags: this one, where `withoutRemovedAims` has cleared `massObjectStation` if
+  // the aimed mass was removed, versus the raw `edits`. They can name different masses — a cleared
+  // aim falls back to the heaviest, and `massObjectMass` can reorder that — so one would have clamped
+  // a station the other never applied. Derived once, passed twice.
+  const dimEdits = stripPerPartMassOnLumpedAirframe(built, withoutRemovedAims(edits), fromFile);
+  return seatAddedMasses(
+    fitAddedInternalParts(applyDimensionEdits(built, dimEdits, statedByFile), edits.added),
+    built,
+    dimEdits,
   );
 }
 
@@ -4097,10 +4248,19 @@ function buildAdded(
     // A point mass is mounted INSIDE the part that carries it — 56 of 56 in the corpus have a parent,
     // none is a top-level stage child — so this is the fin set's placement mode, not the tube's.
     //
-    // Its station is DERIVED here rather than frozen onto the entry, so a bay stays a third of the way
-    // down the tube that holds it when that tube is later resized. `top` is the modal corpus method
-    // (31 of 56) and the only one that keeps meaning the same thing under a length edit; `absolute`
-    // (12 of 56) would pin it in space while the airframe moved underneath.
+    // `top` is the modal corpus method (31 of 56) and the only one that keeps meaning the same thing
+    // under a length edit; `absolute` (12 of 56) would pin it in space while the airframe moved
+    // underneath.
+    //
+    // **The station this line computes is a BIRTH value, and the comment here used to claim more.**
+    // It read "DERIVED here rather than frozen onto the entry, so a bay stays a third of the way down
+    // the tube that holds it when that tube is later resized". The first half was true — the
+    // `AddedPart` entry carries no offset and the fraction IS evaluated here rather than stored — and
+    // the consequence claimed after "so" was false, because the fraction is evaluated ONCE, against
+    // the host as the FILE describes it, and a constant is what lands in `placement.offset`. `applyAdds` runs before `applyDimensionEdits`, so
+    // every later resize left the mass behind. The promise is real and is now kept one level up:
+    // `seatAddedMasses` re-derives it over the finished tree. This line is where the mass gets a
+    // sane station on the way in; that pass is what makes it stay true.
     //
     // **Gated on `canHostInsideMass`, and read through `axialLength` — the same rule and the same
     // accessor the panel uses.** This arm used to duck-type `after.length > 0`, which is the rule

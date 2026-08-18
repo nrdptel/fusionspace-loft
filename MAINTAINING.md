@@ -94,10 +94,21 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
   therefore its own budget:
 
   ```bash
-  npx playwright test --shard=1/2 && npx playwright test --shard=2/2
+  for i in 1 2 3 4; do npx playwright test --shard=$i/4; done   # 2026-08-18: FOUR, and see below
   ```
 
-  Every test still runs; add the two counts for the total. Confirm the failures are this and not yours
+  Every test still runs; add the counts for the total.
+
+  **The shard count is a measurement, not a constant, and it has moved twice.** Two was right at 185
+  tests. At 207 (run 18) two reported 12 failures and ~58 tests that never ran, and three was clean.
+  At 290 (run 19) three failed one case per run — a different case each time, `depth.spec.ts` twice —
+  while every one passed in isolation and the thing it measures was 159 px inside its cap; **four
+  shards ran 73 + 73 + 73 + 72 = 291 clean.** So: when a single scattered failure appears that passes
+  alone and whose own measurement is nowhere near its bound, raise the shard count before you go
+  looking for a defect. Run 19 also added a service worker precaching 68 entries per install, which
+  is 68 requests at the one `serve` process for every test that registers one — a precache list is a
+  load on the e2e server as well as a promise to the flyer, and it is the term that moved most
+  recently. The durable fix is a count derived from the test count and it is still filed. Confirm the failures are this and not yours
   before believing them — they pass in isolation, the file passes when run alone, and CI (a runner with
   a normal limit) is unaffected. **A shard split is not a reduced gate**, but say in the report that
   you sharded and give both counts.

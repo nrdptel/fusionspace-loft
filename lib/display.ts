@@ -111,10 +111,27 @@ export function accel(mps2: number): Quantity {
   return { value: fmt(mps2 / 9.80665, 0), unit: "g" };
 }
 
+/** A mass, and it takes `fmtSmall` for exactly the reason `lengthMm` does one function down.
+ *
+ *  **SEV-1, 2026-08-18: a fixed 3 dp of kg / 2 dp of lb printed real parts as a flat zero.** Measured
+ *  across the 35-design corpus: **39 of the 481 parts carrying a mass render as `0 kg`, and 91 as
+ *  `0 lb`, on 18 of the 35 designs** — including a 2.000 g wadding that is **3.55% of that design's
+ *  dry mass**, and an engine-mount tube the same table labels 6%. The parts table's stated job is
+ *  "a quick way to confirm the import matches your design"; a zero beside a percent column that says
+ *  the part is 6% of the rocket is a wrong number on the surface a flyer reconciles a build sheet
+ *  against, the visible rows stop summing to the stated dry total, and where the design STATED that
+ *  mass the row also carries a † and the words "stated by the design" — attributing Loft's rounding
+ *  to the flyer's own file.
+ *
+ *  `fmtSmall` grows the places until the value stops rounding away and falls back to a `<0.00001`
+ *  bound below that. Measured on the same corpus: the widest string it produces here is **7
+ *  characters** metric and 6 imperial (`0.0003 kg`, `0.001 lb`), so nothing on the table has to move.
+ *  Values that do not round away are untouched — `fmt` and `fmtSmall` agree above the threshold —
+ *  so this changes 39 cells and 91, not every mass in the app. */
 export function mass(kg: number, sys: UnitSystem): Quantity {
   return sys === "imperial"
-    ? { value: fmt(kgToLb(kg), 2), unit: "lb" }
-    : { value: fmt(kg, 3), unit: "kg" };
+    ? { value: fmtSmall(kgToLb(kg), 2), unit: "lb" }
+    : { value: fmtSmall(kg, 3), unit: "kg" };
 }
 
 /** A component dimension. Whole millimetres (or tenths of an inch) is the right precision for an

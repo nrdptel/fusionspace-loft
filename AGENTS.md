@@ -38,3 +38,12 @@ Four things that are easy to get wrong and expensive to fix afterwards. All are 
 - **Prefer the browser this repo's Playwright manages** (`npx playwright test` with no override).
   Pointing `PW_EXECUTABLE_PATH` at a sandbox Chromium can silently run the suite against the wrong
   revision — there is no guard here yet, and it is filed in `BACKLOG.md`.
+- **Read the gate's failure LINE, never its tail.** `npx playwright test … | tail -4` prints three
+  test names and a "N passed" line, and scrolls the "N failed" header off the top — run 19 read green
+  over three red tests that way. Grep for `passed|failed|did not run`.
+- **The e2e suite runs in FOUR shards, sequentially** (`for i in 1 2 3 4; do npx playwright test
+  --shard=$i/4; done`), and the count is a measurement that has moved twice. `MAINTAINING.md` has the
+  numbers and the rule for raising it.
+- **Subagents must not run Playwright.** `reuseExistingServer` is true locally, so an agent's
+  `npx playwright test` shares the gate's own server on port 3000 and produces exactly the unstable
+  counts sharding exists to avoid. Read-only means reads, not browsers.

@@ -422,30 +422,61 @@ const BUDGET = {
    *  knows, and writing it any other way means a toast under a phone's home indicator. Exempted by
    *  the expression naming `env(safe-area-inset-`, so an ordinary arbitrary value still fails. */
   arbitrarySpacing: 1,
-  /** Distinct card treatments. One is `<Card>`'s own string, which is the target state; the other is
-   *  the import drop zone (`border-2 border-dashed`, an interactive target rather than a container).
+  /** Distinct card treatments. **1 as of 2026-08-18, and the one is `<Card>`'s own string** — §9's
+   *  stated target, reached rather than exempted.
    *
    *  **3 until 2026-08-17, and the floor recorded here was WRONG.** It read "both want their own
    *  named primitive rather than being folded into `Card`, so the honest floor here is 3 and not 1".
    *  §9 forbids a `shadow` prop on `Card` — a generic escape hatch — and does NOT forbid a named
-   *  primitive that RENDERS a `Card`. `Toast` is that primitive, and because it composes rather than
-   *  copies, the toast's string is gone and this is 2. P18 increment 2 takes `DropZone` the same way
-   *  and this reaches **1**, which is §9's stated target rather than an exemption from it. */
-  cardTreatments: 2,
+   *  primitive that RENDERS a `Card`. `Toast` took the toast's string out on 2026-08-17 and
+   *  `DropZone` took the drop zone's out on 2026-08-18, both by composing rather than copying.
+   *
+   *  **The drop zone's string carried `border-2`, and the width did not survive the move** —
+   *  deliberately. §2 now declares one border width, because the override only ever beat `Card`'s
+   *  own `border` by source order (`.border` at byte 16,788 of the built stylesheet, `.border-2` at
+   *  16,910, equal specificity). Parameterising it would have put a second width in the system at
+   *  one call site, which is the tell this count exists to remove. */
+  cardTreatments: 1,
   /** Card treatments hand-rolled OUTSIDE the primitives file — the count P18 actually moves, and the
    *  one that says what is wrong. `cardTreatments` counts distinct strings wherever they live; a
    *  treatment written at a call site is the "a component that exists once and matches nothing else"
    *  tell, and it is what produced all twelve measured variants.
    *
    *  Scoped by PATH, not by basename: `grep --exclude=ui.tsx` would silently exempt a future
-   *  `components/<dir>/ui.tsx`, which is the "wrong scope" shape §9 already records twice. Target 0;
-   *  2 before this run, 1 after `Toast`. */
-  cardTreatmentsOutsidePrimitives: 1,
+   *  `components/<dir>/ui.tsx`, which is the "wrong scope" shape §9 already records twice. **Target
+   *  0, and AT 0 as of 2026-08-18**: 2 before run 18, 1 after `Toast`, 0 after `DropZone`.
+   *
+   *  A ratchet at its target is not a finished check — it is the one that now fails the moment the
+   *  next surface writes a card at a call site, which is the whole point.
+   *
+   *  **It does NOT carry §2's border-width rule, and the first draft of this comment said it did.**
+   *  The predicate needs `rounded-xl` and a border token in ONE literal; a `Card` caller handing a
+   *  width through `className` writes only the width, because it never spells the radius. So the
+   *  hazard §2 names would have passed this check, and the claim that it would not was written into
+   *  a binding document. `containerBorderWidths` above is the check that actually reads it. */
+  cardTreatmentsOutsidePrimitives: 0,
   /** Elevations outside §2's two sanctioned values (`shadow-lg` = `floating`, `shadow-sm` = the
    *  `Segmented` thumb). Target 0, and at 0 — but the check is the point rather than the number:
    *  §2's elevation table was written declaring ONE value while two shipped, and nothing in either
    *  repo's gate could say so, because an elevation is not a radius, a border colour, a spacing step
    *  or a type size. */
+  /** Container border WIDTHS off §2's one hairline — any `border-<n>` at n >= 1, written anywhere
+   *  under `components/` or `app/`, spinner rings excluded because a ring is not a container.
+   *
+   *  **This check exists because the sentence that replaced it was FALSE.** P18 increment 2 deleted
+   *  the app's only second border width and §2 gained a paragraph declaring one — and the first draft
+   *  of both this file and §9 claimed the two card counts already policed it: "the literal is matched
+   *  on `rounded-xl` beside any `border` token, so a container written with a second width fails
+   *  here". They do not. Both counts require `rounded-xl` in the SAME string literal, and the exact
+   *  hazard §2 names — a `Card` handed a width through `className` — writes only the width at the
+   *  call site, because a `Card` caller never spells the radius. The milestone's central decision was
+   *  defended by a control that did not exist. Found by the pre-push review, by simulation.
+   *
+   *  `border-0` is not counted: it is a RESET, and `LoftApp` uses it seven times to un-border a
+   *  `<fieldset>`, which is a browser default rather than a design choice. A side utility
+   *  (`border-b-2`) is not counted either — §2 governs a container's edge, and a rule drawn on one
+   *  side is a divider, which §9 already says of the border-colour grep. */
+  containerBorderWidths: 0,
   offSystemElevation: 0,
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
   offScaleSpacing: 0,
@@ -595,6 +626,14 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  composition-driven count. `Card` stays at 11 because `ServiceWorker` imports `Toast` and never
    *  imported `Card`; the composition is real, but it is not what this number measures. */
   Toast: 1,
+  /** §5's `DropZone` — the file target. One adopter, `components/ImportPanel.tsx`, which is the
+   *  surface it was extracted from. Ratcheted from the day it exists, for the reason `Toast` records
+   *  one entry up.
+   *
+   *  **`Card` does not move for this one either**, and this time it is because `ImportPanel` already
+   *  imported `Card` for the three cards around the zone. The count is over a file's IMPORT LIST, not
+   *  over what it renders. */
+  DropZone: 1,
   Button: 12,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
@@ -969,6 +1008,29 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
       found.length,
       `card treatments outside components/ui.tsx:\n${found.sort().join("\n")}`,
     ).toBe(BUDGET.cardTreatmentsOutsidePrimitives);
+  });
+
+  it(`writes exactly ${BUDGET.containerBorderWidths} container border widths off §2's hairline`, () => {
+    // Reads STRIPPED source one STRING LITERAL at a time, like every other class-token check here:
+    // a width named in a prose comment is a mention, and this very run had to stop a docblock
+    // spelling one — Tailwind reads raw text, so the comment regenerated a rule nothing asked for.
+    //
+    // A spinner ring is subtracted by the literal it lives in (`rounded-full`), not by file, because
+    // the five that exist are spread across five feature components and a file-level exemption would
+    // hand each of them a licence to draw a bordered container as well.
+    const found: string[] = [];
+    for (const f of [...uiSources(["components", "app"], [".tsx"])]) {
+      for (const m of stripComments(f.text).matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)) {
+        const lit = (m[1] ?? m[2] ?? m[3] ?? "").replace(/\$\{[^}]*\}/g, " ");
+        const tokens = lit.split(/\s+/).filter(Boolean);
+        if (tokens.includes("rounded-full")) continue;
+        if (tokens.some((t) => /^border-[1-9]\d*$/.test(t))) found.push(`${f.path}: ${lit.trim()}`);
+      }
+    }
+    expect(
+      found.length,
+      `container border widths off §2's hairline:\n${found.sort().join("\n")}`,
+    ).toBe(BUDGET.containerBorderWidths);
   });
 
   it(`uses exactly ${BUDGET.offSystemElevation} elevations outside §2's two`, () => {

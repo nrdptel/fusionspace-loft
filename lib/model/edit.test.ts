@@ -80,6 +80,7 @@ import {
   type GeometryEdits,
   type PickedRing,
   addedStageIds,
+  addOptionsFor,
 } from "./edit";
 import type {
   BodyTube,
@@ -2563,6 +2564,168 @@ describe("authoring a mass object", () => {
     expect(primaryMassObject(rasaero)).toBeUndefined();
     // Picking it still refuses removal, which is R2's rule and unchanged.
     expect(removalRefusal(rasaero, "stated")).not.toBeNull();
+  });
+
+  it("stays inside its host when the host is resized under it", async () => {
+    // **SEV-1, 2026-08-18.** `buildAdded` derives the station from the length the host has when
+    // `applyAdds` runs — the FILE's length — and `applyDimensionEdits` resizes the host afterwards.
+    // `resolveChildFore`'s `top` arm never clamps, so the mass did not move with the shrinking host:
+    // it hung out of the back of it and the solver flew it there, with the wrong CG and the wrong
+    // static margin printed unlabelled on every surface that reads them.
+    //
+    // Reachable in ONE drag: `components/RocketDiagram.tsx` gives the Body-length grip a 20 mm floor
+    // on every tube, so no typing and no unusual number is needed.
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const fileLen = flattenRocket(doc.rocket).find((p) => p.component.id === tube.id)!.length;
+    const { id, edits } = author(doc.rocket, tube.id);
+
+    const shrunk = applyGeometryEdits(doc.rocket, { ...edits, bodyTubeId: tube.id, bodyLength: 0.02 });
+    const flat = flattenRocket(shrunk);
+    const m = flat.find((p) => p.component.id === id)!;
+    const host = flat.find((p) => p.component.id === tube.id)!;
+
+    expect(host.length, "the host really did shrink").toBeCloseTo(0.02, 9);
+    // Inside the host it names, both ends.
+    expect(m.xFore, "the mass hangs out of the front of its host").toBeGreaterThanOrEqual(host.xFore - 1e-9);
+    expect(m.xFore, "the mass hangs out of the back of its host").toBeLessThanOrEqual(
+      host.xFore + host.length + 1e-9,
+    );
+    // …and it keeps its FRACTION, which is what `buildAdded`'s own comment promises: "a bay stays a
+    // third of the way down the tube that holds it when that tube is later resized". Asserting the
+    // fraction rather than only the bound is what separates "clamped to the edge" from "moved with
+    // its host" — a clamp would satisfy the two bounds above and park the bay at the tail.
+    expect((m.xFore - host.xFore) / host.length).toBeCloseTo(0.3251, 6);
+    // A first draft closed with `expect(fileLen * 0.3251).toBeGreaterThan(host.length)` — two fixture
+    // constants compared to each other, inert with respect to the code under test and reading as a
+    // check on it. The scale it was reaching for belongs in prose: the file's tube is
+    // ${(fileLen * 1000).toFixed(0)} mm, so the frozen station was ${(fileLen * 325.1).toFixed(0)} mm
+    // down a 20 mm host. Removed rather than kept.
+    void fileLen;
+  });
+
+  it("keeps a station the flyer typed, and clamps it rather than re-deriving it", async () => {
+    // Two masses, two rules. An authored mass the flyer has NOT stationed tracks its host's length;
+    // one they HAVE stationed keeps their number, clamped to the host it ends up in. Re-deriving the
+    // typed one would overwrite a number the flyer chose, which is the opposite failure.
+    //
+    // **What this case does and does NOT control, stated because a reader would assume otherwise.**
+    // It passes verbatim with `seatAddedMasses` deleted: `withMassStation` already clamps against the
+    // post-dimension-edit tree, so on a BODY-TUBE host the pinned arm computes a no-op. What it
+    // catches is the pass over-reaching — re-deriving the typed station instead of clamping it, which
+    // fails this case with `0.006502` against `0.02`. The pinned arm's own live path is a mass
+    // authored inside an authored COUPLER, the one host `fitAddedInternalParts` shortens after that
+    // clamp, and there is no check for it anywhere: filed, not claimed.
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const host0 = flattenRocket(doc.rocket).find((p) => p.component.id === tube.id)!;
+    const { id, edits } = author(doc.rocket, tube.id);
+
+    // Ask for a station a quarter of the way down the FILE's tube, then shrink the tube under it.
+    const station = host0.xFore + host0.length * 0.25;
+    const out = applyGeometryEdits(doc.rocket, {
+      ...edits,
+      massObjectId: id,
+      massObjectStation: station,
+      bodyTubeId: tube.id,
+      bodyLength: 0.02,
+    });
+    const flat = flattenRocket(out);
+    const m = flat.find((p) => p.component.id === id)!;
+    const host = flat.find((p) => p.component.id === tube.id)!;
+
+    expect(m.xFore).toBeLessThanOrEqual(host.xFore + host.length + 1e-9);
+    expect(m.xFore).toBeGreaterThanOrEqual(host.xFore - 1e-9);
+    // Clamped to the aft face, NOT re-derived to the 32.51% default — those are different answers
+    // and only one of them respects what the flyer asked for.
+    expect(m.xFore - host.xFore).toBeCloseTo(host.length, 9);
+    expect((m.xFore - host.xFore) / host.length).not.toBeCloseTo(0.3251, 4);
+  });
+
+  it("leaves a mass the DESIGN FILE brought exactly where the file put it — including where that is wrong", async () => {
+    // **The reason this is a rule about AUTHORED masses and not a blanket clamp.** 12 of the 56
+    // design-arrived mass objects in the corpus already leave their host's span as their own file
+    // states them — `APEX_K_Dart.ork`'s "Avionics 1" and "Ejection Charge" among them. A clamp over
+    // every mass would silently rewrite another tool's geometry, which is the one thing Loft does not
+    // do to a number a file states.
+    //
+    // **READ THIS BEFORE TRUSTING THE NAME: on this fixture, the position this case pins is one the
+    // flyer cannot build.** The pre-push review caught it. The starter's own mass sits at `top` 0.15
+    // in a 0.70 m tube; shrink that tube to 20 mm and the assertion below green-checks a 70 g point
+    // mass roughly 130 mm BEHIND the tail, with CG and static margin carrying it. That is the same
+    // Sev-1 this file's other cases close for authored masses, still live for design-arrived ones,
+    // and **nothing in the app owns it** — the shrink clamp is `isRing` and `RING_KINDS` has no
+    // `masscomponent`. It is in `BACKLOG.md`.
+    //
+    // The case is kept as written anyway, because what it controls is the seating pass OVER-reaching,
+    // and that control has to assert the file's number survives. What is added is this paragraph: an
+    // assertion that passes BECAUSE a defect is present, under a name that reads like coverage, is
+    // worse than no assertion — so the name and the comment both say which it is.
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const before = new Map(
+      flattenRocket(doc.rocket)
+        .filter((p) => p.component.kind === "masscomponent")
+        .map((p) => [p.component.id, p.xFore - (flattenRocket(doc.rocket).find((q) => q.component.children.some((c) => c.id === p.component.id))?.xFore ?? 0)]),
+    );
+    const { edits } = author(doc.rocket, tube.id);
+    const out = applyGeometryEdits(doc.rocket, { ...edits, bodyTubeId: tube.id, bodyLength: 0.02 });
+    let checked = 0;
+    for (const p of flattenRocket(out)) {
+      if (p.component.kind !== "masscomponent") continue;
+      const was = before.get(p.component.id);
+      if (was === undefined) continue; // the authored one, which is the other two cases' business
+      const host = flattenRocket(out).find((q) => q.component.children.some((c) => c.id === p.component.id));
+      checked++;
+      expect(p.xFore - (host?.xFore ?? 0), `${p.component.name} was moved by the seating pass`).toBeCloseTo(was, 9);
+    }
+    // **The denominator, because every assertion above sits behind a `continue`.** This fixture
+    // carries one design-arrived mass ("Altimeter + battery"); a fixture that lost it would run zero
+    // assertions and stay green, which is the shape the corpus sweep already guards against with its
+    // own per-branch counters. It is the only control for "do not rewrite another tool's geometry".
+    expect(checked, "no design-arrived mass was examined — this case proves nothing").toBeGreaterThan(0);
+  });
+});
+
+describe("a part the DIMENSION FIELDS made", () => {
+  const SINGLE2 = "fixtures/demo-single-deploy.ork";
+  const load2 = async (f: string) => importOrk(readFileSync(resolve(process.cwd(), f)));
+
+  it("takes no authoring gesture, and says why instead of saying it is gone", async () => {
+    // **R12 increment 24.** A boattail from `boattailLength`/`boattailAftDiameter`, a drogue from the
+    // dual-deploy pair and a payload bay from `payloadMassKg` are appended by `applyDimensionEdits`,
+    // AFTER `structureOf` has run — so they are in the tree the diagram draws and NOT in the tree
+    // `addPartAfter` resolves an anchor against. Asked of the flown tree alone, `addOptionsFor`
+    // answered "offered" for three of the six kinds, the panel drew live controls, and every click
+    // returned in silence: no part, no refusal, no undo step. **3 dead controls on every design.**
+    const doc = await load2(SINGLE2);
+    const edits = { boattailLength: 0.06, boattailAftDiameter: 0.02 };
+    const flown = applyGeometryEdits(doc.rocket, edits);
+    const structural = structureOf(doc.rocket, edits);
+
+    const addressable = new Set(flattenRocket(structural).map((p) => p.component.id));
+    const boattail = flattenRocket(flown).find((p) => !addressable.has(p.component.id));
+    expect(boattail, "the dimension edits synthesised no part — this case would prove nothing").toBeTruthy();
+
+    // Without the addressable set — today's behaviour for any caller that has none — the flown tree
+    // says yes to three kinds. This is the control living inside the case: it fails if the defect
+    // stops being reachable, so the assertion below cannot quietly become vacuous.
+    const blind = addOptionsFor(flown, boattail!.component.id);
+    expect(blind.filter((o) => o.offered).length).toBeGreaterThan(0);
+
+    // With it, every kind is refused, and the reason names what the part IS.
+    const seen = addOptionsFor(flown, boattail!.component.id, addressable);
+    expect(seen.every((o) => !o.offered)).toBe(true);
+    for (const o of seen) {
+      expect(o.reason).toContain("made by the design fields");
+      // NOT "no longer in this design" — the diagram is drawing it, so that sentence is one the
+      // flyer can see is false, and it is what the remove control used to say about the same part.
+      expect(o.reason).not.toContain("no longer in this design");
+    }
+
+    // A part the design DOES carry is unaffected, or the rule would have closed the editor.
+    const tube = primaryBodyTube(flown)!;
+    expect(addOptionsFor(flown, tube.id, addressable).some((o) => o.offered)).toBe(true);
   });
 });
 

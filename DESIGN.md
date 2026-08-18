@@ -110,6 +110,36 @@ Two, deliberately. The control border is one step darker so an interactive edge 
 from a decorative one without reading the element. Do not mix them: a card is `hairline`, an input
 inside it is `control`.
 
+**One container border WIDTH — 1 px — whatever the container is for, a drop target included.** This
+is about WIDTH, not colour: which of the two colours above a container takes is the rule already
+stated ("a card is `hairline`, an input inside it is `control`"), and a drop zone is something the
+flyer acts on, so it takes `control` at 1 px. A SIDE rule is not a container edge and is not governed
+here — `border-b-2` under the active item of the navigation spine is an underline, the same
+distinction the border-colour grep above already draws.
+
+Added 2026-08-18, because this table declared two colours and no width at all, and a second full-width
+edge had been shipping at exactly one call site: the import drop zone wrote a 2 px dashed border over
+`Card`'s own. **That override only ever worked by
+SOURCE ORDER** — measured on the built stylesheet of 2026-08-18, the 1 px rule at byte 16,788 and the
+2 px rule at 16,910, same specificity, so the second one wins and would stop winning the day Tailwind
+reordered its output. *Those offsets are a measurement of one build and nothing pins them; the
+load-bearing fact is the ORDER, and the reason it needs no ratchet is that nothing depends on it any
+more — the dependency was deleted rather than pinned.*
+The alternatives were both worse than dropping it: a `border` prop on `Card` is the generic escape
+hatch §9 refuses one property over, and a width that exists once and matches nothing else is the tell
+§5's whole vocabulary exists to remove. **What distinguishes a drop target is its dashed edge, its
+sunken fill and the sentence in it** — and, while a file is over it, a border that goes from dashed to
+solid and from `control` to `accent`, which is a bigger change than a pixel of width ever was.
+
+A border WIDTH other than the hairline is therefore drift, and §9 has its own count for it —
+`containerBorderWidths`, target 0. **It needed one; the first draft of this paragraph claimed the
+card-treatment counts already covered it and that was false.** Those two both require `rounded-xl` and
+a border token in the SAME string literal, and the hazard named above — a `Card` handed a width
+through `className` — writes only the width at the call site, because a `Card` caller never spells the
+radius. The rule was declared here with nothing able to contradict it, which is the exact shape §9
+records about the elevation table one section up. A spinner ring is not a container and is subtracted
+by the literal it lives in (`rounded-full`); `border-0` is a reset, not a width.
+
 ### Text
 
 | Role | Value | Use for |
@@ -122,7 +152,7 @@ inside it is `control`.
 
 | Role | Value | Means |
 |---|---|---|
-| `accent` | `indigo-500` (focus, `600` fill) | interactive, selected, the focus ring |
+| `accent` | `indigo-500` (focus, `600` fill) | interactive, selected, the focus ring, and a drop target with a file over it |
 | `warn` | `amber-600` / `amber-50` bg | an estimate outside its envelope, an extrapolation, a caveat |
 | `danger` | `red-600` / `red-50` bg | a refusal, a value that cannot be computed, destructive |
 | `good` | `emerald-600` | agreement between independent sources, a passing check |
@@ -275,6 +305,14 @@ hand-rolls it instead is not done.
   with a shadow** — §9 forbids the second, because a generic elevation prop lets any surface opt out
   of "a card does not float". Never use it for an error the flyer must act on: that is `ErrorState`,
   in the flow, where it cannot be dismissed unread.
+- **`DropZone`** — a file target: drop a file on it, or choose one. Renders a `Card` at §2's `muted`
+  tone at rest and `accent` while a file is over it, so the edge goes dashed-grey to solid-accent and
+  the fill tints — the state change is two tokens, and nothing about the treatment is written at the
+  call site. Owns the file input and the picker button, because a drop zone with no click-to-pick is
+  broken on every touch device. **Owns the refusal too, and that is the half worth having**: one
+  `accept` list drives the picker *and* the drop, so a file the surface cannot read is named in an
+  `ErrorState` **inside the zone** rather than handed to whatever is downstream. The drag highlight
+  counts enter and leave rather than toggling, or it drops every time the pointer crosses a child.
 - **`Panel`** — a `Card` with a section header row — an `h2`, and an optional `aside` beside it —
   and, for anything dismissible, a close affordance. Owns focus return (see `useReturnFocus`).
   **Ten call sites and only three are dismissible**: it was extracted for the three heavy analysis
@@ -624,6 +662,17 @@ grep -roh 'rounded-xl border[a-z0-9:/ -]*' components \
 # `components/<dir>/ui.tsx` would be exempted silently — the third "wrong scope" this block records.
 grep -rn 'rounded-xl border' components --include='*.tsx' \
   | grep -v '^components/ui\.tsx:' | wc -l                          # target: 0
+
+# a container border WIDTH off §2's one hairline. Its own check, because the two card counts above
+# cannot see it: they need `rounded-xl` and a border token in ONE literal, and a `Card` handed a
+# width through `className` writes only the width — the caller never spells the radius. A spinner
+# ring is subtracted by its own literal rather than by file, so a feature component that draws one
+# does not thereby get a licence to draw a bordered container too. `border-0` is a reset.
+strs | grep -xE 'border-[1-9][0-9]*' | wc -l                        # target: 0
+                                                                    # (the test is the authority;
+                                                                    #  it subtracts `rounded-full`
+                                                                    #  per literal, which a shell
+                                                                    #  one-liner cannot express)
 
 # elevation off the two §2 sanctions. Enumerate-and-subtract, like the radius and border greps, so
 # a third value nobody has thought of fails rather than passing unnamed. `shadow-lg` is `floating`

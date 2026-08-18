@@ -2716,6 +2716,66 @@ test.describe("Loft", () => {
     await expect.poll(async () => parseFloat((await span.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
   });
 
+  test("a part the design FIELDS made offers no authoring gesture, and says so", async ({ page }) => {
+    // **R12 increment 24 — three dead controls on every design.** `applyDimensionEdits` appends a
+    // boattail, a drogue and a payload bay AFTER `structureOf` has run, so those parts are in the
+    // tree the diagram draws and the parts table lists, and NOT in the tree `addPartAfter` resolves
+    // an anchor against. The panel asked `addOptionsFor` of the flown tree alone: a synthesised
+    // boattail is a transition, transitions have an aft face and a bore, so three of the six kinds
+    // came back "offered", drew as live controls — and every click returned in silence. No part, no
+    // refusal, no undo step. The remove control on the same part meanwhile said "That part is no
+    // longer in this design", over a row the table was at that moment drawing.
+    //
+    // Only e2e can pin this. `addOptionsFor` is correct in isolation either way; the defect is that
+    // the panel was asking it about a tree the applier does not work in, and the fix is the SET the
+    // panel passes. A model test can prove the rule; this proves the wiring.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+
+    // Two numbers into the fields that create one. The starter carries no transition of its own, so
+    // the row that appears is the synthesised part and nothing else.
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+    const cones = table.locator("tr").filter({ has: page.locator('[data-kind="transition"]') });
+    await expect(cones, "the starter must arrive with no transition, or this proves nothing").toHaveCount(0);
+    await page.getByLabel(/Boattail length/).fill("60");
+    await page.getByLabel(/Boattail exit/).fill("30");
+    await expect(cones).toHaveCount(1);
+
+    await cones.first().click();
+    // Every one of the six is dimmed. Named individually rather than counted, because the three that
+    // were live are exactly the three a count over "how many are disabled" would let regress if the
+    // palette ever stopped drawing a kind.
+    for (const name of [
+      /Add a tube behind this/,
+      /Add fins to this tube/,
+      /Add a transition behind this/,
+      /Add a mass inside this/,
+      /Add a coupler inside this/,
+      /Add a centering ring inside this/,
+    ]) {
+      await expect(page.getByRole("button", { name }), `${name} must be dimmed on a derived part`).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+    }
+
+    // And BOTH surfaces say the true thing — which field made it, and what to do — rather than the
+    // false one they used to say about a part sitting in front of the flyer. Pinned separately
+    // because they are two independent call sites that were separately wrong: the add palette's
+    // refusals line, and the remove control's live region.
+    const sentence = /made by the design fields rather than added as a part/;
+    await expect(page.locator("#add-palette-refusals"), "the add palette must explain the dimming").toHaveText(sentence);
+    await expect(page.getByRole("status").filter({ hasText: sentence }), "so must the remove control").toBeVisible();
+    await expect(page.getByText("That part is no longer in this design")).toHaveCount(0);
+
+    // The control: a part the design DOES carry still authors, in the same panel, one click later.
+    await table.getByText("Nose cone", { exact: true }).first().click();
+    await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toBeEnabled();
+  });
+
   test("a tube can be added behind the nose cone, which is where a build starts", async ({ page }) => {
     // **The gesture R12 is named for, refused on the first part a from-scratch build has.** "Add a
     // tube behind this" was gated on the pick being a body tube — in the panel and in the applier —
@@ -5164,6 +5224,134 @@ test.describe("Loft", () => {
     await expect(massField).toHaveAttribute("placeholder", /45/);
     await page.getByRole("button", { name: /^Undo adding a mass object/ }).click();
     await expect(rows).toHaveCount(1);
+  });
+
+  test("the fallback-canopy caveat reaches every surface that rests on it", async ({ page }) => {
+    // **SEV-1, 2026-08-18.** When a design states no canopy Cd, Loft supplies one, and every descent
+    // figure computed from it is an extrapolation — `DESIGN.md` §5 requires the treatment "wherever a
+    // number leaves the envelope its method was validated over". /flight badged four figures for it
+    // and missed DRIFT FROM PAD, which sat between two badged neighbours reading as the firmer of the
+    // three; and the dispersion panel badged NOTHING, so RECOVERY RADIUS (95%) and the landing-speed
+    // band — the figures a flyer sizes a field and a waiver with — printed unqualified beside a
+    // flight card where the identical quantities carry the badge.
+    //
+    // **The fixture exists because no committed design could reach this state**: all fifteen bundled
+    // samples and e2e fixtures state their own Cd, while 40 of the 92 flights in the real-design
+    // corpus are flown on a fallback. A whole surface could lose the caveat with the gate green.
+    // `e2e/fixtures/fallback-canopy-cd.ork` is `logged-sample.ork` with one element deleted.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/fallback-canopy-cd.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({
+      timeout: 20000,
+    });
+
+    // Every descent figure on the flight card, drift included. Read as the tile's own text so a badge
+    // somewhere else on the page cannot answer for it.
+    const flight = page.locator("#panel-flight");
+    for (const label of ["Descent rate", "Drift from pad", "Ground-hit speed", "Landing energy"]) {
+      const tile = flight.locator("div").filter({ hasText: new RegExp(`^${label}`, "i") }).first();
+      await expect(tile, `${label} carries no fallback-Cd caveat`).toContainText(/extrapolated/i);
+    }
+
+    // And the same caveat on the panel that publishes the recovery figures.
+    await page.locator('nav a[href="/sweep"]').first().click();
+    const run = page.getByRole("button", { name: /dispersion/i }).first();
+    await run.click();
+    const radius = page
+      .locator("div")
+      .filter({ hasText: /^Recovery radius \(95%\)/i })
+      .first();
+    await expect(radius, "the recovery radius carries no fallback-Cd caveat").toContainText(
+      /extrapolated/i,
+      { timeout: 120000 },
+    );
+  });
+
+  test("the conditions summary names the flyer's own setup, not the design's", async ({ page }) => {
+    // **SEV-1, 2026-08-18.** The summary had two states — `· today` and `· as designed` — and no
+    // third for "the flyer typed one of these four fields". It is a collapsed `<details>`, which is
+    // how it sits by default, so that label is the ONLY thing on the page naming the basis of every
+    // number below it. Measured: typing 9 m/s of surface wind takes DRIFT FROM PAD from 292 m to
+    // 1,312 m while the label still asserts the numbers are the design's — on the figure a flyer
+    // sizes a recovery area and a waiver with.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({
+      timeout: 20000,
+    });
+
+    const summary = page.locator("summary").filter({ hasText: /Conditions/ }).first();
+    const drift = async () => {
+      const t = await page.locator("#panel-flight").innerText();
+      const m = t.match(/Drift from pad\s*\n?\s*([0-9.,]+)/i);
+      return m ? parseFloat(m[1].replace(/,/g, "")) : NaN;
+    };
+
+    await expect(summary).toContainText("as designed");
+    const before = await drift();
+    expect(before).toBeGreaterThan(0);
+
+    await summary.click();
+    await page.locator("label").filter({ hasText: /Surface wind/ }).first().locator("input").fill("9");
+
+    // The number moves…
+    await expect.poll(drift, { timeout: 20000 }).toBeGreaterThan(before * 2);
+    // …and the label stops calling it the design's. Both directions, so a label hard-coded to the
+    // new string would fail the first assertion above.
+    await expect(summary).toContainText("as you set them");
+    await expect(summary, "the numbers are no longer the design's").not.toContainText("as designed");
+  });
+
+  test("an untyped mass position advertises the station the flight is actually using", async ({
+    page,
+  }) => {
+    // **The half of 2026-08-18's mass-station Sev-1 that lives in the UI.** The model now re-seats an
+    // authored mass when its host is resized, so the station the flight uses moves with the tube. The
+    // field that shows it reads `designDims`, which deliberately EXCLUDES the dimension edits —
+    // right for every other readback there, because those show the value being edited FROM, and
+    // wrong for this one: nobody types a station to change a tube, so an untyped field has to say
+    // what the flight is using. Before the fix the two agreed by sharing the bug; fixing the flight
+    // is what put them out of step, and this is the case that would have caught it.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    await partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).first().click();
+    await page.getByRole("button", { name: /Add a mass inside this/ }).click();
+
+    const posField = page.locator("label").filter({ hasText: /Mass pos/ }).first().locator("input");
+    const lenField = page.locator("label").filter({ hasText: /^Body length/ }).first().locator("input");
+    const station = async () => parseFloat((await posField.getAttribute("placeholder")) ?? "NaN");
+
+    const before = await station();
+    const tubeLen = parseFloat((await lenField.getAttribute("placeholder")) ?? "NaN");
+    expect(before).toBeGreaterThan(0);
+    expect(tubeLen).toBeGreaterThan(0);
+
+    // The station is ABSOLUTE — from the nose tip — so the host's fore end is what is left when the
+    // fraction is taken off it. Deriving it here rather than asserting a ratio is what makes the
+    // check exact: a threshold on `before` alone is dominated by the nose length and a first draft's
+    // `< before * 0.5` missed by half a millimetre on the starter.
+    const hostFore = before - tubeLen * 0.3251;
+    const newLen = Math.round(tubeLen / 5);
+
+    await lenField.fill(String(newLen));
+    await expect
+      .poll(station, { timeout: 20000 })
+      .toBeLessThan(hostFore + newLen + 1);
+
+    // Where it should be, to the millimetre the field speaks in: a third of the way down the tube
+    // the flight is now flying, not the tube the file described.
+    const after = await station();
+    expect(after, "the station did not follow its host").toBeCloseTo(hostFore + newLen * 0.3251, 0);
+    // …and inside the host, which is what the whole fix is about.
+    expect(after).toBeGreaterThanOrEqual(hostFore - 1);
+    expect(after, "the mass advertises a station past the end of its own host").toBeLessThanOrEqual(
+      hostFore + newLen + 1,
+    );
   });
 
   test("a coupler and a centring ring go inside the tube, and only the balance moves", async ({ page }) => {

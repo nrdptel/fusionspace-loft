@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { changePercent, changeAbsolute, decimalsFor, dynamicPressure, energy, flutterMargin, fmtEditable, fmtSmall, lengthMm, roundTripDecimals, storedRunLabels } from "./display";
+import { changePercent, changeAbsolute, decimalsFor, dynamicPressure, energy, flutterMargin, fmtEditable, fmtSmall, lengthMm, mass, roundTripDecimals, storedRunLabels } from "./display";
 import { mToFt, mpsToMph } from "./units";
 import { RECOMMENDED_FLUTTER_MARGIN } from "./sim/flutter";
 
@@ -99,6 +99,33 @@ describe("fmtSmall / lengthMm / flutterMargin", () => {
     expect(fmtSmall(-0.04, 1).startsWith("-")).toBe(true);
     expect(fmtSmall(0, 1)).toBe("0");
     expect(fmtSmall(NaN, 1)).toBe("—");
+  });
+
+  it("never prints a real part's mass as a flat zero", () => {
+    // **SEV-1, 2026-08-18.** A fixed 3 dp of kg / 2 dp of lb rounded real parts away: measured across
+    // the 35-design corpus, **39 of 481 parts with a mass rendered `0 kg` and 91 rendered `0 lb`, on
+    // 18 of the 35 designs** — on the table whose own job is confirming an import against a build
+    // sheet, beside a percent column saying the same part is up to 3.55% of dry mass.
+    //
+    // The three cases are the real ones, in the units they were measured in: a 0.328 g centring ring
+    // (`3D printable nose cone and fins.ork`), a 0.080 g launch lug (`Base drag hack`), and a 2.000 g
+    // wadding — the 3.55% one, which metric already showed and imperial did not.
+    expect(mass(0.000328, "metric")).toEqual({ value: "0.0003", unit: "kg" });
+    expect(mass(0.000328, "imperial")).toEqual({ value: "0.001", unit: "lb" });
+    expect(mass(0.00008, "metric")).toEqual({ value: "0.0001", unit: "kg" });
+    expect(mass(0.002, "imperial")).toEqual({ value: "0.004", unit: "lb" });
+
+    // Ordinary masses are untouched — `fmt` and `fmtSmall` agree above the threshold, so this
+    // changed 39 cells and 91, not every mass in the app. Without this the case above would pass on
+    // a formatter that had simply grown every column.
+    expect(mass(1.234, "metric")).toEqual({ value: "1.234", unit: "kg" });
+    expect(mass(8.265, "metric")).toEqual({ value: "8.265", unit: "kg" });
+    expect(mass(0.4536, "imperial")).toEqual({ value: "1", unit: "lb" });
+
+    // A true zero is still a plain zero: a part that genuinely weighs nothing is a different fact
+    // from one that rounds away, and `fmtSmall` is the function that tells them apart.
+    expect(mass(0, "metric")).toEqual({ value: "0", unit: "kg" });
+    expect(mass(0, "imperial")).toEqual({ value: "0", unit: "lb" });
   });
 
   it("tells thin flutter margins apart instead of printing them all as 0×", () => {

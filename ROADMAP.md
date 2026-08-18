@@ -2586,6 +2586,137 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 24 — the add controls a part cannot take are no longer drawn as if it could, 2026-08-18.
+SEV-1.** Three of the six authoring gestures were live on three parts of every design and did nothing
+at all. Clicking one returned in silence: no part, no refusal, no undo step, no message. **3 dead
+controls on every one of the 35 corpus designs**, and on any design at all that sets a boattail, a
+drogue or a payload mass.
+
+**Two trees, one question asked of the wrong one.** `applyDimensionEdits` synthesises three parts
+AFTER `structureOf` has run — a boattail from `boattailLength`/`boattailAftDiameter`, a drogue from
+the dual-deploy pair, a payload bay from `payloadMassKg`. So they are in the tree the diagram draws
+and the parts table lists, and they are not in the tree `addPartAfter` resolves an anchor against.
+The panel asked `addOptionsFor` of the flown tree alone, a synthesised boattail is a transition, and a
+transition has an aft face and a bore — so three kinds came back "offered" and drew as live controls
+over an applier that could not find the host. `addPartAfter` re-asks the rule and returns, which is
+why nothing was thrown and nothing was said; increment 20's note about that second ask reads as a
+belt-and-braces guard and was in fact the only thing standing between this and a crash.
+
+**Rule zero, ahead of the other three.** `addOptionsFor` gains an optional `addressable` set: before
+any question about aft faces or bores, the applier has to be able to ADDRESS the host. The set is
+derived in `ResultsView` through `structureOf` rather than listed by hand, so a fourth synthesised
+part cannot be forgotten the way these three were. Optional, so a read-only mount of the panel
+behaves exactly as it did — and the unit case exercises both arms, because a default that silently
+changed behaviour for a caller with no set would be a second defect wearing the first one's clothes.
+
+**The remove control on the same part was saying something the flyer could see was false.** It printed
+*"That part is no longer in this design"* over a row the table was drawing at that moment.
+`derivedPartRefusal` is now the one sentence both surfaces print — *"Boattail is made by the design
+fields rather than added as a part, so the editor cannot change it here. Clear the field that creates
+it, or pick a part the design itself carries."* — which names the part, says which field made it, and
+says what to do instead. `COMPETITION.md` row 50 marks Loft as BETTER than the field for stating WHY
+a component cannot go somewhere; on these three parts it was stating a reason that was not true.
+
+**Pinned at two layers, both controlled.** `lib/model/edit.test.ts` gains a case that builds the two
+trees, finds the part in one and not the other, and asserts all six kinds refused with the reason that
+names the field — carrying its control INSIDE the case, an `addOptionsFor` call with no set that must
+still answer "offered" for at least one kind, so the assertion cannot quietly go vacuous if the
+synthesis ever moves. `e2e/smoke.spec.ts` gains the case only e2e can carry, because the rule is
+correct in isolation either way and the defect was which tree the panel asked about: type the two
+boattail fields, pick the row that appears, and all six controls are dimmed with both surfaces
+printing the sentence. Control, run through `revert → rebuild → run → restore → rebuild`: pointing the
+set at the flown tree instead of `structureOf`'s fails it with *"/Add a tube behind this/ must be
+dimmed on a derived part … Expected: \"true\", Received: \"\""*.
+
+**What this does NOT do.** It does not make the three synthesised parts editable as parts — that is a
+product decision about whether a field-made part becomes an authored one when you touch it, and it is
+filed rather than taken here. The flyer's route to changing a boattail is the field that made it,
+which is the sentence the refusal now points at.
+
+**Increment 23 — an authored mass stays inside the part that holds it, 2026-08-18. SEV-1.**
+`HANDOFF.md` named this as one of two candidates and called it "the one a flyer would notice". It is
+worse than filed: it is not a corner, it is **every design**, and it is reachable in one drag.
+
+`buildAdded` derives an authored mass's station as `axialLength(host) * 0.3251` — read off the host
+as the FILE describes it, because `applyAdds` runs before `applyDimensionEdits`. `resolveChildFore`'s
+`top` arm is `parentFore + offset` with no clamp of any kind, so the mass does not move with a
+shrinking host: it hangs out of the back and the solver flies it there. **Measured across the 35-design
+corpus by authoring one mass into each design's primary tube and taking that tube to 30% of its file
+length: the mass lands outside its host on 35 of 35, and past the whole airframe's tail on 7** (worst
+`OR vs RAS Test 1.ork`, 30.6 mm past an 873.8 mm rocket). **And the consequence is the number a flyer
+acts on: the CG moves on all 35 and static margin by up to 2.73 cal** (`Three-stage rocket.CDX1`;
+`Tube fin rocket.ork` 2.64; `The Red Hunter.ork` 2.32).
+
+**One drag, not a typed extreme.** `components/RocketDiagram.tsx` gives the Body-length grip a 20 mm
+floor on every tube, so dragging it to the stop is enough on any design whose tube is longer than
+61.5 mm. "A flyer would never shrink it that far" is not available as a defence.
+
+`seatAddedMasses` runs **after** `fitAddedInternalParts`, which is one step later than every other
+rule in the pipeline and is the point: an authored coupler is both a fitting that pass resizes and a
+host a mass can sit in, so anything earlier judges a rocket that is not the one being flown — the same
+argument `fitAddedInternalParts` already makes for itself.
+
+**Two rules, because the two masses are different.** A mass the flyer has NOT stationed keeps its
+FRACTION, which is what `buildAdded`'s own comment already promised and could not deliver. One they
+HAVE stationed keeps their station, clamped to the host it ends up in — `withMassStation` already
+clamps, but it runs inside `applyDimensionEdits`, upstream of the one pass that can invalidate it.
+Re-deriving the typed one would overwrite a number the flyer chose.
+
+**A mass the DESIGN FILE brought is not touched, and that is the load-bearing exclusion.** Measured
+2026-08-18 by resolving every corpus mass through `resolveChildFore`: **12 of the 56 design-arrived
+masses already leave their host's span as their own file states them**, across 9 designs — counting
+the mass's own EXTENT, which is the honest reading (`TubeFins1.rkt`'s shock cord is 1,219 mm inside a
+203 mm host). **4 of the 12 have their fore station outside too**: `APEX_K_Dart.ork`'s "Avionics 1"
+and "Ejection Charge", `3D printable nose cone and fins.ork`'s "Screw Eye", and
+`FullScaleModelTH.rkt`'s "Deployment Charge(s)". *A first draft of this paragraph said "4 … two more
+on `3D printable nose cone and fins.ork`", a number taken from a subagent rather than measured and a
+naming that was wrong; the pre-push review caught the count and re-measuring caught the names.* A
+blanket clamp would silently rewrite all twelve, and rewriting another tool's stated geometry is the
+one thing Loft does not do to a number a file states.
+
+**What NOTHING owns, said plainly rather than implied away.** A DESIGN-ARRIVED mass inside a tube the
+flyer shrinks is overhung by nobody: the shrink clamp is `isRing(ch)` and `RING_KINDS` has no
+`masscomponent`. A first version of `seatAddedMasses`'s docblock called it "the shrink clamp's
+business, one rule and one home" — false, and the kind of sentence that stops the next reader looking.
+The same correction applies one line over: that clamp's own comment claimed a fin set is "repositioned
+by `flattenRocket`, not overhung by it", and `resolveChildFore` clamps nothing for any kind — **17 of
+the corpus's 64 fin sets are placed `top`**, so a shortened tube overhangs those exactly as it
+overhung a mass. Both filed; neither is this increment's to answer, because restating a file's
+geometry is a product decision and a fin set has aerodynamic consequences a point mass does not.
+
+**The other half of the fix is in the UI, and it only became reachable by fixing the model.** The
+Mass-position field's placeholder reads `designDims`, which deliberately excludes the dimension edits
+— right for every readback that shows the value being edited FROM, and wrong for a station, which
+nobody types to change a tube. Before this run the placeholder and the flight agreed by sharing the
+bug; fixing the flight put them out of step, and an untyped field would have advertised 421.6 mm while
+the flight flew 217 mm. `flownForReadback` is the one readback taken off the fully-edited tree, pinned
+by a new e2e case whose control reports exactly those two numbers.
+
+**Two false docblocks corrected rather than left.** `edit.ts`'s add arm claimed the station "is
+DERIVED here rather than frozen onto the entry, so a bay stays a third of the way down the tube that
+holds it when that tube is later resized" — the fraction is evaluated once and a constant lands in
+`placement.offset`. And the shrink clamp claimed "a fin set or a mass object inside a shortened tube
+is repositioned by `flattenRocket`, not overhung by it" — true of a fin set, false of a mass object,
+and it is the sentence that made this look handled.
+
+**Pinned at three layers with six controls, all fired — and what is NOT pinned is named.** `lib/model/edit.test.ts` gains three cases —
+the mass stays inside its host AND keeps its fraction after a resize; a typed station is clamped
+rather than re-derived; a file mass is untouched. `lib/corpus/sweep.test.ts`'s authoring sweep gains a
+sixth rule driven on **90 authored masses across all 35 designs**, and `e2e/smoke.spec.ts` gains the
+placeholder case. Controls: removing the pass fails the unit case with *"expected 0.47757 to be less
+than or equal to 0.27"* and the corpus case with **77 named designs and stations**; re-deriving the
+typed station fails the typed case; widening the pass to every mass fails the file-mass case with
+*"Altimeter + battery was moved by the seating pass"*; putting the placeholder back on the pre-edit
+tree fails the e2e with *"Expected: < 345.038, Received: 421.6"*; and the file-mass case now carries
+its own denominator, because every assertion in it sat behind a `continue`.
+
+**Two things this increment does NOT pin, stated because a reader would assume otherwise.** The typed-
+station case passes verbatim with the pass deleted — `withMassStation` already clamps against the
+post-dimension-edit tree, so on a body-tube host the pinned arm is a no-op; what that case catches is
+the pass OVER-reaching. And the ordering this entry calls "the point" — running after
+`fitAddedInternalParts` — has no control at all, because its only live path is a mass authored inside
+an authored COUPLER, the one host that pass shortens, and no test anywhere authors that pair. Filed.
+
 **Increment 22 — the whole vocabulary is on screen, dimmed where the part will not take it,
 2026-08-17.** `COMPETITION.md` row 50's still-owed half, and the one place Loft was behind every
 tool in the field. Loft is the ONLY one of the four that states in the product WHY a component
@@ -6720,8 +6851,124 @@ not cost that.
 
 ## P18 — The two treatments that are not cards get names
 
-**Status: IN PROGRESS — increment 1 SHIPPED 2026-08-17.** Written the same run, because the P-track
-was dry and `MAINTAINING.md` says extending it IS the work in that case.
+**Status: IN PROGRESS — increments 1 and 2 SHIPPED (2026-08-17, 2026-08-18).** Written on 2026-08-17,
+because the P-track was dry and `MAINTAINING.md` says extending it IS the work in that case. Both
+counts in the *done when* are now at their targets; what remains is the sibling mirror clause.
+
+**Increment 2 — `DropZone`, and the width question settled by removing it, 2026-08-18.**
+`components/ImportPanel.tsx` was the last card treatment hand-rolled outside the primitives file.
+**`cardTreatments` is 1** — §9's stated target, rather than the "honest floor" this milestone's first
+draft recorded — and **`cardTreatmentsOutsidePrimitives` is 0**, from 1.
+
+*Precisely: that check's Set is fed by every match in `components/`, and `components/ui.tsx` supplies
+four — the one real literal and three prose mentions that happen to trim to the identical string. It
+reads 1 because they collapse, not because only one exists, and it is one comment edit from reading 2
+with a message that names no file. Recorded rather than "fixed": narrowing it to code-only would blind
+it to the very thing it catches, since a hand-rolled treatment is a literal wherever it sits.*
+
+**The `border-2` hazard the milestone flagged up front resolved by DELETION, not by a prop.** The
+2 px border only ever beat `Card`'s own `border` by source order: measured on the built stylesheet,
+`.border` at byte **16,788** and `.border-2` at **16,910**, equal specificity, exactly the shape
+`components/ui.tsx` already documents for `left`/`inset-x`. Three ways out were weighed:
+
+| option | why not |
+|---|---|
+| `<Card className="border-2">` | the hazard, kept. Wins today, silently stops winning if Tailwind reorders |
+| a `border` / `edge` prop on `Card` | the generic escape hatch §9 refuses one property over — and it makes the `cardTreatments` count unable to reach 1, because `Card` then spells no single treatment string. A *done when* that fails when the work succeeds is the exact trap this milestone's first draft was corrected for |
+| **drop the second width** | taken. §2 declares one border width, and the count reaches 1 by composition |
+
+**Measured on the built export, clean build to clean build:** the stylesheet went **64,430 →
+63,628 bytes**. **Three** rules stopped being asked for — the two off-system drag-over colours the
+zone carried (`border-indigo-400`, `bg-indigo-50/60`) and `dark:bg-zinc-900/40`, whose last user was
+the zone's own dark fill. *A first draft of this line said four and counted the second border width
+among them; the rule is still in the shipped CSS, asked for by five spinner rings, and the same
+section quotes its byte offset in that very build. Corrected by the pre-push review, by grepping the
+artifact.* The `dark:bg-zinc-900/40` one is worth recording for a different reason: it then failed
+`scripts/check-classes.mjs` as an orphan generated by a COMMENT one file over — the class was named in
+prose explaining why a button no longer needed it, and Tailwind reads raw source text, so the
+explanation kept the rule alive. The same trap caught this milestone's own docblock, which spelled the
+2 px width while explaining its removal. Both describe the class now instead of writing it.
+
+**What a drop target is made of was never the pixel.** It is the dashed edge, the sunken fill, the
+size of the target and the sentence in it — and the drag state now changes the border's STYLE as well
+as its colour and fill (`muted` → `accent`: dashed grey to solid accent), which is a bigger change
+than a width the flyer never sees change. §2 gained a border-WIDTH paragraph saying so; that table
+had declared two colours and no width at all, which is why a second one could ship at one call site
+and be invisible to every §9 grep.
+
+**The extraction brought three defects out with it, and two are the reason it is worth more than a
+count.**
+
+1. **A refusal rendered where nobody could see it.** A file Loft cannot read failed in the page's
+   shared `ErrorState`, **below everything else on the route**. Measured on the built export from a
+   **cold** load, where the only thing between the two is the always-on bundled-examples card — the
+   recents shelf, the discarded-session offer and the removal undos all render only once the flyer has
+   history, so a returning one has further to look, not less: **765 px** below the zone at 1440x900,
+   and **1,654 px** below it on a 390x844 phone — off-screen on both, by most of a viewport on the
+   desktop and by two of them on the phone. *A first draft of this line described the cold-load
+   numbers as measured past the recents shelf, which a cold load does not render. Corrected by the
+   pre-push review.* The refusal now renders **inside the zone the file landed on**, and the words stay the
+   importer's.
+
+   **The first attempt at this fixed the wrong half, and the pre-push review caught it before it
+   shipped.** That version had the primitive decide what was readable, by testing the file's NAME
+   against `accept`. It is wrong for this app in three ways and each is worth keeping. Loft's importer
+   **never looks at the name** — it sniffs the bytes — so a renamed `.ork`, an extensionless download
+   or a share-sheet hand-off all import fine, and a name gate refuses every one of them with a
+   sentence that is false, on the front door of the app, with the OS dialog's "All files" escape
+   leading straight into it. The importer's own refusals are **better than anything a name test can
+   produce** — *"That does not look like a rocket design file … a flight log or a spreadsheet goes in
+   the flight-log box on the results instead"* — so the gate replaced a message that says which box
+   the file belongs in with one that only says no. And it **broke three previously-green e2e cases**,
+   two of them round-trips where Playwright hands a download back under a temporary name. The
+   primitive owns WHERE a refusal appears; the caller owns WHAT it says. `e2e/import.spec.ts` now
+   carries the renamed-file case permanently.
+2. **The drag highlight flickered.** `dragenter` and `dragleave` both bubble, so moving the pointer
+   from the zone onto the paragraph inside it fires a `dragleave` at the container — and the
+   hand-rolled handler answered it with `setDragging(false)`. The primitive counts enter and leave.
+3. **A text drag armed it.** Dragging a selection across the page fires the same events, so the file
+   target lit up for something it cannot take. Both handlers now test `dataTransfer.types` for
+   `Files`.
+
+**Pinned at two layers, because they can be wrong in different ways.** `lib/dropzone.test.tsx`
+asserts what the primitive RENDERS — the `Card` treatment, ONE border width and that it is the
+hairline, §2's `muted` tone at rest and not the accent one, the input's `accept` and accessible name,
+the busy state, the caller's refusal in the zone, and the live region that exists before the refusal
+does. `e2e/import.spec.ts` drives what only a browser can: a real `DataTransfer`, the refusal
+appearing **inside the zone** in the importer's own words, the flicker, the text drag, and two
+positive controls the other three need — a real bundled `.ork` fetched from the origin, dropped and
+flown, and the same design under a name the `accept` list does not cover.
+
+**§2's new border-width rule got its own check, because the sentence written to cover it was false.**
+The first draft of §2 and of `lib/design-system.test.ts` both said the card counts already policed a
+call-site width. They cannot: both need `rounded-xl` and a border token in ONE literal, and the hazard
+§2 names — a `Card` handed a width through `className` — writes only the width, because a `Card`
+caller never spells the radius. The milestone's central decision was defended by a control that did
+not exist. `containerBorderWidths` is that control, target 0.
+
+**Seven controls, all fired.** Putting the width back on the primitive fails the width assertion by
+name; handing one to a `Card` through `className` fails `containerBorderWidths` with the file and the
+string; undeclaring `DropZone` in §5 fails `lib/design-doc.test.ts` in **both** directions;
+hand-rolling one treatment back at the call site fails both card counts (only
+`cardTreatmentsOutsidePrimitives` names the file — `cardTreatments` prints the strings alone, which is
+worth knowing before trusting its message); deleting `disabled={busy}`
+fails the busy assertion — **which it could not do in the first draft**, because
+`toContain("disabled")` matches `buttonClass`'s unconditional `disabled:opacity-50` on every button in
+the app, so it read green on the resting page; and, under `revert → rebuild → run → restore →
+rebuild`, toggling `dragleave` instead of counting fails exactly the case written for it.
+
+**One thing this increment did NOT do, and it is a deliberate split rather than an oversight.**
+`components/ResultsView.tsx`'s flight-log overlay is the app's second file ingest, and the milestone's
+notes said to shape `DropZone` for both "or the split comes back in a run". It is an inline
+`<label>`-wrapped input in a toolbar row — a *control*, not a container — so adopting the card-shaped
+primitive there is a repaint of the results toolbar, not an extraction. It contributes nothing to
+either count. Increment 3 below is that work, written now so the split is queued rather than lost.
+
+**Increment 3 — the second ingest surface takes files the same way.** `components/ResultsView.tsx`'s
+flight-log picker has no drag support at all and no rejected-file state; a `.png` chosen there reaches
+the CSV parser. *Done when* it accepts a dropped log, refuses what it cannot read by name, and does
+both through `DropZone` — which means settling whether the primitive grows an inline presentation or
+the toolbar grows a zone. Size: 1 increment.
 
 **Increment 1 — `Toast`, 2026-08-17.** The service-worker update prompt spelled the entire floating
 surface at its call site. Only two things about it were ever not a `Card`: the elevation, and a
@@ -6873,8 +7120,19 @@ excuse and this is a finish line.
   for five runs at zero adopters with nothing failing.
 - **The sibling repo carries the same §2 and §5 text in the same run** — `DESIGN.md` is shared
   verbatim and the DESIGN-IS-BINDING invariant says a change to one copy is a change to both.
-  `OWNER-NOTES.md` records that `add_repo` with `access: "push"` for `nrdptel/fusionspace-debrief`
+  `OWNER-NOTES.md` recorded that `add_repo` with `access: "push"` for `nrdptel/fusionspace-debrief`
   succeeds from a Loft session, so this is not an owner task.
+
+  **BLOCKED on 2026-08-18, and the sentence above is no longer true of every session.** Increment 1's
+  §2 elevation row and §5 `Toast` entry reached the sibling on 2026-08-17 by that route. Increment 2's
+  §2 border-width paragraph and §5 `DropZone` entry did NOT: this session's GitHub scope is
+  `nrdptel/fusionspace-loft` and `nrdptel/loft-fixtures`, `add_repo` for the sibling is refused by the
+  harness's permission layer before it reaches GitHub, and a plain clone of the sibling — public, and
+  reported by `list_repos` with `can_push: true` — is refused by the same layer. The access exists and
+  the session may not use it. Parked in `OWNER-NOTES.md` under *Awaiting the owner*, with the fix
+  (attach the sibling as a second source at session creation, exactly as the fixtures repo is), and
+  the owed text written out in `HANDOFF.md` so it can be pasted rather than re-derived. **This clause
+  is the only one of the five not met**, and the milestone is not marked shipped because of it.
 
 **Size: 2 increments.** One per primitive, each independently shippable; the sibling mirror rides
 with whichever lands the shared text.
@@ -6944,6 +7202,34 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-18 — the import drop zone LOSES its 2 px border rather than gaining a way to keep it.**
+  P18's own notes flagged the width as the thing to settle before writing `DropZone`, because a
+  `<Card className="border-2">` beats `Card`'s own `border` only by source order (`.border` at byte
+  16,788 of the built stylesheet, `.border-2` at 16,910, equal specificity). **Taken: delete the
+  second width and say so in §2**, which now declares one border width for every container. **Rejected
+  (a): an enumerated `edge` prop on `Card`.** It is the generic escape hatch §9 refuses one property
+  over, and — decisively — it makes the `cardTreatments` count unable to reach 1, because a `Card`
+  that composes its edge from a token spells no single `rounded-xl border…` string for the check to
+  find. A *done when* of 1 that a correct implementation takes to 0 is the same shape as the draft
+  this milestone was already corrected for. **Rejected (b): keep the override.** It works today and
+  stops working silently the day Tailwind reorders its output, which is the failure mode the repo
+  already documents for `left`/`inset-x`. **What it costs:** one pixel of border on one surface. What
+  replaces it is a state change with more information in it — the edge goes dashed→solid and
+  control→accent while a file is over the zone, where before only the colour moved. Reversible in one
+  line if the owner disagrees, by amending §2 and adding the prop.
+
+- **2026-08-18 — `DropZone` is shaped for the CARD-shaped ingest surface, and the flight-log picker is
+  queued rather than converted.** P18's notes said to shape it for both "or the split comes back in a
+  run". **Taken: the split, written into the queue as increment 3** with the reason measured:
+  `components/ResultsView.tsx`'s log overlay is an inline `<label>`-wrapped input in a toolbar row — a
+  *control*, not a container — so adopting a card-shaped primitive there is a repaint of the results
+  toolbar rather than an extraction, and it contributes nothing to either count P18's *done when*
+  names. **Rejected: a `size`/`inline` variant on `DropZone` in the same pass**, which would have
+  invented a second presentation for a primitive with one adopter, on the same increment that
+  extracted it — the "a component that exists once and matches nothing else" tell pointing the other
+  way. The gap it leaves is real and is stated: that surface still has no drag support and no
+  rejected-file state.
 
 - **2026-08-13 — the wordmark takes the touch target on the docs routes and an exemption on the app,
   rather than one answer everywhere.** P15's increment 2 was written as "the brand link and the skip

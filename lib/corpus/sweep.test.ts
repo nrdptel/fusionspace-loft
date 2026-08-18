@@ -1306,6 +1306,7 @@ suite("real-design corpus", () => {
     let transMade = 0;
     let massMade = 0;
     let stations = 0;
+    let resized_ = 0;
 
     for (const f of files) {
       const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
@@ -1385,6 +1386,44 @@ suite("real-design corpus", () => {
         if (!(built.mass > 0)) shapeless.push(`${where} — a mass object weighing ${(built.mass * 1000).toFixed(2)} g`);
         if (removalRefusal(withMass, mid)) stuck.push(`${where} (mass object)`);
         if (aimEditsAt(withMass, mid).massObjectId !== mid) unaimable.push(`${where} (mass object)`);
+
+        // **Rule 6, and it is a SEV-1 this sweep could not see until 2026-08-18: the host RESIZED
+        // under the mass after it was placed.** The station was derived once, from the length the
+        // host has when `applyAdds` runs — the FILE's — and `applyDimensionEdits` runs afterwards.
+        // `resolveChildFore`'s `top` arm never clamps, so the mass did not move with the shrinking
+        // host: measured across this corpus before the fix, the mass landed outside its host on
+        // **35 of 35 designs** and past the whole airframe's tail on **7**, moving static margin by
+        // up to **2.73 cal**. Every check above ran on a design nobody had edited, which is the one
+        // shape of this sweep that could not reach it.
+        //
+        // Every anchor in this loop is already a body tube (the `continue` at the top of it), which
+        // is what makes `bodyLength` the aimed edit that resizes the host — so there is no second
+        // filter here and a first draft's `if (kind === "bodytube")` was a guard that could not be
+        // false, reading as a narrowing that did real work. **The other four kinds with a bay are NOT
+        // covered by this sweep and are NOT unit-pinned either** — a first draft of this comment said
+        // they were, and all three unit cases resolve their host through `primaryBodyTube`. What is
+        // pinned is the rule on a tube, on every design; the coupler case, which is the one
+        // `fitAddedInternalParts` can shorten AFTER `withMassStation` has clamped, has no check at
+        // all and is filed.
+        const shrunkTo = Math.max(0.02, host.length * 0.3);
+        const resized = applyGeometryEdits(pristine, {
+          added: [{ id: mid, kind: "masscomponent", after: anchor.component.id, length: 0 }],
+          bodyTubeId: anchor.component.id,
+          bodyLength: shrunkTo,
+        });
+        const rf = flattenRocket(resized);
+        const rm = rf.find((p) => p.component.id === mid);
+        const rh = rf.find((p) => p.component.id === anchor.component.id);
+        if (rm && rh) {
+          resized_++;
+          if (rm.xFore < rh.xFore - 1e-9 || rm.xFore > rh.xFore + rh.length + 1e-9) {
+            floating.push(
+              `${where} — after the host was resized to ${(shrunkTo * 1000).toFixed(1)} mm, the mass flies at ` +
+                `${(rm.xFore * 1000).toFixed(1)} mm and its host spans ` +
+                `${(rh.xFore * 1000).toFixed(1)}–${((rh.xFore + rh.length) * 1000).toFixed(1)} mm`,
+            );
+          }
+        }
       }
 
       // --- a mass object's STATION, on the design's OWN masses ------------------------------
@@ -1430,9 +1469,15 @@ suite("real-design corpus", () => {
     // the transition branch half dead, and could not say which half.
     console.log(`authored parts driven across ${files.length} design files: ${driven} (${transMade} transitions, ${massMade} mass objects)`);
     console.log(`mass-object stations driven across ${files.length} design files: ${stations}`);
+    console.log(`authored masses re-checked after their host was resized: ${resized_}`);
     expect(transMade, "no transition was authored — that branch proves nothing").toBeGreaterThan(80);
     expect(massMade, "no mass object was authored — that branch proves nothing").toBeGreaterThan(80);
     expect(stations, "no mass station was driven — that branch proves nothing").toBeGreaterThan(100);
+    // Floored at 80 like its three siblings, not at a third of the real population: this branch
+    // drives once per authored mass and lands at 90, so a floor of 30 would let two thirds of the
+    // corpus stop being driven with the one guard whose stated job is "that branch proves nothing"
+    // still green.
+    expect(resized_, "no authored mass was re-checked after a resize — that branch proves nothing").toBeGreaterThan(80);
     expect(openedAStep, "authored transitions that opened a mould-line step the design did not have").toEqual([]);
     expect(floating, "authored mass objects placed outside the part holding them").toEqual([]);
     expect(stuck, "authored parts that cannot be removed again").toEqual([]);

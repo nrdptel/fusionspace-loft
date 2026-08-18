@@ -47,6 +47,7 @@ import {
   transitionDefaults,
   authoredTransitionName,
   removalRefusal,
+  derivedPartRefusal,
   newPartId,
   type AddedPart,
   type MovedPart,
@@ -456,6 +457,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
   const [run, setRun] = useState<FlightRun | null>(null);
   const [baseline, setBaseline] = useState<FlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** What the importer said about the last FILE the drop zone was handed, kept apart from `error` on
+   *  purpose. Both are refusals; they belong on different surfaces. This one renders inside the drop
+   *  zone, where the flyer dropped — the shared strip below sits under everything else on the route,
+   *  measured from a COLD load (only the always-on examples card in between) at 765 px below the zone
+   *  at 1440x900 and 1,654 px on a 390x844 phone, off-screen on both; with history on the device the
+   *  recents shelf pushes it further. Everything else — a what-if refused, a
+   *  saved design that could not be read back — is about something other than the file in their hand
+   *  and stays in the strip. */
+  const [fileError, setFileError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [edits, setEdits] = useState<Edits>({});
   /** Where the flyer has been, so they can go back. Reset by loading a design and by nothing else —
@@ -703,6 +713,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       setScenario(resume?.scenario ?? "design");
       setSimIndex(idx);
       setError(null);
+      setFileError(null);
       setRestored(resume !== undefined);
       if (bytes) designBytes.current = toBase64(bytes);
       // **Which design this is, content-addressed, so a stored dispersion can be filed under it.**
@@ -753,7 +764,19 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
         //
         // `replace`, not `push`: this is where the load lands, not a step the Back button should
         // have to undo on the way out of the design.
-        router.replace(workspacePath(landing));
+        //
+        // **Skipped when the address already names it, and that is not a micro-optimisation.** A
+        // reload of `/flight` restores the session and lands on `flight`, so this fired a navigation
+        // to the route the flyer was already on. Online that is a cheap no-op. OFFLINE it was half
+        // an infinite loop: the router asks for the route's payload, the worker had none precached
+        // and answered its own 504, the router downgraded to a HARD navigation, the reload re-ran
+        // this restore, and it issued the same navigation again — measured at 38 main-frame
+        // navigations in 3 seconds, sustained, on the form factor the offline claim is sold for. The
+        // precache is the root fix (`scripts/gen-sw-precache.mjs`); this is the half that says a
+        // navigation to where you already are should never be issued at all.
+        if (workspaceFromPath(window.location.pathname) !== landing) {
+          router.replace(workspacePath(landing));
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate this design.");
         setRun(null);
@@ -772,12 +795,16 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     async (file: File) => {
       setBusy(true);
       setError(null);
+      setFileError(null);
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
         const document = await importDesign(bytes);
         loadDoc(document, file.name, "flight", bytes);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not read that file.");
+        // Into the zone the file was dropped on, not the page strip. The importer's message names
+        // what the bytes look like and which box the file belongs in, and it was landing where
+        // nobody on this route can see it.
+        setFileError(err instanceof Error ? err.message : "Could not read that file.");
         setDoc(null);
         setRun(null);
       } finally {
@@ -791,6 +818,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     async (path: string, label: string) => {
       setBusy(true);
       setError(null);
+      setFileError(null);
       try {
         const res = await fetch(path);
         // **A failed fetch is not an empty file, and saying so blamed the flyer.** The service
@@ -840,6 +868,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     }
     setBusy(true);
     setError(null);
+    setFileError(null);
     try {
       const bytes = fromBase64(saved.design);
       const document = await importDesign(bytes);
@@ -868,6 +897,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       if (!entry) return;
       setBusy(true);
       setError(null);
+      setFileError(null);
       try {
         const bytes = fromBase64(entry.design);
         const document = await importDesign(bytes);
@@ -1026,6 +1056,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
         setRun(r);
         setBaseline(b);
         setError(null);
+        setFileError(null);
         return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate.");
@@ -1181,6 +1212,25 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     [doc, edits],
   );
 
+  /** The FULLY edited tree — structure and dimensions both — for the one readback that is DERIVED
+   *  from geometry the flyer edits somewhere else.
+   *
+   *  Every other entry in `designDims` below is deliberately read from `designBase`, which excludes
+   *  the dimension edits: those fields show the value being edited FROM, and a body length that
+   *  updated to what the flyer just typed would be a field showing its own input back. A mass
+   *  object's STATION is not that. Nobody types it to change a tube; it is a fraction of the host's
+   *  length, so the moment a length edit lands the station the flight is using moves and the field
+   *  has typed nothing. Reading it off `designBase` would advertise the pre-edit station — which is
+   *  exactly the "field showing a number that is not the one in the flight" the comment above forbids.
+   *
+   *  **This became reachable on 2026-08-18 and not before.** Until `seatAddedMasses`, the flown
+   *  station did not move with its host either, so the stale placeholder agreed with the flight by
+   *  sharing its bug. Fixing the flight is what put the two out of step. */
+  const flownForReadback = useMemo(
+    () => (doc ? applyGeometryEdits(doc.rocket, edits) : null),
+    [doc, edits],
+  );
+
   /** The design a booster is seeded FROM, which is NOT `removableFrom`. `applyAddedStages` runs first in
    *  the pipeline, on the pristine rocket plus the stages already authored — an added tube, a removal or
    *  a reorder is invisible to it. Asking `canAddStage` the fully-structured tree instead disagrees with
@@ -1192,8 +1242,21 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
   /** Why this part cannot be removed, or null. The panel asks THIS rather than judging for itself, so the
    *  reason it shows and the guard that enforces it cannot disagree about which design they are judging. */
   const refuseRemoval = useCallback(
-    (id: string) => (removableFrom ? removalRefusal(removableFrom, id) : "No design is loaded."),
-    [removableFrom],
+    (id: string) => {
+      if (!removableFrom) return "No design is loaded.";
+      // **A part the DIMENSION FIELDS made is on screen and is not in this tree**, so the plain
+      // lookup answered "That part is no longer in this design" — a sentence the flyer can see is
+      // false, because the diagram is drawing it. Asked of the flown tree first, and answered with
+      // the same sentence the add row gives, so the two controls on one part agree about why.
+      if (!flattenRocket(removableFrom).some((p) => p.component.id === id)) {
+        const shown = flownForReadback
+          ? flattenRocket(flownForReadback).find((p) => p.component.id === id)?.component
+          : undefined;
+        if (shown) return derivedPartRefusal(shown.name || "This part");
+      }
+      return removalRefusal(removableFrom, id);
+    },
+    [removableFrom, flownForReadback],
   );
 
   const removeComponent = (id: string) => {
@@ -1607,6 +1670,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     setRun(null);
     setBaseline(null);
     setError(null);
+    setFileError(null);
     setFileName("");
     setEdits({});
     setHistory(EMPTY_HISTORY as History<WhatIf>);
@@ -2045,7 +2109,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             // 26 of the 35 corpus designs carry a mass object, 56 in all, and until now not one could
             // be reached: the only mass a flyer could state was a payload the editor adds.
             massObjectMass: primaryMassObject(designBase, edits.massObjectId)?.mass,
-            massObjectStation: primaryMassObjectStation(designBase, edits.massObjectId),
+            // The one readback off the FULLY edited tree — see `flownForReadback`. A station is
+            // derived from its host's length, so it moves when a length edit lands and the flyer has
+            // typed nothing into this field.
+            massObjectStation: primaryMassObjectStation(flownForReadback ?? designBase, edits.massObjectId),
             massObjectPart: primaryMassObjectPart(designBase, edits.massObjectId),
             unreachableMassObjects: unreachableMassObjectCount(designBase),
             finish: primaryFinish(designBase),
@@ -2155,8 +2222,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
           },
     // The fin and body readbacks take their selected part, so both selections are real dependencies:
     // without them the panel keeps showing the primary part's numbers while the edit writes to the
-    // picked one.
-    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.bodyDiameter, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId, edits.fittingId],
+    // picked one. `flownForReadback` is one too, and a stale one is exactly the defect the station
+    // readback exists to fix: it is the only entry here that moves when a DIMENSION edit lands, so
+    // leaving it out would freeze the station at whatever it was when a selection last changed.
+    [doc, designBase, flownForReadback, edits.finSetId, edits.bodyTubeId, edits.bodyDiameter, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId, edits.fittingId],
   );
 
   return (
@@ -2188,6 +2257,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             onSample={onSample}
             onNew={onNew}
             busy={busy}
+            fileError={fileError}
             recents={recents}
             onOpenRecent={onOpenRecent}
             onForgetRecent={onForgetRecent}
@@ -4429,6 +4499,25 @@ function ConditionsControls({
     .filter(([k, , edit]) => flown.defaulted[k] && edit === undefined)
     .map(([, label]) => label);
 
+  /** Whether the flyer has typed any of the four launch-condition fields this panel owns.
+   *
+   *  **The same predicate `ConditionsSource` is built from**, so the label on the summary row and the
+   *  sentence every other panel prints through `conditionsPhrase` cannot disagree about whether the
+   *  flyer has set anything. Spelled from `edits` rather than passed in because this panel is the one
+   *  that owns all four fields; the panels downstream each ask about the subset they read.
+   *
+   *  **SEV-1, 2026-08-18.** The summary was `scenario === "today" ? "· today" : "· as designed"` with
+   *  no third state, so it kept asserting the design's own setup after the flyer had replaced it.
+   *  Measured on the 38 mm single-deploy: typing 9 m/s of surface wind takes DRIFT FROM PAD from
+   *  292 m to 1,312 m — 4.5x — while the one control on screen naming the basis of every number below
+   *  it says those numbers are the design's. Collapsed, which is how it sits by default, that label is
+   *  the only thing on the page that names the basis at all. */
+  const conditionsEdited =
+    edits.rodLength !== undefined ||
+    edits.rodAngleDeg !== undefined ||
+    edits.windSpeed !== undefined ||
+    edits.launchAltitude !== undefined;
+
   const findWeather = async () => {
     if (!place.trim()) return;
     setWxBusy(true);
@@ -4452,7 +4541,14 @@ function ConditionsControls({
   return (
     <Card as="details" pad={false} className="group">
       <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        <span>Conditions {scenario === "today" && weather ? "· today" : "· as designed"}</span>
+        {/* Three states, and the flyer's own outranks both of the others: their numbers are what is
+            flown whether the base was the design's setup or today's weather, and
+            `conditionsPhrase` already says exactly that in prose ("the launch conditions you set").
+            "As you set them" is the parallel of "as designed" rather than a fourth way of saying it. */}
+        <span>
+          Conditions{" "}
+          {conditionsEdited ? "· as you set them" : scenario === "today" && weather ? "· today" : "· as designed"}
+        </span>
         <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
       </summary>
       <div className="space-y-4 border-t border-zinc-200 px-4 py-4 dark:border-zinc-800">

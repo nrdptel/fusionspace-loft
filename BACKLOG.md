@@ -12,6 +12,239 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-18 from R12 increment 23's own pre-push review — two cases the fix DELIBERATELY does
+not answer, each because it is a product decision rather than a bug.**
+
+- **Nothing owns a DESIGN-ARRIVED mass inside a tube the flyer shrinks.** The shrink clamp is
+  `isRing(ch)` and `RING_KINDS` excludes `masscomponent`, and `seatAddedMasses` touches authored
+  masses only — on purpose, because **12 of the 56 design-arrived corpus masses already leave their
+  host as their own file states them** and rewriting another tool's geometry is the one thing Loft
+  does not do to a number a file states. So a flyer who shrinks a tube around an IMPORTED mass gets
+  the same overhang the authored case had. The question is what to do instead: re-station it (restates
+  the file), refuse the length (a one-way door), or flag it (a new state). A milestone, not a line.
+- **The same is true of a FIN SET, and the comment that said otherwise has been corrected.**
+  `resolveChildFore`'s `top` arm clamps nothing for any kind, and **17 of the corpus's 64 fin sets are
+  placed `top`** — `APEX_K_Dart.ork`'s and `Simulation scripting.ork`'s among them — so a shortened
+  tube overhangs those exactly as it overhung a mass. Bigger than the mass case, because a fin set has
+  a chord, a span and aerodynamic consequences: moving one changes CP as well as CG.
+- **The pinned arm of `seatAddedMasses` has no control**, because its only live path is a mass
+  authored inside an authored COUPLER — the one host `fitAddedInternalParts` shortens after
+  `withMassStation` has already clamped — and no test anywhere authors that pair. The ordering that
+  makes the pass run last is therefore asserted by argument rather than by a check.
+
+**Filed 2026-08-18 from the opening fan-out — nine lenses, ~60 findings, of which four Sev-1 claims
+were reproduced and are being fixed this run (the offline loop below, `mass()`'s flat zero, the
+authored mass station, the RASAero fin station). Everything here is what is NOT being fixed this run,
+newest lens first. Each was verified by the agent that filed it unless marked UNVERIFIED.**
+
+*Numbers and physics*
+
+- **The RASAero fin `Location` is probably read from the wrong end of its parent, and this run
+  DELIBERATELY did not change it.** `lib/rasaero/adapt.ts`'s `finSet` reads `Location` as the fin root
+  leading edge measured aft from the parent's FORE end. The corpus says that is likely wrong, and says
+  it in a way worth writing down rather than re-deriving:
+  - **6 of the 8 `<Fin>` blocks across the four `.CDX1` files have `Location` EXACTLY equal to
+    `Chord`.** Under an aft-end reading (`LE = parentAft − Location`) that means the fin's trailing
+    edge is flush with the parent's aft end, which is where fins go. Under the current fore-end
+    reading it means the fin sits one chord-length down from the parent's front.
+  - **The decisive case is `Three-stage rocket.CDX1`**: nose 3.937 in, tube 11.811 in, fin
+    `Location` 1.969 = `Chord` 1.969. Fore reading → fin LE at **5.906 in on a 15.748 in rocket**,
+    with 9.842 in of empty tube behind it. Aft reading → LE at **13.779 in**, trailing edge flush with
+    the tail.
+  - **And the counter-case, which is why this is filed and not fixed:** `Complex.Two-Stage.CDX1`'s
+    36-in tube carries `Location` 36 with `Chord` 1 — `Location == parentLength`, not `Location ==
+    Chord`. The fore reading (after the existing clamp to `parentLength − chord`) lands it flush at
+    the tail; the aft reading puts it at the tube's FORE end. One rule has to explain both and neither
+    candidate does.
+  - **The cross-tool pair does not settle it either.** `OR vs RAS Test 1.ork` and `.CDX1` are the same
+    rocket from a forum comparison thread. The `.ork` places its fin `axialoffset method="bottom" 0.0`
+    — LE at **56.00 in** (20 in nose + 48 in tube − 12 in chord). The `.CDX1` has `Location` 13,
+    `Chord` 12: fore reading gives **33.00 in**, aft reading gives **55.00 in**. Aft is 1 in off the
+    twin rather than equal to it, so it reproduces the reference case *approximately*, and
+    `MAINTAINING.md` says a method that cannot be grounded in a citable source or reproduce a
+    reference case does not ship — least of all on a stability number.
+  **What it would take:** the RASAero II Users Manual's own definition of a fin's `Location`, or a
+  RASAero install to round-trip a file through. Then one rule, all four corpus files, and the `.ork`
+  twin as the oracle. The consequence if it is wrong is not small — a fan-out lens measured the same
+  physical rocket at **+2.74 cal stable against −2.16 cal** across the two formats, with a "statically
+  unstable" warning attached to one of them.
+- **`Show-off.CDX1` gets its boattail built TWICE** — `inlineBoattail` builds one from the body tube's
+  `<BoattailLength>`/`<BoattailRearDiameter>` and `parseParts` builds the following `<BoatTail>` part,
+  the same physical cone, at 21.34 in and 22.34 in, both 1 in long and both ending at 0.25 in
+  diameter. Same file, same pass, and it is the likeliest cause of that design's negative CNα.
+
+- **A negative summed CNα yields a CP behind the tail, published unqualified.** `lib/sim/aero.ts:105`
+  divides moment by a negative `cnAlpha` when contracting transitions outweigh the fins. On
+  `corpus/rasaero/Show-off.CDX1` the stat card reads LENGTH 593 mm, **CP 913 mm** — 320 mm behind the
+  tail — beside **CNα −1.93 /rad**, a normal-force slope that cannot be negative, with no caveat. The
+  app already withholds STATIC MARGIN and CG on that same design for a missing motor, so the
+  machinery exists and is not applied to the one pair that is physically impossible. Sev-1-shaped;
+  not fixed this run only because the RASAero station bug above may be its cause, and the two want
+  one pass.
+- **`Three-stage rocket.CDX1` imports to a dry mass of exactly 0.00000 kg with 3 parts**, and
+  `components/GeometryInspector.tsx:586` publishes that 0 g as the design's dry mass with no
+  empty/unknown state. The corpus guard for exactly this only fires when the design has a motor.
+- **RASAero parts are all placed `{method:"after", offset:0}`** and a part's own `<Location>`/
+  `<Offset>` is never read, so overlapping parts stack end-to-end: `Show-off.CDX1` imports at
+  23.34 in against the file's 20.00 in (+17%), `Complex.Two-Stage.CDX1` 72.00 in against 63.00 in
+  (+14%).
+- **`TubeFins1.rkt` solves to static margin −0.333 cal** and raises "statically unstable as
+  modelled" on a real tube-fin design; the rear boattail contributes −1.222 CNα and pulls CP forward
+  past the CG. Same family as the CNα sign problem above.
+- **The corpus gate is apogee and max velocity only, at ±12%**, so every other stored metric can be
+  arbitrarily wrong on a non-excused file: `Cherokee-E-5055.ork [Simulation 3]` deployment velocity
+  **+204%**, `Clustered motors.ork [Simulation 1]` +135%, `02.Two-stage.ork` −86%.
+
+*Numbers that state a basis they do not have*
+
+- **The Conditions summary is hard-coded to "· as designed" and has no third state for "edited".**
+  `components/LoftApp.tsx:4455`. Type 9 into Surface wind and DRIFT FROM PAD goes 162 m → 726 m while
+  the only control naming the basis of every number below it asserts they are the design's own.
+  Sev-1-shaped; a one-line state is not the fix — the summary needs to say WHICH conditions.
+- ~~**The dispersion panel drops the fallback-canopy-Cd caveat that /flight carries.**~~ **FIXED
+  2026-08-18**, together with /flight's own DRIFT FROM PAD tile, which was the only descent figure
+  there without the badge. The condition and its wording moved into `lib/sim/withheld.ts` beside
+  `notLandedWhy` — which is there for the identical reason, a caveat that went missing from one
+  surface — and both panels read it. `e2e/fixtures/fallback-canopy-cd.ork` exists because **no
+  committed design could reach the state**: all fifteen bundled samples and e2e fixtures state their
+  own Cd while 40 of the corpus's 92 flights are flown on a fallback, so a whole surface could lose
+  the caveat with the gate green. The landing-energy LINE (a sentence, not a `Readout`) is still
+  unbadged and is the remainder.
+- **Liftoff and burnout mass print identical on light designs** — `Mini Honest John.ork` shows
+  0.017 kg / 0.017 kg — so the summary states the motor burned no propellant. Distinct from the
+  `mass()` zero fix: 0.017 does not round away, the PAIR is what needs resolving together.
+- **Max acceleration is `g` on /flight and m/s² on /validate** for the same metric, on the surface
+  whose whole job is putting the two answers side by side.
+- **`ValidationPanel` prints STORED and LOFT at 1 dp and Δ from the unrounded values**, so rows read
+  "0.4 | 0.4 | +2%" on the app's credibility surface.
+- **A single what-if silently deletes the whole OpenRocket cross-check workspace.**
+  `components/ResultsView.tsx:1178` mounts it behind `run.validation`, which any edit clears, so
+  `ValidationPanel`'s own `empty` copy can never render and the surface goes to a bare heading.
+- **THRUST-TO-WEIGHT is the PEAK ratio labelled "liftoff"**, disclosed two clicks away in
+  /docs/methods, and drawn against the 5:1 rule of thumb the motor sweep flags rows under.
+
+*Craft, and the design system's blind spots*
+
+- **§9's greps are structurally blind to three whole classes**, and the audit found real drift in
+  each: `app/globals.css` carries **14 raw margin/padding declarations at 8 off-scale values**
+  (2.25rem and 1.25rem are §4's two named-as-forbidden steps); containers drawn at the CONTROL radius
+  (`components/MotorSweep.tsx:556`, `components/RocketpyCrossCheck.tsx:412`, the latter also a fifth
+  spelling of the danger ramp at `/20` + `/5` against `CARD_TONES.danger`'s `/30` + `/10`); and
+  treatments hand-rolled where a primitive exists.
+- **The same spinner ring is hand-rolled five times across four files at two sizes**, and §5 has no
+  `Spinner` — so LOADING, one of the five states §5 requires of every data surface, is the one state
+  with no primitive behind it. A `Spinner` is a P-track increment.
+- **`CARD_TONES.muted` is a sixth container tone §2 does not declare**, and §5's `DropZone` bullet
+  points at "§2's `muted` tone" which does not exist there; conversely §2's `good` has no tone and no
+  primitive, which is why the emerald case is hand-rolled.
+- **A raw `<table>` renders the RocketPy cross-check** at `app/docs/validation/page.tsx:501`,
+  breaking §5's "every table is this one" — no sort, no sticky header, no copy or CSV.
+- **The landing route's two section headings are hand-rolled `<h2 class="text-xs uppercase">`** —
+  three steps below §3's `text-xl` — where `Section` and `Panel` both render the shared header row.
+- **The free-text input treatment is spelled three times across two files at two paddings**, all
+  three off §4's `px-3 py-1.5`.
+
+*Reach, keyboard and the phone*
+
+- **The parts table is one tab stop per part with no roving tabindex**: 55 Tab presses to get past a
+  47-part design, and ArrowDown on a focused row does nothing.
+- **Four things forget across a reload** while the design, units, edits and picked part all come
+  back: the parts-table sort, the diagram zoom (snaps to Fit on a 2 m airframe), the Monte-Carlo
+  waiver ceiling (while the 300-flight RESULT is restored), and the whole motor sweep (while the
+  column it was sorted on is kept).
+- **`Escape` does not cancel a `NumberField`** — `onChange` commits on every keystroke, so there is
+  no cancel path at all and only Undo backs it out.
+- **The CP marker is positioned with no clamp to the drawn airframe**, so a CP past the tail renders
+  outside the SVG and simply vanishes while the legend still lists it.
+- **Six links miss §8's 44 px floor**, including the two that point from a flight number to how it
+  was computed and to where the model is weak (142x16 and 98x20), and the wordmark is 37x28 on `/`
+  while clearing 44x44 on every docs route.
+- **`/docs/limitations` runs 43,578 px — 51.6 screens — at 390x844**, and the Design workspace runs
+  7.2 screens with no in-panel section nav.
+- **A cold deep link to `/flight` with no design silently rewrites the URL to `/`** with nothing
+  said, on routes whose own docstring says they exist to be bookmarked and shared.
+- **Every docs page renders the same `<h1>Documentation</h1>`** and demotes its real title to `<h2>`.
+
+*The drop zone's own remainder, for P18 increment 3*
+
+- **The flight-log surface still carries all three defects `DropZone` was extracted to end**: a bare
+  `sr-only` input with no `tabIndex={-1}` (the only keyboard path, focus ring undrawable), a refusal
+  rendered as a bare `<span>` with no `role="alert"` that REPLACES the format help at the moment it
+  is needed, and a hand-rolled control treatment invisible to all three §9 instruments at once.
+- **`DropZone` cannot yet be adopted there**: its prop type omits nothing of `Card`'s but exposes
+  none of it either, so a call site cannot reach `pad`, `as` or `tone`.
+- **`cx("text-center transition", className)` hard-codes centring**, and a call site's `text-left`
+  wins by SOURCE ORDER alone — `.text-center` at byte 24,501 of the built stylesheet, `.text-left` at
+  24,532 — which is the identical hazard §2 gained a whole paragraph about.
+- **A failed bundled-sample tap still routes to the shared strip** below the whole `ImportPanel`
+  subtree, with no `role="alert"`. Increment 2 fixed exactly this for the dropped file and left the
+  sample path where it was.
+- **More than one file, and a dropped directory, are both silent**: `take` reads `files[0]` and says
+  nothing about the rest; a directory arrives as a 0-byte `File` and the flyer is told "That file is
+  empty. Pick the design file your tool saved."
+
+**SEV-1 FIXED 2026-08-18, from the opening fan-out's phone lens — the offline reload loop.** Not
+filed, fixed: with a design open and the network off, a workspace route ran **38 main-frame
+navigations in 3 seconds and 50 in 4**, and did not stop. Recorded here because the entry it
+invalidates is the *claim* — `MAINTAINING.md` and `DESIGN.md` both sell the app on working at the
+pad with no signal, and the only offline e2e case went offline with NO design loaded, which is the
+one path that stays stable, then asserted something was visible: true during the loop's visible
+phase whether it looped or not. `e2e/offline.spec.ts` is the case that can fail. Two remaining
+offline observations, both filed rather than fixed:
+
+- **No data surface renders the `offline` member of §5's five states.** With a design open and
+  `navigator.onLine === false` the word "offline" appears only in the install hint's marketing copy;
+  `navigator.onLine` is read in `components/RocketpyCrossCheck.tsx` and nowhere else. The app now
+  WORKS offline and still never says it is.
+- **An offline `<Link>` prefetch of another route still fails**, because those requests ask for
+  `/design/` while the navigate branch caches under `/design`. Routing them through `pageKey` was
+  tried and **measured out**: four offline spine clicks cost four hard navigations before and after,
+  and the same eight prefetches still fail — Next's static-export router decides to hard-navigate
+  upstream of the cache. So offline navigation works and is a full page load each time.
+- **The precache is the ROUTE payloads only, and the 88 per-segment `__next.*.txt` files are left
+  out on a measurement rather than an argument.** Precaching all 102 took the install from 48 entries
+  to 158, and three OFFLINE e2e cases went red under a three-shard run while passing in isolation —
+  every service-worker install in the suite then issues 158 requests at the one `serve` process,
+  which is the descriptor exhaustion `MAINTAINING.md` documents arriving by a new road. At 14 route
+  payloads (68 entries) the loop is still closed and every workspace still reads as itself offline,
+  both driven rather than assumed. **The transferable half: a precache list is a load on the e2e
+  server as well as a promise to the flyer**, and this repo's suite is close enough to that ceiling
+  that a fourfold install can be read as a product regression.
+
+**Filed 2026-08-18, from P18 increment 2's pre-push review (three lenses, 31 findings, 3 blockers
+fixed before the push and the rest either fixed or filed below).**
+
+- **On a phone the import drop zone loses two of the three things §2 says identify a drop target.**
+  The sentence that says "drop" is `hidden … sm:block`, and the phone copy at
+  `components/ImportPanel.tsx` never uses the word. The sunken fill is `bg-zinc-50` on a `bg-white`
+  page — **1.04:1** — leaving a 1 px dashed `border-zinc-300` edge at **1.42:1** as the only cue, so
+  under 640 px the app's front door reads as `EmptyState`'s tone rather than as its primary surface.
+  It is also the form factor that cannot drag at all, which is the argument for the current copy —
+  but the surface still has to read as the thing a first-time visitor is meant to use. Sharpened by
+  P18 increment 2 removing the 2 px width, which was the one cue that did not depend on the copy.
+  Reproduce: `/` at 390x844 on the built export. It is a P-track increment, not a line.
+- **A file dropped on the zone while another is still parsing starts a second concurrent import.**
+  Predates the primitive: the hand-rolled `onDrop` called `onFile` regardless of `busy` too. P18
+  increment 2 tried a `busy` early-return and **withdrew it**, because a silent early-return reads on
+  screen as acceptance — the zone un-highlights and then nothing happens and nothing is said, which is
+  §5's missing state invented by the guard meant to prevent a race. The honest fix says something, and
+  the primitive cannot: the refusal is the caller's prop. Reproduce: drop a large `.ork`, then drop
+  another before the first renders.
+- **Three `accent` cards can be on the import route at once, meaning two unrelated things.** The
+  discarded-session offer and each removal undo are `Card tone="accent"` ("the one thing this surface
+  is pointing at"); as of 2026-08-18 an armed `DropZone` is too, and that one is a transient pointer
+  state. Both `CARD_TONES.accent` and §2 now NAME the second meaning rather than leaving it to be
+  inferred, which is the smallest honest step, but a flyer who has learned indigo means "this is being
+  offered" now also has to read it as "your cursor is here". Whether the drag state wants a token of
+  its own is a §2 question.
+- **`tsconfig.json` type-checks the test files and nothing in the gate ever runs it over them.**
+  `npx tsc --noEmit -p tsconfig.json` reports **19 errors, all in `lib/model/edit.test.ts`** (missing
+  `placement` on inline `innertube` literals, a `designation` key `MotorMount` does not have, `.length`
+  read off a `RocketComponent` union that includes fin sets). `npm run build` runs Next's own
+  type-check, which does not read them, so the suite is green and the types are not. Measured
+  2026-08-18. None is a runtime defect today; every one is a place a test is asserting against a shape
+  the model does not have.
+
 **Filed 2026-08-17, from run 18's opening fan-out (8 lenses, 0 errors, 0 Sev-1 claimed) and its
 pre-push review (10 findings on one diff, of which 4 were fixed before it shipped).**
 
@@ -201,21 +434,29 @@ someone has seen it, so these are filed as claims with the command that would se
   coupler. Reproduce: body tube → add a coupler → add a mass inside the coupler → pick a catalogued
   coupler wider than the tube's bore; both rows vanish, one of them unmentioned.
 
-- **The mass station is frozen against the host's PRE-EDIT length.** `lib/model/edit.ts:4121` derives
-  the station during `applyAdds`, which runs before `applyDimensionEdits` and `fitAddedInternalParts`
-  resize that host — so the mass lands outside it. Measured: author a mass in a 700 mm tube, then set
-  body length to 20 mm — the mass sits at 477.6 mm in a host spanning [250, 270] mm. Pre-existing for
-  body tubes; increment 21 extends it to the coupler, which is the one host the applier itself
-  shortens. The docblocks at `:4101` and `:1762` say the station is re-derived at every apply, and
-  that is true only of the FILE's length.
+- **FIXED 2026-08-18 (R12 increment 23), and it was worse than this entry said.** ~~The mass station is
+  frozen against the host's PRE-EDIT length. The station is derived during `applyAdds`, which runs
+  before `applyDimensionEdits` and `fitAddedInternalParts` resize that host — so the mass lands outside
+  it. Measured: author a mass in a 700 mm tube, then set body length to 20 mm — the mass sits at
+  477.6 mm in a host spanning [250, 270] mm. Pre-existing for body tubes; increment 21 extends it to
+  the coupler, which is the one host the applier itself shortens. Two docblocks say the station is
+  re-derived at every apply, and that is true only of the FILE's length.~~ *(The two line references
+  this entry carried are deliberately struck rather than updated: the fix moved every line in that
+  file, and a stale pointer is what sent the first re-reading to a comment about centring rings.)*
+  **Re-measured before fixing: the mass lands outside its host on 35 of 35 corpus designs and past
+  the whole airframe on 7, moving static margin by up to 2.73 cal — and it is one drag of the
+  body-length grip, not a typed extreme. `seatAddedMasses` re-seats authored masses over the finished
+  tree; see `ROADMAP.md` R12 increment 23.**
 
-- **"Add a mass inside this" renders on the boattail, which `addPartAfter` cannot resolve.** The
-  boattail is appended by `applyDimensionEdits`, after `structureOf()` — which `addPartAfter` resolves
-  the anchor against — has run. Reproduce: set a boattail length and aft diameter, pick "Boattail" in
-  the parts table, click the button; nothing happens and no undo step appears. The row already had two
-  dead controls there (tube, transition) and this run widened it to three. The honest fix is for
-  `addOptionsFor` to refuse a part the applier cannot address, which is the same one-rule principle
-  increment 20 established.
+- ~~**"Add a mass inside this" renders on the boattail, which `addPartAfter` cannot resolve.**~~
+  **FIXED 2026-08-18.** The boattail is appended by `applyDimensionEdits`, after `structureOf()` —
+  which `addPartAfter` resolves the anchor against — has run, so three of six controls were live and
+  did nothing on the boattail, the drogue and the payload bay of every design. The fix was the one
+  this entry called honest: `addOptionsFor` takes an optional set of addressable ids and refuses on
+  rule zero, ahead of every other rule. `ROADMAP.md` R12 increment 24. **The product question this
+  entry did not ask stays open and is the remaining half:** a field-made part is refused with a true
+  sentence, but there is still no way to select a boattail and edit it AS a part — the flyer's only
+  route is the field that made it.
 
 - **`addOptionsFor` offers a mass on KIND alone while two callers additionally require
   `axialLength > 0`.** `lib/model/edit.ts:3637` versus `:4112` and `withMassStation` at `:2703`. A
