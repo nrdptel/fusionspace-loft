@@ -39,6 +39,40 @@ newest lens first. Each was verified by the agent that filed it unless marked UN
 
 *Numbers and physics*
 
+- **The RASAero fin `Location` is probably read from the wrong end of its parent, and this run
+  DELIBERATELY did not change it.** `lib/rasaero/adapt.ts`'s `finSet` reads `Location` as the fin root
+  leading edge measured aft from the parent's FORE end. The corpus says that is likely wrong, and says
+  it in a way worth writing down rather than re-deriving:
+  - **6 of the 8 `<Fin>` blocks across the four `.CDX1` files have `Location` EXACTLY equal to
+    `Chord`.** Under an aft-end reading (`LE = parentAft − Location`) that means the fin's trailing
+    edge is flush with the parent's aft end, which is where fins go. Under the current fore-end
+    reading it means the fin sits one chord-length down from the parent's front.
+  - **The decisive case is `Three-stage rocket.CDX1`**: nose 3.937 in, tube 11.811 in, fin
+    `Location` 1.969 = `Chord` 1.969. Fore reading → fin LE at **5.906 in on a 15.748 in rocket**,
+    with 9.842 in of empty tube behind it. Aft reading → LE at **13.779 in**, trailing edge flush with
+    the tail.
+  - **And the counter-case, which is why this is filed and not fixed:** `Complex.Two-Stage.CDX1`'s
+    36-in tube carries `Location` 36 with `Chord` 1 — `Location == parentLength`, not `Location ==
+    Chord`. The fore reading (after the existing clamp to `parentLength − chord`) lands it flush at
+    the tail; the aft reading puts it at the tube's FORE end. One rule has to explain both and neither
+    candidate does.
+  - **The cross-tool pair does not settle it either.** `OR vs RAS Test 1.ork` and `.CDX1` are the same
+    rocket from a forum comparison thread. The `.ork` places its fin `axialoffset method="bottom" 0.0`
+    — LE at **56.00 in** (20 in nose + 48 in tube − 12 in chord). The `.CDX1` has `Location` 13,
+    `Chord` 12: fore reading gives **33.00 in**, aft reading gives **55.00 in**. Aft is 1 in off the
+    twin rather than equal to it, so it reproduces the reference case *approximately*, and
+    `MAINTAINING.md` says a method that cannot be grounded in a citable source or reproduce a
+    reference case does not ship — least of all on a stability number.
+  **What it would take:** the RASAero II Users Manual's own definition of a fin's `Location`, or a
+  RASAero install to round-trip a file through. Then one rule, all four corpus files, and the `.ork`
+  twin as the oracle. The consequence if it is wrong is not small — a fan-out lens measured the same
+  physical rocket at **+2.74 cal stable against −2.16 cal** across the two formats, with a "statically
+  unstable" warning attached to one of them.
+- **`Show-off.CDX1` gets its boattail built TWICE** — `inlineBoattail` builds one from the body tube's
+  `<BoattailLength>`/`<BoattailRearDiameter>` and `parseParts` builds the following `<BoatTail>` part,
+  the same physical cone, at 21.34 in and 22.34 in, both 1 in long and both ending at 0.25 in
+  diameter. Same file, same pass, and it is the likeliest cause of that design's negative CNα.
+
 - **A negative summed CNα yields a CP behind the tail, published unqualified.** `lib/sim/aero.ts:105`
   divides moment by a negative `cnAlpha` when contracting transitions outweigh the fins. On
   `corpus/rasaero/Show-off.CDX1` the stat card reads LENGTH 593 mm, **CP 913 mm** — 320 mm behind the
