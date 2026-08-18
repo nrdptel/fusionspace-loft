@@ -2469,6 +2469,66 @@ test.describe("Loft", () => {
     expect((await svg.boundingBox())!.width).toBeCloseTo(fit.width, 0);
   });
 
+  test("a design with no centre of pressure withholds the margin instead of inventing one", async ({ page }) => {
+    // **SEV-1, 2026-08-18.** The static margin is `(X_cp - X_cg) / d`, and `X_cp` is not always
+    // defined: Barrowman's CP is the line of action of the resultant normal force, a contracting
+    // transition contributes NEGATIVE CNa, and as the sum approaches zero the loads become a pure
+    // couple — which has no line of action, so the quotient runs away and returns a station outside
+    // the parts that produce it. Loft published the quotient anyway, and it published it with a
+    // BAND: `Show-off.CDX1` in the corpus reported **12.81 cal**, which is the "high" band and reads
+    // as strongly over-stable, for a rocket whose summed CNa is -1.93 /rad and which has no
+    // restoring force anywhere. Two opposite verdicts are reachable from one undefined figure.
+    //
+    // Driven here from the from-scratch starter with **two typed fields**, both inside the range the
+    // Design workspace offers, because that is the honest reachability claim — the corpus case is
+    // downstream of a parse defect and a flyer cannot make it happen. Measured on this build: the
+    // CP lands at -258.0 mm, 258 mm ahead of a nose tip at 102.2 mm, with CNa still POSITIVE at
+    // 1.545 — which is why the rule is the hull of the contributions and not the sign of the sum.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const marginCell = page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd");
+    // The FIRST line only. A withheld cell is an em dash with the reason underneath it, and the
+    // reason quotes the summed CNa — so a test asking whether the whole cell contains a digit reads
+    // the explanation as if it were the figure, and passes in both directions.
+    const marginValue = async () => (await marginCell.innerText()).split("\n")[0].trim();
+    expect(await marginValue(), "the starter must publish a margin, or this proves nothing").toMatch(/cal/);
+
+    // A 150 mm boattail closing to 20 mm, and the fin span down to 20 mm.
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.getByLabel(/Boattail length/).fill("150");
+    await page.getByLabel(/Boattail exit/).fill("20");
+    await page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input").fill("20");
+
+    // The margin is withheld with the reason ON the cell, not blanked and not published.
+    await expect.poll(marginValue, { timeout: 20000 }).toBe("—");
+    await expect(page.getByText(/puts the centre of pressure outside the span of the parts/).first()).toBeVisible();
+    // It says what to change. A withheld figure with no route back is a dead end.
+    await expect(page.getByText(/More fin area, or less taper/).first()).toBeVisible();
+
+    // The flight raises it as a warning too, because a flyer who reaches this has just made an edit
+    // and a withheld cell alone does not say what to undo. And the two BANDS are gone: left ungated
+    // the runaway quotient falls through the `< 1 cal` test and prints "statically unstable as
+    // modelled", which sounds like a reading of this rocket and is not one.
+    await expect(page.getByText(/No static margin is available for this design/).first()).toBeVisible();
+    await expect(page.getByText("statically unstable as modelled")).toHaveCount(0);
+
+    // CNa is NOT withheld — it is a real computed quantity, it is the evidence for the withholding,
+    // and a flyer chasing the reason needs to see it. The CP beside it IS, because that is the
+    // figure the method failed to produce.
+    await page.getByRole("link", { name: "Flight" }).click();
+    const detail = page.getByRole("button", { name: /Mass, balance and drag|More detail|Detail/ }).first();
+    if (await detail.count()) await detail.click().catch(() => {});
+    await expect(page.getByText("CNα", { exact: true })).toBeVisible();
+
+    // And it comes back: widen the fins again and the margin is a number, so this is a boundary the
+    // flyer can cross in both directions rather than a state the app gets stuck in.
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input").fill("60");
+    await expect.poll(marginValue, { timeout: 20000 }).toMatch(/cal/);
+  });
+
   test("dragging the fins forward on the diagram re-flies the design less stable", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

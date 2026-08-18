@@ -465,6 +465,20 @@ export default function ResultsView({
     () => new Set(flattenRocket(structureOf(doc.rocket, geometry ?? {})).map((p) => p.component.id)),
     [doc, geometry],
   );
+  /** Why this design has no static margin — `lib/sim/withheld.ts`'s `noCpWhy`, computed once in the
+   *  solver and read here. Combined with the motor gap because the two are independent reasons to
+   *  withhold ONE figure and every call site below needs whichever applies: an unresolved motor
+   *  moves the CG, and an undefined CP means there is no location to measure from at all. The CP
+   *  reason is checked FIRST — on a design with neither a motor nor a centre of pressure, "needs a
+   *  motor" is advice that would not fix it.
+   *
+   *  **`cp` is withheld by the same value**, which the motor gap never did: the CG mark depends on
+   *  the motor, the CP mark does not, so the diagram used to draw a CP marker with no CG beside it
+   *  and that was right. A CP that is not on the airframe is a different case — measured 913.4 mm
+   *  on a 592.8 mm rocket, i.e. a marker drawn 54% past the tail. */
+  const marginWhy = MARGIN_GAP(run);
+  const cpWhy = run.result.marginUndefinedWhy;
+
   /** Why the descent figures are rough, when they are — six readouts here share it, and so does the
    *  dispersion panel. **The condition and its wording live in `lib/sim/withheld.ts`**, moved there
    *  2026-08-18 for exactly the reason `notLandedWhy` is there: two other surfaces read the same
@@ -582,8 +596,8 @@ export default function ResultsView({
           rocket={shownRocket}
           units={units}
           cg={run.motorsComplete ? run.result.cgLoaded : undefined}
-          cp={run.result.stability.cp}
-          marginCal={run.motorsComplete ? run.result.staticMarginCal : undefined}
+          cp={cpWhy ? undefined : run.result.stability.cp}
+          marginCal={marginWhy ? undefined : run.result.staticMarginCal}
           motors={shownMotors}
         />
       )}
@@ -966,8 +980,8 @@ export default function ResultsView({
           addressableIds={addressableIds}
           units={units}
           cg={run.motorsComplete ? run.result.cgLoaded : undefined}
-          cp={run.result.stability.cp}
-          marginCal={run.motorsComplete ? run.result.staticMarginCal : undefined}
+          cp={cpWhy ? undefined : run.result.stability.cp}
+          marginCal={marginWhy ? undefined : run.result.staticMarginCal}
           cgWithheldReason={
             run.motorsComplete
               ? undefined
@@ -1122,7 +1136,7 @@ export default function ResultsView({
           // is still a meaningful apogee. `motorsComplete` is what decides whether ONE of its metrics
           // can be published, and the two are not the same predicate: a cluster with one motor Loft
           // has no curve for satisfies the first and fails the second. Same sentence as the strip.
-          marginWithheld={run.motorsComplete ? undefined : MOTOR_GAP_SHORT(run)}
+          marginWithheld={marginWhy}
         />
       )}
 
@@ -1423,6 +1437,16 @@ const MOTOR_GAP_SHORT = (run: FlightRun): string =>
     ? "a motor in this configuration could not be matched, so its mass is missing from the build"
     : "needs a motor: without one the CG sits forward of where it flies";
 
+/** Why this flight has no static margin to publish, or undefined when it has one.
+ *
+ *  **Two independent reasons for one figure, combined in one place because three components ask.**
+ *  An unresolved motor moves the loaded CG the margin is measured FROM; an undefined centre of
+ *  pressure means there is nothing to measure from at all. The CP reason is tested FIRST: on a
+ *  design that has neither, "needs a motor" is advice that would not fix it, and a flyer who acts on
+ *  it comes back to the same em dash. */
+const MARGIN_GAP = (run: FlightRun): string | undefined =>
+  run.result.marginUndefinedWhy ?? (run.motorsComplete ? undefined : MOTOR_GAP_SHORT(run));
+
 /** Where the design fields are, named once. Every design reaches the Design workspace now — a
  *  design with no flight included — so advice can point at one place instead of guessing which
  *  layout the flyer is looking at. */
@@ -1453,6 +1477,11 @@ function RocketSummary({
   const r = run.result;
   const length = overallLength(rocket);
   const dia = r.stability.refRadius * 2;
+  // The same two reasons `ResultsView` uses for the diagram above, from the same helper — this strip
+  // and that diagram are on screen together, and a margin withheld in one and drawn in the other is
+  // the exact split `lib/margin-surfaces.test.ts` exists to catch.
+  const marginWhy = MARGIN_GAP(run);
+  const cpWhy = r.marginUndefinedWhy;
   // Same sentence the flight card uses, from the same module, so the strip and the card one screen
   // apart cannot come to disagree about the same flight.
   const extrapolatedWhy = transonicReason(r.extrapolatedTransonic, r.summary.maxMach);
@@ -1589,7 +1618,7 @@ function RocketSummary({
         ) : (
           <Readout variant="row" label="Liftoff mass" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
         )}
-        {run.motorsComplete ? (
+        {!marginWhy ? (
           <Readout
             variant="row"
             label="Static margin"
@@ -1611,8 +1640,9 @@ function RocketSummary({
         ) : (
           // Withheld rather than blank, with the reason ON the cell. It cannot lean on the notice
           // above — that renders only when NOTHING resolved, so on a partial cluster there would be
-          // no sentence anywhere. `MOTOR_GAP_SHORT` says which of the two states this is.
-          <Readout variant="row" label="Static margin" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
+          // no sentence anywhere. `marginWhy` says which of the THREE states this is: an unmatched
+          // motor, no motor at all, or a design with no centre of pressure to measure from.
+          <Readout variant="row" label="Static margin" q={{ value: "—", unit: "" }} withheld={marginWhy} />
         )}
 
       </dl>
@@ -1668,7 +1698,16 @@ function RocketSummary({
         ) : (
           <Readout variant="row" label="CG (loaded)" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
         )}
-        <Readout variant="row" label="CP" q={d.lengthMm(r.stability.cp, units)} />
+        {/* Withheld on the same condition as the margin, and this is the readout that MADE the
+            condition visible: `Show-off.CDX1` printed CP 913.4 mm against a Length of 592.8 mm two
+            rows above it, in the same list. CNα below is NOT withheld — it is a real computed
+            quantity, it is the evidence for the withholding, and a flyer chasing the reason needs
+            to see that it went negative. */}
+        {cpWhy ? (
+          <Readout variant="row" label="CP" q={{ value: "—", unit: "" }} withheld={cpWhy} />
+        ) : (
+          <Readout variant="row" label="CP" q={d.lengthMm(r.stability.cp, units)} />
+        )}
         {/* Split rather than carried across as one string: §5 says the unit is never baked into the
             value, and this was the one site in the strip that did. */}
         <Readout variant="row" label="CNα" q={{ value: d.fmt(r.stability.cnAlpha, 2), unit: "/rad" }} />
@@ -1788,7 +1827,13 @@ function StabilityTrimHint({
   //
   // It returns nothing rather than being caveated: a trim instruction is only worth having if the
   // margin it trims is the flown one, and the notice above already says why there is no margin.
-  if (!run.motorsComplete) return null;
+  //
+  // **The same argument, one condition wider, 2026-08-18.** A design whose CP is not a point on the
+  // airframe has no margin to trim EITHER, and this surface would goal-seek against the runaway
+  // quotient and print a distance to move a part — the same prescription, from a number about no
+  // rocket. `marginUndefinedWhy` is the solver's one statement of that, and the flight warning it
+  // raises already says what to change.
+  if (!run.motorsComplete || r.marginUndefinedWhy) return null;
   const refD = r.stability.refRadius * 2;
   const trim = marginTrim(
     {
@@ -1961,7 +2006,13 @@ export function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline
     //  Withheld, never dropped: an absent row on a card whose other three still print is a blank
     //  cell, which `DESIGN.md` §6 calls a bug. It says which flight is short a motor and what brings
     //  the row back.
-    ...(run.motorsComplete && baseline.motorsComplete
+    //  **The same conjunction, for the same reason, on the second condition.** A what-if that adds
+    //  a boattail can take a defined margin to an undefined one, and vice-versa — so the row needs
+    //  BOTH ends to have a centre of pressure, not just the flight being shown.
+    ...(run.motorsComplete &&
+    baseline.motorsComplete &&
+    !run.result.marginUndefinedWhy &&
+    !baseline.result.marginUndefinedWhy
       ? [
           {
             label: "Stability",

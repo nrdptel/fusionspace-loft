@@ -7203,6 +7203,37 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-08-18 — a design with no centre of pressure gets a WITHHELD margin, not a caveated one, and
+  the stored cross-check record is discarded rather than upgraded.** Two decisions in one Sev-1.
+
+  **(a) Withhold rather than caveat.** Barrowman's CP is the line of action of the resultant normal
+  force, and as the summed CNα approaches zero the loads become a pure couple, which has no line of
+  action — so the quotient is not an imprecise margin, it is not a margin. **Taken: withhold the
+  figure and say why**, on all nine surfaces that publish it, plus a flight warning that replaces the
+  two bands. **Rejected: mark it `Extrapolated` and keep the number.** `DESIGN.md` §5 defines
+  extrapolated as a figure outside the model's validated range but still produced by it; this figure
+  is not produced by the model at all, and badging it would put the app's strongest honesty signal on
+  the one number it least deserves. Measured on the built export before the fix, the two verdicts a
+  flyer could actually see: **−15 cal flagged LOW** from two typed fields on the from-scratch
+  starter, and **+12.81 cal flagged HIGH** on `Show-off.CDX1` — opposite readings of the same
+  undefined quantity. **Also rejected: clamping the CP to the airframe.** That invents a station the
+  method never produced and would have made the flag *look* right while staying wrong.
+
+  **(b) The test is the CONTRIBUTIONS' hull, not the airframe's length.** The first version asked
+  whether the CP was inside the rocket, and the fin-position sweep caught it: `parameterSweep` slides
+  a fin set to 1,005 mm on a 950 mm rocket, so the CP follows to 953.6 mm past the tail with CNα a
+  healthy 18.5 /rad and every contribution positive. That CP is arithmetically right for the rocket
+  described; what is wrong is that the editor let a fin set hang in space behind the airframe — a
+  different defect, now filed. **Taken: `cp ∈ [min xᵢ, max xᵢ]` over the contributions**, which is
+  exact rather than a heuristic, because a weighted average with non-negative weights cannot leave
+  that interval — so a CP outside it PROVES the near-couple and nothing else can produce it.
+
+  **(c) `StoredCrossCheck` goes to v2 and v1 records are dropped.** A v1 record carries a margin with
+  no way to say whether Loft would publish it, so restoring one republishes exactly the figure the
+  live panel refuses. **Taken: bump the version and discard**, costing one re-run of a comparison the
+  flyer is looking at. **Rejected: read v1 forward as "defined"**, which is silently wrong for the
+  case the whole fix is about, on the one surface a flyer keeps open to compare two solvers.
+
 - **2026-08-18 — the import drop zone LOSES its 2 px border rather than gaining a way to keep it.**
   P18's own notes flagged the width as the thing to settle before writing `DropZone`, because a
   `<Card className="border-2">` beats `Card`'s own `border` only by source order (`.border` at byte

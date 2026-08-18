@@ -131,7 +131,12 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
         // unresolvable designation, where the unswapped run reports `motorsComplete: false` and the
         // swapped run reports `true`. This sweep is safe for a reason, not by luck, and the guard is
         // what keeps that true if the swap ever becomes per-instance.
-        staticMarginCal: run.motorsComplete ? run.result.staticMarginCal : Number.NaN,
+        // The same second condition as the parameter sweep below — a motor swap changes the mass,
+        // never the aerodynamics, so on this sweep `marginUndefinedWhy` is either set for every row
+        // or for none; it is read per row anyway, because "it cannot vary here" is the kind of
+        // reasoning this file already records having been wrong about once.
+        staticMarginCal:
+          run.motorsComplete && !run.result.marginUndefinedWhy ? run.result.staticMarginCal : Number.NaN,
         flutterMargin: run.result.flutter ? run.result.flutter.worst.margin : Number.NaN,
         // A motor that never really flew (won't clear the rail) has no meaningful apogee delay.
         optimumDelay: Number.isFinite(s.optimumDelay) && s.optimumDelay > 0 ? s.optimumDelay : Number.NaN,
@@ -272,13 +277,21 @@ export function parameterSweep(
       // curves are still worth plotting, and dropping the point would silently shorten every one of
       // them. The finite-margin skip below is therefore conditioned on the same predicate, so a
       // COMPLETE run behaves exactly as it always has.
+      //
+      // **A second reason to withhold the same figure, 2026-08-18.** A sweep over fin span or
+      // boattail exit crosses the point where the summed CNα stops putting the centre of pressure on
+      // the airframe — and that is a curve where every point past the crossing is a runaway quotient
+      // rather than a margin. Withheld the same way, per point, so the curve simply stops rather
+      // than diverging to a value the axis has to scale to. `marginUndefinedWhy` is the solver's own
+      // statement of it; see `lib/sim/withheld.ts`.
       if (run.motorsComplete && !Number.isFinite(run.result.staticMarginCal)) continue;
       out.push({
         x: v,
         apogee: s.apogee,
         maxVelocity: s.maxVelocity,
         railExitVelocity: s.railExitVelocity,
-        staticMarginCal: run.motorsComplete ? run.result.staticMarginCal : Number.NaN,
+        staticMarginCal:
+          run.motorsComplete && !run.result.marginUndefinedWhy ? run.result.staticMarginCal : Number.NaN,
         flutterMargin: run.result.flutter ? run.result.flutter.worst.margin : Number.NaN,
         extrapolatedTransonic: run.result.extrapolatedTransonic,
       });

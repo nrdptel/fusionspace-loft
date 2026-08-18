@@ -214,6 +214,46 @@ describe("parameterSweep", () => {
     expect(last.apogee).toBeLessThan(first.apogee);
   });
 
+  it("withholds the margin PER POINT where a swept curve loses its centre of pressure", async () => {
+    // **A curve can cross the boundary partway along, which is why the withholding is per point and
+    // not per sweep.** `demo-boattail.ork` swept from 5% of its fin span upward: with the fins tiny
+    // the boattail's negative CNa dominates, the resultant becomes a near-couple, and Barrowman's
+    // quotient runs away — measured, the two smallest spans published **-21.277 cal** and
+    // **-14.129 cal** on a curve whose next point is -7.797. The first of those has a CP at
+    // -165.4 mm, ahead of a nose tip at 130.5 mm; the second at 111.6 mm, still 19 mm ahead of it.
+    // Neither is a margin, and both were plotted, exported to CSV, and given an axis to scale to.
+    //
+    // The point where the curve RESUMES is the control that keeps this from being a blanket refusal:
+    // -7.797 cal is a genuine reading of a genuinely unstable rocket and it is still published.
+    const doc = await load("demo-boattail.ork");
+    const sim = doc.simulations[0];
+    const span = primaryFinSpan(doc.rocket)!;
+    const pts = parameterSweep(doc.rocket, "finSpan", linRange(span * 0.05, span, 12), {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    expect(pts).toHaveLength(12);
+
+    const withheld = pts.filter((p) => !Number.isFinite(p.staticMarginCal));
+    expect(withheld, "the sweep no longer crosses the boundary — this case proves nothing").toHaveLength(2);
+    // The withheld ones are the SMALLEST spans, and they are a prefix: a curve that went in and out
+    // of definition would mean the rule is reading noise rather than a physical boundary.
+    expect(pts.slice(0, 2).every((p) => !Number.isFinite(p.staticMarginCal))).toBe(true);
+    expect(pts.slice(2).every((p) => Number.isFinite(p.staticMarginCal))).toBe(true);
+
+    // The rest of the row is untouched — withheld as NaN rather than by dropping the point, so the
+    // apogee and velocity curves keep their full length. Dropping them would silently shorten three
+    // other curves to fix one.
+    for (const p of pts) {
+      expect(p.apogee).toBeGreaterThan(0);
+      expect(Number.isFinite(p.maxVelocity)).toBe(true);
+    }
+
+    // And the first published point is the runaway's neighbour, not a sanitised value.
+    expect(pts[2].staticMarginCal).toBeLessThan(-5);
+    expect(pts[2].staticMarginCal).toBeGreaterThan(-10);
+  });
+
   it("sweeps fin position: sliding the fins aft raises the static margin at ~unchanged apogee", async () => {
     const doc = await load("demo-single-deploy.ork");
     const sim = doc.simulations[0];

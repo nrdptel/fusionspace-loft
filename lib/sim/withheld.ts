@@ -67,3 +67,61 @@ export function descentRoughWhy(rocket: Rocket | null | undefined): string | und
     ? "the canopy's drag coefficient is Loft's fallback, not a figure this design states — the descent figures below follow it, so treat them as rough and try the range on /design"
     : undefined;
 }
+
+/** Why this design has no static margin, or `undefined` when Barrowman's method returns a centre of
+ *  pressure that means something.
+ *
+ *  **The margin is `(X_cp − X_cg) / d`, and `X_cp` is not always defined.** Barrowman's CP is the
+ *  line of action of the resultant normal force — `Σ(CNα·x) / Σ(CNα)` — and a contracting transition
+ *  is the one part that contributes NEGATIVE `CNα`. As the sum approaches zero the aerodynamic
+ *  loads become a pure couple, which has no line of action at all, and the quotient runs away: the
+ *  "CP" it returns is a number about no rocket, and the margin computed from it inherits that.
+ *
+ *  **The test is the convex hull of the contributions, and it is exact rather than a heuristic.** A
+ *  weighted average with non-negative weights always lies between the smallest and largest of the
+ *  points it averages. So a CP outside `[min xᵢ, max xᵢ]` PROVES that some weight is negative and
+ *  that the sum is small against the moment — which is the near-couple, and the only way this can
+ *  happen. Nothing else has to be judged.
+ *
+ *  **A first version tested the AIRFRAME's length instead, and the fin-position sweep caught it.**
+ *  `parameterSweep` slides a fin set to 1,005 mm on a 950 mm rocket, so the CP dutifully follows the
+ *  fins to 953.6 mm — past the tail, with CNα a healthy 18.5 /rad and every contribution positive.
+ *  That CP is arithmetically right for the rocket being described; what is wrong there is that the
+ *  editor let a fin set hang in space behind the airframe, which is a different defect and is filed
+ *  as one. Withholding it here would have hidden a real bug behind a caveat about a different one.
+ *
+ *  **Measured, because "a corner case" is what this looked like until it was driven.** On the
+ *  35-design corpus exactly one file trips it — `Show-off.CDX1`, summed CNα −1.93 /rad, CP 913.4 mm
+ *  against contributions spanning 9.8–583.3 mm, published as a **12.81 cal** static margin, which is
+ *  the "high" band and reads as *strongly over-stable* for a rocket with no restoring force
+ *  anywhere. That one is downstream of a parse defect, so the honest reachability number is the
+ *  editor's: from the from-scratch starter, **two typed fields** — a 150 mm boattail closing to
+ *  20 mm, and the fin span taken to 20 mm, both inside the range the Design workspace offers — put
+ *  the CP at **−258.0 mm**, 258 mm ahead of the nose tip, with CNα still POSITIVE at 1.545. So the
+ *  test cannot be `cnAlpha > 0` alone either.
+ *
+ *  Loft's answer to an undefined figure is to withhold it and say why — never to publish a
+ *  plausible-looking one. `simulate.ts` also raises this as a flight warning, because a flyer who
+ *  reaches it has usually just made an edit and a withheld cell alone does not say what to undo. */
+export function noCpWhy(s: {
+  cnAlpha: number;
+  cp: number;
+  contributions: readonly { cnAlpha: number; x: number }[];
+}): string | undefined {
+  // A design carrying no normal force at all — no nose cone and no fin set — is a different fact
+  // from a taper cancelling one, and "less taper" is advice it cannot act on. Reachable in the
+  // editor by removing both, and the reason has to be true there too. Tested first because the hull
+  // below is empty in that case and would otherwise decide it by accident.
+  if (!s.contributions.some((c) => c.cnAlpha !== 0)) {
+    return "nothing on this design carries normal force — with no nose cone and no fin set there is no centre of pressure, and so no static margin to state";
+  }
+  const xs = s.contributions.filter((c) => c.cnAlpha !== 0).map((c) => c.x);
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
+  // A hair of slack, because `lo` and `hi` are themselves floating-point stations and a CP that IS
+  // one of them (a single-contribution design — a nose cone and nothing else) must not be withheld
+  // by a rounding bit. 1 µm is far below any station this model resolves.
+  const EPS = 1e-6;
+  if (s.cnAlpha > 0 && s.cp >= lo - EPS && s.cp <= hi + EPS) return undefined;
+  return `the tail taper removes almost as much normal force as the nose and fins add — summed CNα ${s.cnAlpha.toFixed(2)} /rad puts the centre of pressure outside the span of the parts that produce it, where it is not a point on this rocket and no margin can be measured from it. More fin area, or less taper, brings it back.`;
+}

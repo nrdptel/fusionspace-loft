@@ -73,14 +73,21 @@ newest lens first. Each was verified by the agent that filed it unless marked UN
   the same physical cone, at 21.34 in and 22.34 in, both 1 in long and both ending at 0.25 in
   diameter. Same file, same pass, and it is the likeliest cause of that design's negative CNα.
 
-- **A negative summed CNα yields a CP behind the tail, published unqualified.** `lib/sim/aero.ts:105`
-  divides moment by a negative `cnAlpha` when contracting transitions outweigh the fins. On
-  `corpus/rasaero/Show-off.CDX1` the stat card reads LENGTH 593 mm, **CP 913 mm** — 320 mm behind the
-  tail — beside **CNα −1.93 /rad**, a normal-force slope that cannot be negative, with no caveat. The
-  app already withholds STATIC MARGIN and CG on that same design for a missing motor, so the
-  machinery exists and is not applied to the one pair that is physically impossible. Sev-1-shaped;
-  not fixed this run only because the RASAero station bug above may be its cause, and the two want
-  one pass.
+- ~~**A negative summed CNα yields a CP behind the tail, published unqualified.**~~ **FIXED
+  2026-08-18, and it was worse than this entry said.** The entry called it Sev-1-shaped and deferred
+  it to the RASAero station bug; the deferral was wrong, because the defect is not RASAero's. It is
+  arithmetic: Barrowman's CP is `Σ(CNα·x)/Σ(CNα)`, and as the sum approaches zero the loads become a
+  pure couple with no line of action, so the quotient runs away. **Two typed fields from the
+  from-scratch starter reach it** — a 150 mm boattail closing to 20 mm and the fin span at 20 mm,
+  both in range — putting the CP at −258.0 mm with CNα still POSITIVE at 1.545, which also shows the
+  entry's own framing ("negative summed CNα") is too narrow to be the test. Measured on the built
+  export before the fix, the two verdicts a flyer could see: **−15 cal flagged LOW** on that starter
+  edit, and **+12.81 cal flagged HIGH** on `Show-off.CDX1`. `lib/sim/withheld.ts`'s `noCpWhy` is the
+  rule — the CP has to lie inside the hull of the contributions that produce it, which is exact
+  rather than a heuristic, because a weighted average with non-negative weights cannot leave that
+  interval — and the function's own docblock carries the argument and every measurement. **Still open, and separated out of this entry:** the CP
+  readout on that corpus design remains a symptom of the double-boattail parse above, which is not
+  fixed.
 - **`Three-stage rocket.CDX1` imports to a dry mass of exactly 0.00000 kg with 3 parts**, and
   `components/GeometryInspector.tsx:586` publishes that 0 g as the design's dry mass with no
   empty/unknown state. The corpus guard for exactly this only fires when the design has a motor.
@@ -90,7 +97,10 @@ newest lens first. Each was verified by the agent that filed it unless marked UN
   (+14%).
 - **`TubeFins1.rkt` solves to static margin −0.333 cal** and raises "statically unstable as
   modelled" on a real tube-fin design; the rear boattail contributes −1.222 CNα and pulls CP forward
-  past the CG. Same family as the CNα sign problem above.
+  past the CG. Re-checked 2026-08-18 against `noCpWhy`: this one is **not** withheld and should not
+  be — its CP is inside the hull of its own contributions, so −0.333 cal is a real reading of a
+  genuinely marginal design rather than a runaway quotient. Related to the entry above by family and
+  not by cause, and the note that said "same family as the CNα sign problem" was overstating it.
 - **The corpus gate is apogee and max velocity only, at ±12%**, so every other stored metric can be
   arbitrarily wrong on a non-excused file: `Cherokee-E-5055.ork [Simulation 3]` deployment velocity
   **+204%**, `Clustered motors.ork [Simulation 1]` +135%, `02.Two-stage.ork` −86%.
@@ -447,6 +457,19 @@ someone has seen it, so these are filed as claims with the command that would se
   the whole airframe on 7, moving static margin by up to 2.73 cal — and it is one drag of the
   body-length grip, not a typed extreme. `seatAddedMasses` re-seats authored masses over the finished
   tree; see `ROADMAP.md` R12 increment 23.**
+
+- **The fin-position sweep slides a fin set past the tail of the airframe, and flies it there.**
+  `parameterSweep(rocket, "finStation", …)` takes the range its caller hands it with no clamp against
+  the airframe, and `lib/sim/sweep.test.ts` drives `s0 - 0.1` to `s0 + 0.2` on
+  `fixtures/demo-single-deploy.ork`: the last two points put the fins at **1,005 mm and 1,030 mm on a
+  950 mm rocket**, so the fin set hangs in space behind it and the centre of pressure follows to
+  953.6 mm and 975.9 mm — past the tail, with a healthy CNα of 18.5 /rad and every contribution
+  positive. The margins that come out are arithmetically right for the rocket being described, and
+  that rocket cannot be built. Found 2026-08-18 while writing `noCpWhy`, whose first version tested
+  the AIRFRAME's length and would have withheld these points — hiding this behind a caveat about a
+  different defect. The rule now tests the hull of the contributions instead, which is why this is
+  still visible and still filed. The honest fix is a clamp where the range is built, and the
+  interesting question it raises is whether the diagram's own Fin-position grip has the same gap.
 
 - ~~**"Add a mass inside this" renders on the boattail, which `addPartAfter` cannot resolve.**~~
   **FIXED 2026-08-18.** The boattail is appended by `applyDimensionEdits`, after `structureOf()` —

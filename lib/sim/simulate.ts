@@ -36,6 +36,7 @@ import {
 import { thrustAt, motorMassAt, type MotorCurve } from "../motors/eng";
 import { G0 } from "../units";
 import { DESCENT_BODY_CDA_FACTOR } from "./recovery";
+import { noCpWhy } from "./withheld";
 import { vec, type Vec3, add, scale, mag } from "./vector";
 
 /** A motor loaded into the design, resolved to a real curve and placed on the axis. */
@@ -272,8 +273,16 @@ export interface FlightResult {
   events: FlightEvent[];
   warnings: FlightWarning[];
   stability: Stability;
-  /** Static margin in calibers at liftoff (loaded). */
+  /** Static margin in calibers at liftoff (loaded). Read it only when `marginUndefinedWhy` is
+   *  absent — on a design whose CP is not a point on the rocket this still holds the quotient, which
+   *  is a finite, plausible-looking number about no rocket (measured 12.81 cal on a design with a
+   *  summed CNα of −1.93 /rad). It is kept rather than zeroed so the withholding surfaces and the
+   *  tests can see what WOULD have been published. */
   staticMarginCal: number;
+  /** Why `staticMarginCal` and `stability.cp` are not figures to publish, or undefined when they
+   *  are — `lib/sim/withheld.ts`'s `noCpWhy`. Every surface that presents either withholds on this,
+   *  and `lib/margin-surfaces.test.ts` is the census that keeps them in step. */
+  marginUndefinedWhy?: string;
   /** For a staged flight, the lowest static margin (cal) any upper stage has at the moment it
    *  starts flying alone (loaded, just after separation) — the worst-case for a separated stage.
    *  Undefined for a single-stage flight. */
@@ -535,6 +544,12 @@ export function simulate(input: SimulateInput): FlightResult {
   const loaded = massAt(0);
   const staticMarginCal =
     geom.refDiameter > 0 ? (stability.cp - loaded.cg) / geom.refDiameter : 0;
+  /** Whether the CP this margin is measured from is a point on the rocket at all — see `noCpWhy`.
+   *  Derived HERE, beside the division that uses it, rather than at each surface: the margin is
+   *  presented by nine files and `lib/margin-surfaces.test.ts` exists because two of them once
+   *  published it while a tenth withheld it. A second reason to withhold gets one home for the same
+   *  reason the first one did. */
+  const marginUndefinedWhy = noCpWhy(stability);
 
   // Upper-stage stability. After each separation the newly-exposed vehicle flies alone; its
   // margin is lowest right at ignition, when the freshly-lit motor pulls the CG aft, so evaluate
@@ -1061,6 +1076,7 @@ export function simulate(input: SimulateInput): FlightResult {
   buildWarnings(warnings, {
     underSymmetricFinSets,
     staticMarginCal,
+    marginUndefinedWhy,
     upperStageMarginCal,
     upperStageName: worstUpperStageName,
     railExitV,
@@ -1170,6 +1186,7 @@ export function simulate(input: SimulateInput): FlightResult {
     warnings,
     stability,
     staticMarginCal,
+    marginUndefinedWhy,
     upperStageMarginCal,
     cgLoaded: loaded.cg,
     cgDry,
@@ -1342,6 +1359,9 @@ function buildWarnings(
      *  (and every test that builds this context by hand) is not forced to answer. */
     underSymmetricFinSets?: { name: string; finCount: number }[];
     staticMarginCal: number;
+    /** Why that margin is not a figure to state — see `FlightResult.marginUndefinedWhy`. Optional
+     *  so the tests that build this context by hand keep working; absent means "it is defined". */
+    marginUndefinedWhy?: string;
     /** Lowest upper-stage margin (cal) after a separation; undefined if single-stage. */
     upperStageMarginCal?: number;
     /** Name of the stage with that lowest post-separation margin. */
@@ -1610,7 +1630,20 @@ function buildWarnings(
       severity: "warning",
     });
   }
-  if (ctx.staticMarginCal < 1.0) {
+  if (ctx.marginUndefinedWhy) {
+    // **The two bands below are about a margin, and this design does not have one.** Left ungated,
+    // the −∞-ish quotient falls straight through `< 1.0` and publishes "the rocket is statically
+    // unstable as modelled" — which sounds like a reading of this rocket and is not one; and on
+    // `Show-off.CDX1` the same quotient is +12.81 and it publishes the OVER-stable caution instead.
+    // Two opposite verdicts from one undefined figure is the tell. This warning replaces both.
+    out.push({
+      code: "no-centre-of-pressure",
+      message:
+        `No static margin is available for this design: ${ctx.marginUndefinedWhy}` +
+        (ctx.marginUndefinedWhy.endsWith(".") ? "" : "."),
+      severity: "warning",
+    });
+  } else if (ctx.staticMarginCal < 1.0) {
     out.push({
       code: "low-stability",
       message:
