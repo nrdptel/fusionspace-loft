@@ -749,6 +749,35 @@ note argues for, and it belongs in `COMPETITION.md` beside the format-support ro
 Owner-level decisions that are NOT blocking anything. Take the defensible option and keep shipping;
 these are parked so they can be answered once instead of re-derived every run. Newest first.
 
+- **2026-08-18 — the app SHIPS RocketPy to the browser, and `MAINTAINING.md`'s clean-room invariant
+  says it never should. One of the two has to give, and it is not a call a session should make
+  alone.** Measured on a clean build, not inferred: `out/pyodide/` is **41 MB** and carries
+  **23 Python wheels**, `rocketpy-1.12.1-py3-none-any.whl` (415,563 bytes) among them, which
+  `public/pyodide/fly.py` imports in the worker. The invariant (`MAINTAINING.md`, *CLEAN-ROOM /
+  licensing*) reads: *"An external simulator (e.g. RocketPy) stays an external oracle for validation —
+  never vendored into the bundle or shipped as a runtime dependency."*
+  **Nothing in the repo records this being decided.** `Decisions taken without the owner` does not
+  mention it, and `THIRD-PARTY-NOTICES.md` asserted the opposite of the shipped bytes until this run.
+  *Why it happened is legible and is not carelessness:* the CLIENT-SIDE invariant forbids a server, so
+  a second solver can only run in the flyer's browser, which means shipping the interpreter and the
+  library. The two invariants are in tension and the tension was resolved in code without being
+  written down.
+  **What is NOT in doubt, and is fixed this run rather than parked:** what ships and under what terms
+  is now stated — §3 of `THIRD-PARTY-NOTICES.md`, with every wheel, every licence, the LGPLv3+ one
+  called out and its obligations met — and `scripts/check-notices.mjs` fails the build if that list
+  ever drifts from the artifact again. **On licensing there is no exposure**: RocketPy is MIT, and the
+  one copyleft item (`simplekml`, an import-time dependency of RocketPy) is conveyed unmodified as a
+  separate wheel with notice given, which is what the LGPL asks.
+  *What is parked:* whether the invariant's sentence should be **amended** — the honest reading, since
+  the capability is shipped, deliberate, presented as another tool's prediction, and is North Star
+  #1's own multi-solver cross-check — or whether the capability should be **withdrawn** to satisfy the
+  sentence as written. Withdrawing it removes a shipped feature and 41 MB of payload; amending it
+  narrows the clause to what it is really protecting, which is *not merging another solver's numbers
+  into Loft's own* rather than *not shipping bytes*. **A session should not quietly edit an invariant
+  to match what the code does** — that is the failure mode the invariant list exists to prevent — so
+  nothing has been amended. **Nothing is blocked.** The default taken meanwhile is: the capability
+  stays, and the notices tell the truth about it.
+
 - **2026-08-18 — this session CANNOT REACH THE SIBLING REPO AT ALL, and the DESIGN-IS-BINDING
   invariant has a clause that needs it.** `MAINTAINING.md` says a change to `DESIGN.md` is a change to
   both copies **in the same run**, and `ROADMAP.md`'s P18 names the sibling mirror as one of its *done
