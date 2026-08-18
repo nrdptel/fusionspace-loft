@@ -53,6 +53,22 @@ const SAMPLES = [
 const BUILD_ASSETS = [
   // __BUILD_ASSETS__
 ];
+// **Next's client-router payloads — `<route>.txt` and the per-segment `__next.*.txt` — and this
+// list is the difference between an app that works at the pad and one that loops.** Measured
+// 2026-08-18, before it existed: with a design open and the network off, a workspace route ran 38
+// main-frame navigations in 3 seconds and did not stop. The router asks for these on every
+// client-side navigation; with none cached the worker answered its own 504 below, the router
+// downgraded to a HARD navigation, that reload re-ran the session restore, and the restore issued
+// the same navigation again. Injected by `scripts/gen-sw-precache.mjs`, like everything above.
+const BUILD_PAYLOADS = [
+  // __BUILD_PAYLOADS__
+];
+// The rest of what a page renders — wordmark, icons, web manifest, the RocketPy worker. The asset
+// walk reads `out/_next/static` only, so offline the two brand SVGs returned a 504 and the app came
+// back with no logo. Enumerate-and-subtract at build time; the exclusions are argued for there.
+const BUILD_MEDIA = [
+  // __BUILD_MEDIA__
+];
 // Every prerendered route, injected the same way. "/" is in here, so it covers the shell.
 const ROUTES = [
   SHELL,
@@ -91,6 +107,11 @@ async function precache() {
     }),
     ...SAMPLES.map((u) => c.add(u)),
     ...BUILD_ASSETS.map((u) => c.add(u)),
+    // Fetched WITHOUT the router's `?_rsc=` cache-buster and read back with `ignoreSearch`, so one
+    // cached copy answers whatever query the router appends. On a static export the query changes
+    // nothing about what the host returns.
+    ...BUILD_PAYLOADS.map((u) => c.add(u)),
+    ...BUILD_MEDIA.map((u) => c.add(u)),
   ]);
 }
 
@@ -171,8 +192,25 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // A router payload is precached under its bare path while the router asks for it with a per-build
+  // `?_rsc=` cache-buster, so an exact match misses every time — which is how a fully-precached app
+  // still looped offline. `ignoreSearch` only for these: a hashed chunk carries no query at all, and
+  // ignoring the search anywhere else would let one request answer another's.
+  // A router payload is precached under its bare path while the router asks for it with a per-build
+  // `?_rsc=` cache-buster, so an exact match misses every time — which is how a fully-precached app
+  // still looped offline. `ignoreSearch` only for these: a hashed chunk carries no query at all, and
+  // ignoring the search anywhere else would let one request answer another's.
+  //
+  // **A `<Link>` PREFETCH of a page is NOT normalised here, and that was tried and measured out.**
+  // Those requests ask for `/design/` while the navigate branch caches under `/design`, so they miss
+  // and fail offline. Routing them through `pageKey` fixes the miss and changes nothing a flyer can
+  // see: measured 2026-08-18, four offline spine clicks cost four hard navigations before and after,
+  // and the same eight prefetches still fail. Next's static-export router decides to hard-navigate
+  // for its own reasons, upstream of the cache. Left out rather than shipped as a correct-looking
+  // change with no effect.
+  const isPayload = url.pathname.endsWith(".txt");
   event.respondWith(
-    caches.match(req).then((cached) => {
+    caches.match(req, isPayload ? { ignoreSearch: true } : undefined).then((cached) => {
       const network = fetch(req)
         .then((res) => {
           if (res && res.status === 200) {

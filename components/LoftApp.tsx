@@ -763,7 +763,19 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
         //
         // `replace`, not `push`: this is where the load lands, not a step the Back button should
         // have to undo on the way out of the design.
-        router.replace(workspacePath(landing));
+        //
+        // **Skipped when the address already names it, and that is not a micro-optimisation.** A
+        // reload of `/flight` restores the session and lands on `flight`, so this fired a navigation
+        // to the route the flyer was already on. Online that is a cheap no-op. OFFLINE it was half
+        // an infinite loop: the router asks for the route's payload, the worker had none precached
+        // and answered its own 504, the router downgraded to a HARD navigation, the reload re-ran
+        // this restore, and it issued the same navigation again — measured at 38 main-frame
+        // navigations in 3 seconds, sustained, on the form factor the offline claim is sold for. The
+        // precache is the root fix (`scripts/gen-sw-precache.mjs`); this is the half that says a
+        // navigation to where you already are should never be issued at all.
+        if (workspaceFromPath(window.location.pathname) !== landing) {
+          router.replace(workspacePath(landing));
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate this design.");
         setRun(null);

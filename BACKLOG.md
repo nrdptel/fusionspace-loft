@@ -12,6 +12,146 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-18 from the opening fan-out — nine lenses, ~60 findings, of which four Sev-1 claims
+were reproduced and are being fixed this run (the offline loop below, `mass()`'s flat zero, the
+authored mass station, the RASAero fin station). Everything here is what is NOT being fixed this run,
+newest lens first. Each was verified by the agent that filed it unless marked UNVERIFIED.**
+
+*Numbers and physics*
+
+- **A negative summed CNα yields a CP behind the tail, published unqualified.** `lib/sim/aero.ts:105`
+  divides moment by a negative `cnAlpha` when contracting transitions outweigh the fins. On
+  `corpus/rasaero/Show-off.CDX1` the stat card reads LENGTH 593 mm, **CP 913 mm** — 320 mm behind the
+  tail — beside **CNα −1.93 /rad**, a normal-force slope that cannot be negative, with no caveat. The
+  app already withholds STATIC MARGIN and CG on that same design for a missing motor, so the
+  machinery exists and is not applied to the one pair that is physically impossible. Sev-1-shaped;
+  not fixed this run only because the RASAero station bug above may be its cause, and the two want
+  one pass.
+- **`Three-stage rocket.CDX1` imports to a dry mass of exactly 0.00000 kg with 3 parts**, and
+  `components/GeometryInspector.tsx:586` publishes that 0 g as the design's dry mass with no
+  empty/unknown state. The corpus guard for exactly this only fires when the design has a motor.
+- **RASAero parts are all placed `{method:"after", offset:0}`** and a part's own `<Location>`/
+  `<Offset>` is never read, so overlapping parts stack end-to-end: `Show-off.CDX1` imports at
+  23.34 in against the file's 20.00 in (+17%), `Complex.Two-Stage.CDX1` 72.00 in against 63.00 in
+  (+14%).
+- **`TubeFins1.rkt` solves to static margin −0.333 cal** and raises "statically unstable as
+  modelled" on a real tube-fin design; the rear boattail contributes −1.222 CNα and pulls CP forward
+  past the CG. Same family as the CNα sign problem above.
+- **The corpus gate is apogee and max velocity only, at ±12%**, so every other stored metric can be
+  arbitrarily wrong on a non-excused file: `Cherokee-E-5055.ork [Simulation 3]` deployment velocity
+  **+204%**, `Clustered motors.ork [Simulation 1]` +135%, `02.Two-stage.ork` −86%.
+
+*Numbers that state a basis they do not have*
+
+- **The Conditions summary is hard-coded to "· as designed" and has no third state for "edited".**
+  `components/LoftApp.tsx:4455`. Type 9 into Surface wind and DRIFT FROM PAD goes 162 m → 726 m while
+  the only control naming the basis of every number below it asserts they are the design's own.
+  Sev-1-shaped; a one-line state is not the fix — the summary needs to say WHICH conditions.
+- **The dispersion panel drops the fallback-canopy-Cd caveat that /flight carries.**
+  `components/MonteCarlo.tsx:614` computes `extrapolatedWhy` for transonic only, so RECOVERY RADIUS
+  (95%), LANDING SPEED and the landing-energy line go unbadged while the same figures wear
+  EXTRAPOLATED on /flight. The recovery radius is what a flyer sizes a field and a waiver with.
+- **Liftoff and burnout mass print identical on light designs** — `Mini Honest John.ork` shows
+  0.017 kg / 0.017 kg — so the summary states the motor burned no propellant. Distinct from the
+  `mass()` zero fix: 0.017 does not round away, the PAIR is what needs resolving together.
+- **Max acceleration is `g` on /flight and m/s² on /validate** for the same metric, on the surface
+  whose whole job is putting the two answers side by side.
+- **`ValidationPanel` prints STORED and LOFT at 1 dp and Δ from the unrounded values**, so rows read
+  "0.4 | 0.4 | +2%" on the app's credibility surface.
+- **A single what-if silently deletes the whole OpenRocket cross-check workspace.**
+  `components/ResultsView.tsx:1178` mounts it behind `run.validation`, which any edit clears, so
+  `ValidationPanel`'s own `empty` copy can never render and the surface goes to a bare heading.
+- **THRUST-TO-WEIGHT is the PEAK ratio labelled "liftoff"**, disclosed two clicks away in
+  /docs/methods, and drawn against the 5:1 rule of thumb the motor sweep flags rows under.
+
+*Craft, and the design system's blind spots*
+
+- **§9's greps are structurally blind to three whole classes**, and the audit found real drift in
+  each: `app/globals.css` carries **14 raw margin/padding declarations at 8 off-scale values**
+  (2.25rem and 1.25rem are §4's two named-as-forbidden steps); containers drawn at the CONTROL radius
+  (`components/MotorSweep.tsx:556`, `components/RocketpyCrossCheck.tsx:412`, the latter also a fifth
+  spelling of the danger ramp at `/20` + `/5` against `CARD_TONES.danger`'s `/30` + `/10`); and
+  treatments hand-rolled where a primitive exists.
+- **The same spinner ring is hand-rolled five times across four files at two sizes**, and §5 has no
+  `Spinner` — so LOADING, one of the five states §5 requires of every data surface, is the one state
+  with no primitive behind it. A `Spinner` is a P-track increment.
+- **`CARD_TONES.muted` is a sixth container tone §2 does not declare**, and §5's `DropZone` bullet
+  points at "§2's `muted` tone" which does not exist there; conversely §2's `good` has no tone and no
+  primitive, which is why the emerald case is hand-rolled.
+- **A raw `<table>` renders the RocketPy cross-check** at `app/docs/validation/page.tsx:501`,
+  breaking §5's "every table is this one" — no sort, no sticky header, no copy or CSV.
+- **The landing route's two section headings are hand-rolled `<h2 class="text-xs uppercase">`** —
+  three steps below §3's `text-xl` — where `Section` and `Panel` both render the shared header row.
+- **The free-text input treatment is spelled three times across two files at two paddings**, all
+  three off §4's `px-3 py-1.5`.
+
+*Reach, keyboard and the phone*
+
+- **The parts table is one tab stop per part with no roving tabindex**: 55 Tab presses to get past a
+  47-part design, and ArrowDown on a focused row does nothing.
+- **Four things forget across a reload** while the design, units, edits and picked part all come
+  back: the parts-table sort, the diagram zoom (snaps to Fit on a 2 m airframe), the Monte-Carlo
+  waiver ceiling (while the 300-flight RESULT is restored), and the whole motor sweep (while the
+  column it was sorted on is kept).
+- **`Escape` does not cancel a `NumberField`** — `onChange` commits on every keystroke, so there is
+  no cancel path at all and only Undo backs it out.
+- **The CP marker is positioned with no clamp to the drawn airframe**, so a CP past the tail renders
+  outside the SVG and simply vanishes while the legend still lists it.
+- **Six links miss §8's 44 px floor**, including the two that point from a flight number to how it
+  was computed and to where the model is weak (142x16 and 98x20), and the wordmark is 37x28 on `/`
+  while clearing 44x44 on every docs route.
+- **`/docs/limitations` runs 43,578 px — 51.6 screens — at 390x844**, and the Design workspace runs
+  7.2 screens with no in-panel section nav.
+- **A cold deep link to `/flight` with no design silently rewrites the URL to `/`** with nothing
+  said, on routes whose own docstring says they exist to be bookmarked and shared.
+- **Every docs page renders the same `<h1>Documentation</h1>`** and demotes its real title to `<h2>`.
+
+*The drop zone's own remainder, for P18 increment 3*
+
+- **The flight-log surface still carries all three defects `DropZone` was extracted to end**: a bare
+  `sr-only` input with no `tabIndex={-1}` (the only keyboard path, focus ring undrawable), a refusal
+  rendered as a bare `<span>` with no `role="alert"` that REPLACES the format help at the moment it
+  is needed, and a hand-rolled control treatment invisible to all three §9 instruments at once.
+- **`DropZone` cannot yet be adopted there**: its prop type omits nothing of `Card`'s but exposes
+  none of it either, so a call site cannot reach `pad`, `as` or `tone`.
+- **`cx("text-center transition", className)` hard-codes centring**, and a call site's `text-left`
+  wins by SOURCE ORDER alone — `.text-center` at byte 24,501 of the built stylesheet, `.text-left` at
+  24,532 — which is the identical hazard §2 gained a whole paragraph about.
+- **A failed bundled-sample tap still routes to the shared strip** below the whole `ImportPanel`
+  subtree, with no `role="alert"`. Increment 2 fixed exactly this for the dropped file and left the
+  sample path where it was.
+- **More than one file, and a dropped directory, are both silent**: `take` reads `files[0]` and says
+  nothing about the rest; a directory arrives as a 0-byte `File` and the flyer is told "That file is
+  empty. Pick the design file your tool saved."
+
+**SEV-1 FIXED 2026-08-18, from the opening fan-out's phone lens — the offline reload loop.** Not
+filed, fixed: with a design open and the network off, a workspace route ran **38 main-frame
+navigations in 3 seconds and 50 in 4**, and did not stop. Recorded here because the entry it
+invalidates is the *claim* — `MAINTAINING.md` and `DESIGN.md` both sell the app on working at the
+pad with no signal, and the only offline e2e case went offline with NO design loaded, which is the
+one path that stays stable, then asserted something was visible: true during the loop's visible
+phase whether it looped or not. `e2e/offline.spec.ts` is the case that can fail. Two remaining
+offline observations, both filed rather than fixed:
+
+- **No data surface renders the `offline` member of §5's five states.** With a design open and
+  `navigator.onLine === false` the word "offline" appears only in the install hint's marketing copy;
+  `navigator.onLine` is read in `components/RocketpyCrossCheck.tsx` and nowhere else. The app now
+  WORKS offline and still never says it is.
+- **An offline `<Link>` prefetch of another route still fails**, because those requests ask for
+  `/design/` while the navigate branch caches under `/design`. Routing them through `pageKey` was
+  tried and **measured out**: four offline spine clicks cost four hard navigations before and after,
+  and the same eight prefetches still fail — Next's static-export router decides to hard-navigate
+  upstream of the cache. So offline navigation works and is a full page load each time.
+- **The precache is the ROUTE payloads only, and the 88 per-segment `__next.*.txt` files are left
+  out on a measurement rather than an argument.** Precaching all 102 took the install from 48 entries
+  to 158, and three OFFLINE e2e cases went red under a three-shard run while passing in isolation —
+  every service-worker install in the suite then issues 158 requests at the one `serve` process,
+  which is the descriptor exhaustion `MAINTAINING.md` documents arriving by a new road. At 14 route
+  payloads (68 entries) the loop is still closed and every workspace still reads as itself offline,
+  both driven rather than assumed. **The transferable half: a precache list is a load on the e2e
+  server as well as a promise to the flyer**, and this repo's suite is close enough to that ceiling
+  that a fourfold install can be read as a product regression.
+
 **Filed 2026-08-18, from P18 increment 2's pre-push review (three lenses, 31 findings, 3 blockers
 fixed before the push and the rest either fixed or filed below).**
 
