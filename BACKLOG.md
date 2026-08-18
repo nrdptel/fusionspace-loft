@@ -12,6 +12,29 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-18 from P18 increment 3's print-fade fix — the print sheet is a shipped surface with
+no binding design statement and half a test.**
+
+- **The print sheet is a product surface and `DESIGN.md` says nothing about it.** It is range
+  paperwork — a card for the RSO, a page for the build notebook — with rules spread across 120 lines
+  of `@media print` in `app/globals.css` and two e2e tests, and not one sentence in the design system
+  that a component author would read first. The rule this increment discovered ("a sheet is a still,
+  not a frame of a fade") is exactly the kind that belongs there. **Blocked rather than skipped**: the
+  natural host is §8 Form factors, which is one of the five digest-locked shared sections, and the
+  sibling repo is unreachable from this session — changing Loft's copy alone is the breach the digest
+  exists to prevent. Unblocks with the sibling attached as a second source.
+- **The dark theme's print sheet is measured for contrast and the LIGHT theme's is not.** The
+  contrast sweep runs in one `colorScheme: "dark"` context because that is where the 193-of-369
+  defect was; the light sheet was measured clean ONCE, by hand, on 2026-08-08 and has had no guard
+  since. Every rule added to the print block since then — this increment's included — has been
+  verified against half the audience. The sweep is already a function of the context's colour scheme;
+  a second `test.describe` loop over `["dark", "light"]` is the whole fix.
+- **`@media print` forces `color` on every element and the charts set `fill`, which nothing
+  measures.** `getComputedStyle(el).color` on an SVG `<text>` reports the forced ink whatever `fill`
+  paints, so the axis labels this increment found faint were caught only through their BACKDROP. A
+  chart whose `fill-*` utility stayed pale on paper would pass the sweep silently. Sampling `fill`
+  where it is not `none` is the missing half.
+
 **Filed 2026-08-18 from R12 increment 26's scoping fan-out — what the fin bound deliberately does
 not cover, so the next session does not re-derive the boundary.**
 
@@ -147,10 +170,11 @@ are the next preemptions, not queue items.**
 - **`app/globals.css:327` — 110 lines of print CSS producing an RSO range card, and ZERO print call
   sites.** `grep -rn "print()" --include=*.tsx` is empty. A feature reachable only by knowing the
   browser has Ctrl+P.
-- **`components/ResultsView.tsx:788` — the flight-log `accept` is narrower than the parser.**
-  `.csv,.txt,text/csv,text/plain` while `lib/flightlog.ts:80` splits on tabs too, so a `.tsv` the
-  parser handles is hidden by the OS dialog. And `lib/flightlog.ts:98` tries exactly two delimiters
-  with `Number()` parsing, so a semicolon or decimal-comma export yields zero finite rows.
+- **`lib/flightlog.ts:98` — the flight-log parser tries exactly two delimiters** (comma and tab) and
+  parses with `Number()`, so a semicolon-separated or decimal-comma export — the normal shape in much
+  of Europe — yields zero finite rows and is refused with a sentence about columns it did find.
+  *(The other half of this entry, an `accept` list narrower than the parser, was FIXED on 2026-08-18
+  by P18 increment 3 and is pinned by `e2e/import.spec.ts`.)*
 - **`e2e/docs.spec.ts:39` — "every docs page is readable offline" fails under in-shard parallelism
   and passes 5 of 5 in isolation** (3.6–4.1 s each), with `net::ERR_INTERNET_DISCONNECTED` on the
   first offline `/docs` navigation — i.e. the service worker did not intercept at all. **Raising the

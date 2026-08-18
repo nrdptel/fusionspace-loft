@@ -33,7 +33,10 @@ work, and a queue containing only the first can only ever ship the first.
   shape, design system, first run, form factor, documentation, discoverability. **P1–P9 and P12
   shipped** (P8 on 2026-08-09, P11 on 2026-08-09); **P10 is IN PROGRESS at 2 of 3** with its
   remaining increment blocked on a repository SETTING no session can edit; **P13 is SHIPPED
-  (2026-08-09)**, its *done when* met in Loft.
+  (2026-08-09)**, its *done when* met in Loft. **P14–P17 shipped 2026-08-12/13/14/17; P18 shipped
+  2026-08-18** on its third increment, with only its sibling-mirror clause outstanding and blocked —
+  so the next unstarted P milestone is **P19**, which does not exist yet: extending this file is the
+  next P-track increment, per *After R6 and P5* below.
 
   **Corrected 2026-08-11: this line said "P13 is the next unstarted one" while P13's own Status said
   3 of 3 shipped, and it said P10 was "1 of 2" while P10's body recorded increment 2 shipped on
@@ -7112,9 +7115,20 @@ not cost that.
 
 ## P18 — The two treatments that are not cards get names
 
-**Status: IN PROGRESS — increments 1 and 2 SHIPPED (2026-08-17, 2026-08-18).** Written on 2026-08-17,
-because the P-track was dry and `MAINTAINING.md` says extending it IS the work in that case. Both
-counts in the *done when* are now at their targets; what remains is the sibling mirror clause.
+**Status: SHIPPED 2026-08-18 — all three increments, pinned by `lib/dropzone.test.tsx`,
+`lib/toast.test.tsx`, `lib/design-doc.test.ts`'s two-directional §5 check, `lib/design-system.test.ts`'s
+`cardTreatments` (1), `cardTreatmentsOutsidePrimitives` (0), `containerBorderWidths` (0) and
+`offSystemElevation` (0), and `e2e/import.spec.ts`'s drag cases on both ingest surfaces.** Written on
+2026-08-17 because the P-track was dry and `MAINTAINING.md` says extending it IS the work in that
+case.
+
+**The one clause NOT met is the sibling mirror**, and it is blocked rather than skipped: `DESIGN.md`
+is shared verbatim with the sibling repo, the DESIGN-IS-BINDING invariant says a change to one is a
+change to both in the same run, and this session cannot reach that repo at all — `add_repo` and a
+plain `git clone` are both refused by the harness before they reach GitHub. Parked in
+`OWNER-NOTES.md` under *Awaiting the owner* with what the sibling is owed written out verbatim, so
+the next session that CAN reach it pastes rather than re-derives. §2's elevation and border-width
+rows, §5's `DropZone` entry and its new `useFileDrop` paragraph are the outstanding text.
 
 **Increment 2 — `DropZone`, and the width question settled by removing it, 2026-08-18.**
 `components/ImportPanel.tsx` was the last card treatment hand-rolled outside the primitives file.
@@ -7225,11 +7239,109 @@ notes said to shape `DropZone` for both "or the split comes back in a run". It i
 primitive there is a repaint of the results toolbar, not an extraction. It contributes nothing to
 either count. Increment 3 below is that work, written now so the split is queued rather than lost.
 
-**Increment 3 — the second ingest surface takes files the same way.** `components/ResultsView.tsx`'s
-flight-log picker has no drag support at all and no rejected-file state; a `.png` chosen there reaches
-the CSV parser. *Done when* it accepts a dropped log, refuses what it cannot read by name, and does
-both through `DropZone` — which means settling whether the primitive grows an inline presentation or
-the toolbar grows a zone. Size: 1 increment.
+**Increment 3 — the second ingest surface takes files the same way. AMENDED 2026-08-18, because the
+*done when* contradicted increment 2 one screen above it.**
+
+The original read: *"Done when it accepts a dropped log, refuses what it cannot read **by name**, and
+does both through `DropZone`."* Two of those three clauses are wrong, and the evidence is already in
+this file:
+
+- **"by name" was reverted as false by increment 2's own pre-push review**, one screen up. Loft's
+  importer sniffs bytes, `DropZone` deliberately owns WHERE a refusal appears while the caller owns
+  WHAT it says, and the primitive has no name-matching code to hang the clause on. `lib/flightlog.ts`
+  never sees a filename either — it hunts a header naming a time and an altitude column, so a `.png`
+  is already refused, with a sentence, at the control. **The premise "no rejected-file state" was
+  half wrong too:** `logError` renders today as a red span in the same row as the picker, directly
+  under the chart the file was chosen for. Unlike `ImportPanel`'s 765 px-away strip, WHERE is already
+  right here.
+- **"through `DropZone`" prejudges the design.** The picker is an inline `<label>`-wrapped input in a
+  toolbar row inside a `Figure` inside a `Card` — a *control*, not a container. Dropping a
+  card-shaped primitive there is a card inside a card and a repaint of the results toolbar, and it
+  contributes nothing to either §9 count, which is what increment 2 already said when it split this
+  out.
+
+**So the amended *done when*:** a flyer can DROP a flight log onto the surface that shows the flight,
+the drop target is armed only by a file drag and counts enter and leave rather than toggling, a file
+the parser cannot read is refused where the flyer is looking and in the parser's own words, and the
+`accept` list matches what the parser actually takes. Whether that is `DropZone` growing an inline
+presentation, the primitive's drag behaviour being extracted for both callers, or the chart card
+becoming the target, is the increment's decision to make and to record — not the milestone's to
+assume. Size: 1 increment.
+
+*Amended rather than worked around, per `MAINTAINING.md`'s "the repo is the source of truth" and the
+`OWNER-NOTES.md` precedent that a contradiction left in place gets resolved the other way by the next
+run. The clause was written before increment 2 discovered the name gate was wrong; it is not the
+owner's instruction, it is this file disagreeing with itself.*
+
+**SHIPPED 2026-08-18.** The flight-log intake takes a drop, on the card that shows the flight.
+
+**What was actually missing was the BEHAVIOUR, not the primitive.** `useFileDrop` is `DropZone`'s drag
+half, extracted, and `DropZone` is now built from it — so the two cannot drift on the three things a
+drop target has to get right, each of which this repo has already paid for once:
+
+- the highlight counts enter and leave rather than toggling (`dragenter` and `dragleave` both bubble,
+  so crossing onto a child fires a leave at the container);
+- only a `Files` drag arms it (dragging selected text fires the same events, and a target that lights
+  up for a text selection claims something it cannot do);
+- `dragover` is cancelled **unconditionally**, with no `Files` test — without a `preventDefault` the
+  browser's own default runs and a link dragged from another tab navigates the app away, taking the
+  flyer's design with it. Gating that on `Files` for symmetry with the arming is a real bug that has
+  been written in this repo once already.
+
+**The altitude card is the target, and the card is the right size of one.** Not a `DropZone`: that
+primitive IS a `Card`, and this control lives in a toolbar row inside a `Figure` inside a `Card`, so
+adopting it here is a card inside a card and a repaint of the results toolbar — which is exactly what
+increment 2 said when it split this out. Dropping anywhere on the chart the log belongs to is also
+the gesture a flyer actually makes. The picker stays the click affordance, and the refusal stays
+where it already was: the same row, under the chart, in the PARSER's own words rather than a generic
+"wrong file type" — which is all a name gate could have produced, and is the correction increment 2's
+own review already forced once.
+
+**`accept` was narrower than the parser and is widened.** `lib/flightlog.ts` tries a comma AND a tab
+delimiter, so a `.tsv` export it reads perfectly well was hidden by the OS dialog — a refusal made by
+the file picker on the parser's behalf, and a wrong one.
+
+**§5 gained the rule rather than the exception**: a file target that cannot be a card takes
+`useFileDrop`; one behaviour, two presentations. *(`DESIGN.md` is shared with the sibling repo and
+this session cannot reach it — the debt is already parked under `OWNER-NOTES.md`'s* Awaiting the
+owner*, and this adds one paragraph to it.)*
+
+**Four e2e cases, four controls, all fired.** `e2e/import.spec.ts` drives a real `DataTransfer` on the
+second surface: a dropped log is parsed and overlaid (asserted on the point count and the peak
+comparison, so acceptance alone cannot pass it), a `.png` is refused in the parser's words with
+nothing drawn from it, the highlight survives the pointer crossing a child and is not armed by a text
+drag, and `dragover` is cancelled for both a file and a link. It also asserts the `accept` list names
+a `.tsv`, which is the *done when*'s third clause and was pinned by nothing until the review said so.
+Controls: removing the handlers fails **all four**; toggling instead of counting fails the flicker
+case; dropping the `Files` guard on `dragenter` fails the text-drag leg, and dropping it on
+`dragleave` fails the leg written for exactly that — the one of the hook's three guards that had no
+control; not cancelling `dragover` fails the last. **What this block uniquely covers is narrower than
+it looks**, and saying so is the point: every mutation INSIDE the hook is already caught by the
+`[data-drop-zone]` cases, so what these four add is that `ResultsView` wires the hook at all and maps
+`dragging` onto the accent tone. **The flicker assertion was rewritten after
+its control did not fire** — its first draft matched `/bg-|border-/`, which every `Card` carries at
+rest, so it passed with the depth counting removed. It matches the accent tone by name now, and
+asserts the resting state and the disarm as well as the armed one.
+
+**The accent fade printed, and the gate caught it as a mood rather than as a defect.** The `transition`
+this increment put on the altitude card — the same utility `DropZone` already carries, so the two
+file targets fade alike — made a LATENT defect reachable. Tailwind's `transition` animates
+`background-color` and `color`, which are the two properties `@media print` rewrites, so applying
+print styles starts a 150 ms fade **from the screen colour**, and anything rasterising inside that
+window prints the screen. Measured on the built export, dark theme, sampling the instant the media
+changes: the card computed `dark:bg-zinc-900` unchanged on one run and the same colour at 0.82 alpha
+on another, and the 15 text nodes over it — the figure title and every axis label — came out at
+1.00:1 and 1.74:1 on a sheet whose whole claim is ink on white. **8 of 24 runs.**
+
+The fix is the class, not the instance: `transition: none` and `animation: none` join
+`background-image` and `box-shadow` on the universal selector that already flattens the shading, so
+a sheet is a still. **69** elements under `main` on the flight page were still animating without it —
+this was one `className` away on 96 other call sites. Reverting the two declarations was also the
+only way to make the existing contrast sweep fail reliably, which is why the test gained a second,
+timing-free assertion: count what is still moving under print, and require a non-zero count on SCREEN
+first so an app that transitioned nothing could not satisfy it vacuously. A one-in-three red is not a
+guard; the count fires every time, and the control run through `revert → rebuild → run → restore →
+rebuild` reads 69 against an expected 0.
 
 **Increment 1 — `Toast`, 2026-08-17.** The service-worker update prompt spelled the entire floating
 surface at its call site. Only two things about it were ever not a `Card`: the elevation, and a

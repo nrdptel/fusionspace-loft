@@ -966,7 +966,7 @@ test.describe("Loft", () => {
 
     // Upload an altimeter CSV (parsed in the browser); its curve overlays the prediction. The fixture
     // carries both altitude and velocity columns, so the "flight log" series appears on both plots.
-    await plots.getByLabel("Flight log CSV").setInputFiles(resolve(process.cwd(), "e2e/fixtures/flight-log.csv"));
+    await plots.getByLabel("Flight log file").setInputFiles(resolve(process.cwd(), "e2e/fixtures/flight-log.csv"));
     await expect(plots.getByText("flight log", { exact: true })).toHaveCount(2);
     // The file named feet and ft/s, so both unit pickers read those — and can be corrected.
     await expect(plots.getByLabel("Flight log altitude unit")).toHaveValue("ft");
@@ -995,7 +995,7 @@ test.describe("Loft", () => {
 
     const plots = page.getByRole("region", { name: "Plots" });
     await plots
-      .getByLabel("Flight log CSV")
+      .getByLabel("Flight log file")
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/flight-log-no-units.csv"));
     await expect(plots.getByText("flight log", { exact: true })).toHaveCount(2);
 
@@ -1020,7 +1020,7 @@ test.describe("Loft", () => {
     // **The negative control.** The fixture that DOES name its units must show none of this, or the
     // marker would just be "a log was uploaded".
     await plots.getByRole("button", { name: "Remove" }).click();
-    await plots.getByLabel("Flight log CSV").setInputFiles(resolve(process.cwd(), "e2e/fixtures/flight-log.csv"));
+    await plots.getByLabel("Flight log file").setInputFiles(resolve(process.cwd(), "e2e/fixtures/flight-log.csv"));
     await expect(plots.getByLabel("Flight log altitude unit")).toHaveValue("ft");
     await expect(plots.getByText(/assumed/)).toHaveCount(0);
   });
@@ -1032,7 +1032,7 @@ test.describe("Loft", () => {
 
     const plots = page.getByRole("region", { name: "Plots" });
     // A .ork (not a time/altitude CSV) can't be read as a flight log — say so, don't draw a wrong curve.
-    await plots.getByLabel("Flight log CSV").setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
+    await plots.getByLabel("Flight log file").setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
     await expect(plots.getByText(/couldn't|no data rows|numeric/i)).toBeVisible();
     await expect(plots.getByText("flight log", { exact: true })).toHaveCount(0);
   });
@@ -2304,7 +2304,37 @@ test.describe("Loft", () => {
     });
     expect(screenBg, "the page under test is not actually in the dark theme").toBeLessThan(60);
 
+    // **Nothing may still be MOVING on a sheet, and this assertion is here because the sweep below
+    // could not say so reliably.** Every rule in the print block is a colour change, `transition` is
+    // on 97 elements, and Tailwind's utility names `background-color` and `color` among the
+    // properties it animates — so print styles start a 150 ms fade FROM the screen colour and a
+    // rasterisation inside that window gets the screen colour. Measured: the altitude chart's card
+    // held `dark:bg-zinc-900` at t=0 on one run and the same colour at 0.82 alpha on another, and
+    // the 15 text nodes over it came out at 1.00:1 and 1.74:1 — but only on **8 of 24 runs**. A
+    // one-in-three red is not a guard; it is a test that reports the defect as a mood. This counts
+    // instead, which is timing-free, and `app/globals.css` answers it with `transition: none` and
+    // `animation: none` on the same universal selector that already flattens the shading. Control,
+    // run through `revert → rebuild → run → restore → rebuild`: without those two declarations this
+    // line reads **69** — not one element, sixty-nine, on this page alone.
+    //
+    // CONTROL, and it is the half that matters: the SCREEN count has to be non-zero first. An app
+    // that transitioned nothing would satisfy the print assertion by having nothing to stop, and
+    // this test would go on passing while measuring nothing at all.
+    const moving = (p: import("@playwright/test").Page) =>
+      p.evaluate(() =>
+        [...document.querySelectorAll("main *")].filter((el) => {
+          const s = getComputedStyle(el);
+          return (
+            s.transitionDuration.split(",").some((d) => parseFloat(d) > 0) ||
+            s.animationDuration.split(",").some((d) => parseFloat(d) > 0)
+          );
+        }).length,
+      );
+    const movingOnScreen = await moving(page);
+    expect(movingOnScreen, "nothing on this page transitions, so the print check below is vacuous").toBeGreaterThan(0);
+
     await page.emulateMedia({ media: "print" });
+    expect(await moving(page), "elements still animating on a print sheet — a printed frame of a fade").toBe(0);
     const { sampled, faint, worst } = await page.evaluate(() => {
       const cv = document.createElement("canvas");
       cv.width = cv.height = 1;

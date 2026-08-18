@@ -341,6 +341,23 @@ input[type="number"] {
   *::after {
     background-image: none !important;
     box-shadow: none !important;
+    /* **A sheet is a still, and every rule in this block is a colour change something can ANIMATE
+       through.** `transition` is on 97 elements across the app, and Tailwind's utility names
+       `background-color` and `color` among the properties it transitions — the two this block
+       rewrites. So the moment print styles apply, a transitioning element starts a 150 ms fade
+       FROM its screen colour, and anything that rasterises inside that window gets the screen
+       colour rather than the ink one.
+       Measured on the built export, flight page, dark theme, print emulation, sampling the instant
+       the media changes: the altitude chart's card computed `oklab(0.209999 0.00163988 -0.0057656)`
+       — `dark:bg-zinc-900`, unchanged — on one run and the same colour at `/ 0.82485` alpha on
+       another, i.e. caught at t=0 and mid-fade; the 15 text nodes over it printed at 1.00:1 and
+       1.74:1 against it. **8 of 24 runs, and 0 of 36 with this rule** — an intermittency, which is
+       the worst shape for a defect on a page whose whole job is to be printed once, at the range,
+       by someone who will not check the sheet against the screen.
+       `animation` goes with it for the same reason and one more: a spinner frozen at whatever frame
+       the print job caught is a mark on paper that means nothing. */
+    transition: none !important;
+    animation: none !important;
   }
   /* The `color-scheme: light` and `html, body { color }` above do NOT reach the text. The dark
      variant is CLASS-based — `.dark` stays on the root while the sheet prints — so every

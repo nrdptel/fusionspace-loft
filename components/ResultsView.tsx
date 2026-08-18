@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Button, Card, Figure, Panel, Readout, Section, Select, type CardTone } from "./ui";
+import { Button, Card, Figure, Panel, Readout, Section, Select, useFileDrop, type CardTone } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
 import { descentRoughWhy, notLandedWhy as whyNotLanded } from "@/lib/sim/withheld";
 import { cx } from "@/lib/ui-tokens";
@@ -376,6 +376,37 @@ export default function ResultsView({
     };
     reader.readAsText(file);
   };
+
+  /** Whether the flight-log intake exists on this render at all.
+   *
+   *  **The drop path is gated on exactly what the CONTROLS are gated on**, so the card cannot arm for
+   *  a file it has nowhere to report on. The picker, the refusal, the point count, the unit `Select`,
+   *  the "assumed" caution and Remove all live behind this condition; a first version put the
+   *  handlers on the card unconditionally, and the state that separates the two is a design with
+   *  propulsion and an empty trajectory: a refused file would set `logError` and render NOWHERE, and
+   *  a file that PARSED would draw its curve with no point count, no Remove and — the bad one — no
+   *  `unitAssumed` amber caution, so a bare-header log renders 3.28x wrong in Loft's confident voice
+   *  with no way to clear it.
+   *
+   *  **That state may well be unreachable**, and the gate is kept anyway. `shouldSample` keeps the
+   *  first step of any flight, so an empty trajectory under propulsion has no constructor in `lib/`
+   *  today — the pre-push review checked and could not produce one. One flag read in three places
+   *  costs nothing and cannot drift; a drop path armed over controls that are not rendered is a
+   *  failure nobody would find twice. */
+  const logIntake = run.hasPropulsion && r.trajectory.length > 0;
+
+  /** The altitude card's drop behaviour, shared with `DropZone` so the two cannot drift — see the
+   *  note at the card itself.
+   *
+   *  `onLogFile` clears the previous refusal, so a dropped file and a picked one take the same road.
+   *  *A first draft of this sentence said `onLogFile` "already tolerates `undefined`, so a drop and a
+   *  pick take exactly the same road" — `useFileDrop` calls through only when a file is present, so a
+   *  file-less drop would leave a stale refusal standing while the highlight disarmed, which reads as
+   *  acceptance. The wrapper below closes that rather than the comment explaining it away.* */
+  const logDrag = useFileDrop((file) => {
+    setLogError(null);
+    onLogFile(file);
+  });
   // The uploaded log as an altitude series in the plot's own display unit: log altitude → metres →
   // the metric/imperial unit the altitude curve uses.
   const logSeries: Series | null =
@@ -753,7 +784,7 @@ export default function ResultsView({
         aside={<>
           {/* The raw trajectory, sample by sample, for a spreadsheet or a plot against an altimeter
               log — offered only for a real flight (a design with no resolved motor has none). */}
-          {run.hasPropulsion && r.trajectory.length > 0 && (
+          {logIntake && (
             <DownloadCsv rows={flightDataCsv(r, units)} name={doc.rocket.name} suffix="flight-data" label="Download flight data" />
           )}
         </>}
@@ -762,7 +793,26 @@ export default function ResultsView({
             Flight workspace 4.7 screens tall, and reading altitude against velocity meant
             scrolling between them. */}
         <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
+        {/* **The altitude card is a drop target, and the card is the right size of one.** This is the
+            app's SECOND file ingest and it had no drop path at all: the one gesture a flyer makes
+            with a file did nothing on the surface that shows the flight the file belongs to. It is
+            not a `DropZone` — that primitive is a `Card`, and this control lives in a toolbar row
+            inside a `Figure` inside a `Card`, so adopting it here is a card inside a card and a
+            repaint of the results toolbar, which is why `ROADMAP.md` split this out rather than doing
+            it. What was missing was the BEHAVIOUR, and `useFileDrop` is that behaviour extracted from
+            the primitive so the two cannot drift: the depth counting, the `Files`-only arming, and
+            the unconditional `dragover` cancel that stops a dragged link navigating the app away.
+            The picker stays the click affordance and the refusal stays where it already was —
+            in the same row, under the chart the file was dropped on. */}
+        <Card
+          // A hook, for the reason `DropZone` carries one: the e2e that drives a real `DataTransfer`
+          // has to NAME the container, and the alternative is a selector built from a sentence
+          // inside it. `scripts/check-selectors.mjs` explains which names are asserted as absences.
+          data-log-drop
+          tone={logIntake && logDrag.dragging ? "accent" : undefined}
+          className="transition"
+          {...(logIntake ? logDrag.handlers : {})}
+        >
           <Figure title={`Altitude (${units === "imperial" ? "ft" : "m"}) vs time`}>
           <LineChart
             series={logSeries ? [altSeries(r, units), logSeries] : [altSeries(r, units)]}
@@ -771,7 +821,7 @@ export default function ResultsView({
             yLabel={units === "imperial" ? "ft" : "m"}
             yZeroFloor
           />
-          {run.hasPropulsion && r.trajectory.length > 0 && (
+          {logIntake && (
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-zinc-500 dark:text-zinc-400">
               {/* Overlay a real altimeter log beside the prediction — the predict → fly → compare loop.
                   Parsed in the browser; the file is never uploaded. */}
@@ -785,8 +835,16 @@ export default function ResultsView({
                 {log ? "Replace flight log" : "Overlay a flight log"}
                 <input
                   type="file"
-                  accept=".csv,.txt,text/csv,text/plain"
-                  aria-label="Flight log CSV"
+                  // **`.tsv` too, because the parser takes tabs.** `lib/flightlog.ts` tries a comma
+                  // AND a tab delimiter, so a tab-separated export it reads perfectly well was
+                  // hidden by the OS dialog — an `accept` list narrower than the parser is a refusal
+                  // made by the file picker on the parser's behalf, and a wrong one.
+                  accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+                  // Not "Flight log CSV": the parser tries a tab delimiter as well as a comma, so the
+                  // control takes a `.tsv` too and its accessible name is the one place a screen
+                  // reader hears what it takes. Widening `accept` and leaving this saying CSV is the
+                  // same defect the widening fixed, one layer up.
+                  aria-label="Flight log file"
                   className="sr-only"
                   onChange={(e) => {
                     onLogFile(e.target.files?.[0]);
@@ -831,10 +889,18 @@ export default function ResultsView({
                   </Button>
                 </>
               )}
+              {/* **`role="alert"`, and the region is always in the DOM** — the same reasoning
+                  `DropZone` records: a live region has to be present before the text arrives for the
+                  change to be announced reliably, and inserting container and content together is a
+                  race the page usually loses. Without it a screen-reader user who drops an unreadable
+                  log gets the highlight disarming and silence, which reads as acceptance. */}
               {logError ? (
-                <span className="text-red-600 dark:text-red-400">{logError}</span>
+                <span role="alert" className="text-red-600 dark:text-red-400">{logError}</span>
               ) : !log ? (
-                <span>a CSV with time and altitude columns — its curve overlays here to check against.</span>
+                <span>
+                  Drop one on this chart, or choose it — a CSV or tab-separated export with time and
+                  altitude columns. Its curve overlays here to check against.
+                </span>
               ) : null}
             </div>
           )}
