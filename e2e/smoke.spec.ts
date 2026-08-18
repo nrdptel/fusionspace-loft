@@ -2858,6 +2858,113 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: /Add a tube behind this/ })).toBeEnabled();
   });
 
+  test("a part the design FIELDS made opens the fields that made it", async ({ page }) => {
+    // **R12 increment 25, and the other half of increment 24.** That increment stopped the add and
+    // remove controls lying about these three parts; a flyer standing on a boattail still had
+    // nothing they could do. `propertiesFor` resolved a picked id against `structureOf`'s tree, a
+    // synthesised part is not in it, and a null there means NO Properties control is drawn at all —
+    // so the diagram drew a Boattail, the table listed it, clicking it highlighted it, and the panel
+    // offered nothing. The two fields describing it were twenty fields down a wall the flyer had to
+    // know to scroll to.
+    //
+    // Only e2e can pin this, for the same reason the case above gives: `derivedPartAim` is correct in
+    // isolation either way, and what was wrong is which tree the panel asked.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+
+    const cones = table.locator("tr").filter({ has: page.locator('[data-kind="transition"]') });
+    await expect(cones, "the starter must arrive with no transition, or this proves nothing").toHaveCount(0);
+    await page.getByLabel(/Boattail length/).fill("60");
+    await page.getByLabel(/Boattail exit/).fill("30");
+    await expect(cones).toHaveCount(1);
+
+    await cones.first().click();
+    const trigger = page.getByRole("button", { name: "Properties", exact: true });
+    // **This assertion IS the capability.** Before `derivedPartAim`, picking the boattail offered no
+    // Properties control, so this is the line that goes red if the resolver stops speaking for it.
+    await expect(trigger, "a boattail the design fields made offered no way to edit it").toBeVisible();
+    await trigger.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    // Its OWN two fields, and only those. The wall carries twenty-odd more and a popover that opened
+    // them all would be the wall arriving in a smaller box, which is what `ON-7` objected to.
+    await expect(dialog.getByLabel(/Boattail length/), "the popover must hold the field that makes it").toBeVisible();
+    await expect(dialog.getByLabel(/Boattail exit/)).toBeVisible();
+    await expect(dialog.getByLabel(/Fin span/), "another part's fields must not come with it").toHaveCount(0);
+    await expect(dialog.getByLabel(/Body length/)).toHaveCount(0);
+    await expect(dialog.getByLabel(/Nose length/)).toHaveCount(0);
+
+    // And it EDITS: the number typed here reaches the same model the wall writes to, which is the
+    // whole point of aiming the existing fields rather than growing a second editor.
+    await dialog.getByLabel(/Boattail length/).fill("90");
+
+    // **The panel survives its own edit, and this is the case that could not pass before the
+    // resolver moved onto the structural tree.** `NumberField` fires per keystroke and `addBoattail`
+    // bails on a length of zero, so emptying the box removes the part — and while the aim was read
+    // off the FLOWN tree, `propertiesFor` returned null at that instant and this whole dialog
+    // unmounted with the caret still in it. The flyer's editor disappearing mid-word.
+    await dialog.getByLabel(/Boattail length/).fill("");
+    await expect(cones, "clearing the length must remove the part — or this case proves nothing").toHaveCount(0);
+    await expect(dialog, "the popover unmounted while the flyer was typing in it").toBeVisible();
+    await expect(dialog.getByLabel(/Boattail length/)).toBeVisible();
+    // ...and it is still live: typing a value back brings the part with it.
+    await dialog.getByLabel(/Boattail length/).fill("90");
+    await expect(cones).toHaveCount(1);
+
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByLabel(/Boattail length/).first()).toHaveValue("90");
+
+    // **The refusal on the same part now points at that control instead of away from it.** It used to
+    // end "Clear the field that creates it, or pick a part the design itself carries" — advice that
+    // sent a flyer standing on the boattail off to hunt the wall, past a Properties button directly
+    // above the sentence.
+    await expect(
+      page.getByRole("status").filter({ hasText: /Its own fields are under Properties/ }),
+      "the remove refusal must name the control that is now there",
+    ).toBeVisible();
+
+    // **A part the design itself carries is unaffected**, or the resolver would be opening the
+    // boattail's two fields on everything. This is the WEAKER of the two controls and is labelled so:
+    // `propertiesFor` only consults `derivedPartAim` when the structural lookup MISSES, and the nose
+    // cone never misses — so a resolver answering "boattail" for every id is not even reached here.
+    // The control that can catch that is `lib/model/edit.test.ts`'s, which asks `derivedPartAim`
+    // directly about every part of the structural tree. What this leg does catch is the wiring: that
+    // adding the fallback did not cost an ordinary part its own fields.
+    await table.getByText("Nose cone", { exact: true }).first().click();
+    const noseTrigger = page.getByRole("button", { name: "Properties", exact: true });
+    await expect(noseTrigger).toBeVisible();
+    await noseTrigger.click();
+    const noseDialog = page.getByRole("dialog");
+    await expect(noseDialog.getByLabel(/Nose length/), "the nose must still open its own fields").toBeVisible();
+    await expect(noseDialog.getByLabel(/Boattail length/), "the nose opened the boattail's fields").toHaveCount(0);
+
+    // **And the fieldset holding the boattail pair must not open EMPTY on some other part's panel.**
+    // Its gate is the one designDims key here that no aim blanks, so a first draft of this increment
+    // made "Nose & body" render — with every aimed child gone and the pair gated off — on seven of
+    // the ten property surfaces: a stray gap at the bottom of each. Counted on a panel that is not
+    // the nose's own, since the nose legitimately opens that group.
+    // Escape closes the popover; the nose stays picked, and clicking the fin row moves the pick —
+    // a second click on the nose here would TOGGLE it off rather than release it, which is what a
+    // first draft did and what the pre-push review caught.
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    const fins = table.locator("tr").filter({ has: page.locator('[data-kind="trapezoidfinset"]') });
+    await fins.first().click();
+    const finTrigger = page.getByRole("button", { name: "Properties", exact: true });
+    await expect(finTrigger).toBeVisible();
+    await finTrigger.click();
+    const finDialog = page.getByRole("dialog");
+    await expect(finDialog.getByLabel(/Fin span/), "the fin set must open its own fields").toBeVisible();
+    await expect(finDialog.locator("fieldset")).toHaveCount(1);
+  });
+
   test("a tube can be added behind the nose cone, which is where a build starts", async ({ page }) => {
     // **The gesture R12 is named for, refused on the first part a from-scratch build has.** "Add a
     // tube behind this" was gated on the pick being a body tube — in the panel and in the applier —

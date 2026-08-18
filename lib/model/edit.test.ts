@@ -28,6 +28,9 @@ import {
   FIN_MATERIALS,
   primaryNose,
   structureOf,
+  derivedPartAim,
+  derivedPartId,
+  DERIVED_PARTS,
   transitionDefaults,
   primaryTransition,
   primaryTransitionPart,
@@ -2726,6 +2729,201 @@ describe("a part the DIMENSION FIELDS made", () => {
     // A part the design DOES carry is unaffected, or the rule would have closed the editor.
     const tube = primaryBodyTube(flown)!;
     expect(addOptionsFor(flown, tube.id, addressable).some((o) => o.offered)).toBe(true);
+  });
+
+  it("is reachable from the part itself, on the one of the three that has a panel, by the fields that make it", async () => {
+    // **R12 increment 25.** Increment 24 stopped the add and remove controls lying about these three;
+    // this is the half that gives the flyer something instead. `propertiesFor` resolved a picked id
+    // against `structureOf`'s tree alone and these parts are not in it, so it returned null — and a
+    // null there means NO Properties control at all. A flyer could see a Boattail on the diagram,
+    // click it, and be offered nothing, on every design that sets one of the six fields.
+    //
+    // Driven on all three at once, because they are three synthesisers with one shape and increment
+    // 24's defect was that a rule applied to some of them and not the rest.
+    const doc = await load2(SINGLE2);
+    const edits = {
+      boattailLength: 0.06,
+      boattailAftDiameter: 0.02,
+      payloadMassKg: 0.12,
+      mainDeployAltitude: 150,
+      drogueDiameter: 0.25,
+    };
+    const flown = applyGeometryEdits(doc.rocket, edits);
+    const structural = structureOf(doc.rocket, edits);
+    const addressable = new Set(flattenRocket(structural).map((p) => p.component.id));
+
+    // Every part the flown tree carries that the structural one does not — the synthesised set, found
+    // by difference rather than by name, so a fourth one added later joins this case automatically
+    // instead of being silently exempt from it.
+    const synthesised = flattenRocket(flown).filter((p) => !addressable.has(p.component.id));
+    expect(synthesised.map((p) => p.component.name).sort()).toEqual(["Boattail", "Drogue", "Payload"]);
+
+    // **Every synthesised part is ADDRESSABLE — the registry accounts for all three.** Separate from
+    // the aim below, and it is the half that must never regress: a fourth synthesised part with no
+    // registry entry is the increment-24 defect returning, and it would show up here rather than in
+    // the aim loop, which only speaks for the parts that have a panel.
+    for (const p of synthesised) {
+      const entry = DERIVED_PARTS.find((d) => derivedPartId(
+        flattenRocket(flown).find((q) => q.component.id !== p.component.id &&
+          derivedPartId(q.component.id, d.suffix) === p.component.id)?.component.id ?? "",
+        d.suffix,
+      ) === p.component.id);
+      expect(entry, `${p.component.name} is synthesised and no DERIVED_PARTS entry mints its id`).toBeTruthy();
+    }
+
+    // **Exactly one of the three has a property surface today**, and the count is asserted rather
+    // than implied: increment 25 shipped the boattail and WITHDREW the drogue and the payload at its
+    // own pre-push review (see `DERIVED_PARTS`' docblock). A later increment turning one on moves
+    // this number, which is the point — it is the line that says how far the capability reaches.
+    const aimed = synthesised.filter((p) => derivedPartAim(flown, p.component.id) !== null);
+    expect(aimed.map((p) => p.component.name)).toEqual(["Boattail"]);
+
+    for (const p of aimed) {
+      const aim = derivedPartAim(flown, p.component.id);
+      expect(aim, `${p.component.name} resolves to no field group, so it gets no Properties panel`).toBeTruthy();
+      // **The group named has to be the group WITHOUT WHICH this part does not exist**, not merely a
+      // group — a resolver answering "boattail" for everything satisfies a truthiness check and then
+      // opens the wrong two fields. Asserted behaviourally rather than by comparing names: clearing
+      // exactly this aim's fields has to make exactly this part stop existing, and leave the other
+      // two standing.
+      //
+      // *Stated that way rather than as "the group that MAKES it", which is what a first draft said
+      // and is stronger than what this checks: the whole list is cleared at once, so an entry
+      // carrying a field that makes nothing on its own still passes. `payload` is exactly that case
+      // — `payloadStation` positions the bay and a station with no mass makes nothing — and the
+      // registry's own docblock says so.*
+      const entry = DERIVED_PARTS.find((e) => e.aim === aim)!;
+      const without: Record<string, unknown> = { ...edits };
+      for (const f of entry.fields) delete without[f];
+      const rebuilt = flattenRocket(applyGeometryEdits(doc.rocket, without as typeof edits));
+      expect(
+        rebuilt.some((q) => q.component.id === p.component.id),
+        `clearing ${entry.fields.join(" and ")} left ${p.component.name} standing, so that is not what makes it`,
+      ).toBe(false);
+      // ...and the other two survive it, or "clearing these fields removes this part" would be true
+      // of a bag that cleared everything.
+      for (const other of synthesised) {
+        if (other.component.id === p.component.id) continue;
+        expect(
+          rebuilt.some((q) => q.component.id === other.component.id),
+          `clearing the ${aim} fields also took ${other.component.name} away`,
+        ).toBe(true);
+      }
+    }
+
+    // A part with a `null` aim gets NO Properties control rather than one that opens on nothing —
+    // asserted directly, because "the popover is empty" and "there is no popover" look identical in
+    // a screenshot and are opposite outcomes. `propertiesFor` returns null on a null aim, and null
+    // there is what makes `GeometryInspector` draw no trigger at all.
+    for (const p of synthesised) {
+      if (aimed.includes(p)) continue;
+      expect(derivedPartAim(flown, p.component.id), `${p.component.name} must answer null, not an aim with no panel`).toBeNull();
+    }
+
+    // **The control, over EVERY part the design itself carries rather than one of them.** A resolver
+    // answering "boattail" for anything it is handed passes a single-part check by luck; it cannot
+    // pass this. `aimEditsAt` is what answers for these, and it still does.
+    for (const p of flattenRocket(structural)) {
+      expect(
+        derivedPartAim(flown, p.component.id),
+        `${p.component.name || p.component.kind} is a part the design carries and resolved to a derived aim`,
+      ).toBeNull();
+    }
+    const tube2 = primaryBodyTube(flown)!;
+    expect(Object.keys(aimEditsAt(structural, tube2.id))).toEqual(["bodyTubeId"]);
+
+    // And an id belonging to nothing answers null rather than throwing — the ordinary case for a
+    // moment after a removal, exactly as `addOptionsFor` documents for its own lookup.
+    expect(derivedPartAim(flown, "not-a-part")).toBeNull();
+  });
+
+  it("only promises a Properties panel on the part that has one", async () => {
+    // **The sentence has two arms and each is wrong on the other's part.** A boattail's refusal says
+    // "Its own fields are under Properties" and that is where they are; the drogue's and the
+    // payload's say the same thing over a part `GeometryInspector` draws NO trigger for, because
+    // `derivedPartAim` returns null and `propertiesFor` returns null with it. Advice pointing at a
+    // control that is not on screen is the same defect increment 24 fixed, pointing the other way —
+    // and the first draft of increment 25 shipped it. Caught by its own pre-push review.
+    const doc = await load2(SINGLE2);
+    const edits = {
+      boattailLength: 0.06,
+      boattailAftDiameter: 0.02,
+      payloadMassKg: 0.12,
+      mainDeployAltitude: 150,
+      drogueDiameter: 0.25,
+    };
+    const flown = applyGeometryEdits(doc.rocket, edits);
+    const structural = structureOf(doc.rocket, edits);
+    const addressable = new Set(flattenRocket(structural).map((p) => p.component.id));
+    const synthesised = flattenRocket(flown).filter((p) => !addressable.has(p.component.id));
+
+    for (const p of synthesised) {
+      const name = p.component.name;
+      const hasPanel = derivedPartAim(structural, p.component.id) !== null;
+      const [seen] = addOptionsFor(flown, p.component.id, addressable);
+      // Both arms name the part and both refuse all three gestures — that half does not vary.
+      expect(seen.reason).toContain(name);
+      expect(seen.reason).toContain("attached to it, taken off it, or moved here");
+      if (hasPanel) {
+        expect(seen.reason, `${name} has a panel and its refusal does not send the flyer to it`).toContain("under Properties");
+      } else {
+        expect(seen.reason, `${name} has NO panel and its refusal points at one`).not.toContain("under Properties");
+        expect(seen.reason).toContain("Clear the field that creates it");
+      }
+    }
+    // ...and the two arms are both exercised, or this case proves only one of them.
+    const arms = new Set(synthesised.map((p) => derivedPartAim(structural, p.component.id) !== null));
+    expect(arms.size, "every synthesised part fell on the same arm — this case tested one branch").toBe(2);
+  });
+
+  it("names an aim the editor actually has a fieldset for", () => {
+    // **The registry and the JSX are two files, and nothing else holds them together.** The aim is a
+    // plain string: `DERIVED_PARTS`' `aim` feeds `AIM_FIELDS`, and the fieldsets that render the
+    // group are gated by hand-written `only === "<aim>"` comparisons in `components/LoftApp.tsx`.
+    // Rename the registry entry and every assertion in this file still passes — `derivedPartAim`
+    // returns the new spelling, the test looks the entry back up by it, and the popover opens empty
+    // on the one part this milestone exists to give a panel to. Asserted against the source text
+    // because that is where the other half of the pair lives; there is nowhere else to read it from.
+    const src = readFileSync(resolve(process.cwd(), "components", "LoftApp.tsx"), "utf8");
+    const aims = DERIVED_PARTS.map((d) => d.aim).filter((a): a is string => a !== null);
+    expect(aims.length, "no derived part has a panel — this case would prove nothing").toBeGreaterThan(0);
+    for (const aim of aims) {
+      expect(
+        src.includes(`only === "${aim}"`),
+        `DERIVED_PARTS names the aim "${aim}" and no fieldset in LoftApp.tsx is gated on it`,
+      ).toBe(true);
+    }
+    // And the reverse, so a gate cannot outlive the entry that justified it: every `only === "x"` in
+    // that file has to be an AIM_SLOTS key, "nose", or a registry aim. A stale gate is dead JSX that
+    // reads as a live capability to whoever finds it next.
+    const gated = [...src.matchAll(/only === "([a-zA-Z]+)"/g)].map((m) => m[1]);
+    const known = new Set([...Object.keys(AIM_SLOTS), "nose", ...aims]);
+    for (const g of new Set(gated)) {
+      expect(known.has(g), `LoftApp.tsx gates a fieldset on only === "${g}", which is nobody's aim`).toBe(true);
+    }
+  });
+
+  it("keeps the id a synthesised part is addressed by identical to the one it is built with", async () => {
+    // The spelling used to be written out at all three synthesis sites and nowhere else, so a
+    // resolver had to restate it a fourth time. `derivedPartId` is the one spelling now; this asserts
+    // the two directions still meet, which is the only thing standing between a picked boattail and
+    // a popover that opens on nothing.
+    const doc = await load2(SINGLE2);
+    const edits = { boattailLength: 0.06, boattailAftDiameter: 0.02 };
+    const flown = applyGeometryEdits(doc.rocket, edits);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const built = flattenRocket(flown).find((p) => p.component.name === "Boattail")!;
+    expect(built.component.id).toBe(derivedPartId(tube.id, "boattail"));
+    // **The round trip, which is the half the line above cannot pin.** `addBoattail` now calls the
+    // same `derivedPartId` with the same literal, so a changed suffix or a changed hash moves both
+    // sides of that equality together and it stays green — all it really asserts is that the host is
+    // the aft-most tube. Asking the RESOLVER instead closes the loop the popover actually walks.
+    expect(derivedPartAim(flown, built.component.id)).toBe("boattail");
+    expect(derivedPartAim(structureOf(doc.rocket, edits), built.component.id)).toBe("boattail");
+    // UUID-shaped, because `lib/ork/export.ts` rewrites anything else on the way out and a design
+    // built here is persisted as its own exported bytes — so a non-UUID id changes on every save and
+    // the selection, the aim and the undo naming this part all stop resolving after a reload.
+    expect(built.component.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   });
 });
 

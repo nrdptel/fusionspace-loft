@@ -2250,13 +2250,10 @@ function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket 
   const tube = aftmostBodyTube(rocket);
   if (!tube || !(length > 0) || !(aftRadius > 0) || !(aftRadius < tube.outerRadius)) return rocket;
   const boattail: Transition = {
-    // UUID-shaped, and derived from the host so it is stable across rebuilds of the same edit bag.
-    // A plain `${tube.id}-boattail` was both: stable, and NOT a UUID — and `lib/ork/export.ts` hashes
-    // any non-UUID id into one on the way out, so all three of the flat structural adds changed
-    // identity every time the design was saved. A design built here is persisted as its own exported
-    // bytes, so that is not an export-only detail: a selection, an aim or an undo naming one of these
-    // parts stopped resolving after a reload.
-    id: uuidFrom(`${tube.id}-boattail`),
+    // `derivedPartId` rather than the spelling inline: the same rule was written out at all three
+    // synthesis sites, and a property surface that has to ADDRESS one of these parts is a fourth
+    // caller. Its docblock carries why the id is UUID-shaped and why it is derived from the host.
+    id: derivedPartId(tube.id, "boattail"),
     name: "Boattail",
     kind: "transition",
     placement: { method: "after", offset: 0 },
@@ -2970,13 +2967,10 @@ function addPayloadMass(
   // Keep the mass inside the tube (an offset from its fore edge, within its length).
   const offset = Math.max(0, Math.min(placed.length, target - placed.xFore));
   const payload: MassComponent = {
-    // UUID-shaped, and derived from the host so it is stable across rebuilds of the same edit bag.
-    // A plain `${tube.id}-boattail` was both: stable, and NOT a UUID — and `lib/ork/export.ts` hashes
-    // any non-UUID id into one on the way out, so all three of the flat structural adds changed
-    // identity every time the design was saved. A design built here is persisted as its own exported
-    // bytes, so that is not an export-only detail: a selection, an aim or an undo naming one of these
-    // parts stopped resolving after a reload.
-    id: uuidFrom(`${tube.id}-payload`),
+    // `derivedPartId` rather than the spelling inline: the same rule was written out at all three
+    // synthesis sites, and a property surface that has to ADDRESS one of these parts is a fourth
+    // caller. Its docblock carries why the id is UUID-shaped and why it is derived from the host.
+    id: derivedPartId(tube.id, "payload"),
     name: "Payload",
     kind: "masscomponent",
     placement: { method: "top", offset },
@@ -3046,13 +3040,10 @@ function applyDualDeploy(
   // Canopy mass scales with area (≈ diameter²), so a smaller drogue is proportionally lighter.
   const drogueMass = main.mass * Math.min(1, (drogueDiameter / main.diameter) ** 2);
   const drogue: Parachute = {
-    // UUID-shaped, and derived from the host so it is stable across rebuilds of the same edit bag.
-    // A plain `${tube.id}-boattail` was both: stable, and NOT a UUID — and `lib/ork/export.ts` hashes
-    // any non-UUID id into one on the way out, so all three of the flat structural adds changed
-    // identity every time the design was saved. A design built here is persisted as its own exported
-    // bytes, so that is not an export-only detail: a selection, an aim or an undo naming one of these
-    // parts stopped resolving after a reload.
-    id: uuidFrom(`${main.id}-drogue`),
+    // `derivedPartId` rather than the spelling inline: the same rule was written out at all three
+    // synthesis sites, and a property surface that has to ADDRESS one of these parts is a fourth
+    // caller. Its docblock carries why the id is UUID-shaped and why it is derived from the host.
+    id: derivedPartId(main.id, "drogue"),
     name: "Drogue",
     kind: "parachute",
     placement: { ...main.placement },
@@ -3611,6 +3602,96 @@ export interface AddOption {
   reason?: string;
 }
 
+/** The three parts the DIMENSION FIELDS make, and the fields that describe each one — ONE registry,
+ *  for the reason `AIM_SLOTS` is one registry.
+ *
+ *  A boattail, a drogue and a payload bay are synthesised by `applyDimensionEdits` after
+ *  `structureOf` has run, so they are drawn on the diagram and listed in the parts table while being
+ *  absent from every tree the structural appliers resolve an id against. Increment 24 stopped the add
+ *  and the remove controls lying about them. This is the other half: which FIELDS describe each one,
+ *  so a flyer who picks a boattail can edit it AS a part instead of hunting the wall below for the
+ *  pair that made it.
+ *
+ *  **The id spelling lives here and nowhere else.** All three synthesisers wrote
+ *  ``uuidFrom(`${host.id}-<suffix>`)`` inline — three copies of one rule — and a resolver re-spelling
+ *  it would have been a fourth. That is the shape `canAddInside` already records: a rule in three
+ *  places is how a gap survives in two of them. `derivedPartId` is the one spelling, the synthesisers
+ *  call it, and so does `derivedPartAim`, so a fourth synthesised part cannot be made by one rule and
+ *  addressed by another.
+ *
+ *  **What each pair does is not the same in all three, and the lists are "what DESCRIBES this part"
+ *  rather than "what makes it".** The boattail needs both of its fields positive before `addBoattail`
+ *  runs and the drogue needs both of its before `applyDualDeploy` does, so on those two the list is
+ *  both things at once. A payload bay exists because `payloadMassKg` is set — `payloadStation` only
+ *  says where it sits, and a station typed with no mass makes nothing.
+ *
+ *  `lib/model/edit.test.ts` asserts the "makes" half behaviourally rather than from these names —
+ *  clearing an entry's fields has to take that part away and leave the other two standing — because
+ *  a list that merely LABELS the groups can be right about the words and wrong about the wiring.
+ *
+ *  **`aim` is null on two of the three, and that is a scope line rather than an omission.** Only the
+ *  boattail has a property surface today. The other two were written, driven and WITHDRAWN by
+ *  increment 25's own pre-push review, and each failed for its own reason:
+ *
+ *  - **The drogue's group cannot simply be opened.** Its two fields live in the recovery fieldset
+ *    beside the main canopy's `Cd` and mass, and those two render on `designDims.mainParachuteCd` /
+ *    `mainParachuteMass` — metadata keys belonging to NO aim, so the per-aim mask in
+ *    `components/LoftApp.tsx` never blanks them. A drogue panel would have carried the MAIN chute's
+ *    coefficient, its mass and its provenance line, and typing in that Cd calls `withParachuteCd`,
+ *    which resolves through `edits.parachuteId` — a different part from the one the panel is headed
+ *    with. Editing the wrong component is a worse outcome than not offering the edit.
+ *  - **And `drogueDiameter` on a per-part surface was already decided against, with a reason.** The
+ *    comment above the deploy-altitude field records it: on a design with one canopy that field
+ *    AUTHORS a second one, which is a change to the recovery system rather than a property of the
+ *    part in hand. The synthesised drogue is arguably the case that reason does not cover — you are
+ *    holding the canopy the field made — but overturning a recorded decision silently, inside an
+ *    increment about something else, is how a file comes to argue with itself.
+ *  - **The payload's group has the same shape of question** against the aimed mass-object fields and
+ *    the `massCarriedBy` hints, and it was not driven far enough to answer it.
+ *
+ *  Both are queued as R12 increment 26 in `ROADMAP.md`, which starts by making the mask blank by
+ *  allowlist instead of by subtraction — the defect above is the subtraction reaching one key short. */
+export const DERIVED_PARTS = [
+  { suffix: "boattail", aim: "boattail", name: "Boattail", fields: ["boattailLength", "boattailAftDiameter"] },
+  { suffix: "drogue", aim: null, name: "Drogue", fields: ["mainDeployAltitude", "drogueDiameter"] },
+  { suffix: "payload", aim: null, name: "Payload", fields: ["payloadMassKg", "payloadStation"] },
+] as const;
+
+/** Which group of fields a synthesised part opens as its properties. `null` means the part is
+ *  synthesised and addressable but has NO property surface yet — see the docblock above. */
+export type DerivedPartAim = NonNullable<(typeof DERIVED_PARTS)[number]["aim"]>;
+
+/** The id a synthesised part takes, derived from its host so it is stable across rebuilds of the same
+ *  edit bag. UUID-shaped deliberately: `lib/ork/export.ts` hashes any non-UUID id into one on the way
+ *  out, so a plain `${host.id}-boattail` changed identity every time the design was saved, and a
+ *  selection, an aim or an undo naming one of these parts stopped resolving after a reload. */
+export function derivedPartId(hostId: string, suffix: (typeof DERIVED_PARTS)[number]["suffix"]): string {
+  return uuidFrom(`${hostId}-${suffix}`);
+}
+
+/** Which group of dimension fields made this part, or null when the design itself carries it.
+ *
+ *  Asked of the FLOWN tree — the one the diagram draws — because that is the only tree these three
+ *  are in. It re-derives each candidate id from every part present rather than reading a marker off
+ *  the component, and that is deliberate: a marker would have to survive an export and a re-import,
+ *  and these parts are re-made from the edit bag on every rebuild, so the id is the only thing about
+ *  them that is stable by construction. */
+export function derivedPartAim(rocket: Rocket, id: string): DerivedPartAim | null {
+  for (const { component } of flattenRocket(rocket)) {
+    // A part is never its own host. Skipped rather than relied on: `uuidFrom` is a hash, and a
+    // self-match would be a collision rather than a derivation.
+    if (component.id === id) continue;
+    for (const entry of DERIVED_PARTS) {
+      // A `null` aim answers null, exactly as an unsynthesised part does, and that is the point of
+      // the field being nullable: a caller cannot get an aim string for a group with no panel behind
+      // it, so the worst outcome for the drogue and the payload stays "no Properties control" rather
+      // than becoming "a Properties control that opens on nothing".
+      if (derivedPartId(component.id, entry.suffix) === id) return entry.aim;
+    }
+  }
+  return null;
+}
+
 /** Every add gesture, with a verdict, for one part. **The single home of a rule that was written in
  *  three layers.**
  *
@@ -3636,9 +3717,31 @@ export interface AddOption {
  *  The add row silently did nothing; the remove control said *"That part is no longer in this
  *  design"* — a sentence the flyer can see is false, because the diagram is drawing it. Neither
  *  named the actual reason, which is that the part has no entry of its own to take away: what makes
- *  it is a field, so what unmakes it is clearing that field. */
-export function derivedPartRefusal(name: string): string {
-  return `${name} is made by the design fields rather than added as a part, so the editor cannot change it here. Clear the field that creates it, or pick a part the design itself carries.`;
+ *  it is a field, so what unmakes it is clearing that field.
+ *
+ *  **Amended once the fields became reachable from the part, and it takes a second argument for
+ *  exactly that reason.** The first version ended *"Clear the field that creates it, or pick a part
+ *  the design itself carries"*, which was true of the tree and wrong about the app the moment
+ *  `derivedPartAim` gave the BOATTAIL a Properties panel: it sent a flyer standing on the cone away
+ *  to hunt a wall of twenty fields for the pair that made it, past a control sitting directly above
+ *  this sentence that opens exactly those two.
+ *
+ *  **But only the boattail has that panel**, and a sentence promising one on the drogue and the
+ *  payload — where `derivedPartAim` returns null and `GeometryInspector` therefore draws no trigger
+ *  at all — would be the same defect in the other direction: advice pointing at a control that is not
+ *  on screen. Caught by this increment's own pre-push review, after the first fix. So the caller says
+ *  which case it is, from `derivedPartAim`, rather than this function guessing from a name.
+ *
+ *  **What is refused is enumerated, and MOVE is in the list.** "The editor cannot change it here" was
+ *  vaguer and, once the fields became editable, false. The enumeration is three gestures rather than
+ *  two because the move controls vanish on these parts with no sentence at all — `moveTarget` resolves
+ *  against the structural tree like everything else — so listing only "attached" and "taken off" left
+ *  the third neither offered nor explained. */
+export function derivedPartRefusal(name: string, hasPanel: boolean): string {
+  const refused = `${name} is made by the design fields rather than added as a part, so nothing can be attached to it, taken off it, or moved here.`;
+  return hasPanel
+    ? `${refused} Its own fields are under Properties — clearing them is what removes it.`
+    : `${refused} Clear the field that creates it, or pick a part the design itself carries.`;
 }
 
 export function addOptionsFor(rocket: Rocket, hostId: string, addressable?: ReadonlySet<string>): AddOption[] {
@@ -3662,7 +3765,9 @@ export function addOptionsFor(rocket: Rocket, hostId: string, addressable?: Read
   // is gone — the diagram is drawing it, so "no longer in this design" would be a sentence the flyer
   // can see is false, and it is what `removalRefusal` says today for the same three (filed).
   if (addressable && !addressable.has(hostId)) {
-    const reason = derivedPartRefusal(host.name || "This part");
+    // `derivedPartAim` decides which half of the sentence this part gets — the advice has to name a
+    // control that is actually drawn, and only the parts with a non-null aim get one.
+    const reason = derivedPartRefusal(host.name || "This part", derivedPartAim(rocket, hostId) !== null);
     return ADD_KINDS.map((kind) => ({ kind, offered: false, reason }));
   }
 

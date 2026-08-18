@@ -1,8 +1,14 @@
 # Third-party notices
 
-Loft is MIT licensed (see `LICENSE`). It bundles two datasets it did not author, so that the tool
-resolves real parts and real motors offline with no network call. Both are listed here with the
-terms they arrive under, what was changed, and where the originals came from.
+Loft is MIT licensed (see `LICENSE`). It ships three sets of things it did not author: two datasets,
+so the tool resolves real parts and real motors offline with no network call, and the Python runtime
+that carries its second solver. All three are listed here with the terms they arrive under, what was
+changed, and where the originals came from.
+
+*The third set was absent from this file until 2026-08-18, and §3 records how — it is assembled at
+build time from a lock file rather than declared in `package.json`, so a reader of the manifest could
+not have found it. `scripts/check-notices.mjs` now fails the build rather than leaving that to a
+reader.*
 
 This file is the notice required by those terms. It is also the honest record of what is *not*
 cleanly licensed, because a bundle that lists only its well-licensed half is worse than no list.
@@ -140,10 +146,106 @@ reproduce it: a single explicit Apache-2.0 grant covers every one of its 3,445 p
 
 ---
 
-## 3. Not bundled, and why
+## 3. The in-browser second solver, and every byte it ships
 
-- **RocketPy** is used as an external cross-check oracle. It is not vendored into the bundle and is
-  not a runtime dependency of the shipped application.
+**This section exists because the sentence below it was false for as long as the second solver has
+shipped.** §4 said, in as many words, that RocketPy *"is not vendored into the bundle and is not a
+runtime dependency of the shipped application"*. Measured on a clean build, 2026-08-18:
+`out/pyodide/` is **41 MB** and carries `rocketpy-1.12.1-py3-none-any.whl` (415,563 bytes), which
+`public/pyodide/fly.py` imports in the browser worker. The one explicit negative claim in this file
+was contradicted by the deployed bytes, and nothing in the repo could say so.
+
+**The cause is structural, and it is worth stating so the next reader trusts the list below.** This
+file was written against `package.json`, whose dependency set is small and MIT throughout. The
+payload here is a SECOND dependency set, assembled at build time by `scripts/pyodide/vendor.mjs`
+(`prebuild`) from Pyodide's own pinned lock file plus PyPI — so it is invisible to anyone reading
+`package.json`, and bumping `PYODIDE_VERSION` or one entry in `DIST_ROOTS` pulls a different closure
+with different licences and nothing to notice. `scripts/check-notices.mjs` now fails the build when a
+shipped wheel, or a licence a shipped wheel carries, is named nowhere here — and when this file
+claims something is not bundled while the build ships it.
+
+**Why it ships at all.** Loft's second solver is RocketPy, run as an independent cross-check beside
+Loft's own answer. The CLIENT-SIDE invariant forbids a server, so there is nowhere to run it except
+the flyer's browser, which means the interpreter and the library are served from Loft's origin. Its
+results are always presented as *another tool's prediction*, never merged into Loft's own — that is
+the whole point of a cross-check. **Whether this is compatible with the clean-room invariant's
+"never vendored into the bundle" clause is an owner-level question**, and it is parked in
+`OWNER-NOTES.md` under *Awaiting the owner* rather than settled here. What this section fixes is
+narrower and is not in doubt: what ships, under what terms, said out loud.
+
+### The runtime
+
+| artifact | version | terms |
+|---|---|---|
+| Pyodide (`pyodide.mjs`, `pyodide.asm.mjs`, `pyodide.asm.wasm`, `python_stdlib.zip`, `pyodide-lock.json`) | 314.0.2 | MPL-2.0 |
+
+`python_stdlib.zip` is CPython's standard library, under the **Python Software Foundation License**.
+Pyodide is redistributed unmodified, from the pinned CDN, byte for byte.
+
+### The wheels
+
+Twenty-three, every one redistributed **unmodified** as the `.whl` the index published. None is
+linked into Loft's own code: they are separate files fetched by a Python interpreter at runtime.
+
+| wheel | version | terms |
+|---|---|---|
+| `certifi` | 2026.4.22 | Mozilla Public License 2.0 (MPL 2.0) |
+| `cftime` | 1.6.5 | MIT |
+| `charset-normalizer` | 3.4.7 | MIT |
+| `contourpy` | 1.3.3 | BSD License |
+| `cycler` | 0.12.1 | BSD License |
+| `dill` | 0.4.1 | BSD License |
+| `fonttools` | 4.62.1 | MIT |
+| `idna` | 3.11 | BSD-3-Clause |
+| `kiwisolver` | 1.5.0 | BSD License |
+| `matplotlib` | 3.10.8 | Python Software Foundation License |
+| `micropip` | 0.11.1 | Mozilla Public License 2.0 (MPL 2.0) |
+| `numpy` | 2.4.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 |
+| `packaging` | 26.1 | Apache-2.0 OR BSD-2-Clause |
+| `pillow` | 12.2.0 | MIT-CMU |
+| `pyparsing` | 3.3.2 | MIT |
+| `python-dateutil` | 2.9.0.post0 | BSD License |
+| `pytz` | 2026.1.post1 | MIT License |
+| `requests` | 2.33.1 | Apache Software License |
+| `rocketpy` | 1.12.1 | MIT License |
+| `scipy` | 1.18.0 | BSD License |
+| `simplekml` | 1.3.6 | GNU Lesser General Public License v3 or later (LGPLv3+) |
+| `six` | 1.17.0 | MIT License |
+| `urllib3` | 2.6.3 | MIT |
+
+**`simplekml` is LGPLv3-or-later, and it is the only copyleft item Loft distributes.** It is here
+because it is a hard import-time dependency of RocketPy, not a choice:
+`rocketpy/__init__.py` reaches `rocketpy/simulation/flight_data_exporter.py`, which does
+`import simplekml` at module top, so `from rocketpy import Flight` fails without it. Loft uses none
+of what it provides — nothing in the app exports KML.
+
+The LGPL's redistribution conditions are met by the shape this already takes, and both halves are
+stated because a licence satisfied by accident is one a refactor breaks:
+
+- **It is conveyed unmodified, as a separate work.** The wheel is byte-identical to the one built
+  from the published sdist; Loft neither patches it nor links it. LGPLv3 §4's combined-work
+  conditions do not attach — this is §5's *"a work that uses the Library"* distributed alongside it,
+  and the library is replaceable by dropping a different wheel into `public/pyodide/`.
+- **Notice is given here, and the source is available.** The project and its complete corresponding
+  source are at <https://pypi.org/project/simplekml/> and
+  <https://github.com/eisoldt/simplekml>; the licence text is at
+  <https://www.gnu.org/licenses/lgpl-3.0.html>. Loft is MIT and stays MIT: no LGPL code is copied
+  into it, and its own terms are unaffected.
+
+*It is a committed pre-built wheel (`scripts/pyodide/wheels/`) rather than a fetched one because PyPI
+ships simplekml as an sdist only — building it would put Python and pip in the production build
+image. That is a build-reproducibility decision and changes nothing about the terms.*
+
+---
+
+## 4. Not bundled, and why
+
+*RocketPy used to head this list, with a sentence saying it was neither vendored nor a runtime
+dependency. It is both, it always was, and §3 above is now the record of what actually ships. The
+entry is gone from here rather than corrected in place because a section headed "Not bundled" cannot
+carry an exception to its own heading — `scripts/check-notices.mjs` fails the build if this list ever
+names something the export contains again, which is the check that would have caught the original.*
+
 - **OpenRocket** itself — its solver, its material database, and the `.orc` files inside its GPLv3
   application tree — is not used. Every method Loft implements is written from published sources
   and cited on `/docs/methods`.

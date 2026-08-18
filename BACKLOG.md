@@ -12,6 +12,133 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-18 from run 20's opening fan-out — reproduced by the lead where marked, ranked by
+damage. The four marked SEV-1-CLASS are wrong or unlabelled numbers on surfaces a flyer acts on and
+are the next preemptions, not queue items.**
+
+- **SEV-1-CLASS · `components/LoftApp.tsx:3302` — "Fin position" has `min={0} positive` and NO `max`,
+  on the field a flyer sizes fins against.** Type 1030 mm on the 950 mm `demo-single-deploy` and the
+  Flight card restates CG, CP and static margin from a fin set hanging 80 mm behind the tail. Its own
+  contract (`LoftApp.tsx:4740`) says min/max are "the range in which the value means something
+  physically". Rail angle two hundred lines away carries `max={45}` and a reason; this carries neither
+  a bound nor a `hint`. `finRootChord` (`:3275`) is the same shape. **The rule exists in two other
+  places and disagrees with itself:** the diagram's own grip clamps (`RocketDiagram.tsx:631`,
+  `rootHi = max(rootChordNow, o.length − rootLeStation)`, comment "keep the root on the airframe") and
+  the sweep panel clamps (`ParameterSweep.tsx:204`) — the applier, which is the one place that would
+  make all three agree, clamps nothing (`lib/model/edit.ts:1831`, `rootChord: root ?? c.rootChord`).
+- **SEV-1-CLASS · `components/ParameterSweep.tsx:164` — the fin-position clamp is measured on the
+  wrong rocket.** `axisBase = structureOf(doc.rocket, geometry)` and `structureOf` deliberately drops
+  every DIMENSION edit, so `airframeLen` (`:199`) and `finChord` (`:197`) are the PRISTINE values while
+  `:326` flies `baseGeometry: geometry` WITH them. Shorten Body length 200 mm on `/design`, open Fin
+  position on `/sweep`: every point past the new tail is flown. The clamp is correct arithmetic on a
+  rocket that is not the one being swept, which is why two agents disagreed about whether it exists.
+- **SEV-1-CLASS · `components/MonteCarlo.tsx:451` + `lib/sim/montecarlo.ts:283` — the rail-angle 1σ
+  field has no `max` and its sampler has no cap.** It is the ONLY one of the six dispersions without
+  one: impulse (`:277`), mass (`:280`), wind (`:284`), drag (`:287`) and recovery (`:290`) all clamp,
+  line 283 is `Math.abs(nomAngle + gAngle * σ)` and clamps nothing. Nominal 45° — the bound
+  `LoftApp.tsx:4620` enforces with *"past that the rocket is being thrown rather than launched"* —
+  plus σ=10 puts ~6.7% of draws past 60°, and σ=20 puts draws past 90°, i.e. below horizontal, with
+  `Math.abs` folding them back rather than refusing them. Those samples reach the drift radius, the
+  landing-scatter plot and the waiver exceedance percentage.
+- **SEV-1-CLASS · `lib/rasaero/adapt.ts:200,236,264,291` — every RASAero body part is placed
+  `{after, offset: 0}` and a part's own `<Location>` is never read.** One `"Location"` read in the
+  whole 738-line adapter (`:106`, the fin's offset within its parent). Measured through the importer:
+  `Show-off.CDX1` 567.4 mm = 22.34 in against the file's 20.00 in (**+11.7%**),
+  `Complex.Two-Stage.CDX1` 72.00 in against 63.00 in (**+14.3%**); the other two are 0.0%. **The two
+  errors decompose exactly**, which is what makes this actionable rather than a hypothesis:
+  Show-off's 2.34 in is its FinCan's own length (a SLEEVE at station 8 that Loft appends instead of
+  overlaying), and Two-Stage's 9.00 in is 64.00 − 55.00, the booster's appended fore station minus its
+  stated `<Location>`. The `<Location>` chain resolves exactly across all four files, 20 parts, zero
+  mismatches, so it is unambiguously the absolute station aft of the nose tip in inches.
+  `lib/model/geometry.ts:102` already implements `case "absolute": return offset;` and this same
+  adapter already uses it for mass objects (`:641`, `:691`) — the fix is a placement method, not a
+  model change. **What is unsolved and must be settled first:** a sleeve that OVERLAYS a tube is not
+  the same as a part that follows it, so placing by `Location` alone turns an append into an overlap
+  the geometry has no vocabulary for.
+- **`lib/sim/withheld.ts:118` — `noCpWhy` builds its hull from the CONTRIBUTIONS' own stations**
+  (`lo`/`hi` = min/max of `c.x`), never from `overallLength(rocket)` — so a part dragged off the
+  airframe WIDENS the hull and the guard can never fire for the part that left. It is the one
+  mechanism Loft has for refusing a meaningless margin, and it is blind to exactly the case it looks
+  like it covers. Note the counter-argument recorded in `ROADMAP.md`: the hull IS the correct test for
+  what that function claims to test (a weighted average with non-negative weights cannot leave the
+  interval it averages over), so the fix is bounding the geometry, not widening this guard.
+- **`components/ResultsView.tsx:1232` — the Cross-check workspace's "nothing stored to compare"
+  notice is gated `doc.simulations.length > 0`, and `lib/model/starter.ts:160` ships
+  `simulations: []`.** So **Start a new design** — a primary button on the front door — lands on a
+  Cross-check that says nothing at all, and `lib/validation/stored-status.ts:53` returns `null` for
+  n=0 so no branch can fire. The route's own description promises the comparison
+  (`lib/workspaces.ts:66`). The comment two lines up (`:1227`) exists to prevent this exact case.
+- **`components/LoftApp.tsx:1720` vs `:853` — "Pick it back up" silently returns less than the
+  discard destroyed.** `reset()` clears the dispersion and the cross-check; `onRestoreDiscarded`
+  restores design, edits, units and workspace and not those two. A 300-flight Monte-Carlo and a 40 MB
+  RocketPy run are gone with no sentence saying so. One-way door.
+- **`lib/model/edit.ts` — the boattail popover's own advice destroys the surface mid-gesture, and
+  focus lands on `<body>`.** Increment 25 keeps the popover mounted (the aim resolves off the
+  structural tree) so the editor survives; what is NOT fixed is that clearing the field genuinely
+  removes the part, the parts-table row under the flyer disappears, and nothing moves focus. Same
+  shape for any removal, so it is a general a11y gap rather than this increment's.
+- **`components/GeometryInspector.tsx:1021` — the move controls VANISH on a field-made part with no
+  sentence**, while the add row and Remove both print `derivedPartRefusal`. Increment 25's refusal now
+  enumerates "attached to it, taken off it, or moved here", so the words are right; the control is
+  still absent rather than dimmed-with-a-reason, which is the posture `COMPETITION.md` row 50 scores
+  Loft BETTER for.
+- **`components/GeometryInspector.tsx:1255` — "Add a motor mount to this tube" has no refusal
+  branch at all.** `mount` is not in `ADD_KINDS` (`lib/model/edit.ts`), so `addOptionsFor` never
+  speaks for it: pick a nose cone and you get six dimmed add buttons WITH reasons and nothing at all
+  about a mount. §5's empty-state rule honoured on 6 of 7 gestures.
+- **`lib/ork/export.ts:700` — a saved `.ork` writes boattail/drogue/payload as ordinary components,
+  so a round trip flips the claim.** Download with a boattail set, re-import, pick it: the same part
+  is now removable and `derivedPartRefusal` never fires. One part, opposite claims, across one save.
+- **`app/docs/limitations/page.tsx:531` — a confident FALSE caveat on the limits page.** It says
+  nothing can be *reordered* "yet … that is the next step for the in-app editor"; `CHANGELOG.md:26`
+  shipped reorder and `GeometryInspector.tsx:1021` draws the control.
+- **`components/LineChart.tsx:180` — all four flight plots are `role="img"` static SVG.**
+  `grep -n "onMouseMove\|hover\|tooltip\|focus"` returns **0 matches**: no crosshair, no hover
+  readout, no focusable points, so a value at a point is unreadable off every curve. Every benchmarked
+  alternative has one; the only escape here is the CSV download.
+- **`app/globals.css:327` — 110 lines of print CSS producing an RSO range card, and ZERO print call
+  sites.** `grep -rn "print()" --include=*.tsx` is empty. A feature reachable only by knowing the
+  browser has Ctrl+P.
+- **`components/ResultsView.tsx:788` — the flight-log `accept` is narrower than the parser.**
+  `.csv,.txt,text/csv,text/plain` while `lib/flightlog.ts:80` splits on tabs too, so a `.tsv` the
+  parser handles is hidden by the OS dialog. And `lib/flightlog.ts:98` tries exactly two delimiters
+  with `Number()` parsing, so a semicolon or decimal-comma export yields zero finite rows.
+- **`e2e/docs.spec.ts:39` — "every docs page is readable offline" fails under in-shard parallelism
+  and passes 5 of 5 in isolation** (3.6–4.1 s each), with `net::ERR_INTERNET_DISCONNECTED` on the
+  first offline `/docs` navigation — i.e. the service worker did not intercept at all. **Raising the
+  shard count does not fix it**: it failed in shard 1 at four shards AND at five, so it is not the
+  class `MAINTAINING.md` documents. CI is unaffected because `playwright.config.ts:24` sets
+  `workers: 1` there. The lever is workers, not shards, and the durable fix is either a warm-up that
+  pins the worker before `setOffline`, or a documented local worker cap.
+- **`components/ui.tsx:63` — `CARD_TONES.muted` is a FOURTH container treatment** against §2's
+  "three levels, no more"; the word `muted` appears in `DESIGN.md` only at §5's DropZone entry, citing
+  a §2 role that does not exist. Declare it in §2 or fold it into `sunken` plus the dashed edge.
+- **Five hand-rolled spinners, byte-identical** — `ParameterSweep.tsx:450`, `MotorSweep.tsx:236`,
+  `MonteCarlo.tsx:487` and `:521`, `RocketpyCrossCheck.tsx:287`. §5 requires a `loading` state and
+  ships no primitive for it.
+- **`components/ui.tsx:662` — `Tabs` has ZERO call sites** tree-wide, pinned at
+  `lib/design-system.test.ts:674`. That is the exact condition under which `Chip` was deleted. Adopt
+  or delete.
+- **Four `<select>`s over five options or fewer**, where §5 says `Segmented`:
+  `ResultsView.tsx:801` (2 options), `:885` (4), `LoftApp.tsx:3303` (4), `ParameterSweep.tsx:421`
+  (≤5). Note that §9's "hand-rolled `<select>`" count reads **0** and is right — these are the
+  primitive, used where a different primitive is specified, which that count cannot see.
+- **`components/PartPicker.tsx:596` — the `Use` button is 51x44 with no `square` floor**, in a
+  horizontally-scrolling catalogue of adjacent columns, and no e2e opens the picker
+  (`touch.spec.ts:429`'s scan stops at the gesture bar).
+- **`e2e/touch-landscape.spec.ts:64,73` — the landscape scan is height-only (`x.h < 44`)** and its
+  selector omits `input`, `summary` and `label:has(input.sr-only)`. The width-vs-height blindness P15
+  increment 2 fixed in portrait — where 82 controls once failed — is still live in landscape.
+- **`components/DataTable.tsx:145` — sort is local `useState` for every table but the motor sweep's**,
+  so parts, validation, RocketPy and phase all reset on remount.
+- **`components/GeometryInspector.tsx:1419` — `tabIndex: 0` on every row: 47 tab stops on a 47-part
+  design**, while `components/ui.tsx:711` already implements roving tabindex with Arrow/Home/End.
+- **`public/pyodide/**` (41 MB) is excluded from precache** (`gen-sw-precache.mjs:123`), so a flyer
+  who never ran the cross-check online has no second solver at the pad and nothing prompts them to
+  warm it.
+- **`lib/model/edit.ts` — "That part is no longer in this design." is written twice in one file**,
+  with no shared constant.
+
 **Filed 2026-08-18 from R12 increment 23's own pre-push review — two cases the fix DELIBERATELY does
 not answer, each because it is a product decision rather than a bug.**
 

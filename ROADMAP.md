@@ -19,8 +19,11 @@ work, and a queue containing only the first can only ever ship the first.
   (R10 closed 2026-08-09 on its last item, `maxAcceleration`); **R12 is IN PROGRESS** — the first of
   its members is met as of 2026-08-08, increments 3 and 4 took the components no field describes
   from 249 of 569 corpus parts to ONE on 2026-08-09, increment 5 stopped the file half of the per-part
-  comment being destroyed on 2026-08-09, and increment 7 made the parts table say which masses the
-  design stated on 2026-08-10. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
+  comment being destroyed on 2026-08-09, increment 7 made the parts table say which masses the
+  design stated on 2026-08-10, increment 24 stopped three dead add controls on every design on
+  2026-08-18, and increment 25 gave the field-made BOATTAIL the Properties panel it had never had on
+  2026-08-18 — with the drogue and the payload withdrawn by that increment's own pre-push review and
+  queued as increment 26. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
   shipped; R4 is IN PROGRESS" until 2026-08-08, six milestones after it stopped being true — and it
   then went stale again inside the very commit that added this warning, caught by review rather than
   by anyone reading it. It is the queue's own state line: update it in the same commit as the status
@@ -2586,6 +2589,119 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 25 — a part the design FIELDS made opens the fields that made it, 2026-08-18.** Increment
+24 stopped the add and the remove controls lying about the boattail, the drogue and the payload bay.
+A flyer standing on one still had nothing they could do with it. This is the half that gives them
+something.
+
+**`propertiesFor` resolved a picked id against `structureOf`'s tree, and these three are not in it.**
+A null there does not render an empty panel — it renders **no Properties control at all**. So the
+diagram drew a Boattail, the parts table listed it, clicking it highlighted the row, and the panel
+answered with nothing: the "feature reachable only by knowing it is there" tell, in the form where
+the feature is not reachable at all. The two fields describing it sat twenty-odd fields down a wall
+the flyer had to know to scroll to — which is `ON-7`'s complaint word for word, on the one part where
+the popover that answers it had never been wired.
+
+**The product question, and the answer, because it is a decision rather than a bug.** The handoff
+framed it as *"does touching a field-made part promote it to an authored one"*. **It does not, and
+the reason is that promotion is a one-way door.** A promoted boattail would be a second part standing
+beside the fields that still make the first, so the field would have to be silently cleared —
+discarding a number the flyer typed — and nothing could turn an authored cone back into the pair.
+`MAINTAINING.md` ranks a one-way door first among damage, above every kind of friction. Aiming the
+EXISTING fields at the part costs the flyer nothing, is undoable by retyping, and needs no new model
+concept: the fields are already the honest source, and `derivedPartRefusal` already told the flyer as
+much. Recorded under *Decisions taken without the owner*.
+
+**One registry, and the id spelling collapses into it.** `DERIVED_PARTS` in `lib/model/edit.ts` names
+the three groups and the fields that describe each, and `derivedPartId` is now the ONE spelling of
+the ``uuidFrom(`${host.id}-<suffix>`)`` rule that all three synthesisers had written out separately —
+a resolver restating it would have been the fourth copy, which is the shape this file already records
+for `canAddInside`. `components/LoftApp.tsx`'s `AIM_FIELDS` spreads the registry rather than listing
+a boattail's two fields a second time. `lib/model/id.test.ts`'s collision case reads its suffixes
+from the registry too, where it had hand-enumerated the same three.
+
+**IT SHIPS ONE OF THE THREE, AND THE OTHER TWO WERE WITHDRAWN BY THIS INCREMENT'S OWN PRE-PUSH
+REVIEW.** The first version opened all three. It was wrong on two of them, and both are worth
+recording because neither is visible from the registry:
+
+- **The drogue's panel carried the MAIN canopy's fields.** Its two fields live in the recovery
+  fieldset beside `Canopy Cd` and `Canopy mass`, and those render on `designDims.mainParachuteCd` /
+  `mainParachuteMass` — metadata keys belonging to no aim, so the per-aim mask, which works by
+  SUBTRACTING `AIMED_FIELDS`, never blanked them. A flyer picking the Drogue would have got the main
+  chute's coefficient, its mass and its provenance line, and typing in that Cd calls
+  `withParachuteCd`, which resolves through `edits.parachuteId` — **a different part from the one the
+  panel is headed with.** Editing the wrong component silently is worse than not offering the edit.
+- **And `drogueDiameter` on a per-part surface had already been decided against, with a reason.** The
+  comment above the deploy-altitude field records it: on a design with one canopy that field AUTHORS
+  a second, which is a change to the recovery system rather than a property of the part in hand. The
+  synthesised drogue is arguably the case that reason does not cover — you are holding the canopy the
+  field made — but overturning a recorded decision silently, inside an increment about something
+  else, is how a file comes to argue with itself.
+- **The payload has the same shape of question** against the aimed mass-object fields and the
+  `massCarriedBy` hints, and it was not driven far enough to answer it.
+
+So `aim` is nullable in the registry and null on those two. **What that buys is precise, and a first
+draft of this paragraph misnamed it:** the guard is `derivedPartAim` returning null, which makes
+`propertiesFor` return null, which makes `GeometryInspector` draw no trigger at all — so the outcome
+stays "no Properties control" rather than becoming "a Properties control that opens on nothing".
+`AIM_FIELDS` filtering on the same field is a second, weaker consequence: it only feeds the
+`designDims` mask, and whether a fieldset opens is a hand-written `only === "…"` literal in the JSX.
+`lib/model/edit.test.ts` asserts those literals and the registry agree, in both directions, because
+nothing else holds two files together across a rename. **Increment 26 below is the rest of the work**,
+and it starts with the mask, because the leak above is subtraction reaching one key short.
+
+**A second regression the same review caught, in the gate rather than the panel.** `boattailFairsTo`
+is not an aimed field, so nothing blanks it — which made the "Nose & body" fieldset's gate true under
+EVERY aim. The fin, internal, fitting, mass and canopy popovers each opened that group with all six
+of its aimed children blanked and the boattail pair gated off: an empty `<fieldset>` and a stray
+`space-y-4` gap at the bottom of seven of the ten property surfaces. The gate carries
+`only === "boattail"` explicitly now, and `e2e/smoke.spec.ts` counts the fieldsets on a fin-set panel.
+
+**A gate that was wrong before it was inconvenient.** The boattail pair rendered on
+`designDims.bodyDiameter !== undefined`, and `bodyDiameter` answers for the PICKED tube — a different
+component whenever the flyer has aimed the body fields elsewhere. It is now
+`designDims.boattailFairsTo`, which is `aftmostBodyDiameter` — the tube the cone actually attaches
+to, undefined exactly when no boattail can be added at all. That it also survives the per-aim
+blanking is a consequence, not the reason.
+
+**The refusal on the same part now points at the control instead of away from it.** It ended *"Clear
+the field that creates it, or pick a part the design itself carries"* — advice that sent a flyer
+standing on the boattail off to hunt the wall, past a Properties button rendered directly above the
+sentence. It now reads *"…nothing can be attached to it or taken off it here. Its own fields are
+under Properties — clearing them is what removes it."* Narrower about what is refused, and it names
+somewhere real. Both existing assertions match on the half that did not move.
+
+**Pinned at two layers, and the control is the one that matters.** `lib/model/edit.test.ts` drives all
+three synthesised parts at once — found by DIFFERENCE against `structureOf`'s tree, so a fourth one
+added later joins the case instead of being exempt from it — and asserts the group named is the group
+that MAKES the part **behaviourally**: clearing that group's fields has to take that part away and
+leave the other two standing. A resolver answering `"boattail"` for all three passes a truthiness
+check and then opens the wrong two fields on two of them; it cannot pass this. `e2e/smoke.spec.ts`
+drives what only a browser can — that the Properties control appears on a picked boattail, that the
+popover holds its two fields **and not the fin, body or nose fields**, that typing in it reaches the
+same model the wall writes to (60 → 90 mm, read back on the wall), and that the amended refusal is on
+screen. The negative control is a part the design itself carries: the nose cone must open its own
+fields and NOT the boattail's, which is the failure a truthiness check on the resolver could never
+catch.
+
+**What this does NOT do.** A boattail still cannot be given a shape (`conical` is hard-coded), a
+material of its own, or a name — those are properties of a transition the design carries, and giving
+them to a field-made one is the promotion this increment declined. Each is a field the pair would have
+to grow, which is a milestone about the dimension fields rather than about the tree.
+
+**Increment 26 — the other two field-made parts get their panels, once the mask stops leaking.**
+*Done when* picking the synthesised drogue and the synthesised payload bay each opens a Properties
+panel holding that part's own fields **and nothing belonging to another component**, pinned by an
+e2e that names the labels present AND the labels absent on each. Start with the mask: it blanks
+`designDims` by subtracting `AIMED_FIELDS`, and the leak is every metadata key that gates a value
+field and belongs to no aim (`mainParachuteCd`, `mainParachuteMass`, `mainParachuteMassFrom`,
+`mainParachuteCdFrom`, and whatever the payload's equivalents turn out to be). An ALLOWLIST per
+derived aim cannot leak by omission, which is the property the current shape lacks; the structural
+keys (`massCarriedBy`, the seven `unreachable*` counts) have to survive it, because they are
+non-optional and read unguarded. Then settle the `drogueDiameter` question against the recorded
+decision above rather than around it, and say which way in `Decisions taken without the owner`.
+Size: 1–2 increments.
+
 **Increment 24 — the add controls a part cannot take are no longer drawn as if it could, 2026-08-18.
 SEV-1.** Three of the six authoring gestures were live on three parts of every design and did nothing
 at all. Clicking one returned in silence: no part, no refusal, no undo step, no message. **3 dead
@@ -2611,10 +2727,14 @@ changed behaviour for a caller with no set would be a second defect wearing the 
 
 **The remove control on the same part was saying something the flyer could see was false.** It printed
 *"That part is no longer in this design"* over a row the table was drawing at that moment.
-`derivedPartRefusal` is now the one sentence both surfaces print — *"Boattail is made by the design
-fields rather than added as a part, so the editor cannot change it here. Clear the field that creates
-it, or pick a part the design itself carries."* — which names the part, says which field made it, and
-says what to do instead. `COMPETITION.md` row 50 marks Loft as BETTER than the field for stating WHY
+`derivedPartRefusal` is now the one sentence both surfaces print, which names the part and says what
+to do instead. **Increment 25 amended it**, and corrected a false claim this paragraph made about it
+in the same pass: the first draft read *"…so the editor cannot change it here. Clear the field that
+creates it, or pick a part the design itself carries"*, and this paragraph said it "says which field
+made it". It never did — `derivedPartRefusal(name)` takes a name and nothing else, so the sentence
+says *"the field that creates it"* generically on all three parts. Recorded rather than quietly
+fixed: a ledger sentence claiming more than the code does is the same failure as a check that cannot
+contradict the claim beside it, and this file catalogues that one repeatedly. `COMPETITION.md` row 50 marks Loft as BETTER than the field for stating WHY
 a component cannot go somewhere; on these three parts it was stating a reason that was not true.
 
 **Pinned at two layers, both controlled.** `lib/model/edit.test.ts` gains a case that builds the two
@@ -7202,6 +7322,38 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-18 — the notices file was corrected to match the shipped bytes; the INVARIANT it
+  contradicts was left alone and parked for the owner.** `THIRD-PARTY-NOTICES.md` §3 said RocketPy
+  *"is not vendored into the bundle and is not a runtime dependency of the shipped application"*
+  while `out/pyodide/` ships it, along with 22 other wheels and 41 MB of Pyodide, none of them
+  named anywhere in that file and one of them (`simplekml`) LGPLv3+. **Taken: state what actually
+  ships, meet the LGPL's notice obligation, and add `scripts/check-notices.mjs` so the list cannot
+  drift from the artifact again.** **Rejected: amending `MAINTAINING.md`'s clean-room clause** — the
+  sentence *"never vendored into the bundle or shipped as a runtime dependency"* is plainly
+  contradicted by the build, and the honest reading is probably that the clause is about not merging
+  another solver's numbers into Loft's rather than about bytes. But a session quietly editing an
+  invariant to match what the code already does is the exact failure the invariant list exists to
+  prevent, and this one was never recorded as decided. Parked in `OWNER-NOTES.md` under *Awaiting the
+  owner* with the measurement. **Also rejected: removing the wheel** — `simplekml` is a hard
+  import-time dependency of `rocketpy/__init__.py` (via `flight_data_exporter`), so dropping it
+  breaks `from rocketpy import Flight`; Loft uses none of what it provides, and that is stated in the
+  notices rather than fixed by deletion.
+
+- **2026-08-18 — selecting a part the design FIELDS made opens those fields; it does NOT promote the
+  part to an authored one.** R12 increment 25. **Taken: `derivedPartAim` maps a synthesised part onto
+  the field group that describes it, and the existing property popover opens exactly those fields.
+  Shipped for the BOATTAIL only** — the drogue and the payload were written, driven and withdrawn by
+  this increment's own pre-push review, for reasons recorded against the increment above and queued
+  as increment 26. **Rejected: promotion** — converting the synthesised
+  part into a real entry in the tree the moment the flyer edits it. Promotion reads like the more
+  capable answer and is a one-way door: the fields that made the part would have to be silently
+  cleared to stop it being built twice, discarding a number the flyer typed, and nothing turns an
+  authored cone back into the pair that made it. `MAINTAINING.md` ranks a one-way door first among
+  damage, ahead of every kind of friction, and aiming the existing fields costs the flyer nothing
+  they cannot undo by retyping. **Reversible cheaply**: the registry names the three groups in one
+  place, so a later milestone that genuinely wants an authored boattail — with its own shape,
+  material and name — adds the conversion beside it rather than unpicking anything.
 
 - **2026-08-18 — a RASAero boattail described twice is DE-DUPLICATED, while the fin `Location`
   question next door is still left alone.** These two look like one decision and are not, and the
