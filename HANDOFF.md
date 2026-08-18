@@ -4,9 +4,10 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Run 19 shipped nine increments: two queued milestone slices and seven Sev-1s.** Seven of them are
-**merged and live** (`main` at `ec228a8`, deployed and verified — see *The production gap* below).
-The last two are **PR #189**.
+**Run 19 shipped nine increments: two queued milestone slices and seven Sev-1s. All nine are merged
+and live.** `main` is `8c0bd50`; **PR #188** (seven commits) and **PR #189** (four) are both merged,
+and production was re-walked after each — see *What production is serving* below. **There is no gap:
+everything this run built is deployed.**
 
 | | what | state |
 |---|---|---|
@@ -17,8 +18,8 @@ The last two are **PR #189**.
 | SEV-1 | the Conditions panel said "as designed" after the flyer replaced them | **live** |
 | SEV-1 | the fallback-canopy caveat reached one surface of three | **live** |
 | R12 increment 24 | three add controls on every design were live and did nothing | **live** |
-| SEV-1 | a design with no centre of pressure was given one, and a band to go with it | **PR #189** |
-| SEV-1 | a RASAero boattail described twice was built twice | **PR #189** |
+| SEV-1 | a design with no centre of pressure was given one, and a band to go with it | **live** |
+| SEV-1 | a RASAero boattail described twice was built twice | **live** |
 
 **The next slice on each track:**
 
@@ -52,23 +53,24 @@ The last two are **PR #189**.
    975.9 mm. The margins are arithmetically right for a rocket that cannot be built. Filed. The
    interesting half is whether the diagram's own Fin-position grip has the same gap.
 
-## The production gap, measured 2026-08-18
+## What production is serving, walked twice on 2026-08-18
 
-`main` is `ec228a8`; the deployed service worker reports `BUILD_ID = "d9d9e8c7b6ad"`. Walked by
-fetching the site's own precache manifest and every asset in it:
+Walked by fetching the site's own precache manifest and every URL in it — not by reading the index
+page's `<script>` tags, which name only 11 of the 25 chunks and reported two of this run's strings
+absent when they were not. The service worker's `BUILD_ASSETS` is the authoritative list, because
+that is what the app promises to work from offline.
 
-- **28 assets, 14 router payloads, 11 routes, 8 samples — every one returns 200.** The offline Sev-1's
-  fix is complete in production, not merely deployed: `_rsc` and `ignoreSearch` are both in the served
-  `sw.js`.
-- Probed the served JS for this run's own strings: *"made by the design fields"* (R12 inc 24),
-  *"as you set them"* (the conditions fix) and *"the canopy's drag coefficient is Loft's fallback"*
-  are all **PRESENT**. *"outside the span of the parts"* is **absent**, which is correct — that is
-  PR #189 and it has not merged.
+**After PR #188** (`main` at `ec228a8`, `BUILD_ID = "d9d9e8c7b6ad"`): 28 assets, 14 router payloads,
+11 routes, 8 samples, **every one 200**. The offline Sev-1's fix is complete rather than merely
+deployed — `_rsc` and `ignoreSearch` are both in the served `sw.js`.
 
-**So the gap is exactly one increment, and it is the one still in review.** Note the method: the
-first probe read only the 11 chunks the index page's `<script>` tags name and reported two of those
-strings absent. The authoritative list is the service worker's own `BUILD_ASSETS`, because that is
-what the app promises to work from offline.
+**After PR #189** (`main` at `8c0bd50`, `BUILD_ID = "717cdd8c1a60"`): **60 precached URLs re-checked,
+0 not 200.** Probed the served JS for this run's own sentences — *"puts the centre of pressure
+outside the span of the parts"*, *"No static margin is available for this design"* and *"The centre
+of pressure and the static margin are not marked"* are all **PRESENT**, and the motor advice the cold
+walk removed — *"Swap in a bundled motor under Design, and it comes back"* — is **absent**.
+
+**So the production gap is zero.** Every increment this run shipped is what a flyer gets.
 
 ## What the sibling repo is OWED, verbatim, because this session could not reach it
 
@@ -186,7 +188,7 @@ red in either copy. What to paste over there:
   after the flyer replaced them, the fallback-canopy caveat reaching one surface of three, a
   design with no centre of pressure being given one **with a band on it** (−15 cal flagged LOW and
   +12.81 cal flagged HIGH, from the same undefined figure), and a RASAero boattail described twice
-  and built twice. `COMPETITION.md` rows 52 and 53. PRs #188 (merged) and #189.
+  and built twice. `COMPETITION.md` rows 52 and 53. PRs **#188** and **#189**, both merged; production re-walked after each and the gap is zero.
 - **Run 18 (2026-08-17).** R12 increments 21 and 22 — a mass goes inside anything with a bay; the whole
   add vocabulary on screen. P18 written and increment 1 shipped (`Toast`). PRs #185, #186, #187.
 - **Run 17 (2026-08-17).** Two Sev-1s and three increments; **P17 SHIPPED**, R12 reached increment 20.
