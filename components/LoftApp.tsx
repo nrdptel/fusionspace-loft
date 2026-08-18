@@ -456,6 +456,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
   const [run, setRun] = useState<FlightRun | null>(null);
   const [baseline, setBaseline] = useState<FlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** What the importer said about the last FILE the drop zone was handed, kept apart from `error` on
+   *  purpose. Both are refusals; they belong on different surfaces. This one renders inside the drop
+   *  zone, where the flyer dropped — the shared strip below sits under everything else on the route,
+   *  measured from a COLD load (only the always-on examples card in between) at 765 px below the zone
+   *  at 1440x900 and 1,654 px on a 390x844 phone, off-screen on both; with history on the device the
+   *  recents shelf pushes it further. Everything else — a what-if refused, a
+   *  saved design that could not be read back — is about something other than the file in their hand
+   *  and stays in the strip. */
+  const [fileError, setFileError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [edits, setEdits] = useState<Edits>({});
   /** Where the flyer has been, so they can go back. Reset by loading a design and by nothing else —
@@ -703,6 +712,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       setScenario(resume?.scenario ?? "design");
       setSimIndex(idx);
       setError(null);
+      setFileError(null);
       setRestored(resume !== undefined);
       if (bytes) designBytes.current = toBase64(bytes);
       // **Which design this is, content-addressed, so a stored dispersion can be filed under it.**
@@ -772,12 +782,16 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     async (file: File) => {
       setBusy(true);
       setError(null);
+      setFileError(null);
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
         const document = await importDesign(bytes);
         loadDoc(document, file.name, "flight", bytes);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not read that file.");
+        // Into the zone the file was dropped on, not the page strip. The importer's message names
+        // what the bytes look like and which box the file belongs in, and it was landing where
+        // nobody on this route can see it.
+        setFileError(err instanceof Error ? err.message : "Could not read that file.");
         setDoc(null);
         setRun(null);
       } finally {
@@ -791,6 +805,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     async (path: string, label: string) => {
       setBusy(true);
       setError(null);
+      setFileError(null);
       try {
         const res = await fetch(path);
         // **A failed fetch is not an empty file, and saying so blamed the flyer.** The service
@@ -840,6 +855,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     }
     setBusy(true);
     setError(null);
+    setFileError(null);
     try {
       const bytes = fromBase64(saved.design);
       const document = await importDesign(bytes);
@@ -868,6 +884,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       if (!entry) return;
       setBusy(true);
       setError(null);
+      setFileError(null);
       try {
         const bytes = fromBase64(entry.design);
         const document = await importDesign(bytes);
@@ -1026,6 +1043,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
         setRun(r);
         setBaseline(b);
         setError(null);
+        setFileError(null);
         return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate.");
@@ -1607,6 +1625,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     setRun(null);
     setBaseline(null);
     setError(null);
+    setFileError(null);
     setFileName("");
     setEdits({});
     setHistory(EMPTY_HISTORY as History<WhatIf>);
@@ -2188,6 +2207,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             onSample={onSample}
             onNew={onNew}
             busy={busy}
+            fileError={fileError}
             recents={recents}
             onOpenRecent={onOpenRecent}
             onForgetRecent={onForgetRecent}

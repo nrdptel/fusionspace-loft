@@ -749,6 +749,30 @@ note argues for, and it belongs in `COMPETITION.md` beside the format-support ro
 Owner-level decisions that are NOT blocking anything. Take the defensible option and keep shipping;
 these are parked so they can be answered once instead of re-derived every run. Newest first.
 
+- **2026-08-18 — this session CANNOT REACH THE SIBLING REPO AT ALL, and the DESIGN-IS-BINDING
+  invariant has a clause that needs it.** `MAINTAINING.md` says a change to `DESIGN.md` is a change to
+  both copies **in the same run**, and `ROADMAP.md`'s P18 names the sibling mirror as one of its *done
+  when* clauses. Run 18 did this by calling `add_repo` with `access: "push"` for
+  `nrdptel/fusionspace-debrief`, and recorded that it "succeeds from a Loft session, so this is not an
+  owner task".
+  **It does not succeed from this one.** Measured 2026-08-18: the session's stated GitHub scope is
+  `nrdptel/fusionspace-loft` and `nrdptel/loft-fixtures` only; `add_repo` for the sibling is refused
+  by the harness's own permission layer before it reaches GitHub, and a plain `git clone` of the
+  sibling — which is PUBLIC, and which `list_repos` reports with `can_push: true` — is refused by the
+  same layer. So this is not a GitHub permission and not something a token would fix: the account has
+  the access and the session is not allowed to use it. No further route was attempted.
+  **What was shipped anyway, and why it is safe:** §2 gained a border-WIDTH paragraph and §5 gained
+  the `DropZone` entry, in Loft's copy only. Neither section is in the digest the two repos actually
+  hold each other to — `lib/design-shared.test.ts`'s `SHARED_SECTIONS` is 4, 6, 7, 8 and 10 — so no
+  check goes red in either repo, and the two copies were already measured 892 diff lines apart. The
+  divergence this adds is of the same kind and is recorded rather than hidden. **What the sibling is
+  owed** is written out verbatim in `HANDOFF.md`, so the next session that CAN reach it can paste it
+  rather than re-derive it, and it is one increment.
+  *What is needed:* either the sibling attached as a second source when the session is created — the
+  same fix as the fixtures repo, and the one that made the corpus work this run — or a standing
+  answer that Loft's copy may lead and the sibling catches up on its own runs. **Nothing is blocked**;
+  the milestone clause is, and it is marked so in `ROADMAP.md` rather than quietly counted as met.
+
 - **2026-08-11 — the harness also asks for the COMMIT IDENTITY the zero-trace invariant forbids, and
   this one was declined.** A stop-hook check reports every commit as *"Unverified (missing signature,
   or committer email is not noreply@anthropic.com)"* and instructs the session to

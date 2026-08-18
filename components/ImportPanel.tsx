@@ -1,9 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-
 import { countWhatIfs, type RecentDesign, type RemovedRecent, type SavedSession } from "@/lib/session";
-import { Button, Card } from "./ui";
+import { Button, Card, DropZone } from "./ui";
 
 /** The bundled designs, so the tool is usable before the flyer has a file of their own. One entry
  *  each rather than four near-identical blocks of JSX: they differed only in these three strings, and
@@ -43,6 +41,7 @@ export default function ImportPanel({
   onSample,
   onNew,
   busy,
+  fileError,
   recents,
   onOpenRecent,
   onForgetRecent,
@@ -55,6 +54,14 @@ export default function ImportPanel({
   onSample: (path: string, label: string) => void;
   onNew: () => void;
   busy: boolean;
+  /** What the importer said about the last file this surface was handed, or null. It renders INSIDE
+   *  the drop zone rather than in the page's shared error strip, which on this route sits below
+   *  everything else — measured from a COLD load, with only the always-on bundled-examples card in
+   *  between, at 765 px below the zone at 1440x900 and 1,654 px on a 390x844 phone, off-screen on
+   *  both. With history on the device the shelf and the undo offers push it further still. The words are the importer's:
+   *  it reads the bytes, so it can say "looks like an image" and which box a flight log belongs in,
+   *  where this surface could only ever say no. */
+  fileError: string | null;
   /** The session the last "Import another" / "Start fresh" threw away, or null. Offered back here
    *  because this screen is exactly where a flyer lands after that click and realises what it cost. */
   discarded: SavedSession | null;
@@ -68,9 +75,6 @@ export default function ImportPanel({
   removedRecents: RemovedRecent[];
   onRestoreRecent: (id: string) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-
   const carried = discarded ? countWhatIfs(discarded) : 0;
 
   return (
@@ -144,31 +148,47 @@ export default function ImportPanel({
           </ul>
         </Card>
       )}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          const f = e.dataTransfer.files?.[0];
-          if (f) onFile(f);
-        }}
-        className={
-          // Capped at the reading measure: this is a landing surface, not the workspace, and a
-          // 1600 px drop zone reads as a stretched page rather than a considered one.
-          //
-          // The generous padding is `sm:` only. Below that the surface is not a drop zone at all —
-          // you cannot drag a file onto a phone — so 64 px of vertical padding is spent advertising
-          // an affordance the device does not have, and it was spending it directly above the one
-          // control a flyer with no file needs. Measured: the first bundled example sat at 753 px
-          // on a 390x664 phone, 89 px below the fold.
-          "mx-auto max-w-3xl rounded-xl border-2 border-dashed p-4 text-center transition sm:p-8 " +
-          (dragging
-            ? "border-indigo-400 bg-indigo-50/60 dark:bg-indigo-500/10"
-            : "border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40")
+      {/* `DropZone` — `DESIGN.md` §5. The zone used to be a `<div>` spelling its own dashed card,
+          its own two-tone drag state and its own file input, and it was the last card treatment
+          hand-rolled outside `components/ui.tsx`. What the primitive brought with it is not only the
+          treatment: a drop that REFUSES a file it cannot read, by name, where the flyer dropped it
+          — this surface used to hand any file at all to the importer and let the failure surface in
+          the page's shared error strip, hundreds of pixels below — and a drag highlight that does
+          not flicker when the pointer crosses the paragraph inside it.
+
+          Capped at the reading measure: this is a landing surface, not the workspace, and a 1600 px
+          drop zone reads as a stretched page rather than a considered one.
+
+          The generous padding is `sm:` only. Below that the surface is not a drop zone at all — you
+          cannot drag a file onto a phone — so 64 px of vertical padding is spent advertising an
+          affordance the device does not have, and it was spending it directly above the one control
+          a flyer with no file needs. Measured: the first bundled example sat at 753 px on a 390x664
+          phone, 89 px below the fold. */}
+      <DropZone
+        className="mx-auto max-w-3xl sm:p-8"
+        accept=".ork,.ork.gz,.rkt,.cdx1,.CDX1,application/zip"
+        onFile={onFile}
+        busy={busy}
+        pickLabel="Choose a file"
+        inputLabel="Choose an OpenRocket .ork, RockSim .rkt or RASAero .CDX1 file"
+        refusal={fileError}
+        refusalNext="Choose another file, or start a new design and build one here."
+        actions={
+          /* The peer of the primary beside it, and it used to be visibly taller, at a 4-step
+             horizontal pad over a 2.5-step vertical one
+             against `Button`'s `px-3 py-1.5`, so the two controls a first-time visitor chooses
+             between were different heights on the one surface everybody sees first. */
+          <Button disabled={busy} onClick={onNew}>
+            Start a new design
+          </Button>
+        }
+        footer={
+          /* `sm:` only. On a phone this sentence sits between the flyer and the bundled examples,
+             which are the better answer to "no file?" — they need no editing at all. */
+          <p className="mx-auto mt-3 hidden max-w-md text-xs text-zinc-500 dark:text-zinc-400 sm:block">
+            No file? Start from a stable 54&nbsp;mm sport design and edit it — the same engine flies
+            whatever you build.
+          </p>
         }
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -188,37 +208,7 @@ export default function ImportPanel({
           <code className="font-mono">.ork</code>, <code className="font-mono">.rkt</code>{" "}or{" "}
           <code className="font-mono">.CDX1</code>. Runs in your browser — never uploaded.
         </p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <Button variant="primary" disabled={busy} onClick={() => inputRef.current?.click()}>
-            {busy ? "Working…" : "Choose a file"}
-          </Button>
-          <input
-            ref={inputRef}
-            type="file"
-            aria-label="Choose an OpenRocket .ork, RockSim .rkt or RASAero .CDX1 file"
-            accept=".ork,.ork.gz,.rkt,.cdx1,.CDX1,application/zip"
-            className="sr-only"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onFile(f);
-              e.target.value = "";
-            }}
-          />
-          {/* The peer of the primary beside it, and it used to be visibly taller, at a 4-step
-              horizontal pad over a 2.5-step vertical one
-              against `Button`'s `px-3 py-1.5`, so the two controls a first-time visitor chooses
-              between were different heights on the one surface everybody sees first. */}
-          <Button disabled={busy} onClick={onNew}>
-            Start a new design
-          </Button>
-        </div>
-        {/* `sm:` only. On a phone this sentence sits between the flyer and the bundled examples,
-            which are the better answer to "no file?" — they need no editing at all. */}
-        <p className="mx-auto mt-3 hidden max-w-md text-xs text-zinc-500 dark:text-zinc-400 sm:block">
-          No file? Start from a stable 54&nbsp;mm sport design and edit it — the same engine flies
-          whatever you build.
-        </p>
-      </div>
+      </DropZone>
 
       {/* Designs opened before. A flyer working across a build has several on the go, and at the pad
           the file may not be on the phone at all — so what has been opened stays openable. Shown
@@ -287,8 +277,8 @@ export default function ImportPanel({
         {/* One `Button variant="secondary"` each, where these were four byte-identical hand-rolled
             class strings. They carried `bg-white dark:bg-zinc-900`, which `secondary` does not give
             them — §5 defines it as a control border over a transparent fill — and that stray fill was
-            doing real work by accident: it was one step lighter than the container's old
-            `dark:bg-zinc-900/40`, so the buttons read as raised against it. Putting the container on
+            doing real work by accident: it was one step lighter than the container's old dark fill —
+            the zinc-900 surface at 40% — so the buttons read as raised against it. Putting the container on
             `Card` took it to a true `zinc-900` and the two fills became identical, which is how the
             accidental dependency surfaced. The system's answer is a transparent control on a raised
             surface, which is what every other secondary button in the app already is. */}

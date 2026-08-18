@@ -12,6 +12,40 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-18, from P18 increment 2's pre-push review (three lenses, 31 findings, 3 blockers
+fixed before the push and the rest either fixed or filed below).**
+
+- **On a phone the import drop zone loses two of the three things §2 says identify a drop target.**
+  The sentence that says "drop" is `hidden … sm:block`, and the phone copy at
+  `components/ImportPanel.tsx` never uses the word. The sunken fill is `bg-zinc-50` on a `bg-white`
+  page — **1.04:1** — leaving a 1 px dashed `border-zinc-300` edge at **1.42:1** as the only cue, so
+  under 640 px the app's front door reads as `EmptyState`'s tone rather than as its primary surface.
+  It is also the form factor that cannot drag at all, which is the argument for the current copy —
+  but the surface still has to read as the thing a first-time visitor is meant to use. Sharpened by
+  P18 increment 2 removing the 2 px width, which was the one cue that did not depend on the copy.
+  Reproduce: `/` at 390x844 on the built export. It is a P-track increment, not a line.
+- **A file dropped on the zone while another is still parsing starts a second concurrent import.**
+  Predates the primitive: the hand-rolled `onDrop` called `onFile` regardless of `busy` too. P18
+  increment 2 tried a `busy` early-return and **withdrew it**, because a silent early-return reads on
+  screen as acceptance — the zone un-highlights and then nothing happens and nothing is said, which is
+  §5's missing state invented by the guard meant to prevent a race. The honest fix says something, and
+  the primitive cannot: the refusal is the caller's prop. Reproduce: drop a large `.ork`, then drop
+  another before the first renders.
+- **Three `accent` cards can be on the import route at once, meaning two unrelated things.** The
+  discarded-session offer and each removal undo are `Card tone="accent"` ("the one thing this surface
+  is pointing at"); as of 2026-08-18 an armed `DropZone` is too, and that one is a transient pointer
+  state. Both `CARD_TONES.accent` and §2 now NAME the second meaning rather than leaving it to be
+  inferred, which is the smallest honest step, but a flyer who has learned indigo means "this is being
+  offered" now also has to read it as "your cursor is here". Whether the drag state wants a token of
+  its own is a §2 question.
+- **`tsconfig.json` type-checks the test files and nothing in the gate ever runs it over them.**
+  `npx tsc --noEmit -p tsconfig.json` reports **19 errors, all in `lib/model/edit.test.ts`** (missing
+  `placement` on inline `innertube` literals, a `designation` key `MotorMount` does not have, `.length`
+  read off a `RocketComponent` union that includes fin sets). `npm run build` runs Next's own
+  type-check, which does not read them, so the suite is green and the types are not. Measured
+  2026-08-18. None is a runtime defect today; every one is a place a test is asserting against a shape
+  the model does not have.
+
 **Filed 2026-08-17, from run 18's opening fan-out (8 lenses, 0 errors, 0 Sev-1 claimed) and its
 pre-push review (10 findings on one diff, of which 4 were fixed before it shipped).**
 

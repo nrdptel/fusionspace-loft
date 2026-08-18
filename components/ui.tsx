@@ -30,7 +30,12 @@ export interface Option<T extends string> {
 const CARD_TONES = {
   /** The default raised container. */
   default: "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900",
-  /** The one thing this surface is pointing at — a design being offered back, a what-if against its design. */
+  /** The one thing this surface is pointing at — a design being offered back, a what-if against its
+   *  design, and (2026-08-18) the transient one: a `DropZone` with a file over it. That last use is
+   *  momentary rather than standing, and it is named here rather than left to be inferred, because on
+   *  the import route two persistent accent cards can already be on screen — the discarded session
+   *  and a removed design — and a flyer who has learned indigo means "this is the thing being
+   *  offered" now also has to read it as "your cursor is here". §2 carries the same sentence. */
   accent:
     "border-indigo-500/30 bg-indigo-500/5 dark:border-indigo-500/40 dark:bg-indigo-500/10",
   /** An estimate outside its envelope, an extrapolation, a caveat. */
@@ -195,6 +200,207 @@ export function Toast({
         )}
       </Card>
     </div>
+  );
+}
+
+/** A file target — `DESIGN.md` §5. Drop a file on it, or choose one; it says what it takes, and it
+ *  says so again, by name, when it is handed something else.
+ *
+ *  **A `Card` composed, like `Toast`, so the card treatment is written in exactly one place.** The
+ *  two states are two of §2's tones and nothing else: `muted` at rest —
+ *  "sunken and dashed: a slot with nothing in it yet" — and `accent` while a file is over it, "the
+ *  one thing this surface is pointing at". Nothing about the edge is written out here.
+ *
+ *  **The 2 px border the hand-rolled version carried is GONE, and that is a decision rather than an
+ *  oversight.** `ROADMAP.md`'s P18 flagged it as the thing to settle before writing this: a `Card`
+ *  handed the 2 px width through `className` beats `Card`'s own `border` only by SOURCE ORDER — the
+ *  literal is deliberately not written here, because Tailwind reads raw source text and a class named
+ *  in a COMMENT generates a rule nothing asks for. Measured on the
+ *  built stylesheet, `.border` at byte 16,788 and `.border-2` at 16,910, equal specificity — which is
+ *  the hazard `Popover` documents 1,200 lines below this one for `left`/`inset-x`. Parameterising the
+ *  width would have put a second border width in a system whose §2 declares none, at one call site,
+ *  which is the "exists once and matches nothing else" tell this milestone exists to close. The
+ *  affordance was never carried by the pixel: it is the dashed edge, the sunken fill, the size of the
+ *  target and the sentence in it — and the drag state now changes the border's STYLE as well as its
+ *  colour and fill, dashed to solid, which is a stronger signal than a width the flyer never sees
+ *  change.
+ *
+ *  **`dragging` is a DEPTH, not a boolean, and the hand-rolled version had the bug.** `dragenter` and
+ *  `dragleave` both bubble, so moving the pointer from the zone onto the paragraph inside it fires a
+ *  `dragleave` at the container — and a handler that answers it with `setDragging(false)` drops the
+ *  highlight every time the cursor crosses a child. Counting entries and exits is the fix; it is one
+ *  ref, and it belongs in the primitive rather than in whichever call site notices the flicker.
+ *
+ *  **The refusal renders IN THE ZONE, and the primitive owns WHERE rather than WHAT.** That split is
+ *  the correction a pre-push review forced, and it is worth recording because the first version got
+ *  it exactly backwards. That version refused a file whose NAME did not match `accept` — which reads
+ *  like the obvious thing for a drop zone to do and is wrong for this app twice over. Loft's importer
+ *  does not look at file names at all: it sniffs the bytes, so a renamed `.ork`, an extensionless
+ *  download or a share-sheet hand-off all import fine, and a name gate refuses every one of them with
+ *  a sentence that is false. And the importer's own refusals are BETTER than anything a name test can
+ *  produce — *"That does not look like a rocket design file … a flight log or a spreadsheet goes in
+ *  the flight-log box on the results instead"* — so short-circuiting them replaced a message that
+ *  says which box the file belongs in with one that only says no. It also broke three e2e cases,
+ *  including two round-trips where Playwright hands back a download under a temporary name.
+ *
+ *  What was genuinely wrong was never the check, it was the PLACE: the parse failure surfaced in the
+ *  page's shared error strip, below everything else on the route — measured from a COLD load, where
+ *  the only thing between the two is the always-on bundled-examples card, at **765 px** below the
+ *  zone at 1440x900 and **1,654 px** on a 390x844 phone. A returning flyer has further to look, not
+ *  less: the recents shelf and the undo offers render only once there is history. So the caller keeps
+ *  deciding what cannot be read, and this renders what it says as an `ErrorState` where the file
+ *  landed. */
+export function DropZone({
+  accept,
+  onFile,
+  refusal,
+  pickLabel,
+  pickVariant = "primary",
+  inputLabel,
+  refusalNext,
+  busy = false,
+  busyLabel = "Working…",
+  actions,
+  footer,
+  children,
+  className,
+  ...rest
+}: {
+  /** The HTML `accept` list. One string: it drives the picker AND the drop refusal, so the two
+   *  cannot disagree — which is exactly how they disagreed before this existed. */
+  accept: string;
+  onFile: (file: File) => void;
+  /** What the caller could not read, in the caller's words — rendered as an `ErrorState` inside the
+   *  zone. Null or absent is the resting state. This primitive does not decide what is readable: the
+   *  importer sniffs content, and a name test here would refuse files it reads perfectly well. */
+  refusal?: React.ReactNode;
+  /** The visible text of the picker. */
+  pickLabel: string;
+  /** The picker's weight. `primary` is right for a surface whose whole job is to take a file, and
+   *  wrong the moment a `DropZone` sits on a workspace that already has a primary — §5 allows one per
+   *  surface, and `ImportPanel` already reasons about that cap out loud. Hard-coding it would bake a
+   *  §5 breach into the adopter this milestone has already queued. */
+  pickVariant?: ButtonVariant;
+  /** The file input's accessible name — the picker's own label names the ACTION, and a screen
+   *  reader landing on the input needs to hear what kind of file it takes. */
+  inputLabel: string;
+  /** The way forward after a refusal, which is the one of `ErrorState`'s three parts only the call
+   *  site knows. */
+  refusalNext?: React.ReactNode;
+  busy?: boolean;
+  busyLabel?: string;
+  /** Controls that belong beside the picker — "start a new design", "cancel". */
+  actions?: React.ReactNode;
+  /** A note under the controls, inside the zone. */
+  footer?: React.ReactNode;
+} & Omit<
+  React.HTMLAttributes<HTMLElement>,
+  // All four, not just `onDrop`. `{...rest}` spreads AFTER these handlers, so a call site passing
+  // one of them would silently replace the arming, the depth counting or the refusal — and the zone
+  // would still look right, which is the worst version of that. A surface that needs its own drag
+  // behaviour is not this primitive.
+  // `title` is here for a different reason than the four above: `Card` consumes it as its own TITLE
+  // prop and renders an `<h3>` header row, so a call site passing the ordinary DOM tooltip attribute
+  // would silently get a heading inside its drop zone.
+  "onDrop" | "onDragEnter" | "onDragOver" | "onDragLeave" | "title"
+>) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const depth = useRef(0);
+  const [dragging, setDragging] = useState(false);
+
+  /** One intake for both roads in, so the picker and the drop cannot drift apart — which is how the
+   *  hand-rolled version came to enforce `accept` on one and nothing at all on the other.
+   *
+   *  **Deliberately NOT gated on `busy`.** A first version returned early while a parse was running,
+   *  which reads on screen as acceptance: the zone un-highlights, and then nothing happens and
+   *  nothing is said — §5's missing state that says nothing, invented by the guard meant to prevent a
+   *  race. The picker is taken out of service instead (both the button and the input), and a drop
+   *  mid-parse behaves exactly as it did before this primitive existed. The underlying race — two
+   *  imports for one design slot — predates this and is filed rather than half-closed here. */
+  function take(file: File | undefined) {
+    if (!file) return;
+    onFile(file);
+  }
+
+  return (
+    <Card
+      // A hook, for the reason the add palette carries one: the zone is otherwise reachable only
+      // through the CALL SITE's copy, and the e2e that drives the drag has to name the container
+      // rather than a sentence inside it. Asserted present, so it needs no absence gate — the suite
+      // is its own alarm if it is renamed (`scripts/check-selectors.mjs` explains which names do).
+      data-drop-zone
+      tone={dragging ? "accent" : "muted"}
+      className={cx("text-center transition", className)}
+      onDragEnter={(e: React.DragEvent) => {
+        // Only a FILE drag arms the target. Dragging selected text or a link across the page fires
+        // the same events, and a drop zone that lights up for a text selection is claiming it can do
+        // something it cannot.
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        depth.current += 1;
+        setDragging(true);
+      }}
+      onDragOver={(e: React.DragEvent) => {
+        // **Unconditional, and the `Files` guard deliberately does NOT appear here.** Without a
+        // `preventDefault` the browser's own default runs: drag a LINK from another tab onto this
+        // zone and Chrome navigates to it, taking the flyer out of the app and their design with it.
+        // A first version gated this on `Files` for symmetry with the arming below and reintroduced
+        // exactly that. Cancelling costs nothing for a drag this surface will not act on; the guard
+        // belongs on what the zone SAYS, not on what the browser is allowed to do.
+        e.preventDefault();
+      }}
+      onDragLeave={(e: React.DragEvent) => {
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        depth.current = Math.max(0, depth.current - 1);
+        if (depth.current === 0) setDragging(false);
+      }}
+      onDrop={(e: React.DragEvent) => {
+        e.preventDefault();
+        depth.current = 0;
+        setDragging(false);
+        take(e.dataTransfer.files?.[0]);
+      }}
+      {...rest}
+    >
+      {children}
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <Button variant={pickVariant} disabled={busy} onClick={() => inputRef.current?.click()}>
+          {busy ? busyLabel : pickLabel}
+        </Button>
+        <input
+          ref={inputRef}
+          type="file"
+          aria-label={inputLabel}
+          accept={accept}
+          disabled={busy}
+          // **`tabIndex={-1}`, and that is an accessibility fix rather than a hiding trick.** An
+          // `sr-only` input is clipped to 1x1, so the focus ring `app/globals.css` gives it has
+          // nowhere to draw: tabbing between "Choose a file" and the control beside it landed on
+          // something no sighted keyboard user could see — WCAG 2.4.7, carried in from the
+          // hand-rolled version. The button beside it is a real, labelled, visible tab stop that
+          // opens the same picker, so the phantom one is removed rather than styled. `setInputFiles`
+          // and `getByLabel` both still reach it, which is how the suite drives an import.
+          tabIndex={-1}
+          className="sr-only"
+          onChange={(e) => {
+            take(e.target.files?.[0]);
+            // So the same file can be chosen again after a refusal or a parse failure — without
+            // this, re-picking it fires no `change` at all and the control reads as dead.
+            e.target.value = "";
+          }}
+        />
+        {actions}
+      </div>
+      {/* **The live region is always in the DOM, and only its contents are conditional.** `alert`,
+          not `status`: this is the direct answer to something the flyer just did. Rendering the
+          region only when there is something in it is the version of this that half of assistive
+          technology does not announce — a live region has to be present before the text arrives for
+          the change to be observed reliably, and inserting the container and its content together is
+          a race the page usually loses. It costs one empty `<div>`. */}
+      <div role="alert">
+        {refusal && <ErrorState className="mt-4 text-left" what={refusal} next={refusalNext} />}
+      </div>
+      {footer}
+    </Card>
   );
 }
 
