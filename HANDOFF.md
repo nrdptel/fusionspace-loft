@@ -20,8 +20,25 @@ failure the invariant list exists to prevent.
 | R12 increment 26 | SEV-1: a fin set's root stays on the airframe, bounded per STAGE and moved as a rigid GROUP, in the applier every caller goes through | **merged, live** (PR #192) |
 | P18 increment 3 | the flight-log intake is a DROP target as well as a picker — `useFileDrop`, the drag half of `DropZone` extracted for a control that cannot be a card | **merged, live** (PR #193) |
 | — | a print sheet is a STILL: `transition`/`animation` reset in `@media print`, because the accent fade that increment added printed the SCREEN colour on 8 of 24 runs | **merged, live** (PR #193) |
-| R12 increment 27 | the drogue and the payload get their panels; the per-aim mask blanks by ALLOWLIST, so a `designDims` key belonging to no aim is hidden rather than shown | gate green, pushed |
-| — | **P19 decomposed** — *The tool remembers the flyer, not just the design*. NOT STARTED, 4 increments, in `ROADMAP.md` | same change |
+| R12 increment 27 | the drogue and the payload get their panels; the per-aim mask blanks by ALLOWLIST, so a `designDims` key belonging to no aim is hidden rather than shown | **merged, live** (PR #194) |
+| — | **P19 decomposed** — *The tool remembers the flyer, not just the design*. NOT STARTED, 4 increments, in `ROADMAP.md` | **merged** (PR #194) |
+
+**The two questions this run has to answer, answered.**
+
+*What can a flyer DO that they could not before?* **Click the drogue Loft synthesised, or the payload
+bay, and change it where it is drawn** — all three field-made parts are editable from the part now,
+instead of one of three, and instead of scrolling a wall of twenty-odd fields to find the pair that
+made it. **Drop a flight log onto the altitude chart it overlays**, instead of hunting a file picker,
+and drop a `.tsv` the parser has always read and the OS dialog used to hide. And **print a flight card
+from the dark theme and get ink on white**, rather than a sheet whose numbers and axis labels came out
+at 1.00:1 on one run in three.
+
+*What is measurably better?* The parts a per-part panel can reach: **1 of 3 field-made parts → 3 of
+3**. The `designDims` keys that could leak onto such a panel: **64 → 11** (the structural ten plus the
+part's own). The flight-log formats the picker offers against the formats the parser reads: **narrower
+→ equal**, pinned by a test that reads the parser's own delimiter list. Text under 3:1 on a dark-theme
+print sheet: **15 nodes on 8 of 24 runs → 0 on 36 of 36**, with 69 elements no longer animating under
+print. And the e2e suite: **293 → 299**, with two new cases whose controls were each driven red.
 
 **The P-track baton list is SPENT and that is now recorded in `ROADMAP.md`.** *After R6 and P5* names
 "P6 — Instrument what flyers actually hit" and "P7 — The suite as one product"; both were overtaken by
@@ -92,22 +109,42 @@ shard-pressure class `MAINTAINING.md` documents. The lever is `workers`, not sha
 `playwright.config.ts` runs `workers: 1` in CI (green there) and the local default otherwise. Filed
 with the numbers.
 
-## What production is serving, walked twice on 2026-08-18
+## What production is serving, walked after every merge on 2026-08-18
 
 Walked by fetching the site's own precache manifest and every URL in it — not by reading the index
-page's `<script>` tags, which name only 11 of the 25 chunks and reported two of this run's strings
-absent when they were not. The service worker's `BUILD_ASSETS` is the authoritative list, because
-that is what the app promises to work from offline.
+page's `<script>` tags, which name only 11 of the 25 chunks and once reported two of a run's strings
+absent when they were not. The service worker's `BUILD_ASSETS` is the authoritative list, because that
+is what the app promises to work from offline.
 
-**After PR #188** (`main` at `ec228a8`, `BUILD_ID = "d9d9e8c7b6ad"`): 28 assets, 14 router payloads,
-11 routes, 8 samples, **every one 200**. The offline Sev-1's fix is complete rather than merely
-deployed — `_rsc` and `ignoreSearch` are both in the served `sw.js`.
+**After PR #193** (`main` at `d0c2843`, `BUILD_ID = "aff65baa4d2b"`): the flight-log drop's own
+sentences — *"Drop one on this chart"*, *"tab-separated export"*, *"Flight log file"* — are all
+**PRESENT** in the served chunk, and the served stylesheet carries
+`transition:none!important;animation:none!important` inside the universal `@media print` rule beside
+`box-shadow` and `background-image`. So the print fix is what a flyer's printer gets, not just what
+the repo says.
 
-**After PR #189** (`main` at `8c0bd50`, `BUILD_ID = "717cdd8c1a60"`): **60 precached URLs re-checked,
-0 not 200.** Probed the served JS for this run's own sentences — *"puts the centre of pressure
-outside the span of the parts"*, *"No static margin is available for this design"* and *"The centre
-of pressure and the static margin are not marked"* are all **PRESENT**, and the motor advice the cold
-walk removed — *"Swap in a bundled motor under Design, and it comes back"* — is **absent**.
+**After PR #194** (`main` at `29b7c68`, `BUILD_ID = "272249d46401"`): **72 precached URLs re-checked,
+2 not 200 — and both are expected**: `/docs/` is the host's 308 to `/docs`, and `/pyodide/` is the
+fetch handler's path PREFIX rather than a URL, so **70 real URLs, all 200**. Increment 27's own
+strings — *"Its own fields are under Properties"* and *"attached to it, taken off it, or moved here"* —
+are **PRESENT**.
+
+**And the journey was walked on the shipped bytes.** A browser cannot reach the live site from this
+container (the agent proxy; see *The environment*), so the served stylesheet's SHA-256 was compared
+against the local `out/` — **identical** — and the walk run against those bytes. From the scratch
+starter, typing the dual-deploy pair and a payload weight and then picking each part:
+
+```
+Drogue:  aria-label="Drogue"   fields: Diameter (mm)                     leaked: none
+Payload: aria-label="Payload"  fields: Weight (g) · Position (mm)        leaked: none
+console errors: none
+```
+
+Checked absent on the drogue's panel specifically: `Canopy Cd`, `Canopy mass`, `Main chute`, and both
+spellings of the deploy altitude — the field that sets when the MAIN opens. On P18 increment 3's
+journey, also on the shipped bytes: the hint names the drop, `accept` carries `.tsv`, `dragover` is
+cancelled (so a dragged link cannot navigate the app away mid-session), the overlay renders, and
+**0 elements are still animating on the printed sheet**.
 
 **So the production gap is zero.** Every increment this run shipped is what a flyer gets.
 
@@ -157,93 +194,105 @@ red in either copy. What to paste over there:
 
 ## What this run learned that outlasts its increments
 
-0. **A gate you trimmed to four lines cannot show its own failure count, and that is how this run
-   read green over three red tests.** `npx playwright test --shard=$i/3 2>&1 | tail -4` prints three
-   test NAMES and a "N passed" line — the "3 failed" header scrolls off. The pre-push review found the
-   failures; the gate had already reported success. **Grep for `passed|failed|did not run`, never
-   `tail -N`.** Same false-all-clear shape the manual records for the corpus suite, arriving through
-   the shell instead of the suite.
-1. **A COLD WALK OF THE BUILT EXPORT FOUND TWO DEFECTS THE WHOLE GATE COULD NOT.** Both were created
-   by the very change that was about to ship, and both are the same shape: a sentence that was written
-   when its condition had exactly one cause, and outlived it.
-   - `ParameterSweep`'s withheld-metric notice ended *"Swap in a bundled motor under Design, and it
-     comes back on both"* — hard-wired advice, now printed to a flyer whose motor is fine and whose
-     centre of pressure is not a point on their rocket.
-   - `GeometryInspector`'s explanation of the missing CG/CP marks is gated on `cg === undefined`, so a
-     design with a resolved motor and no CP dropped both marks **in silence** — §5's "a surface that
-     vanishes instead of saying why", introduced by the fix for a different vanishing.
-   **When you give an existing condition a second cause, re-read every sentence downstream of it.**
-   The type system cannot see a prose fix, and neither can 1,329 unit tests.
-2. **"Reachable in the corpus" and "reachable by a flyer" are different claims, and the second is the
-   one that sizes a Sev-1.** The no-CP defect looked like a one-file RASAero curiosity — until the
-   from-scratch starter reached it in **two typed fields**, both inside the range the Design workspace
-   offers. Drive the editor before deciding a defect is a corner.
-3. **Test the arithmetic, not a proxy for it.** The no-CP rule's first version asked whether the CP
-   was inside the AIRFRAME, which sounded obviously right and was wrong: the fin-position sweep puts
-   fins past the tail, so the CP goes past it too with every contribution positive and CNα healthy.
-   The correct test is the convex hull of the contributions — exact, because a weighted average with
-   non-negative weights cannot leave the interval it averages over. **The proxy would have hidden a
-   real bug behind a caveat about a different one.**
-4. **NOT EVERY FIX CAN BE PINNED BY THE CORPUS, and saying so beats shipping a check that cannot
-   fail.** Three drafts of a corpus rule for the double-boattail, three different failures. Asked of
-   every KIND it found **11 duplicates across the corpus, all legitimate** (two fin sets at one
-   station is a real design; every parachute hashed identically because a canopy has none of
-   `length`/`outerRadius`/`foreRadius`/`aftRadius`). Narrowed to ADJACENT transitions it went inert —
-   after the fix there is not one adjacent pair of transitions in the whole corpus, so it compared
-   zero pairs and would have passed forever. Widened to every same-stage PAIR it ran green **with the
-   fix reverted**, because RASAero places everything `{after, offset: 0}`: the duplicate APPENDS
-   rather than overlaps (551.2 mm and 576.6 mm), so "same station" cannot see it. The unit case with
-   its own in-file control — a thousandth of an inch of difference must build two cones — is the
-   honest instrument, and the corpus's contribution is that all 35 still fly.
-5. **Bumping a stored record's version silently rearms every test that writes one.** `session.test.ts`
-   has five cases that write a v1 record with a field deleted and assert a null read. With the reader
-   moved to v2 they all still passed — on the VERSION check, having stopped testing the missing field
-   entirely. Move the fixtures with the reader.
-6. **The pre-push review is nine-for-nine.** This time it stopped a wrong refusal on the front door:
-   `DropZone`'s first version refused a file whose NAME did not match `accept`, and Loft's importer
-   sniffs BYTES. **The place was the defect. The check never was.**
-7. **A binding rule written with nothing able to contradict it is worth less than no rule.** Third
-   consecutive run where a §2 addition shipped without its own check. Invert it: **write the check
-   first, then the section.**
-8. **Subagents driving Playwright collide with the gate.** `reuseExistingServer` is true locally, so an
-   agent's `npx playwright test` shares the suite's own server on port 3000. Forbid Playwright in the
-   agent brief, not just writes.
-9. **Measure the consequence, not just the defect.** "The mass sits outside its host" is a geometry
-   statement nobody can price. "Static margin moves by up to 2.73 cal on 35 of 35 corpus designs" is
-   the same fact in the units a flyer acts in.
+1. **An intermittent test is a defect reported as a mood, and the fix is a second assertion rather
+   than a retry.** The print-contrast sweep could only see the fade defect one run in three. That is
+   not a guard: it is a die roll a session will eventually read as noise. The answer was a
+   timing-free count of what is still animating under print — with the SCREEN count asserted non-zero
+   first, so an app that transitioned nothing could not satisfy it vacuously. **When a test fails
+   sometimes, ask what it would take to make it fail every time, and add that.**
+2. **Classify every absent-assertion against its gate before believing the count.** Increment 27's
+   e2e swept two panels for twenty-one labels; **nineteen could not go red under any bug** — the
+   label was `!only`-gated, or relabelled by an `only ?` expression, or sat on a key the OLD mask
+   already blanked. A long list of `toHaveCount(0)` reads as thoroughness and can be nothing at all.
+   *And the corollary that caught a real defect: a leak sweep scoped to `label` cannot see a caption,
+   a hint or a `<p>`. The canopy's provenance line is text.*
+3. **A decision entry that argues carefully about one control is evidence about that control and
+   nothing else on the same row.** The `drogueDiameter` decision was written out at length while
+   `mainDeployAltitude` — the field immediately beside it, ungated, belonging to a different
+   component — went onto the same panel unexamined. Thoroughness about one thing reads as
+   thoroughness, to its own author most of all.
+4. **A mask cannot reach a control gated on nothing.** Both of the leaks this run fixed shared a
+   shape: the containment was somewhere other than where the fix was. The Cd/mass pair was contained
+   by a fieldset gate, not by the mask; the deploy altitude was contained by nothing. **Before
+   trusting a filter, enumerate what it CANNOT see.**
+5. **The gate is measured on a QUIET box, and the written rule was too narrow.** A read-only review
+   agent running the type-checker and the unit suite alongside a shard loop turned shard 2 from
+   75 passed into **32 failed**, every one of which passed in isolation. `MAINTAINING.md` said "never
+   run two shards concurrently"; it now says the broader thing. Subagents may READ during a gate.
+6. **Polish makes latent defects reachable.** The `transition` added so a drop highlight would fade
+   is on 96 other call sites and had never printed, because no transitioning element with a dark
+   ground had sat inside `main` on the flight page before. **A one-line style addition is a change to
+   every rule that competes with it** — here, the whole `@media print` block.
+7. **Extract before you test, when the thing you need to test is inside a component.** The per-aim
+   mask was an inline expression in a `.tsx` file, in a repo with no component tests, so nothing
+   could drive it and a whole increment was withdrawn over what it did. Moving it to `lib/` was three
+   lines and turned an unverifiable rule into one with an exact-set assertion and two live controls.
+8. **Read the key space out of the declaration, never copy it.** The mask's unit case parses the 67
+   `designDims` keys out of the component's own type text. A hand-written second list would have
+   passed while the real type grew a key the allowlist had never heard of — which is the precise
+   defect the increment existed to remove, re-entering through its own test.
+9. **A ledger number is a claim and gets re-measured with everything else.** Five figures written
+   this run were wrong on first draft — `31` tsc errors (20), "thirty-odd" `massCarriedBy` sites (44),
+   "ten surfaces" (8), "the seven `unreachable*` counts" (8), and an array in registry order where
+   the code produces tree order. The last one was a red test; the rest would have shipped.
 
-## The environment, measured 2026-08-18 (run 19)
+## The environment, measured 2026-08-18 (run 20)
 
 - **The container was COLD** — no `node_modules`, no `corpus/`, and `/opt/pw-browsers` held
   chromium-**1194** while this repo's Playwright (1.61.1) manages **1228**.
-  `npx playwright install chromium` fetched it in about a minute. **Eighth consecutive run that has
+  `npx playwright install chromium` fetched it in about a minute. **Ninth consecutive run that has
   paid for it**; it stays paid until it is in the environment's setup script.
 - **The fixtures repo IS attached** at `/home/user/loft-fixtures`; five per-tool symlinks into
   `corpus/` and the suite names **35 design files**.
-- **The SIBLING repo is NOT reachable** — see above. This is new; run 18 recorded the opposite.
-- **A full gate is ~20 minutes** on a quiet box (lint ~4 min, unit ~5 min, build ~1 min, e2e
-  4×1.2 min). With subagents running it is unbounded and the e2e counts stop being trustworthy.
-- **FOUR e2e shards, and 293 tests.** `for i in 1 2 3 4; do npx playwright test --shard=$i/4; done`,
-  sequentially, and read the failure LINE.
+- **The SIBLING repo is NOT reachable.** Both `add_repo` and a plain `git clone` are refused by the
+  harness before they reach GitHub, while `list_repos` shows it public with `can_push: true` — so the
+  account has the access and the session may not use it. Parked for the owner; the fix is attaching it
+  as a second source at session creation, exactly as the fixtures repo is.
+- **A full gate is ~20 minutes** on a quiet box (lint ~1 min, build ~1 min, unit ~7 min, e2e
+  4×1.5 min). **With anything else running it is not a gate**: a review agent running `tsc` and
+  `vitest` alongside it produced 32 failures that all passed in isolation.
+- **FOUR e2e shards, and 299 tests** — 75 + 75 + 75 + 74. `for i in 1 2 3 4; do npx playwright test
+  --shard=$i/4; done`, sequentially, and read the failure LINE, never the tail.
 - **The clone is SHALLOW.**
 - **Git identity arrived as the harness vendor's default** and was set per-repo before the first
-  commit. **The harness appended its attribution footer to PR #189's body on creation** — it does NOT
-  append on update, so re-posting the same body strips it. Read it back to confirm; PR #188's body was
-  clean because it was created before the footer arrived and updated afterwards.
-- **`npx tsc --noEmit` reports errors in `lib/model/edit.test.ts`**, which `npm run build` never
-  reads. Filed.
+  commit. **The harness appends its attribution footer to every PR body on creation** — three for
+  three this run — and does NOT append on update, so re-posting the body strips it. It also
+  HTML-escapes ASCII apostrophes and quotes in the posted body and eats an `<x>` placeholder, so
+  write PR prose with typographic quotes and no angle brackets. Read the body back every time.
+- **The remote feature branch holds the PRE-SQUASH commit after each merge**, so the next push is
+  rejected as behind. Confirm the remote head's TREE equals `origin/main`'s (it does, after a squash
+  merge) and then `--force-with-lease`. Three times this run.
+- **A browser cannot reach the live site from here.** Outbound HTTPS goes through the agent proxy and
+  Chromium is not configured for it — `page.goto("https://loft.fusionspace.co/")` fails
+  `ERR_CONNECTION_RESET` while `curl` works. So a production WALK is curl plus string probes, and the
+  browser journey is run against `out/` **after checking the served asset's hash matches the local
+  one** — which is a stronger claim than a browser walk anyway, and is how this run verified the print
+  fix.
+- **`npx tsc --noEmit` reports 20 errors, all in test files**, which `npm run build` never reads.
+  Filed, with the live count.
 
 ## The arc across sessions
 
-- **Run 19 (2026-08-18, this one).** Eight increments: **P18 increment 2** (`DropZone` —
+- **Run 20 (2026-08-18, this one).** Four shipped units across three PRs: **R12 increment 25** (a
+  field-made boattail becomes editable), a **licensing Sev-1** (`THIRD-PARTY-NOTICES.md` denied
+  shipping RocketPy while the build ships it — 23 wheels, 11 licences, one LGPLv3+, plus
+  `scripts/check-notices.mjs` so the claim cannot drift from the artifact again), **R12 increment 26**
+  (Sev-1: a fin set's root stays on the airframe, bounded per stage, moved as a rigid group),
+  **P18 increment 3** (the flight-log intake becomes a drop target; `useFileDrop` extracted from
+  `DropZone`) with a print-sheet fix beside it, and **R12 increment 27** (the drogue and the payload
+  get their panels; the per-aim mask blanks by allowlist). **P19 decomposed.** `COMPETITION.md` rows
+  54 and 55 added, row 54 narrowed. PRs **#191**, **#192**, **#193**, **#194**, all merged; production
+  walked after each and the gap is zero. **Every one of the three pre-push reviews found a real
+  defect the gate could not see, and one of them found the increment shipping the defect it was
+  written to fix.**
+- **Run 19 (2026-08-18).** Eight increments: **P18 increment 2** (`DropZone` —
   `cardTreatments` 3 → 1, outside the primitives file 2 → 0, and a refusal moved 765 px up into the
   zone the file landed on), **R12 increment 24** (three dead add controls on every design), and **six
   Sev-1s** — the offline reload loop, an authored mass hanging out of its host for up to 2.73 cal, real
   part masses printing as a flat zero on 18 of 35 designs, a Conditions summary claiming "as designed"
   after the flyer replaced them, the fallback-canopy caveat reaching one surface of three, a
-  design with no centre of pressure being given one **with a band on it** (−15 cal flagged LOW and
-  +12.81 cal flagged HIGH, from the same undefined figure), and a RASAero boattail described twice
-  and built twice. `COMPETITION.md` rows 52 and 53. PRs **#188** and **#189**, both merged; production re-walked after each and the gap is zero.
+  design with no centre of pressure being given one **with a band on it**, and a RASAero boattail
+  described twice and built twice. `COMPETITION.md` rows 52 and 53. PRs **#188** and **#189**.
 - **Run 18 (2026-08-17).** R12 increments 21 and 22 — a mass goes inside anything with a bay; the whole
   add vocabulary on screen. P18 written and increment 1 shipped (`Toast`). PRs #185, #186, #187.
 - **Run 17 (2026-08-17).** Two Sev-1s and three increments; **P17 SHIPPED**, R12 reached increment 20.
@@ -258,22 +307,29 @@ red in either copy. What to paste over there:
 ## Standing hazards this run re-confirmed
 
 - **Never push straight to `main`** — the deploy fires on any push, gated on nothing.
-- **Read the gate's failure LINE, not its tail.** See point 0 above.
+- **Read the gate's failure LINE, not its tail.** `| tail -4` scrolls the "N failed" header off the
+  top; grep for `passed|failed|did not run`.
+- **The gate is measured on a QUIET box.** Not just "no two shards": no subagent running `tsc`, no
+  second `vitest`, nothing. A review agent doing exactly that turned 75 passed into 32 failed.
 - **Four e2e shards, sequentially**, and re-run a failure in isolation before believing it — but a
   test that fails in a shard and passes alone is not automatically contention: run 19 had one that was
-  real and three that were not, and the difference was measurable in ten minutes.
+  real and three that were not, and the difference was measurable in ten minutes. Run 20's print-sheet
+  failure was real and reproduced 8 of 24 times; the way to see it was to clone the test twelve times
+  into a throwaway spec and print the diagnostic the assertion could not.
 - **Every e2e negative control is `revert → rebuild → run → restore → rebuild`**, because the suite
   serves `out/`. And the revert has to COMPILE: `noUnusedLocals` turns the obvious one-line revert
   into a red build that leaves the previous `out/` in place, so the control passes and proves nothing.
   Revert by changing a VALUE the fix depends on, not by deleting the code that uses it.
 - **A merged PR cannot track new work.** After merging, `git checkout -B <branch> origin/main`.
-- **`DESIGN.md` §9, measured this run** (`npx vitest run lib/design-system.test.ts` is the authority;
-  the shell one-liners over-report two of these and say so): radius drift 0, border drift 0, mismatched
-  border pairs 0, **card treatments 3 → 1 (target reached)**, **card treatments outside the primitives
-  file 2 → 0 (target reached)**, **container border widths 0 (a new count)**, elevations outside §2's
-  two 0, off-scale spacing 0, arbitrary spacing 1 (the sanctioned device inset), off-scale type 0,
-  inverted files 0, hand-rolled `<select>` 0, hand-rolled `<button>` 3 (the three primitives),
-  primitive adoption ≥21 files. Nothing moved the wrong way and two counts reached their targets.
+- **`DESIGN.md` §9, measured this run**: `npx vitest run lib/design-system.test.ts` is the authority
+  and it is **30 passed, 30 of 30**, every count at its stated target — radius drift 0, border drift 0,
+  mismatched border pairs 0, card treatments 1, card treatments outside the primitives file 0,
+  container border widths 0, elevations outside §2's two 0, off-scale spacing 0, off-scale type 0,
+  inverted files 0, hand-rolled `<select>` 0. Nothing this run moved any of them.
+- **The corpus is real and it ran**: `lib/corpus/sweep.test.ts` is **49 passed** over **35 design
+  files** — 909 stored comparisons scored with 1 withheld, ground-hit velocity 0.7% against
+  OpenRocket's stored figures over 76 flights, 568 parts × 6 add gestures each carrying a reason,
+  217 bay parts taking an authored mass with 0 moving the mould line or the stability solve.
 - **`OWNER-NOTES.md`: all 12 open notes carry a verdict and none is pending.** *(The previous handoff
   said 13; the Open section holds twelve distinct notes — ON-1 … ON-10 plus ON-B1 and ON-B2 — and the
   extra count came from ON-4 being named twice, once in its own note and once in the cluster header.)*
