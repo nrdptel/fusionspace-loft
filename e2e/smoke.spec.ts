@@ -5166,6 +5166,56 @@ test.describe("Loft", () => {
     await expect(rows).toHaveCount(1);
   });
 
+  test("an untyped mass position advertises the station the flight is actually using", async ({
+    page,
+  }) => {
+    // **The half of 2026-08-18's mass-station Sev-1 that lives in the UI.** The model now re-seats an
+    // authored mass when its host is resized, so the station the flight uses moves with the tube. The
+    // field that shows it reads `designDims`, which deliberately EXCLUDES the dimension edits —
+    // right for every other readback there, because those show the value being edited FROM, and
+    // wrong for this one: nobody types a station to change a tube, so an untyped field has to say
+    // what the flight is using. Before the fix the two agreed by sharing the bug; fixing the flight
+    // is what put them out of step, and this is the case that would have caught it.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    await partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).first().click();
+    await page.getByRole("button", { name: /Add a mass inside this/ }).click();
+
+    const posField = page.locator("label").filter({ hasText: /Mass pos/ }).first().locator("input");
+    const lenField = page.locator("label").filter({ hasText: /^Body length/ }).first().locator("input");
+    const station = async () => parseFloat((await posField.getAttribute("placeholder")) ?? "NaN");
+
+    const before = await station();
+    const tubeLen = parseFloat((await lenField.getAttribute("placeholder")) ?? "NaN");
+    expect(before).toBeGreaterThan(0);
+    expect(tubeLen).toBeGreaterThan(0);
+
+    // The station is ABSOLUTE — from the nose tip — so the host's fore end is what is left when the
+    // fraction is taken off it. Deriving it here rather than asserting a ratio is what makes the
+    // check exact: a threshold on `before` alone is dominated by the nose length and a first draft's
+    // `< before * 0.5` missed by half a millimetre on the starter.
+    const hostFore = before - tubeLen * 0.3251;
+    const newLen = Math.round(tubeLen / 5);
+
+    await lenField.fill(String(newLen));
+    await expect
+      .poll(station, { timeout: 20000 })
+      .toBeLessThan(hostFore + newLen + 1);
+
+    // Where it should be, to the millimetre the field speaks in: a third of the way down the tube
+    // the flight is now flying, not the tube the file described.
+    const after = await station();
+    expect(after, "the station did not follow its host").toBeCloseTo(hostFore + newLen * 0.3251, 0);
+    // …and inside the host, which is what the whole fix is about.
+    expect(after).toBeGreaterThanOrEqual(hostFore - 1);
+    expect(after, "the mass advertises a station past the end of its own host").toBeLessThanOrEqual(
+      hostFore + newLen + 1,
+    );
+  });
+
   test("a coupler and a centring ring go inside the tube, and only the balance moves", async ({ page }) => {
     // R8's two INTERNAL kinds, and the first authored parts that touch no outer mould line at all.
     // That is what this drives: the airframe the solver sees must be untouched — same apogee-driving

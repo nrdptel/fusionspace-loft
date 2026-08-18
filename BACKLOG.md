@@ -12,6 +12,26 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-18 from R12 increment 23's own pre-push review — two cases the fix DELIBERATELY does
+not answer, each because it is a product decision rather than a bug.**
+
+- **Nothing owns a DESIGN-ARRIVED mass inside a tube the flyer shrinks.** The shrink clamp is
+  `isRing(ch)` and `RING_KINDS` excludes `masscomponent`, and `seatAddedMasses` touches authored
+  masses only — on purpose, because **12 of the 56 design-arrived corpus masses already leave their
+  host as their own file states them** and rewriting another tool's geometry is the one thing Loft
+  does not do to a number a file states. So a flyer who shrinks a tube around an IMPORTED mass gets
+  the same overhang the authored case had. The question is what to do instead: re-station it (restates
+  the file), refuse the length (a one-way door), or flag it (a new state). A milestone, not a line.
+- **The same is true of a FIN SET, and the comment that said otherwise has been corrected.**
+  `resolveChildFore`'s `top` arm clamps nothing for any kind, and **17 of the corpus's 64 fin sets are
+  placed `top`** — `APEX_K_Dart.ork`'s and `Simulation scripting.ork`'s among them — so a shortened
+  tube overhangs those exactly as it overhung a mass. Bigger than the mass case, because a fin set has
+  a chord, a span and aerodynamic consequences: moving one changes CP as well as CG.
+- **The pinned arm of `seatAddedMasses` has no control**, because its only live path is a mass
+  authored inside an authored COUPLER — the one host `fitAddedInternalParts` shortens after
+  `withMassStation` has already clamped — and no test anywhere authors that pair. The ordering that
+  makes the pass run last is therefore asserted by argument rather than by a check.
+
 **Filed 2026-08-18 from the opening fan-out — nine lenses, ~60 findings, of which four Sev-1 claims
 were reproduced and are being fixed this run (the offline loop below, `mass()`'s flat zero, the
 authored mass station, the RASAero fin station). Everything here is what is NOT being fixed this run,
@@ -375,13 +395,19 @@ someone has seen it, so these are filed as claims with the command that would se
   coupler. Reproduce: body tube → add a coupler → add a mass inside the coupler → pick a catalogued
   coupler wider than the tube's bore; both rows vanish, one of them unmentioned.
 
-- **The mass station is frozen against the host's PRE-EDIT length.** `lib/model/edit.ts:4121` derives
-  the station during `applyAdds`, which runs before `applyDimensionEdits` and `fitAddedInternalParts`
-  resize that host — so the mass lands outside it. Measured: author a mass in a 700 mm tube, then set
-  body length to 20 mm — the mass sits at 477.6 mm in a host spanning [250, 270] mm. Pre-existing for
-  body tubes; increment 21 extends it to the coupler, which is the one host the applier itself
-  shortens. The docblocks at `:4101` and `:1762` say the station is re-derived at every apply, and
-  that is true only of the FILE's length.
+- **FIXED 2026-08-18 (R12 increment 23), and it was worse than this entry said.** ~~The mass station is
+  frozen against the host's PRE-EDIT length. The station is derived during `applyAdds`, which runs
+  before `applyDimensionEdits` and `fitAddedInternalParts` resize that host — so the mass lands outside
+  it. Measured: author a mass in a 700 mm tube, then set body length to 20 mm — the mass sits at
+  477.6 mm in a host spanning [250, 270] mm. Pre-existing for body tubes; increment 21 extends it to
+  the coupler, which is the one host the applier itself shortens. Two docblocks say the station is
+  re-derived at every apply, and that is true only of the FILE's length.~~ *(The two line references
+  this entry carried are deliberately struck rather than updated: the fix moved every line in that
+  file, and a stale pointer is what sent the first re-reading to a comment about centring rings.)*
+  **Re-measured before fixing: the mass lands outside its host on 35 of 35 corpus designs and past
+  the whole airframe on 7, moving static margin by up to 2.73 cal — and it is one drag of the
+  body-length grip, not a typed extreme. `seatAddedMasses` re-seats authored masses over the finished
+  tree; see `ROADMAP.md` R12 increment 23.**
 
 - **"Add a mass inside this" renders on the boattail, which `addPartAfter` cannot resolve.** The
   boattail is appended by `applyDimensionEdits`, after `structureOf()` — which `addPartAfter` resolves

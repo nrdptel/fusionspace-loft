@@ -1831,6 +1831,24 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
   const swapInfo = useMemo<SwapInfo | null>(() => (doc ? swapInfoFor(doc, simIndex) : null), [doc, simIndex]);
 
   const designBase = removableFrom ?? doc?.rocket;
+  /** The FULLY edited tree — structure and dimensions both — for the one readback that is DERIVED
+   *  from geometry the flyer edits somewhere else.
+   *
+   *  Every other entry in `designDims` below is deliberately read from `designBase`, which excludes
+   *  the dimension edits: those fields show the value being edited FROM, and a body length that
+   *  updated to what the flyer just typed would be a field showing its own input back. A mass
+   *  object's STATION is not that. Nobody types it to change a tube; it is a fraction of the host's
+   *  length, so the moment a length edit lands the station the flight is using moves and the field
+   *  has typed nothing. Reading it off `designBase` would advertise the pre-edit station — which is
+   *  exactly the "field showing a number that is not the one in the flight" the comment above forbids.
+   *
+   *  **This became reachable on 2026-08-18 and not before.** Until `seatAddedMasses`, the flown
+   *  station did not move with its host either, so the stale placeholder agreed with the flight by
+   *  sharing its bug. Fixing the flight is what put the two out of step. */
+  const flownForReadback = useMemo(
+    () => (doc ? applyGeometryEdits(doc.rocket, edits) : null),
+    [doc, edits],
+  );
   // The design's own dimensions, shown as the starting points for the builder edits.
   //
   // Read from the design plus the flyer's STRUCTURE (`removableFrom` — the pristine design with the
@@ -2076,7 +2094,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             // 26 of the 35 corpus designs carry a mass object, 56 in all, and until now not one could
             // be reached: the only mass a flyer could state was a payload the editor adds.
             massObjectMass: primaryMassObject(designBase, edits.massObjectId)?.mass,
-            massObjectStation: primaryMassObjectStation(designBase, edits.massObjectId),
+            // The one readback off the FULLY edited tree — see `flownForReadback`. A station is
+            // derived from its host's length, so it moves when a length edit lands and the flyer has
+            // typed nothing into this field.
+            massObjectStation: primaryMassObjectStation(flownForReadback ?? designBase, edits.massObjectId),
             massObjectPart: primaryMassObjectPart(designBase, edits.massObjectId),
             unreachableMassObjects: unreachableMassObjectCount(designBase),
             finish: primaryFinish(designBase),
@@ -2186,8 +2207,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
           },
     // The fin and body readbacks take their selected part, so both selections are real dependencies:
     // without them the panel keeps showing the primary part's numbers while the edit writes to the
-    // picked one.
-    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.bodyDiameter, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId, edits.fittingId],
+    // picked one. `flownForReadback` is one too, and a stale one is exactly the defect the station
+    // readback exists to fix: it is the only entry here that moves when a DIMENSION edit lands, so
+    // leaving it out would freeze the station at whatever it was when a selection last changed.
+    [doc, designBase, flownForReadback, edits.finSetId, edits.bodyTubeId, edits.bodyDiameter, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId, edits.fittingId],
   );
 
   return (

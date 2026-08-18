@@ -2586,6 +2586,90 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 23 — an authored mass stays inside the part that holds it, 2026-08-18. SEV-1.**
+`HANDOFF.md` named this as one of two candidates and called it "the one a flyer would notice". It is
+worse than filed: it is not a corner, it is **every design**, and it is reachable in one drag.
+
+`buildAdded` derives an authored mass's station as `axialLength(host) * 0.3251` — read off the host
+as the FILE describes it, because `applyAdds` runs before `applyDimensionEdits`. `resolveChildFore`'s
+`top` arm is `parentFore + offset` with no clamp of any kind, so the mass does not move with a
+shrinking host: it hangs out of the back and the solver flies it there. **Measured across the 35-design
+corpus by authoring one mass into each design's primary tube and taking that tube to 30% of its file
+length: the mass lands outside its host on 35 of 35, and past the whole airframe's tail on 7** (worst
+`OR vs RAS Test 1.ork`, 30.6 mm past an 873.8 mm rocket). **And the consequence is the number a flyer
+acts on: the CG moves on all 35 and static margin by up to 2.73 cal** (`Three-stage rocket.CDX1`;
+`Tube fin rocket.ork` 2.64; `The Red Hunter.ork` 2.32).
+
+**One drag, not a typed extreme.** `components/RocketDiagram.tsx` gives the Body-length grip a 20 mm
+floor on every tube, so dragging it to the stop is enough on any design whose tube is longer than
+61.5 mm. "A flyer would never shrink it that far" is not available as a defence.
+
+`seatAddedMasses` runs **after** `fitAddedInternalParts`, which is one step later than every other
+rule in the pipeline and is the point: an authored coupler is both a fitting that pass resizes and a
+host a mass can sit in, so anything earlier judges a rocket that is not the one being flown — the same
+argument `fitAddedInternalParts` already makes for itself.
+
+**Two rules, because the two masses are different.** A mass the flyer has NOT stationed keeps its
+FRACTION, which is what `buildAdded`'s own comment already promised and could not deliver. One they
+HAVE stationed keeps their station, clamped to the host it ends up in — `withMassStation` already
+clamps, but it runs inside `applyDimensionEdits`, upstream of the one pass that can invalidate it.
+Re-deriving the typed one would overwrite a number the flyer chose.
+
+**A mass the DESIGN FILE brought is not touched, and that is the load-bearing exclusion.** Measured
+2026-08-18 by resolving every corpus mass through `resolveChildFore`: **12 of the 56 design-arrived
+masses already leave their host's span as their own file states them**, across 9 designs — counting
+the mass's own EXTENT, which is the honest reading (`TubeFins1.rkt`'s shock cord is 1,219 mm inside a
+203 mm host). **4 of the 12 have their fore station outside too**: `APEX_K_Dart.ork`'s "Avionics 1"
+and "Ejection Charge", `3D printable nose cone and fins.ork`'s "Screw Eye", and
+`FullScaleModelTH.rkt`'s "Deployment Charge(s)". *A first draft of this paragraph said "4 … two more
+on `3D printable nose cone and fins.ork`", a number taken from a subagent rather than measured and a
+naming that was wrong; the pre-push review caught the count and re-measuring caught the names.* A
+blanket clamp would silently rewrite all twelve, and rewriting another tool's stated geometry is the
+one thing Loft does not do to a number a file states.
+
+**What NOTHING owns, said plainly rather than implied away.** A DESIGN-ARRIVED mass inside a tube the
+flyer shrinks is overhung by nobody: the shrink clamp is `isRing(ch)` and `RING_KINDS` has no
+`masscomponent`. A first version of `seatAddedMasses`'s docblock called it "the shrink clamp's
+business, one rule and one home" — false, and the kind of sentence that stops the next reader looking.
+The same correction applies one line over: that clamp's own comment claimed a fin set is "repositioned
+by `flattenRocket`, not overhung by it", and `resolveChildFore` clamps nothing for any kind — **17 of
+the corpus's 64 fin sets are placed `top`**, so a shortened tube overhangs those exactly as it
+overhung a mass. Both filed; neither is this increment's to answer, because restating a file's
+geometry is a product decision and a fin set has aerodynamic consequences a point mass does not.
+
+**The other half of the fix is in the UI, and it only became reachable by fixing the model.** The
+Mass-position field's placeholder reads `designDims`, which deliberately excludes the dimension edits
+— right for every readback that shows the value being edited FROM, and wrong for a station, which
+nobody types to change a tube. Before this run the placeholder and the flight agreed by sharing the
+bug; fixing the flight put them out of step, and an untyped field would have advertised 421.6 mm while
+the flight flew 217 mm. `flownForReadback` is the one readback taken off the fully-edited tree, pinned
+by a new e2e case whose control reports exactly those two numbers.
+
+**Two false docblocks corrected rather than left.** `edit.ts`'s add arm claimed the station "is
+DERIVED here rather than frozen onto the entry, so a bay stays a third of the way down the tube that
+holds it when that tube is later resized" — the fraction is evaluated once and a constant lands in
+`placement.offset`. And the shrink clamp claimed "a fin set or a mass object inside a shortened tube
+is repositioned by `flattenRocket`, not overhung by it" — true of a fin set, false of a mass object,
+and it is the sentence that made this look handled.
+
+**Pinned at three layers with six controls, all fired — and what is NOT pinned is named.** `lib/model/edit.test.ts` gains three cases —
+the mass stays inside its host AND keeps its fraction after a resize; a typed station is clamped
+rather than re-derived; a file mass is untouched. `lib/corpus/sweep.test.ts`'s authoring sweep gains a
+sixth rule driven on **90 authored masses across all 35 designs**, and `e2e/smoke.spec.ts` gains the
+placeholder case. Controls: removing the pass fails the unit case with *"expected 0.47757 to be less
+than or equal to 0.27"* and the corpus case with **77 named designs and stations**; re-deriving the
+typed station fails the typed case; widening the pass to every mass fails the file-mass case with
+*"Altimeter + battery was moved by the seating pass"*; putting the placeholder back on the pre-edit
+tree fails the e2e with *"Expected: < 345.038, Received: 421.6"*; and the file-mass case now carries
+its own denominator, because every assertion in it sat behind a `continue`.
+
+**Two things this increment does NOT pin, stated because a reader would assume otherwise.** The typed-
+station case passes verbatim with the pass deleted — `withMassStation` already clamps against the
+post-dimension-edit tree, so on a body-tube host the pinned arm is a no-op; what that case catches is
+the pass OVER-reaching. And the ordering this entry calls "the point" — running after
+`fitAddedInternalParts` — has no control at all, because its only live path is a mass authored inside
+an authored COUPLER, the one host that pass shortens, and no test anywhere authors that pair. Filed.
+
 **Increment 22 — the whole vocabulary is on screen, dimmed where the part will not take it,
 2026-08-17.** `COMPETITION.md` row 50's still-owed half, and the one place Loft was behind every
 tool in the field. Loft is the ONLY one of the four that states in the product WHY a component
