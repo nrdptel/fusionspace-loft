@@ -23,6 +23,7 @@ import {
   primaryParachutePart,
   unreachableParachuteCount,
   AIM_SLOTS,
+  maskAimedDims,
   aimEditsAt,
   moveTarget,
   moveSlots,
@@ -2676,13 +2677,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
                 // move. The three parts a DIMENSION edit adds (a boattail, a drogue, a payload bay)
                 // take no AIM here, and deliberately: they are appended after this tree, so no aim
                 // can reach them — which is the same rule that already stops the Remove button
-                // offering to take one out. **The BOATTAIL is no longer unreachable, which is what
-                // increment 25 changed and what this sentence used to deny of all three.**
-                // `derivedPartAim` answers for it and `propertiesFor` opens the two fields that make
-                // it; the drogue and the payload are still exactly as this comment described, and
-                // `DERIVED_PARTS` carries why. What stays true of all three is that an AIM — an id
-                // written into the edit bag — is not the mechanism, because there is nothing in this
-                // tree for one to point at.
+                // offering to take one out. **None of the three is unreachable any more**: increment
+                // 25 gave the boattail a Properties panel and increment 27 gave the drogue and the
+                // payload theirs, so `derivedPartAim` answers for all three and `propertiesFor` opens
+                // each one's own fields. *(This comment said "the drogue and the payload are still
+                // exactly as described" between the two increments, and 27's pre-push review found it
+                // still saying so — a pointer into another file's docblock goes stale when that
+                // docblock is rewritten, which is an argument for stating the fact here.)* What stays
+                // true of all three is that an AIM — an id written into the edit bag — is not the
+                // mechanism, because there is nothing in this tree for one to point at.
                 const patch = removableFrom ? aimEditsAt(removableFrom, id) : {};
                 if (Object.keys(patch).length) applyEdit(patch, null);
               }}
@@ -2943,18 +2946,17 @@ export type EditorAim = string;
  *  existed twice.
  *
  *  **Filtered on `aim !== null`, which is the one line stopping an aim from existing here with no
- *  panel behind it.** Two of the three entries are `null` today; that file's docblock carries which
- *  and why. A key here for an aim no fieldset answers to would mask `designDims` for a popover that
- *  then renders nothing — a Properties button that opens an empty surface, which is a worse version
- *  of the dead control this milestone exists to remove. */
+ *  panel behind it.** All three entries carry an aim as of increment 27; the filter stays because a
+ *  fourth field-made part will land addressable before it lands editable, exactly as these did. A key
+ *  here for an aim no fieldset answers to would mask `designDims` for a popover that then renders
+ *  nothing — a Properties button that opens an empty surface, which is a worse version of the dead
+ *  control this milestone exists to remove, and `lib/model/edit.test.ts` reads this file's `only ===`
+ *  terms to make sure the two lists agree. */
 const AIM_FIELDS: Readonly<Record<string, readonly string[]>> = {
   ...Object.fromEntries(Object.entries(AIM_SLOTS).map(([slot, def]) => [slot, def.targets])),
   ...Object.fromEntries(DERIVED_PARTS.filter((p) => p.aim !== null).map((p) => [p.aim, p.fields])),
   nose: ["noseLength", "noseShape", "noseMass", "noseCGx", "catalogNoseCone"],
 };
-
-/** Every field any aim owns — the set a property surface filters DOWN from. */
-const AIMED_FIELDS: ReadonlySet<string> = new Set(Object.values(AIM_FIELDS).flat());
 
 /** Why a weight cannot be typed on a part of a design that states ONE weight for the whole airframe.
  *
@@ -3110,17 +3112,12 @@ function DesignEditor({
     payloadStation?: number;
   };
 }) {
-  // Blank out every VALUE field that belongs to another component, and leave everything else — the
-  // metadata keys (`finSetPart`, `unreachableBodyTubes`, …) are what the notes inside each group use
-  // to name the part they are holding, and they belong to the group that survives.
-  const designDims = !only
-    ? designDimsIn
-    : (Object.fromEntries(
-        Object.entries(designDimsIn).map(([k, v]) => [
-          k,
-          AIMED_FIELDS.has(k) && !(AIM_FIELDS[only] ?? []).includes(k) ? undefined : v,
-        ]),
-      ) as typeof designDimsIn);
+  // Blank out every VALUE field that belongs to another component. `maskAimedDims` owns both halves of
+  // that — subtraction for a slot aim, an allowlist for a field-made part — and its docblock carries
+  // why they differ. It lives in `lib/model/edit.ts` beside the two registries it reads, so it can be
+  // driven without a browser: there are no component tests in this repo, and the mask is the piece
+  // increment 25 had to withdraw two panels over.
+  const designDims = !only ? designDimsIn : maskAimedDims(designDimsIn, only, AIM_FIELDS);
   const imperial = units === "imperial";
   // Every one of these renders a value the flyer can type, so each renders at ROUND-TRIP precision:
   // `d.fmtEditable` adds a decimal only where the field's nominal precision would misstate what is
@@ -4163,7 +4160,7 @@ function DesignEditor({
               </fieldset>
             )}
 
-            {(!only || only === "parachuteId") && (
+            {(!only || only === "parachuteId" || only === "drogue") && (
             <fieldset className="min-w-0 border-0 p-0">
               {/* No legend inside a property surface: the surface's own heading already names the
                   part, and a legend under it would be a heading about a heading. */}
@@ -4213,9 +4210,26 @@ function DesignEditor({
                     pre-push review driving the drogue's panel; the field was always editing the right
                     component.
 
-                    "Drogue Ø" goes further and is removed: on a design with one canopy it AUTHORS a
-                    second, which is a change to the recovery system rather than a property of the
-                    part in hand — the same reason the boattail and the payload are not here. */}
+                    "Drogue Ø" went further and was removed from every per-part surface: on a design
+                    with one canopy it AUTHORS a second, which is a change to the recovery system
+                    rather than a property of the part in hand.
+
+                    **Increment 27 put it back on ONE surface — the drogue's own — and that reason is
+                    why it is on exactly that one.** A synthesised drogue exists only because this
+                    field is set, so on its panel the field is the diameter of the canopy the flyer is
+                    holding rather than an authoring gesture; and clearing it is the "clear the field
+                    that creates it" route `derivedPartRefusal` sends every remove gesture at, which
+                    would otherwise point at a control unreachable from where the flyer is standing.
+                    Recorded in `ROADMAP.md`'s *Decisions taken without the owner* rather than quietly
+                    reversed. Every other popover still withholds it, on the sentence above. */}
+                {/* **Gated on `parachuteId` rather than on nothing, and increment 27's review is why.**
+                    This field sets the MAIN's deployment: `applyDualDeploy` promotes the main to
+                    `deployEvent: "altitude"` with this number and hard-codes the synthesised drogue to
+                    `"apogee"`. Ungated, it rendered on the drogue's own panel under the label
+                    *Deploy altitude* — telling a flyer the drogue opens at 150 m when it opens at
+                    apogee, and moving the MAIN's deployment if they changed it. The mask cannot see a
+                    control gated on nothing and reading `edits`; only this term can. */}
+                {(!only || only === "parachuteId") && (
                 <NumberField
                   label={only ? `Deploy altitude (${lenU})` : `Main deploy alt (${lenU})`}
                   value={toDispLen(edits.mainDeployAltitude)}
@@ -4224,9 +4238,10 @@ function DesignEditor({
                 min={0}
                 positive
                 />
-                {!only && (
+                )}
+                {(!only || only === "drogue") && (
                 <NumberField
-                  label={`Drogue Ø (${spanU})`}
+                  label={only ? `Diameter (${spanU})` : `Drogue Ø (${spanU})`}
                   value={toDispSpan(edits.drogueDiameter)}
                   placeholder="0"
                   onChange={(v) => onEdit({ drogueDiameter: orNone(fromSpan(v)) })}
@@ -4439,7 +4454,7 @@ function DesignEditor({
             </fieldset>
             )}
 
-            {(!only || only === "massObjectId") && (
+            {(!only || only === "massObjectId" || only === "payload") && (
             <fieldset className="min-w-0 border-0 p-0">
               {!only && (
               <legend className={FIELDSET_LEGEND}>
@@ -4500,18 +4515,18 @@ function DesignEditor({
                 min={0}
                 />
                 )}
-                {!only && designDims.payloadStation !== undefined && (
+                {(!only || only === "payload") && designDims.payloadStation !== undefined && (
                   <NumberField
-                    label={`Payload (${massU})`}
+                    label={only ? `Weight (${massU})` : `Payload (${massU})`}
                     value={toDispMass(edits.payloadMassKg)}
                     placeholder="0"
                     onChange={(v) => onEdit({ payloadMassKg: orNone(fromMass(v)) })}
                   min={0}
                   />
                 )}
-                {!only && designDims.payloadStation !== undefined && (
+                {(!only || only === "payload") && designDims.payloadStation !== undefined && (
                   <NumberField
-                    label={`Payload pos (${spanU})`}
+                    label={only ? `Position (${spanU})` : `Payload pos (${spanU})`}
                     value={toDispSpan(edits.payloadStation)}
                     placeholder={toDispSpan(designDims.payloadStation)}
                     onChange={(v) => onEdit({ payloadStation: fromSpan(v) })}

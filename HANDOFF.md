@@ -4,93 +4,93 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Run 20 is IN FLIGHT as this is written. What is already verified and gated is below; what is still
-running is named as such, so a session reading this after an interruption knows which is which.**
-
-**Read this first, because it is the only item here an owner has to decide:** `OWNER-NOTES.md`'s
-*Awaiting the owner* now carries a note dated 2026-08-18 recording that **the app ships RocketPy to
-the browser while `MAINTAINING.md`'s clean-room invariant says it never should** — 41 MB of
+**Read `OWNER-NOTES.md` first, because it is the only item here an owner has to decide:** its
+*Awaiting the owner* carries a note dated 2026-08-18 recording that **the app ships RocketPy to the
+browser while `MAINTAINING.md`'s clean-room invariant says it never should** — 41 MB of
 `out/pyodide/`, 23 wheels, `rocketpy-1.12.1-py3-none-any.whl` among them. Nothing in the repo records
-that being decided. **The licensing half is fixed this run and is not in doubt**; the invariant's
-sentence is untouched, deliberately, because a session quietly editing an invariant to match the code
-is the failure the invariant list exists to prevent.
+that being decided. **The licensing half is fixed and is not in doubt**; the invariant's sentence is
+untouched, deliberately, because a session quietly editing an invariant to match the code is the
+failure the invariant list exists to prevent.
 
 | | what | state |
 |---|---|---|
 | R12 increment 25 | a boattail the design FIELDS made opens the two fields that made it — it had no Properties control at all | **merged, live** (PR #191) |
 | SEV-1 (invariant) | `THIRD-PARTY-NOTICES.md` said RocketPy was not shipped while the build ships it; 23 wheels and 11 licences, one LGPLv3+, named nowhere | **merged, live** (PR #191) |
 | — | `scripts/check-notices.mjs`, wired into `postbuild`: four claims, all four proved able to fail | **merged, live** (PR #191) |
-| R12 increment 26 | SEV-1: a fin set's root now stays on the airframe, bounded per STAGE and moved as a rigid GROUP, in the applier every caller goes through | **merged, live** (PR #192) |
-| P18 increment 3 | the flight-log intake is a DROP target as well as a picker — `useFileDrop`, the drag half of `DropZone` extracted for a control that cannot be a card | gate running, pending push |
-| — | a print sheet is a STILL: `transition`/`animation` reset in `@media print`, because the accent fade this increment added printed the SCREEN colour on 8 of 24 runs | gate running, pending push |
+| R12 increment 26 | SEV-1: a fin set's root stays on the airframe, bounded per STAGE and moved as a rigid GROUP, in the applier every caller goes through | **merged, live** (PR #192) |
+| P18 increment 3 | the flight-log intake is a DROP target as well as a picker — `useFileDrop`, the drag half of `DropZone` extracted for a control that cannot be a card | **merged, live** (PR #193) |
+| — | a print sheet is a STILL: `transition`/`animation` reset in `@media print`, because the accent fade that increment added printed the SCREEN colour on 8 of 24 runs | **merged, live** (PR #193) |
+| R12 increment 27 | the drogue and the payload get their panels; the per-aim mask blanks by ALLOWLIST, so a `designDims` key belonging to no aim is hidden rather than shown | gate green, pushed |
+| — | **P19 decomposed** — *The tool remembers the flyer, not just the design*. NOT STARTED, 4 increments, in `ROADMAP.md` | same change |
 
-**The pre-push review on increment 26 returned twenty-four findings across two passes and found FOUR
-defects the increment had created — including one strictly worse than the Sev-1 it was fixing.** That
-is the number worth carrying forward, not the fix:
-
-1. **The cut and the shift shared a stale measurement.** Cutting an oversized root MOVES a
-   `bottom`-placed set (42 of the 62 bounded corpus sets, all seven fixtures), so correcting from the
-   pre-cut flatten put a 1900 mm root, cut to 950 mm, at station 950 mm on a 950 mm airframe — the
-   whole set behind the tail, with a CP at 1006.7 mm and +2.02 cal reported for it.
-2. **`min` stayed at 0 while `max` became the group's** — the Sev-1's mirror image, live on any staged
-   design (`Two stage high power rocket.ork`'s fore bound is 781 mm).
-3. **`Fin root` had no ceiling at all**, so the same two-typed-field argument applied verbatim to the
-   other fin field.
-4. **The ceiling read the flown tree while the placeholder read the pristine one**, so the field could
-   advertise a max below its own placeholder and refuse the number it was showing.
-
-**And four measurements quoted in comments were wrong** — a placement tally of 43/17/4 that summed to
-64 in a sentence about 62 sets (it counted the two `tubefinset`s the same paragraph excludes), a
-"7 of 13" that was the aft direction only, and two others. **The lesson: a fix that touches geometry
-needs its numbers re-measured after every change to the fix, not once at the start.**
-
-**What the pre-push review changed about increment 25, because it is the run's most transferable
-lesson so far.** The first version opened property panels on all THREE field-made parts. Two were
-withdrawn:
-
-- the **drogue**'s panel carried the MAIN canopy's `Cd`, mass and provenance line, because the per-aim
-  `designDims` mask works by SUBTRACTING `AIMED_FIELDS` and those render on metadata keys belonging to
-  no aim. Typing in that Cd calls `withParachuteCd`, which resolves through `edits.parachuteId` — **a
-  different part from the one the panel is headed with.**
-- and `drogueDiameter` on a per-part surface **had already been decided against, in a comment, with a
-  reason**: on a design with one canopy it AUTHORS a second.
-
-**A mask that works by subtraction leaks by omission**, and the fix queued as increment 26 is an
-allowlist. The review also caught the panel **unmounting mid-keystroke** — `NumberField` fires per
-character, `addBoattail` bails on a length of zero, so backspacing removed the part and the popover
-with it. The aim now resolves against the STRUCTURAL tree, where the host lives, so the surface
-survives its own edit.
-
-**What increment 26 settled, and it is the transferable part.** Four questions, each answered by
-measuring the corpus rather than by argument: the datum is the **stage** (a stack datum drives fins
-past their stage on 4 designs), not the **parent tube** (3 designs already overhang theirs, including
-OpenRocket's own shipped example), the group moves **rigidly** (a per-set correction rewrote the
-spacing on 9 designs, spreads to 500 mm), and it can be **unconditional** (0 of 62 sets overhang as
-imported). A newly authored set is seated on its own — the corpus caught that as *"authoring a booster
-changed a stage above it"*. **The pattern worth carrying: when a bound has to be chosen, the corpus
-answers it and the answer is a number, not a preference.**
+**The P-track baton list is SPENT and that is now recorded in `ROADMAP.md`.** *After R6 and P5* names
+"P6 — Instrument what flyers actually hit" and "P7 — The suite as one product"; both were overtaken by
+the P6 and P7 that actually shipped, under different subjects. A session reading that list literally
+re-queues finished work. P19 is the first milestone decomposed under the closing instruction instead —
+from the North Star and `COMPETITION.md`'s standing `GAP` rows — with the two runners-up and the reason
+for choosing between them written into the milestone.
 
 **The next slice on each track:**
 
-- **R-track: R12 increment 27** — the drogue and the payload get their property panels, once the
-  `designDims` mask blanks by allowlist instead of by subtraction. Written up in full under R12 in
-  `ROADMAP.md`, including which keys leak and which structural keys must survive the change.
-  The next-best alternative if that stalls: `ParameterSweep.tsx`'s band is still built from
-  `structureOf`, so with the model now bounded its out-of-range points silently vanish from a range
-  the panel still draws. `finStationBounds` is the one function to build it from.
-- **P-track: P18 increment 3** — the flight-log picker in `components/ResultsView.tsx`. **Its *done
-  when* contradicts itself and needs amending first:** it asks to refuse "by name", while increment
-  2's own paragraph one screen up records a name gate being reverted as false, and `lib/flightlog.ts`
-  never sees a filename. The parser sniffs content (it hunts a header naming a time and an altitude
-  column) and already refuses a `.png` — so what is genuinely missing is the DROP path, not the
-  refusal.
+- **R-track: R12 increment 28 does not exist yet** — R12's queued increments are exhausted at 27.
+  Decompose the next from `COMPETITION.md` row 54's own recommendation, which is the cheapest and is
+  written down: **OpenRocket's per-field `Automatic` switch**, i.e. separate "this part exists" from
+  "what sets its value" — one switchable dimension with a sentence naming what the automatic value
+  tracks, `boattailAftDiameter` tracking its host tube. It is much smaller than promoting a
+  field-made part to an authored one, and unlike promotion it opens no one-way door.
+- **P-track: P19 increment 1** — the waiver ceiling and the three panels that forget they ran. It is
+  the cheapest of P19's four and the *done when* is a count: persisted call sites 9 → 13.
 
-**The e2e flake, measured rather than guessed.** `e2e/docs.spec.ts:39` "every docs page is readable
-offline" fails with `net::ERR_INTERNET_DISCONNECTED` on `/docs` under in-shard parallelism and passes
-**5 of 5 in isolation** (3.6–4.1 s each). Raising the shard count does NOT fix it — it failed in
-shard 1 at four shards and again at five — so it is not the shard-pressure class `MAINTAINING.md`
-documents. The lever is `workers`, not shards: `playwright.config.ts` runs `workers: 1` in CI (green
-there) and the local default otherwise. Filed with the numbers.
+## What three pre-push reviews caught this run, which is the part worth carrying
+
+**Every one of the three milestones this run shipped had a real defect found by its own pre-push
+review, and two of the three were the SAME defect in different clothes.** The reviews are not a
+formality; on this evidence they are where the increment actually gets finished.
+
+**Increment 26 (fins): four defects, one strictly worse than the Sev-1 being fixed.** The cut and the
+shift shared a stale measurement, so a root of 1.9 m landed the whole set behind the tail; `min`
+stayed 0 while `max` became the group's; `Fin root` had no ceiling at all; and the ceiling read the
+flown tree while the placeholder read the pristine one. **And four measurements quoted in comments were
+wrong** — a 43/17/4 tally summing to 64 in a sentence about 62 sets. *A fix that touches geometry needs
+its numbers re-measured after every change to the fix, not once at the start.*
+
+**Increment 27 (drogue and payload panels): the increment written to fix a leak shipped the same leak,
+one control to the left.** The drogue's panel carried `mainDeployAltitude` — the altitude the MAIN
+opens at — under the label *Deploy altitude*, on a part `applyDualDeploy` hard-codes to open at
+apogee. A flyer wanting the drogue out higher would have moved the main's deployment: opening speed,
+drift, landing energy. **The mask could not catch it** (that control is gated on nothing and reads
+`edits`, not `designDims`), and **the increment's own e2e could not either**: its assertion for that
+exact string was one of **nineteen of twenty-one absent-label assertions that could not go red under
+any bug**. The decision entry in `ROADMAP.md` had argued carefully about the field NEXT to it.
+
+*Three lessons, and the third is the general one.* (1) A leak sweep scoped to `label` cannot see a
+caption, a hint or a `<p>` — the canopy's provenance line is text. (2) An absent-label assertion for a
+label that no bug could produce is not coverage; classify each one against its gate before believing
+the count. (3) **A decision entry that argues carefully about one control is evidence about that
+control and about nothing else on the same row.**
+
+**P18 increment 3 (flight-log drop): the fix's own polish made a latent defect reachable.** The
+`transition` added so the drop highlight fades animates `background-color` and `color` — the two
+properties `@media print` rewrites — so print styles start a 150 ms fade FROM the screen colour and a
+sheet rasterised inside that window prints the screen. 15 text nodes at 1.00:1 and 1.74:1, on 8 of 24
+runs. **The one-in-three red is the part to carry**: an intermittent test is a defect reported as a
+mood, and the fix was a second, timing-free assertion (count what is still moving under print, with the
+screen count asserted non-zero first) rather than a retry.
+
+**The gate must be measured on a QUIET box, and this run proved it twice.** A read-only review agent
+running `npx tsc --noEmit` and `vitest` alongside a shard loop turned shard 2 from 75 passed into **32
+failed** — every one of which passed in isolation. `MAINTAINING.md` says never run two shards
+concurrently; the real rule is broader. Subagents may READ during a gate; they may not run anything
+that competes for the box.
+
+## The e2e flake, measured rather than guessed
+
+`e2e/docs.spec.ts:39` "every docs page is readable offline" fails with `net::ERR_INTERNET_DISCONNECTED`
+on `/docs` under in-shard parallelism and passes **8 of 8 in isolation** (3.6–4.1 s each). Raising the
+shard count does NOT fix it — it failed at four shards and again at five — so it is not the
+shard-pressure class `MAINTAINING.md` documents. The lever is `workers`, not shards:
+`playwright.config.ts` runs `workers: 1` in CI (green there) and the local default otherwise. Filed
+with the numbers.
 
 ## What production is serving, walked twice on 2026-08-18
 

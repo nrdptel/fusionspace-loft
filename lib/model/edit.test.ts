@@ -33,6 +33,10 @@ import {
   derivedPartAim,
   derivedPartId,
   DERIVED_PARTS,
+  derivedPartRefusal,
+  maskAimedDims,
+  DIMS_STRUCTURAL,
+  type DerivedPartAim,
   transitionDefaults,
   primaryTransition,
   primaryTransitionPart,
@@ -2904,12 +2908,18 @@ describe("a part the DIMENSION FIELDS made", () => {
       expect(entry, `${p.component.name} is synthesised and no DERIVED_PARTS entry mints its id`).toBeTruthy();
     }
 
-    // **Exactly one of the three has a property surface today**, and the count is asserted rather
-    // than implied: increment 25 shipped the boattail and WITHDREW the drogue and the payload at its
-    // own pre-push review (see `DERIVED_PARTS`' docblock). A later increment turning one on moves
-    // this number, which is the point — it is the line that says how far the capability reaches.
+    // **All three have a property surface as of increment 27**, and the list is asserted rather than
+    // the count, so this line says WHICH parts the capability reaches rather than how many. It read
+    // `["Boattail"]` from increment 25 until 27: 25 shipped the boattail and WITHDREW the other two at
+    // its own pre-push review, because the per-aim mask blanked `designDims` by subtraction and would
+    // have carried the MAIN canopy's `Cd` onto a drogue panel. 27 made the mask an allowlist, which is
+    // what let the other two land. The loop below is the reason this matters: it now runs three times
+    // instead of once, and each pass is a different part proving its own fields make it.
     const aimed = synthesised.filter((p) => derivedPartAim(flown, p.component.id) !== null);
-    expect(aimed.map((p) => p.component.name)).toEqual(["Boattail"]);
+    // Tree order, not registry order: `flattenRocket` reaches the drogue beside the main canopy, then
+    // the payload inside its tube, then the boattail appended at the aft end. The first draft wrote
+    // the registry's order and went red, which is the assertion doing its job on its own author.
+    expect(aimed.map((p) => p.component.name)).toEqual(["Drogue", "Payload", "Boattail"]);
 
     for (const p of aimed) {
       const aim = derivedPartAim(flown, p.component.id);
@@ -3004,9 +3014,80 @@ describe("a part the DIMENSION FIELDS made", () => {
         expect(seen.reason).toContain("Clear the field that creates it");
       }
     }
-    // ...and the two arms are both exercised, or this case proves only one of them.
+    // **Every synthesised part falls on the panel arm now, and that is asserted rather than left to
+    // the loop's silence.** Until increment 27 this line read `arms.size === 2` — a control saying the
+    // loop above had exercised BOTH branches, which it could, because two of the three parts had no
+    // panel. With all three panelled that control can no longer hold, and keeping it would have meant
+    // withholding a panel to satisfy a test. It is replaced by the stronger statement the increment
+    // actually earns: nothing synthesised is refused with the no-panel sentence any more.
     const arms = new Set(synthesised.map((p) => derivedPartAim(structural, p.component.id) !== null));
-    expect(arms.size, "every synthesised part fell on the same arm — this case tested one branch").toBe(2);
+    expect([...arms], "a synthesised part has no property panel").toEqual([true]);
+    // ...and the arm that is now unreachable through the registry is still RIGHT, driven directly.
+    // `derivedPartRefusal` keeps both because a fourth field-made part will land addressable before it
+    // lands editable, exactly as these three did — and an arm nothing drives is an arm that rots.
+    const noPanel = derivedPartRefusal("Streamer", false);
+    expect(noPanel).toContain("Streamer");
+    expect(noPanel).not.toContain("under Properties");
+    expect(noPanel).toContain("Clear the field that creates it");
+  });
+
+  it("shows a field-made part its own dimensions and blanks every other component's", () => {
+    // **The mask is what increment 25 had to withdraw two panels over, and it could not be driven.**
+    // It was an inline expression inside a component, in a repo with no component tests, so the only
+    // thing that could catch `mainParachuteCd` surviving a drogue popover was a human opening one.
+    // `maskAimedDims` is that expression extracted; this is the case that drives it.
+    //
+    // **The key space is READ OUT of the type rather than listed here.** A second copy of 67 field
+    // names is precisely the drift `AIM_SLOTS`' docblock records, and a hand-written copy would go on
+    // passing while the real type grew a key the allowlist had never heard of — which is the exact
+    // shape of the defect this increment exists to remove. Parsed from `components/LoftApp.tsx`, for
+    // the same reason the case below reads its `only ===` gates from there: that is where it lives.
+    const src = readFileSync(resolve(process.cwd(), "components", "LoftApp.tsx"), "utf8");
+    const start = src.indexOf("  designDims: {");
+    const block = src.slice(start, src.indexOf("\n  };\n}) {", start));
+    const decl = [...block.matchAll(/^\s{4}(\w+)(\?)?:/gm)].map((m) => ({ key: m[1], optional: !!m[2] }));
+    expect(decl.length, "no designDims keys parsed out of LoftApp.tsx — this case would prove nothing").toBeGreaterThan(50);
+
+    // Every key set to a sentinel, so a surviving value is distinguishable from a blanked one by
+    // identity rather than by whether it happens to be falsy.
+    const full = Object.fromEntries(decl.map((d) => [d.key, `<${d.key}>`]));
+    const survivors = (aim: string) =>
+      Object.entries(maskAimedDims(full, aim, { finSetId: ["finSpan", "finStation"], nose: ["noseLength"] }))
+        .filter(([, v]) => v !== undefined)
+        .map(([k]) => k)
+        .sort();
+
+    // 1. A derived aim keeps its own `dims` and the structural keys, and NOTHING else. Asserted as an
+    //    exact set, because "the leak is gone" is a claim about what is absent.
+    for (const entry of DERIVED_PARTS) {
+      if (entry.aim === null) continue;
+      expect(survivors(entry.aim), `the ${entry.aim} panel sees the wrong dimensions`).toEqual(
+        [...DIMS_STRUCTURAL, ...entry.dims].sort(),
+      );
+    }
+
+    // 2. The four keys that made increment 25 withdraw the drogue's panel are the reason for the case.
+    //    Named individually rather than left to the set comparison above, so a failure says WHICH.
+    for (const leak of ["mainParachuteCd", "mainParachuteMass", "mainParachuteCdFrom", "mainParachuteMassFrom"]) {
+      expect(decl.some((d) => d.key === leak), `${leak} is no longer a designDims key — re-point this case`).toBe(true);
+      expect(survivors("drogue"), `the drogue's panel carries the MAIN canopy's ${leak}`).not.toContain(leak);
+    }
+
+    // 3. CONTROL, and it is the one that matters: every key the type declares NON-OPTIONAL survives
+    //    every aim. `massCarriedBy` is read as `designDims.massCarriedBy.<x>` at thirty-odd sites with
+    //    no guard, so an allowlist that forgot it renders a TypeError rather than a thin panel — a
+    //    worse outcome than the leak. The list is checked against the type, not against itself.
+    const required = decl.filter((d) => !d.optional).map((d) => d.key).sort();
+    expect(required, "a non-optional designDims key is missing from DIMS_STRUCTURAL").toEqual([...DIMS_STRUCTURAL].sort());
+
+    // 4. And the SLOT aims still work by subtraction, unchanged — a fin popover keeps its own two
+    //    fields and drops the nose's, while every unaimed key rides along, which is what the
+    //    hand-written fieldset gates rely on. Without this the case would say nothing about the nine
+    //    surfaces the increment did not touch.
+    expect(survivors("finSetId")).toContain("finSpan");
+    expect(survivors("finSetId")).toContain("massCarriedBy");
+    expect(survivors("finSetId")).not.toContain("noseLength");
+    expect(survivors("finSetId")).toContain("mainParachuteCd");
   });
 
   it("names an aim the editor actually has a fieldset for", () => {
@@ -3018,7 +3099,7 @@ describe("a part the DIMENSION FIELDS made", () => {
     // on the one part this milestone exists to give a panel to. Asserted against the source text
     // because that is where the other half of the pair lives; there is nowhere else to read it from.
     const src = readFileSync(resolve(process.cwd(), "components", "LoftApp.tsx"), "utf8");
-    const aims = DERIVED_PARTS.map((d) => d.aim).filter((a): a is string => a !== null);
+    const aims = DERIVED_PARTS.map((d) => d.aim).filter((a): a is DerivedPartAim => a !== null);
     expect(aims.length, "no derived part has a panel — this case would prove nothing").toBeGreaterThan(0);
     for (const aim of aims) {
       expect(

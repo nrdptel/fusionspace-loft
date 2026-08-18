@@ -3619,47 +3619,165 @@ export interface AddOption {
  *  call it, and so does `derivedPartAim`, so a fourth synthesised part cannot be made by one rule and
  *  addressed by another.
  *
- *  **What each pair does is not the same in all three, and the lists are "what DESCRIBES this part"
+ *  **What each entry does is not the same in all three, and the lists are "what DESCRIBES this part"
  *  rather than "what makes it".** The boattail needs both of its fields positive before `addBoattail`
- *  runs and the drogue needs both of its before `applyDualDeploy` does, so on those two the list is
- *  both things at once. A payload bay exists because `payloadMassKg` is set — `payloadStation` only
- *  says where it sits, and a station typed with no mass makes nothing.
+ *  runs, so on that one the list is both things at once. A payload bay exists because `payloadMassKg`
+ *  is set — `payloadStation` only says where it sits, and a station typed with no mass makes nothing.
+ *
+ *  **The drogue's list is ONE field, and the field it does not contain is the point.** `applyDualDeploy`
+ *  needs `mainDeployAltitude` as well as `drogueDiameter` before it synthesises anything, so a "what
+ *  makes it" list would name both — and `mainDeployAltitude` is not a property of the drogue. It is the
+ *  altitude the MAIN opens at: the synthesised drogue is hard-coded `deployEvent: "apogee"` a few lines
+ *  above, and the same function promotes the main to `deployEvent: "altitude"` with that number. It is
+ *  also `AIM_SLOTS.parachuteId`'s, which is this file's own record of whose field it is. A panel headed
+ *  *Drogue* offering *Deploy altitude* would tell a flyer the drogue opens at 150 m — it opens at
+ *  apogee — and a flyer wanting it out higher would move the MAIN's deployment instead, changing
+ *  opening speed, drift and landing energy. **That is the same defect increment 25 withdrew this panel
+ *  over, one control to the left**, and it was found by increment 27's own pre-push review after the
+ *  first version of this entry shipped it. The mask cannot catch it: the control is gated on nothing
+ *  and reads `edits`, not `designDims`. Only the `only` term on the control itself can, which is why
+ *  that field is now `(!only || only === "parachuteId")` in `components/LoftApp.tsx`.
  *
  *  `lib/model/edit.test.ts` asserts the "makes" half behaviourally rather than from these names —
  *  clearing an entry's fields has to take that part away and leave the other two standing — because
  *  a list that merely LABELS the groups can be right about the words and wrong about the wiring.
  *
- *  **`aim` is null on two of the three, and that is a scope line rather than an omission.** Only the
- *  boattail has a property surface today. The other two were written, driven and WITHDRAWN by
- *  increment 25's own pre-push review, and each failed for its own reason:
+ *  **All three carry an `aim` now, and `dims` is what made that safe (increment 27, 2026-08-18).**
+ *  Increment 25 shipped the boattail's panel and WITHDREW the other two, because the mask in
+ *  `components/LoftApp.tsx` blanked `designDims` by SUBTRACTING the aimed fields — and a key belonging
+ *  to no aim is not in that set, so it survived every popover. A drogue panel would have carried the
+ *  MAIN chute's `Cd`, its mass and its provenance line (`designDims.mainParachuteCd` /
+ *  `mainParachuteMass`), and typing in that Cd calls `withParachuteCd`, which resolves through
+ *  `edits.parachuteId` — a different part from the one the panel is headed with. Editing the wrong
+ *  component is a worse outcome than not offering the edit, so the panels waited for the mask.
  *
- *  - **The drogue's group cannot simply be opened.** Its two fields live in the recovery fieldset
- *    beside the main canopy's `Cd` and mass, and those two render on `designDims.mainParachuteCd` /
- *    `mainParachuteMass` — metadata keys belonging to NO aim, so the per-aim mask in
- *    `components/LoftApp.tsx` never blanks them. A drogue panel would have carried the MAIN chute's
- *    coefficient, its mass and its provenance line, and typing in that Cd calls `withParachuteCd`,
- *    which resolves through `edits.parachuteId` — a different part from the one the panel is headed
- *    with. Editing the wrong component is a worse outcome than not offering the edit.
- *  - **And `drogueDiameter` on a per-part surface was already decided against, with a reason.** The
- *    comment above the deploy-altitude field records it: on a design with one canopy that field
- *    AUTHORS a second one, which is a change to the recovery system rather than a property of the
- *    part in hand. The synthesised drogue is arguably the case that reason does not cover — you are
- *    holding the canopy the field made — but overturning a recorded decision silently, inside an
- *    increment about something else, is how a file comes to argue with itself.
- *  - **The payload's group has the same shape of question** against the aimed mass-object fields and
- *    the `massCarriedBy` hints, and it was not driven far enough to answer it.
+ *  `dims` is the other half of the answer: the `designDims` keys this part's panel may show, as an
+ *  ALLOWLIST. `maskAimedDims` below blanks everything else, so a key nobody has thought of is hidden
+ *  rather than shown — which is the property subtraction cannot have. Measured on the type it masks:
+ *  **37 of the 67 `designDims` keys belonged to no aim at all** when the subtraction was written, so it
+ *  was reaching 37 keys short rather than one; 36 do now, `payloadStation` having joined an aim here.
+ *  Four of them gate a control whose own condition carries no `only` term (`mainParachuteCd`,
+ *  `mainParachuteMass`, `airframeMaterialLumped`, `fittingKind`), so only the enclosing fieldset's gate
+ *  stands between them and every popover.
  *
- *  Both are queued as R12 increment 27 in `ROADMAP.md`, which starts by making the mask blank by
- *  allowlist instead of by subtraction — the defect above is the subtraction reaching one key short. */
+ *  **`drogueDiameter` is on the drogue's panel, and that overturns a recorded decision on purpose.**
+ *  The comment above the deploy-altitude field says the field is withheld from a per-part surface
+ *  because on a design with one canopy it AUTHORS a second — a change to the recovery system rather
+ *  than a property of the part in hand. That reason is exactly right on every OTHER popover and does
+ *  not reach this one: a synthesised drogue exists only because `drogueDiameter` is set, so on its own
+ *  panel the field is the diameter of the canopy you are holding, and clearing it is the "clear the
+ *  field that creates it" route `derivedPartRefusal` already points every remove gesture at. The
+ *  decision is recorded as overturned in `ROADMAP.md`'s *Decisions taken without the owner* rather
+ *  than quietly reversed, because a file that argues with itself is the failure the note guards.
+ *
+ *  **The payload's `dims` is `payloadStation` and nothing else, and it is there as a GATE.** There is
+ *  no `designDims.payloadMassKg` — the mass field's placeholder is the literal `0` — and
+ *  `payloadStation` is what both controls are gated on, so blanking it would close the panel it is
+ *  meant to open. That is the shape of every entry here: a value the panel READS, not a value it
+ *  writes. What it writes is `fields`.
+ *
+ *  **`calibreBase` is the one a fourth entry will forget.** It is not a gate or a placeholder — it is
+ *  the denominator of `calibreScale` in `components/LoftApp.tsx`, which multiplies the ceilings the
+ *  internal and fitting fields advertise. None of these three shows such a field, so all three leave
+ *  it out and `calibreScale` falls to 1 harmlessly. A derived part whose bounds ever depend on caliber
+ *  has to name it here, or its ceiling silently becomes 1× — which is exactly the defect the comment
+ *  above `calibreScale` records happening once already, when the scale was read off the AIMED
+ *  `bodyDiameter` and every property surface blanked it. */
 export const DERIVED_PARTS = [
-  { suffix: "boattail", aim: "boattail", name: "Boattail", fields: ["boattailLength", "boattailAftDiameter"] },
-  { suffix: "drogue", aim: null, name: "Drogue", fields: ["mainDeployAltitude", "drogueDiameter"] },
-  { suffix: "payload", aim: null, name: "Payload", fields: ["payloadMassKg", "payloadStation"] },
+  {
+    suffix: "boattail",
+    aim: "boattail",
+    name: "Boattail",
+    fields: ["boattailLength", "boattailAftDiameter"],
+    dims: ["boattailFairsTo"],
+  },
+  {
+    suffix: "drogue",
+    aim: "drogue",
+    name: "Drogue",
+    fields: ["drogueDiameter"],
+    dims: [],
+  },
+  {
+    suffix: "payload",
+    aim: "payload",
+    name: "Payload",
+    fields: ["payloadMassKg", "payloadStation"],
+    dims: ["payloadStation"],
+  },
 ] as const;
 
-/** Which group of fields a synthesised part opens as its properties. `null` means the part is
- *  synthesised and addressable but has NO property surface yet — see the docblock above. */
+/** Which group of fields a synthesised part opens as its properties. Every entry carries one today;
+ *  the type keeps `NonNullable` so a future entry may be addressable with no panel behind it without
+ *  every caller having to learn about it. */
 export type DerivedPartAim = NonNullable<(typeof DERIVED_PARTS)[number]["aim"]>;
+
+/** The `designDims` keys every property surface needs whatever it is aimed at — so an allowlist that
+ *  forgot them would not merely under-show, it would THROW.
+ *
+ *  **These are exactly the keys the type declares as non-optional**, which is why the list is this one
+ *  and not a judgement call. `massCarriedBy` is read as `designDims.massCarriedBy.<x>` on **44 lines**
+ *  with no guard, so blanking it is a `TypeError` on render rather than a missing field; `mountsWritten`
+ *  and the eight `unreachable*` counts are read as bare `> 0` / `> 1` comparisons, where `undefined`
+ *  silently answers false and a note about the rest of the design disappears.
+ *
+ *  **Eight, not seven.** `ROADMAP.md` said seven `unreachable*` counts when increment 27 was queued;
+ *  the type carries eight (`unreachableParachutes` is the one the sentence missed). Counted here rather
+ *  than trusted, because an allowlist derived from a wrong count is the failure mode this shape exists
+ *  to remove. `lib/model/edit.test.ts` reads the type out of `components/LoftApp.tsx` and fails if a
+ *  non-optional key is added without joining this list. */
+export const DIMS_STRUCTURAL: readonly string[] = [
+  "massCarriedBy",
+  "mountsWritten",
+  "unreachableFinSets",
+  "unreachableMounts",
+  "unreachableBodyTubes",
+  "unreachableTransitions",
+  "unreachableInternals",
+  "unreachableFittings",
+  "unreachableMassObjects",
+  "unreachableParachutes",
+];
+
+/** Blank every `designDims` value that describes a component other than the one a property surface is
+ *  aimed at — **by allowlist for a field-made part, by subtraction for a slot aim**, and the split is
+ *  the whole point of the function rather than an inconsistency to tidy away later.
+ *
+ *  A slot aim (`finSetId`, `parachuteId`, …) is a real component of the design, and the fields around
+ *  its own are contained by the hand-written `only` terms on each fieldset: a fin popover never opens
+ *  the recovery group at all, so the canopy's `Cd` cannot appear on it whatever this function does.
+ *  Subtraction is sufficient there and changing it would repaint the EIGHT surfaces that leg serves —
+ *  the seven `AIM_SLOTS` entries and the nose — to fix nothing.
+ *
+ *  A DERIVED aim is the case that broke. Giving the drogue an aim means adding `only === "drogue"` to
+ *  the recovery fieldset's gate — and the moment that gate opens, every key inside it that belongs to
+ *  no aim renders, because subtraction cannot blank what was never in the aimed set. The four that
+ *  would have appeared are named in `DERIVED_PARTS`' docblock. An allowlist inverts the failure: a key
+ *  nobody thought about is HIDDEN, so the worst outcome of forgetting one is a field missing from a
+ *  panel rather than another component's number being edited through it.
+ *
+ *  `aimFields` is passed in rather than imported because the one entry that is not in `AIM_SLOTS` — the
+ *  nose, which a design has exactly one of and so has nothing to aim — is spelled in
+ *  `components/LoftApp.tsx` beside the fieldset that answers to it. Taking it as an argument keeps this
+ *  module from importing a component, and keeps the mask testable without one. */
+export function maskAimedDims<T extends Record<string, unknown>>(
+  dims: T,
+  only: string,
+  aimFields: Readonly<Record<string, readonly string[]>>,
+): T {
+  const derived = DERIVED_PARTS.find((p) => p.aim === only);
+  if (derived) {
+    const keep = new Set<string>([...DIMS_STRUCTURAL, ...derived.dims]);
+    return Object.fromEntries(
+      Object.entries(dims).map(([k, v]) => [k, keep.has(k) ? v : undefined]),
+    ) as T;
+  }
+  const aimed = new Set(Object.values(aimFields).flat());
+  const own = aimFields[only] ?? [];
+  return Object.fromEntries(
+    Object.entries(dims).map(([k, v]) => [k, aimed.has(k) && !own.includes(k) ? undefined : v]),
+  ) as T;
+}
 
 /** The id a synthesised part takes, derived from its host so it is stable across rebuilds of the same
  *  edit bag. UUID-shaped deliberately: `lib/ork/export.ts` hashes any non-UUID id into one on the way
@@ -3672,7 +3790,9 @@ export function derivedPartId(hostId: string, suffix: (typeof DERIVED_PARTS)[num
 /** Which group of dimension fields made this part, or null when the design itself carries it.
  *
  *  Asked of the FLOWN tree — the one the diagram draws — because that is the only tree these three
- *  are in. It re-derives each candidate id from every part present rather than reading a marker off
+ *  are in. *(`components/LoftApp.tsx` asks it of the STRUCTURAL tree for the property surface, and that
+ *  is not a contradiction: a panel has to survive the keystroke that empties the field it is editing,
+ *  which momentarily removes the part from the flown tree. The call site carries the measurement.)* It re-derives each candidate id from every part present rather than reading a marker off
  *  the component, and that is deliberate: a marker would have to survive an export and a re-import,
  *  and these parts are re-made from the edit bag on every rebuild, so the id is the only thing about
  *  them that is stable by construction. */
@@ -3684,8 +3804,9 @@ export function derivedPartAim(rocket: Rocket, id: string): DerivedPartAim | nul
     for (const entry of DERIVED_PARTS) {
       // A `null` aim answers null, exactly as an unsynthesised part does, and that is the point of
       // the field being nullable: a caller cannot get an aim string for a group with no panel behind
-      // it, so the worst outcome for the drogue and the payload stays "no Properties control" rather
-      // than becoming "a Properties control that opens on nothing".
+      // it, so the worst outcome for such a part is "no Properties control" rather than "a Properties
+      // control that opens on nothing". No entry is null as of increment 27 — this is the guarantee a
+      // fourth one inherits on the day it is added, before its fieldset exists.
       if (derivedPartId(component.id, entry.suffix) === id) return entry.aim;
     }
   }
@@ -3726,11 +3847,16 @@ export function derivedPartAim(rocket: Rocket, id: string): DerivedPartAim | nul
  *  to hunt a wall of twenty fields for the pair that made it, past a control sitting directly above
  *  this sentence that opens exactly those two.
  *
- *  **But only the boattail has that panel**, and a sentence promising one on the drogue and the
- *  payload — where `derivedPartAim` returns null and `GeometryInspector` therefore draws no trigger
- *  at all — would be the same defect in the other direction: advice pointing at a control that is not
- *  on screen. Caught by this increment's own pre-push review, after the first fix. So the caller says
- *  which case it is, from `derivedPartAim`, rather than this function guessing from a name.
+ *  **The second argument stays now that all three have panels**, and the reason is worth keeping
+ *  rather than deleting with the condition that produced it. When it was written only the boattail had
+ *  one, and a sentence promising a panel on the drogue or the payload — where `derivedPartAim` returned
+ *  null and `GeometryInspector` therefore drew no trigger at all — would have been the same defect in
+ *  the other direction: advice pointing at a control that is not on screen. Increment 27 gave the other
+ *  two their panels, so **no production caller reaches the `false` arm any more**; both derive the flag
+ *  from `derivedPartAim(...) !== null` over exactly the three synthesised parts. It is kept because a
+ *  fourth field-made part will land addressable before it lands editable, exactly as these three did,
+ *  and because the alternative is this function guessing from a name. `lib/model/edit.test.ts` drives
+ *  the arm directly, so it cannot rot unnoticed while it waits.
  *
  *  **What is refused is enumerated, and MOVE is in the list.** "The editor cannot change it here" was
  *  vaguer and, once the fields became editable, false. The enumeration is three gestures rather than
