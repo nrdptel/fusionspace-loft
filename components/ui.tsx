@@ -31,8 +31,13 @@ const CARD_TONES = {
   /** The default raised container. */
   default: "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900",
   /** The one thing this surface is pointing at — a design being offered back, a what-if against its
-   *  design, and (2026-08-18) the transient one: a `DropZone` with a file over it. That last use is
-   *  momentary rather than standing, and it is named here rather than left to be inferred, because on
+   *  design, and (2026-08-18) the transient one: **any card with a file over it**, which is a
+   *  `DropZone` on the import route and the altitude chart on the results one. *Named as a class
+   *  rather than as `DropZone` alone, because the second such card arrived the same week and this
+   *  sentence had already enumerated itself into being wrong — a ledger that lists its users has to
+   *  be re-read every time one is added, which is the failure the pre-push review caught here.* That
+   *  use is momentary rather than standing, and it is named here rather than left to be inferred,
+   *  because on
    *  the import route two persistent accent cards can already be on screen — the discarded session
    *  and a removed design — and a flyer who has learned indigo means "this is the thing being
    *  offered" now also has to read it as "your cursor is here". §2 carries the same sentence. */
@@ -203,6 +208,61 @@ export function Toast({
   );
 }
 
+/** The drag half of a file target, on its own, so a surface that cannot be a card still gets it.
+ *
+ *  **Extracted for the flight-log intake, and the extraction is the point.** `DropZone` is a `Card`,
+ *  and the second file ingest in the app is an inline control in a toolbar row inside a `Figure`
+ *  inside a `Card` — a card-shaped primitive there is a card inside a card and a repaint of the
+ *  results toolbar, which is why `ROADMAP.md` split that work out rather than doing it. What that
+ *  surface actually lacked was the BEHAVIOUR: no drop path at all, so the one gesture a flyer makes
+ *  with a file did nothing on the surface that shows the flight the file belongs to.
+ *
+ *  Three things it carries, and each is a defect this repo has already paid for once:
+ *   - **`dragging` is a DEPTH, not a boolean.** `dragenter` and `dragleave` both bubble, so moving
+ *     the pointer from the target onto a child fires a `dragleave` at the container, and a handler
+ *     answering it with `false` drops the highlight every time the cursor crosses anything inside.
+ *   - **Only a FILE drag arms it.** Dragging selected text or a link across the page fires the same
+ *     events, and a target that lights up for a text selection claims something it cannot do.
+ *   - **`dragover` is cancelled UNCONDITIONALLY**, with no `Files` test. Without a `preventDefault`
+ *     the browser's own default runs: drag a link from another tab onto the surface and Chrome
+ *     navigates to it, taking the flyer out of the app and their design with it. Gating this on
+ *     `Files` for symmetry with the arming is a real bug that has been written here once already.
+ *
+ *  Returns the handlers to spread and whether a file is currently over the target, so the caller
+ *  decides what that looks like — a tone change on a `Card`, a dashed edge, a tinted row. */
+export function useFileDrop(onFile: (file: File) => void): {
+  dragging: boolean;
+  handlers: Pick<React.HTMLAttributes<HTMLElement>, "onDragEnter" | "onDragOver" | "onDragLeave" | "onDrop">;
+} {
+  const depth = useRef(0);
+  const [dragging, setDragging] = useState(false);
+  return {
+    dragging,
+    handlers: {
+      onDragEnter: (e: React.DragEvent) => {
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        depth.current += 1;
+        setDragging(true);
+      },
+      onDragOver: (e: React.DragEvent) => {
+        e.preventDefault();
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        depth.current = Math.max(0, depth.current - 1);
+        if (depth.current === 0) setDragging(false);
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        depth.current = 0;
+        setDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) onFile(file);
+      },
+    },
+  };
+}
+
 /** A file target — `DESIGN.md` §5. Drop a file on it, or choose one; it says what it takes, and it
  *  says so again, by name, when it is handed something else.
  *
@@ -305,8 +365,10 @@ export function DropZone({
   "onDrop" | "onDragEnter" | "onDragOver" | "onDragLeave" | "title"
 >) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const depth = useRef(0);
-  const [dragging, setDragging] = useState(false);
+  // The drag behaviour is `useFileDrop`'s, so this primitive and the flight-log intake cannot drift
+  // apart on the three things above that each cost a fix once. What stays here is what a CARD-shaped
+  // target adds: the tone change, the picker, the refusal's place and the live region.
+  const { dragging, handlers } = useFileDrop(take);
 
   /** One intake for both roads in, so the picker and the drop cannot drift apart — which is how the
    *  hand-rolled version came to enforce `accept` on one and nothing at all on the other.
@@ -331,34 +393,7 @@ export function DropZone({
       data-drop-zone
       tone={dragging ? "accent" : "muted"}
       className={cx("text-center transition", className)}
-      onDragEnter={(e: React.DragEvent) => {
-        // Only a FILE drag arms the target. Dragging selected text or a link across the page fires
-        // the same events, and a drop zone that lights up for a text selection is claiming it can do
-        // something it cannot.
-        if (!e.dataTransfer?.types?.includes("Files")) return;
-        depth.current += 1;
-        setDragging(true);
-      }}
-      onDragOver={(e: React.DragEvent) => {
-        // **Unconditional, and the `Files` guard deliberately does NOT appear here.** Without a
-        // `preventDefault` the browser's own default runs: drag a LINK from another tab onto this
-        // zone and Chrome navigates to it, taking the flyer out of the app and their design with it.
-        // A first version gated this on `Files` for symmetry with the arming below and reintroduced
-        // exactly that. Cancelling costs nothing for a drag this surface will not act on; the guard
-        // belongs on what the zone SAYS, not on what the browser is allowed to do.
-        e.preventDefault();
-      }}
-      onDragLeave={(e: React.DragEvent) => {
-        if (!e.dataTransfer?.types?.includes("Files")) return;
-        depth.current = Math.max(0, depth.current - 1);
-        if (depth.current === 0) setDragging(false);
-      }}
-      onDrop={(e: React.DragEvent) => {
-        e.preventDefault();
-        depth.current = 0;
-        setDragging(false);
-        take(e.dataTransfer.files?.[0]);
-      }}
+      {...handlers}
       {...rest}
     >
       {children}

@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { parseFlightLog } from "./flightlog";
 
 describe("parseFlightLog", () => {
@@ -69,5 +71,40 @@ describe("parseFlightLog", () => {
   it("throws when the columns are found but no numeric rows follow", () => {
     const csv = ["Time,Altitude", "n/a,n/a"].join("\n");
     expect(() => parseFlightLog(csv)).toThrow(/numeric/i);
+  });
+});
+
+describe("the picker offers what the parser can read", () => {
+  /** **A file-picker `accept` list narrower than the parser is a refusal the OS dialog makes on the
+   *  parser's behalf, and a wrong one.** `parseFlightLog` tries a comma AND a tab, so a
+   *  tab-separated altimeter export reads perfectly well — and `components/ResultsView.tsx` offered
+   *  `.csv,.txt,text/csv,text/plain` until 2026-08-18, which hides it before the app ever sees it.
+   *
+   *  Asserted from the source text because the two live in different files with nothing else holding
+   *  them together: the parser's delimiter list is the contract and the `accept` list is the promise
+   *  about it. Read as a pair, so widening one and forgetting the other fails here rather than in a
+   *  bug report from someone whose altimeter writes tabs. */
+  const src = readFileSync(resolve(process.cwd(), "components", "ResultsView.tsx"), "utf8");
+  const accept = src.match(/accept="([^"]+)"/)?.[1] ?? "";
+
+  it("offers every delimiter the parser tries", () => {
+    expect(accept, "no accept list found in ResultsView.tsx").not.toBe("");
+    // The parser reads a tab-separated file...
+    const tsv = ["Time (s)\tAltitude (ft)", "0\t0", "1\t120"].join("\n");
+    expect(parseFlightLog(tsv).points).toHaveLength(2);
+    // ...so the picker has to offer one.
+    expect(accept, `the parser reads tab-separated files and the picker offers: ${accept}`).toContain(".tsv");
+    // ...and the comma case, which is the one that was never in doubt.
+    const csv = ["Time (s),Altitude (ft)", "0,0", "1,120"].join("\n");
+    expect(parseFlightLog(csv).points).toHaveLength(2);
+    expect(accept).toContain(".csv");
+  });
+
+  it("names the file kind rather than one of its formats, where a screen reader hears it", () => {
+    // "Flight log CSV" was the accessible name while `accept` took a `.tsv` too — the same defect the
+    // widening fixed, one layer up, and the only place a screen-reader user hears what the control
+    // takes.
+    expect(src).toContain('aria-label="Flight log file"');
+    expect(src).not.toContain('aria-label="Flight log CSV"');
   });
 });

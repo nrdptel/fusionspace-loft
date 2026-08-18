@@ -310,9 +310,20 @@ hand-rolls it instead is not done.
   the fill tints — the state change is two tokens, and nothing about the treatment is written at the
   call site. Owns the file input and the picker button, because a drop zone with no click-to-pick is
   broken on every touch device. **Owns the refusal too, and that is the half worth having**: one
-  `accept` list drives the picker *and* the drop, so a file the surface cannot read is named in an
-  `ErrorState` **inside the zone** rather than handed to whatever is downstream. The drag highlight
+  `accept` list drives the PICKER, and the refusal is the reader's — named in an `ErrorState`
+  **inside the zone** rather than handed to whatever is downstream. *(It does not gate the drop, and
+  saying it did was wrong in this file for a week: the primitive checks no extension on a dropped
+  file, deliberately, because Loft's importer sniffs bytes and a name gate refuses a renamed `.ork`,
+  an extensionless download and a share-sheet hand-off with a sentence that is false. That gate was
+  written once and reverted by a pre-push review; this sentence outlived it.)* The drag highlight
   counts enter and leave rather than toggling, or it drops every time the pointer crosses a child.
+  **A file target that cannot be a card takes `useFileDrop` instead** — the drag half on its own,
+  which is what `DropZone` is built from. The flight-log intake is that case: an inline control in a
+  toolbar row inside a `Figure` inside a `Card`, where the card-shaped primitive would be a card
+  inside a card. One behaviour, two presentations, so the three things a drop target has to get right
+  — depth-counted highlight, `Files`-only arming, and an unconditional `dragover` cancel so a dragged
+  link cannot navigate the app away — are written once. A surface that needs its own drag handling
+  beyond that is not a file target and should not have one.
 - **`Panel`** — a `Card` with a section header row — an `h2`, and an optional `aside` beside it —
   and, for anything dismissible, a close affordance. Owns focus return (see `useReturnFocus`).
   **Ten call sites and only three are dismissible**: it was extracted for the three heavy analysis

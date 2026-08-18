@@ -20,7 +20,9 @@ is the failure the invariant list exists to prevent.
 | R12 increment 25 | a boattail the design FIELDS made opens the two fields that made it — it had no Properties control at all | **merged, live** (PR #191) |
 | SEV-1 (invariant) | `THIRD-PARTY-NOTICES.md` said RocketPy was not shipped while the build ships it; 23 wheels and 11 licences, one LGPLv3+, named nowhere | **merged, live** (PR #191) |
 | — | `scripts/check-notices.mjs`, wired into `postbuild`: four claims, all four proved able to fail | **merged, live** (PR #191) |
-| R12 increment 26 | SEV-1: a fin set's root now stays on the airframe, bounded per STAGE and moved as a rigid GROUP, in the applier every caller goes through | gate running, pending push |
+| R12 increment 26 | SEV-1: a fin set's root now stays on the airframe, bounded per STAGE and moved as a rigid GROUP, in the applier every caller goes through | **merged, live** (PR #192) |
+| P18 increment 3 | the flight-log intake is a DROP target as well as a picker — `useFileDrop`, the drag half of `DropZone` extracted for a control that cannot be a card | gate running, pending push |
+| — | a print sheet is a STILL: `transition`/`animation` reset in `@media print`, because the accent fade this increment added printed the SCREEN colour on 8 of 24 runs | gate running, pending push |
 
 **The pre-push review on increment 26 returned twenty-four findings across two passes and found FOUR
 defects the increment had created — including one strictly worse than the Sev-1 it was fixing.** That
@@ -136,6 +138,22 @@ red in either copy. What to paste over there:
 - **§9** gains a `containerBorderWidths` command, target 0, and a paragraph saying why the two card
   counts cannot cover it: both need `rounded-xl` and a border token in ONE literal, and a `Card`
   caller never spells the radius.
+- **§5's `DropZone` bullet gains a `useFileDrop` paragraph** (added 2026-08-18 with P18 increment 3),
+  verbatim:
+
+  > **A file target that cannot be a card takes `useFileDrop` instead** — the drag half on its own,
+  > which is what `DropZone` is built from. The flight-log intake is that case: an inline control in a
+  > toolbar row inside a `Figure` inside a `Card`, where the card-shaped primitive would be a card
+  > inside a card. One behaviour, two presentations, so the three things a drop target has to get
+  > right — depth-counted highlight, `Files`-only arming, and an unconditional `dragover` cancel so a
+  > dragged link cannot navigate the app away — are written once. A surface that needs its own drag
+  > handling beyond that is not a file target and should not have one.
+
+  And the sentence it is appended to needs correcting in BOTH copies while you are there: §5 says
+  *"one `accept` list drives the picker **and** the drop"*, which is false of `DropZone` itself —
+  `take` checks no extension, and the name gate was deliberately reverted by increment 2's own review
+  because Loft's importer sniffs bytes. It should read: the `accept` list drives the picker; the
+  refusal is the reader's, rendered inside the zone.
 
 ## What this run learned that outlasts its increments
 
