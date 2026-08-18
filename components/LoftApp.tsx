@@ -48,6 +48,8 @@ import {
   authoredTransitionName,
   removalRefusal,
   derivedPartRefusal,
+  derivedPartAim,
+  DERIVED_PARTS,
   newPartId,
   type AddedPart,
   type MovedPart,
@@ -1252,7 +1254,12 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
         const shown = flownForReadback
           ? flattenRocket(flownForReadback).find((p) => p.component.id === id)?.component
           : undefined;
-        if (shown) return derivedPartRefusal(shown.name || "This part");
+        if (shown) {
+          // Asked of `removableFrom` — the STRUCTURAL tree — because that is where the hosts these
+          // ids are derived from live, and because the answer must not change while the flyer is
+          // mid-edit. See `propertiesFor`'s note for why the structural tree is the right one.
+          return derivedPartRefusal(shown.name || "This part", derivedPartAim(removableFrom, id) !== null);
+        }
       }
       return removalRefusal(removableFrom, id);
     },
@@ -2626,9 +2633,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
                 // back onto the authored one, type 400 mm — the authored tube stayed 310.0 mm and the
                 // design's own became 400.0 mm, with the diagram highlighting the part that did not
                 // move. The three parts a DIMENSION edit adds (a boattail, a drogue, a payload bay)
-                // are still not aimable, and deliberately: they are appended after this tree, so no
-                // aim can reach them — which is the same rule that already stops the Remove button
-                // offering to take one out.
+                // take no AIM here, and deliberately: they are appended after this tree, so no aim
+                // can reach them — which is the same rule that already stops the Remove button
+                // offering to take one out. **The BOATTAIL is no longer unreachable, which is what
+                // increment 25 changed and what this sentence used to deny of all three.**
+                // `derivedPartAim` answers for it and `propertiesFor` opens the two fields that make
+                // it; the drogue and the payload are still exactly as this comment described, and
+                // `DERIVED_PARTS` carries why. What stays true of all three is that an AIM — an id
+                // written into the edit bag — is not the mechanism, because there is nothing in this
+                // tree for one to point at.
                 const patch = removableFrom ? aimEditsAt(removableFrom, id) : {};
                 if (Object.keys(patch).length) applyEdit(patch, null);
               }}
@@ -2645,14 +2658,43 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               propertiesFor={(id) => {
                 const tree = removableFrom ?? structureOf(doc.rocket, edits);
                 const part = flattenRocket(tree).find((x) => x.component.id === id)?.component;
-                if (!part) return null;
-                const slot = Object.keys(aimEditsAt(tree, id))[0];
-                const aim = slot ?? (part.kind === "nosecone" ? "nose" : undefined);
+                // **A part the DIMENSION FIELDS made is on screen and is not in that tree**, so this
+                // returned null for a boattail, a drogue and a payload bay — and the diagram drew a
+                // part with no Properties control at all, on every design that sets one of those
+                // fields. The comment below still holds for a coupler or a launch lug, which
+                // genuinely no field describes; these three are described by two fields each and
+                // were merely unreachable from the part. `derivedPartAim` asks the FLOWN tree, which
+                // is the only one they are in, and answers with the field group that made it.
+                //
+                // **Resolved against the STRUCTURAL tree, not the flown one, and that is what keeps
+                // the panel alive while the flyer uses it.** These ids are derived from a HOST — the
+                // aft-most body tube — and a host is a structural part, so the answer is the same
+                // either way while the part exists and stays available when it briefly does not. It
+                // briefly does not on almost every keystroke: `NumberField` fires per character and
+                // `addBoattail` bails on a length of zero or an exit wider than the tube, so
+                // backspacing "60" to empty — or passing through "300" on the way to "30" — removes
+                // the part. Asked of the flown tree this returned null at that moment and
+                // `GeometryInspector` unmounted the whole popover with the caret still in the box:
+                // the field's own editor disappearing mid-word. Caught by the pre-push review.
+                const derived = part ? null : derivedPartAim(tree, id);
+                if (!part && !derived) return null;
+                const slot = part ? Object.keys(aimEditsAt(tree, id))[0] : undefined;
+                const aim = derived ?? slot ?? (part?.kind === "nosecone" ? "nose" : undefined);
                 if (!aim) return null;
                 // The part's own name where it has one, its kind otherwise — the SAME table the
                 // parts panel's rows and its identify line read from, so the popover's heading names
-                // a part the way the surface the flyer just clicked on does.
-                const label = part.name || KIND_LABEL[part.kind] || part.kind;
+                // a part the way the surface the flyer just clicked on does. For a field-made part
+                // the name comes from the part while it exists and from `DERIVED_PARTS` while it
+                // momentarily does not, so the heading does not change word on the keystroke that
+                // empties the field.
+                const shown = derived && flownForReadback
+                  ? flattenRocket(flownForReadback).find((x) => x.component.id === id)?.component
+                  : undefined;
+                const named = part ?? shown;
+                const label =
+                  (named ? named.name || KIND_LABEL[named.kind] || named.kind : undefined) ??
+                  DERIVED_PARTS.find((dp) => dp.aim === derived)?.name ??
+                  "This part";
                 return {
                   title: label,
                   label,
@@ -2851,9 +2893,22 @@ const FIELD_LABEL = "block text-[11px] font-medium uppercase tracking-wide text-
  *  what `AIM_SLOTS`' own docblock says had already drifted four ways once. */
 export type EditorAim = string;
 
-/** The value fields each aim owns, derived from the registry plus the nose's three. */
+/** The value fields each aim owns, derived from the registry plus the nose's three and whichever of
+ *  the field-made parts has a property surface.
+ *
+ *  `DERIVED_PARTS` is that second registry, and it is spread here for the same reason `AIM_SLOTS` is:
+ *  a boattail's two fields listed again in this file would be a second answer to "which fields
+ *  describe this part", and `AIM_SLOTS`' own docblock records what happened the last time that list
+ *  existed twice.
+ *
+ *  **Filtered on `aim !== null`, which is the one line stopping an aim from existing here with no
+ *  panel behind it.** Two of the three entries are `null` today; that file's docblock carries which
+ *  and why. A key here for an aim no fieldset answers to would mask `designDims` for a popover that
+ *  then renders nothing — a Properties button that opens an empty surface, which is a worse version
+ *  of the dead control this milestone exists to remove. */
 const AIM_FIELDS: Readonly<Record<string, readonly string[]>> = {
   ...Object.fromEntries(Object.entries(AIM_SLOTS).map(([slot, def]) => [slot, def.targets])),
+  ...Object.fromEntries(DERIVED_PARTS.filter((p) => p.aim !== null).map((p) => [p.aim, p.fields])),
   nose: ["noseLength", "noseShape", "noseMass", "noseCGx", "catalogNoseCone"],
 };
 
@@ -3348,7 +3403,19 @@ function DesignEditor({
               designDims.bodyDiameter !== undefined ||
               // The transition fields live inside this group, so a property surface aimed at a
               // transition opens it with nothing else in it — without this clause the whole group
-              // is hidden and the transition has no fields at all.
+              // is hidden and the transition has no fields at all. The boattail pair is the same
+              // case, arriving one milestone later: every other key named here is an AIMED field and
+              // is therefore blanked under the boattail's own aim, so a popover on the tail cone
+              // would open the group empty. `boattailFairsTo` is not aimed at anything and is
+              // undefined exactly when there is no aft tube for a cone to fair to.
+              //
+              // **The `only === "boattail"` half is load-bearing and a first draft left it out.**
+              // Because `boattailFairsTo` is NOT an aimed field, nothing blanks it — so the bare
+              // clause made this gate true under EVERY aim, and the fin, internal, fitting, mass and
+              // canopy popovers each opened this group with all six of its aimed children blanked
+              // and the boattail pair gated off: an empty `<fieldset>` and a stray `space-y-4` gap at
+              // the bottom of seven of the ten property surfaces. Caught by the pre-push review.
+              ((!only || only === "boattail") && designDims.boattailFairsTo !== undefined) ||
               designDims.transitionLength !== undefined ||
               designDims.transitionAftDiameter !== undefined) && (
               <fieldset className="min-w-0 border-0 p-0">
@@ -3613,10 +3680,20 @@ function DesignEditor({
                       positive
                     />
                   )}
-                  {/* The boattail pair ADDS a part at the aft end of the airframe — it is not a
-                      property of the tube whose caliber gates it, so it stays out of a per-part
-                      surface. Same for the airframe material and the nose ballast below. */}
-                  {!only && designDims.bodyDiameter !== undefined && (
+                  {/* The boattail pair ADDS a part at the aft end of the airframe, so it is not a
+                      property of the TUBE whose caliber gates it and stays out of that tube's
+                      per-part surface. It is very much a property of the BOATTAIL, which is the
+                      correction increment 25 made: these two fields are the only thing that
+                      describes that part, and until the popover could show them a flyer who picked
+                      the cone on the diagram got no Properties control at all. Same reasoning leaves
+                      the airframe material and the nose ballast below out of every aim.
+
+                      Gated on `boattailFairsTo` rather than on `bodyDiameter`, and that is a fix
+                      rather than a workaround for the blanking: the exit is validated against the
+                      aft-most tube, `aftmostBodyDiameter` is undefined exactly when no boattail can
+                      be attached at all, and `bodyDiameter` answers for the PICKED tube — a
+                      different component whenever the flyer has aimed the body fields elsewhere. */}
+                  {(!only || only === "boattail") && designDims.boattailFairsTo !== undefined && (
                     <NumberField
                       label={`Boattail length (${spanU})`}
                       value={toDispSpan(edits.boattailLength)}
@@ -3625,11 +3702,11 @@ function DesignEditor({
                     min={0}
                     />
                   )}
-                  {!only && designDims.bodyDiameter !== undefined && (
+                  {(!only || only === "boattail") && designDims.boattailFairsTo !== undefined && (
                     <NumberField
                       label={`Boattail exit (${spanU})`}
                       value={toDispSpan(edits.boattailAftDiameter)}
-                      placeholder={`< ${toDispSpan(designDims.boattailFairsTo ?? designDims.bodyDiameter)}`}
+                      placeholder={`< ${toDispSpan(designDims.boattailFairsTo)}`}
                       onChange={(v) => onEdit({ boattailAftDiameter: orNone(fromSpan(v)) })}
                     min={0}
                     />

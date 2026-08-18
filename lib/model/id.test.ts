@@ -6,7 +6,7 @@ import { newDesign } from "./starter";
 import { exportOrk } from "../ork/export";
 import { importOrk } from "../ork/import";
 import { flattenRocket } from "./geometry";
-import { primaryBodyTube, primaryParachute, aimEditsAt, applyGeometryEdits } from "./edit";
+import { primaryBodyTube, primaryParachute, aimEditsAt, applyGeometryEdits, DERIVED_PARTS } from "./edit";
 
 describe("component ids survive an export → import round trip", () => {
   const ids = (r: Parameters<typeof flattenRocket>[0]) => flattenRocket(r).map((p) => p.component.id);
@@ -112,8 +112,12 @@ describe("uuidFrom / uniqueUuidFrom", () => {
 
   it("does not collide across a rocket's worth of ids", () => {
     const taken = new Set<string>();
+    // The derived suffixes are READ from `DERIVED_PARTS` rather than restated here. They were
+    // hand-enumerated as `-boattail`/`-payload`/`-drogue` until the registry existed, which meant a
+    // fourth synthesised part would have been minted by one list and collision-checked against
+    // another — the exact shape the registry was extracted to end.
     const seeds = ["nose", "body", "fins", "av", "chute", "mount", "c1", "c2", "c3", "r1", "a1"]
-      .flatMap((s) => [s, `${s}-boattail`, `${s}-payload`, `${s}-drogue`]);
+      .flatMap((s) => [s, ...DERIVED_PARTS.map((d) => `${s}-${d.suffix}`)]);
     for (const s of seeds) uniqueUuidFrom(s, taken);
     expect(taken.size).toBe(seeds.length);
   });
