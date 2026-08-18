@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { conditionsPhrase, type ConditionsSource } from "@/lib/what-if";
+import { descentRoughWhy } from "@/lib/sim/withheld";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
@@ -17,7 +18,7 @@ import {
   type MonteCarloResult,
   type Stat,
 } from "@/lib/sim/montecarlo";
-import type { GeometryEdits } from "@/lib/model/edit";
+import { applyGeometryEdits, type GeometryEdits } from "@/lib/model/edit";
 import { clearDispersion, loadDispersion, saveDispersion, usePersistedNumber, useSettled } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
@@ -494,12 +495,24 @@ export default function MonteCarlo({
                   conditions. On the 54 mm sample that is 1,203 m presented as current while the true
                   figure for the day just entered is 2,519 m. */}
               <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
+                {/* `descentWhy` — the fallback-canopy-Cd caveat, on the panel that publishes the
+                    figures a flyer sizes a recovery field and a waiver with. **This panel badged
+                    NOTHING for it** while /flight badges the same quantities: `extrapolatedWhy`
+                    inside `Report` covers transonic only, so RECOVERY RADIUS (95%), the median drift
+                    inside it and the landing-speed band printed unqualified beside a flight card
+                    where DESCENT RATE, GROUND-HIT SPEED and LANDING ENERGY all wear an EXTRAPOLATED
+                    badge for exactly this reason. Read through `lib/sim/withheld.ts` rather than
+                    restated, so the two surfaces cannot drift — the same move `notLandedWhy` made
+                    after the validation table published sentinels these readouts were withholding.
+                    Over the EDITED rocket, because typing a canopy Cd is what stops it being a
+                    fallback. */}
                 <Report
                   result={result}
                   units={units}
                   name={doc.rocket.name}
                   ceilingM={ceilingM}
                   onCeilingM={setCeilingM}
+                  descentWhy={descentRoughWhy(geometry ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket)}
                 />
               </div>
             </>
@@ -528,6 +541,7 @@ function Report({
   name,
   ceilingM,
   onCeilingM,
+  descentWhy,
 }: {
   result: MonteCarloResult;
   units: UnitSystem;
@@ -535,6 +549,10 @@ function Report({
   /** The ceiling in metres. 0 = none set. */
   ceilingM: number;
   onCeilingM: (v: number) => void;
+  /** Why the descent figures are rough, when they are — `lib/sim/withheld.ts`. Passed in rather
+   *  than derived here, because the rocket this panel actually flew is the parent's business and
+   *  re-deriving it in the child is how two surfaces come to disagree. */
+  descentWhy?: string;
 }) {
   // The ceiling is HELD in metres and only shown in the chosen system, so switching systems
   // re-labels the same altitude instead of re-reading the same digits as a different one. Rounded
@@ -554,6 +572,20 @@ function Report({
   // 300 times — marked nothing, so the identical caveat applied to one number and not to the band
   // around it. Counted rather than flagged: a dispersion straddles M0.8 whenever the design sits
   // near it, and "12 of 300" is a different claim from "300 of 300".
+  /** The fallback-canopy-Cd caveat, on the panel that publishes the figures a flyer sizes a recovery
+   *  field and a waiver with.
+   *
+   *  **This panel badged NOTHING for it, while /flight badges the same quantities.** `extrapolatedWhy`
+   *  below covers transonic only, so RECOVERY RADIUS (95%), the median drift inside it and the
+   *  landing-speed band printed unqualified beside a flight card where DESCENT RATE, GROUND-HIT SPEED
+   *  and LANDING ENERGY all wear an EXTRAPOLATED badge for exactly this reason. The recovery radius
+   *  is the one number here that decides how much field a flyer needs — the worst place in the app to
+   *  drop a caveat the surface one route away carries.
+   *
+   *  Read through `lib/sim/withheld.ts` rather than restated, so the two surfaces cannot drift: that
+   *  is the same move `notLandedWhy` made after the validation table published sentinels these
+   *  readouts were withholding. Over the EDITED rocket, because typing a canopy Cd is precisely what
+   *  stops it being Loft's fallback. */
   const extrapolatedWhy =
     result.extrapolatedN > 0
       ? `${result.extrapolatedN} of ${result.n} dispersed flights reach past M0.8, outside the drag model's validated subsonic envelope — treat the bands below as rough`
@@ -596,6 +628,7 @@ function Report({
             tone="sunken"
             q={d.speed(result.landingSpeed.p50, units)}
             figure={band(result.landingSpeed, (v) => d.speed(v, units))}
+            extrapolated={descentWhy}
           />
         ) : (
           <Readout
@@ -615,6 +648,7 @@ function Report({
             tone="sunken"
             q={d.distance(result.landingRadiusP95, units)}
             figure={{ lead: "median drift", q: d.distance(result.driftDistance.p50, units) }}
+            extrapolated={descentWhy}
           />
         ) : (
           <Readout

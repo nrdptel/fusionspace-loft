@@ -5166,6 +5166,49 @@ test.describe("Loft", () => {
     await expect(rows).toHaveCount(1);
   });
 
+  test("the fallback-canopy caveat reaches every surface that rests on it", async ({ page }) => {
+    // **SEV-1, 2026-08-18.** When a design states no canopy Cd, Loft supplies one, and every descent
+    // figure computed from it is an extrapolation — `DESIGN.md` §5 requires the treatment "wherever a
+    // number leaves the envelope its method was validated over". /flight badged four figures for it
+    // and missed DRIFT FROM PAD, which sat between two badged neighbours reading as the firmer of the
+    // three; and the dispersion panel badged NOTHING, so RECOVERY RADIUS (95%) and the landing-speed
+    // band — the figures a flyer sizes a field and a waiver with — printed unqualified beside a
+    // flight card where the identical quantities carry the badge.
+    //
+    // **The fixture exists because no committed design could reach this state**: all fifteen bundled
+    // samples and e2e fixtures state their own Cd, while 40 of the 92 flights in the real-design
+    // corpus are flown on a fallback. A whole surface could lose the caveat with the gate green.
+    // `e2e/fixtures/fallback-canopy-cd.ork` is `logged-sample.ork` with one element deleted.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/fallback-canopy-cd.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({
+      timeout: 20000,
+    });
+
+    // Every descent figure on the flight card, drift included. Read as the tile's own text so a badge
+    // somewhere else on the page cannot answer for it.
+    const flight = page.locator("#panel-flight");
+    for (const label of ["Descent rate", "Drift from pad", "Ground-hit speed", "Landing energy"]) {
+      const tile = flight.locator("div").filter({ hasText: new RegExp(`^${label}`, "i") }).first();
+      await expect(tile, `${label} carries no fallback-Cd caveat`).toContainText(/extrapolated/i);
+    }
+
+    // And the same caveat on the panel that publishes the recovery figures.
+    await page.locator('nav a[href="/sweep"]').first().click();
+    const run = page.getByRole("button", { name: /dispersion/i }).first();
+    await run.click();
+    const radius = page
+      .locator("div")
+      .filter({ hasText: /^Recovery radius \(95%\)/i })
+      .first();
+    await expect(radius, "the recovery radius carries no fallback-Cd caveat").toContainText(
+      /extrapolated/i,
+      { timeout: 120000 },
+    );
+  });
+
   test("the conditions summary names the flyer's own setup, not the design's", async ({ page }) => {
     // **SEV-1, 2026-08-18.** The summary had two states — `· today` and `· as designed` — and no
     // third for "the flyer typed one of these four fields". It is a collapsed `<details>`, which is

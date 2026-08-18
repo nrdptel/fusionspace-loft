@@ -101,10 +101,15 @@ newest lens first. Each was verified by the agent that filed it unless marked UN
   `components/LoftApp.tsx:4455`. Type 9 into Surface wind and DRIFT FROM PAD goes 162 m → 726 m while
   the only control naming the basis of every number below it asserts they are the design's own.
   Sev-1-shaped; a one-line state is not the fix — the summary needs to say WHICH conditions.
-- **The dispersion panel drops the fallback-canopy-Cd caveat that /flight carries.**
-  `components/MonteCarlo.tsx:614` computes `extrapolatedWhy` for transonic only, so RECOVERY RADIUS
-  (95%), LANDING SPEED and the landing-energy line go unbadged while the same figures wear
-  EXTRAPOLATED on /flight. The recovery radius is what a flyer sizes a field and a waiver with.
+- ~~**The dispersion panel drops the fallback-canopy-Cd caveat that /flight carries.**~~ **FIXED
+  2026-08-18**, together with /flight's own DRIFT FROM PAD tile, which was the only descent figure
+  there without the badge. The condition and its wording moved into `lib/sim/withheld.ts` beside
+  `notLandedWhy` — which is there for the identical reason, a caveat that went missing from one
+  surface — and both panels read it. `e2e/fixtures/fallback-canopy-cd.ork` exists because **no
+  committed design could reach the state**: all fifteen bundled samples and e2e fixtures state their
+  own Cd while 40 of the corpus's 92 flights are flown on a fallback, so a whole surface could lose
+  the caveat with the gate green. The landing-energy LINE (a sentence, not a `Readout`) is still
+  unbadged and is the remainder.
 - **Liftoff and burnout mass print identical on light designs** — `Mini Honest John.ork` shows
   0.017 kg / 0.017 kg — so the summary states the motor burned no propellant. Distinct from the
   `mass()` zero fix: 0.017 does not round away, the PAIR is what needs resolving together.

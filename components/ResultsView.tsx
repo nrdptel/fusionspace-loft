@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Button, Card, Figure, Panel, Readout, Section, Select, type CardTone } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
-import { notLandedWhy as whyNotLanded } from "@/lib/sim/withheld";
+import { descentRoughWhy, notLandedWhy as whyNotLanded } from "@/lib/sim/withheld";
 import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
 import AirframeStrip from "./AirframeStrip";
@@ -38,7 +38,7 @@ import { mToFt, ftToM, mpsToFtps, ftpsToMps, mphToMps, KMH_PER_MPS, kgToLb } fro
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { impulseClass } from "@/lib/motors/eng";
-import { flattenRocket, overallLength } from "@/lib/model/geometry";
+import { overallLength } from "@/lib/model/geometry";
 import { dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { Rocket } from "@/lib/model/types";
 import { noseBallastStation, configChoices } from "@/lib/sim/run";
@@ -460,25 +460,11 @@ export default function ResultsView({
   // itself as stale while they waited. Comparing two candidates cost two complete re-sweeps.
   const sweepKey = designKey({ loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, geometry });
   const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
-  /** The five descent figures are only as good as the canopy coefficient behind them, and on a file
-   *  that states none that coefficient is Loft's rather than the designer's — which R9 closes the
-   *  loop on here. `DESIGN.md` §5 requires the `Extrapolated` treatment "wherever a number leaves
-   *  the envelope its method was validated over", and a descent computed from a supplied constant
-   *  has left it in the plainest way: nothing about this design was measured to produce that figure.
-   *
-   *  Only when the coefficient is a FALLBACK. A canopy whose Cd the file states, or that the flyer
-   *  typed, is the designer's own claim and is not Loft's to caveat — the whole point of
-   *  `Parachute.cdFrom` is that those cases are distinguishable, and marking all of them would make
-   *  the flag mean nothing. Measured across the corpus: 40 of 92 flights are flown on a fallback,
-   *  so this is a caveat a flyer meets often enough to be worth being accurate about. */
-  const descentFromDefault = shownRocket
-    ? flattenRocket(shownRocket)
-        .map((p) => p.component)
-        .some((c) => (c.kind === "parachute" || c.kind === "streamer") && c.cdFrom === "default")
-    : false;
-  const descentWhy = descentFromDefault
-    ? "the canopy's drag coefficient is Loft's fallback, not a figure this design states — the descent figures below follow it, so treat them as rough and try the range on /design"
-    : undefined;
+  /** Why the descent figures are rough, when they are — six readouts here share it, and so does the
+   *  dispersion panel. **The condition and its wording live in `lib/sim/withheld.ts`**, moved there
+   *  2026-08-18 for exactly the reason `notLandedWhy` is there: two other surfaces read the same
+   *  fallback and never asked, so the same caveat was on one surface and not the next. */
+  const descentWhy = descentRoughWhy(shownRocket);
   /** Why every landing figure is withheld, when they are — the four readouts below share it.
    *
    *  It lived here, and that was the bug: the validation table is a fifth surface reading the same
@@ -673,10 +659,17 @@ export default function ResultsView({
               `simulate`'s exit position taken unconditionally, so a flight still descending at the
               cap reports how far downwind it had got — a plausible smaller number rather than an
               obvious zero, sitting between two figures that correctly say they do not exist. */}
+          {/* **`extrapolated`, like its four neighbours, and it was the only descent figure without
+              it.** Drift is wind times time under the canopy, so it rests on exactly the fallback Cd
+              that badges Descent rate, Ground-hit speed, Arrival speed and Landing energy — and it
+              sat between two of them carrying nothing, which reads as the firmer number of the
+              three. `MAINTAINING.md`'s own words: a caveat in one place and a confident claim in
+              another is worse than either alone. */}
           <Readout
             label="Drift from pad"
             q={d.distance(s.driftDistance, units)}
             withheld={notLandedWhy}
+            extrapolated={descentWhy}
           />
           {/* Both are 0 when the flight never reached the ground — a sentinel the solver carries,
               not a measurement, and these are the two numbers a recovery setup is judged on. Shown
