@@ -4,54 +4,58 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Run 19 shipped nine increments: two queued milestone slices and seven Sev-1s. All nine are merged
-and live.** `main` is `8c0bd50`; **PR #188** (seven commits) and **PR #189** (four) are both merged,
-and production was re-walked after each — see *What production is serving* below. **There is no gap:
-everything this run built is deployed.**
+**Run 20 is IN FLIGHT as this is written. What is already verified and gated is below; what is still
+running is named as such, so a session reading this after an interruption knows which is which.**
+
+**Read this first, because it is the only item here an owner has to decide:** `OWNER-NOTES.md`'s
+*Awaiting the owner* now carries a note dated 2026-08-18 recording that **the app ships RocketPy to
+the browser while `MAINTAINING.md`'s clean-room invariant says it never should** — 41 MB of
+`out/pyodide/`, 23 wheels, `rocketpy-1.12.1-py3-none-any.whl` among them. Nothing in the repo records
+that being decided. **The licensing half is fixed this run and is not in doubt**; the invariant's
+sentence is untouched, deliberately, because a session quietly editing an invariant to match the code
+is the failure the invariant list exists to prevent.
 
 | | what | state |
 |---|---|---|
-| P18 increment 2 | `DropZone` — the last hand-rolled card treatment, and the refusal moves into the zone the file landed on | **live** |
-| SEV-1 | offline with a design open, the app reloaded itself forever | **live** |
-| SEV-1 | an authored mass hung out of the part holding it once that part was resized | **live** |
-| SEV-1 | a part that weighs something printed as a flat `0 kg` | **live** |
-| SEV-1 | the Conditions panel said "as designed" after the flyer replaced them | **live** |
-| SEV-1 | the fallback-canopy caveat reached one surface of three | **live** |
-| R12 increment 24 | three add controls on every design were live and did nothing | **live** |
-| SEV-1 | a design with no centre of pressure was given one, and a band to go with it | **live** |
-| SEV-1 | a RASAero boattail described twice was built twice | **live** |
+| R12 increment 25 | a boattail the design FIELDS made opens the two fields that made it — it had no Properties control at all | gate green, pending push |
+| SEV-1 (invariant) | `THIRD-PARTY-NOTICES.md` said RocketPy was not shipped while the build ships it; 23 wheels and 11 licences, one LGPLv3+, named nowhere | gate green, pending push |
+| — | `scripts/check-notices.mjs`, wired into `postbuild`: four claims, all four proved able to fail | gate green, pending push |
+
+**What the pre-push review changed about increment 25, because it is the run's most transferable
+lesson so far.** The first version opened property panels on all THREE field-made parts. Two were
+withdrawn:
+
+- the **drogue**'s panel carried the MAIN canopy's `Cd`, mass and provenance line, because the per-aim
+  `designDims` mask works by SUBTRACTING `AIMED_FIELDS` and those render on metadata keys belonging to
+  no aim. Typing in that Cd calls `withParachuteCd`, which resolves through `edits.parachuteId` — **a
+  different part from the one the panel is headed with.**
+- and `drogueDiameter` on a per-part surface **had already been decided against, in a comment, with a
+  reason**: on a design with one canopy it AUTHORS a second.
+
+**A mask that works by subtraction leaks by omission**, and the fix queued as increment 26 is an
+allowlist. The review also caught the panel **unmounting mid-keystroke** — `NumberField` fires per
+character, `addBoattail` bails on a length of zero, so backspacing removed the part and the popover
+with it. The aim now resolves against the STRUCTURAL tree, where the host lives, so the surface
+survives its own edit.
 
 **The next slice on each track:**
 
-- **R-track: R12 increment 25.** The obvious one, and it comes straight out of increment 24's own
-  "what this does NOT do": the three parts the dimension fields make — a boattail, a drogue, a payload
-  bay — are now honestly refused, and a flyer still has no way to select a boattail and edit it AS a
-  part. The product question is whether touching a field-made part promotes it to an authored one.
-  That is a decision, not a bug, and it is the last thing standing between R12 and a tree where every
-  part on screen behaves the same way.
-- **P-track: P18 increment 3 is written and scoped** — `components/ResultsView.tsx`'s flight-log
-  surface, the app's second file ingest. It still carries all three defects `DropZone` was extracted
-  to end. `BACKLOG.md` lists what has to change in the primitive before it can be adopted there (its
-  prop type exposes none of `Card`'s `pad`/`as`/`tone`, and its hard-coded `text-center` is beaten by
-  a call site only through source order). **P18's remaining *done when* clause is the sibling mirror**,
-  which this session could not reach — see below.
+- **R-track: R12 increment 26** — the drogue and the payload get their panels, once the `designDims`
+  mask blanks by allowlist instead of by subtraction. Written up in full under R12 in `ROADMAP.md`,
+  including which keys leak and which structural keys must survive the change.
+- **P-track: P18 increment 3** — the flight-log picker in `components/ResultsView.tsx`. **Its *done
+  when* contradicts itself and needs amending first:** it asks to refuse "by name", while increment
+  2's own paragraph one screen up records a name gate being reverted as false, and `lib/flightlog.ts`
+  never sees a filename. The parser sniffs content (it hunts a header naming a time and an altitude
+  column) and already refuses a `.png` — so what is genuinely missing is the DROP path, not the
+  refusal.
 
-**The two best defects still open, both reproduced, both measured:**
-
-1. **RASAero parts are all placed `{after, offset: 0}` and a part's own `<Location>` is never read.**
-   This is the last big RASAero defect and it is now the ONLY thing between `Show-off.CDX1` and its
-   stated length: after this run's boattail de-duplication it imports at 567.4 mm (22.34 in) against
-   the file's own 20.00 in, **+11.7%**, down from +17%. `Complex.Two-Stage.CDX1` is 72.00 in against
-   63.00 in. And the file itself shows why it matters beyond length: `Show-off.CDX1`'s fin can and
-   the tube behind it BOTH say `Location 8`, so the parts genuinely overlap and stacking them
-   end-to-end is not a rounding error. **Unlike the fin `Location` question, a part-level
-   `<Location>` is unambiguous** — the corpus's own chains resolve (nose at 0 length 1, tube at 1
-   length 7, next part at 8) — so this one is readable from the files rather than needing a manual.
-2. **The fin-position sweep slides a fin set past the tail of the airframe and flies it there.**
-   `parameterSweep(rocket, "finStation", …)` has no clamp: `lib/sim/sweep.test.ts` drives the fins to
-   **1,005 mm and 1,030 mm on a 950 mm rocket**, and the CP dutifully follows to 953.6 mm and
-   975.9 mm. The margins are arithmetically right for a rocket that cannot be built. Filed. The
-   interesting half is whether the diagram's own Fin-position grip has the same gap.
+**The e2e flake, measured rather than guessed.** `e2e/docs.spec.ts:39` "every docs page is readable
+offline" fails with `net::ERR_INTERNET_DISCONNECTED` on `/docs` under in-shard parallelism and passes
+**5 of 5 in isolation** (3.6–4.1 s each). Raising the shard count does NOT fix it — it failed in
+shard 1 at four shards and again at five — so it is not the shard-pressure class `MAINTAINING.md`
+documents. The lever is `workers`, not shards: `playwright.config.ts` runs `workers: 1` in CI (green
+there) and the local default otherwise. Filed with the numbers.
 
 ## What production is serving, walked twice on 2026-08-18
 
