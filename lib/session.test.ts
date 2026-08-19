@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { ZOOM_STEPS } from "../components/RocketDiagram";
 import { resolveWorkspace, WORKSPACES } from "./workspaces";
 import { deriveConditions, plainConditions, rehydrateConditions } from "./weather";
 import {
@@ -26,6 +28,7 @@ import {
   loadDispersion,
   saveDispersion,
   clearDispersion,
+  readPersistedNumber,
 } from "./session";
 
 /** A minimal localStorage stand-in — the tests run in Node, and the point is the module's own
@@ -876,5 +879,94 @@ describe("the finished cross-check slot", () => {
     expect(loadCrossCheck()).toBeNull();
     localStorage.setItem("loft.crosscheck", "{not json");
     expect(loadCrossCheck()).toBeNull();
+  });
+});
+
+describe("a remembered number, and what storage is not allowed to hand back", () => {
+  // **Persistence is what creates the need for this guard, which is why it arrived with the first
+  // remembered value a flyer takes a decision from.** A number typed into a live field passes
+  // `NumberField`'s floor, which refuses an entry in words rather than reporting from it. Nothing
+  // that comes back out of `localStorage` passes through a control at all — so before a value was
+  // remembered a nonsense figure died with the tab, and after, it outlives the mistake that made it.
+  // The waiver ceiling is the case: a stored -100 m would read "Chance over ceiling 100%" on the one
+  // input on that panel a flyer takes a go/no-go from.
+  it("hands back a stored number the caller admits", () => {
+    localStorage.setItem("loft.pref.mc.ceilingM", "914.4");
+    expect(readPersistedNumber("mc.ceilingM", 0, (n) => n >= 0)).toBe(914.4);
+  });
+
+  it("falls back to the default rather than to a value the caller refuses", () => {
+    localStorage.setItem("loft.pref.mc.ceilingM", "-100");
+    expect(readPersistedNumber("mc.ceilingM", 0, (n) => n >= 0)).toBe(0);
+  });
+
+  it("checks finiteness whether or not a caller passes a guard", () => {
+    // Both arms: a caller with no guard at all still cannot be handed a NaN or an Infinity, because
+    // every one of them reaches arithmetic that a flyer then reads a number out of.
+    for (const bad of ["", "  ", "apogee", "NaN", "Infinity", "-Infinity"]) {
+      localStorage.setItem("loft.pref.probe", bad);
+      expect(readPersistedNumber("probe", 7)).toBe(7);
+      expect(readPersistedNumber("probe", 7, () => true)).toBe(7);
+    }
+  });
+
+  it("takes the default when nothing has been stored, and when storage throws", () => {
+    expect(readPersistedNumber("never.written", 3)).toBe(3);
+    vi.stubGlobal("localStorage", {
+      getItem() {
+        throw new Error("storage disabled");
+      },
+    });
+    expect(readPersistedNumber("mc.ceilingM", 0, (n) => n >= 0)).toBe(0);
+  });
+
+  // **The zoom guard is a membership test rather than a range, and the reason is that its control
+  // cannot represent anything else.** `ZoomControl` finds its position with `STEPS.indexOf(zoom)`
+  // and falls back to index 0 on a miss, so an off-step value would draw the airframe at that
+  // magnification while the readout beside it said "Fit" and its − button sat disabled.
+  //
+  // The list is IMPORTED from the component rather than re-typed here. A copy would keep passing
+  // while the production list changed underneath it, which is the same shape as the defect it is
+  // guarding against.
+  it("refuses a magnification the zoom control could not display", () => {
+    const admits = (n: number) => ZOOM_STEPS.includes(n);
+    localStorage.setItem("loft.pref.diagram.zoom", "4");
+    expect(readPersistedNumber("diagram.zoom", 1, admits)).toBe(4);
+    localStorage.setItem("loft.pref.diagram.zoom", "3.7");
+    expect(readPersistedNumber("diagram.zoom", 1, admits)).toBe(1);
+    // Every step the control offers has to survive its own guard, or a flyer could set a
+    // magnification that refuses to come back.
+    for (const step of ZOOM_STEPS) {
+      localStorage.setItem("loft.pref.diagram.zoom", String(step));
+      expect(readPersistedNumber("diagram.zoom", 1, admits)).toBe(step);
+    }
+  });
+
+  // **The guards have to be PASSED, and until this case existed neither was.** Every assertion above
+  // hands `readPersistedNumber` a predicate the test wrote itself, so deleting the third argument at
+  // either call site left the whole file green — the check could not fail for the change it exists
+  // to protect. Read off the source, because the alternative is rendering React in a `node`
+  // environment that has no renderer.
+  it("is actually passed a guard at both of the call sites that need one", () => {
+    const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+    // A denominator first: a path that stopped resolving would make every regex below fail to match
+    // and print exactly like a pass.
+    const mc = read("components/MonteCarlo.tsx");
+    const diagram = read("components/RocketDiagram.tsx");
+    expect(mc.length, "MonteCarlo.tsx did not read").toBeGreaterThan(1000);
+    expect(diagram.length, "RocketDiagram.tsx did not read").toBeGreaterThan(1000);
+
+    // The waiver ceiling: a stored negative would read "Chance over ceiling 100%" on the one input
+    // on that panel a flyer takes a go/no-go from.
+    expect(
+      mc,
+      "MonteCarlo's waiver ceiling must pass a floor to usePersistedNumber — a stored negative is a waiver bust from nothing",
+    ).toMatch(/usePersistedNumber\(\s*"mc\.ceilingM"\s*,\s*0\s*,\s*\([a-z]+\)\s*=>\s*[a-z]+\s*>=\s*0\s*\)/);
+
+    // The magnification: an off-step value draws at a scale its own readout denies.
+    expect(
+      diagram,
+      "the diagram's zoom must pass a ZOOM_STEPS membership guard, not a bare default",
+    ).toMatch(/usePersistedNumber\(\s*"diagram\.zoom"\s*,\s*1\s*,\s*\([a-z]+\)\s*=>\s*ZOOM_STEPS\.includes\([a-z]+\)\s*\)/);
   });
 });

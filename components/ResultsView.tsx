@@ -1272,6 +1272,8 @@ export default function ResultsView({
           toolName={toolName}
           external={doc.simulations[simIndex]?.status === "external"}
           storedStatus={doc.simulations[simIndex]?.status}
+          extrapolatedTransonic={r.extrapolatedTransonic}
+          maxMach={r.summary.maxMach}
         />
       )}
 

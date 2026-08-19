@@ -216,7 +216,15 @@ export default function MonteCarlo({
   // "chance over ceiling 86%", and switching to metric left 3000 in the box, now meaning 3,000 m,
   // and the same rocket read 0%. A waiver bust reading as clean, from a gesture nobody expects to
   // change what they entered.
-  const [ceilingM, setCeilingM] = useState(0);
+  //
+  // **Remembered, like the six tolerances above it and for the same reason.** A waiver ceiling is
+  // the flyer's own standing fact about the field they fly at, not a property of the design in
+  // front of them — the same club, the same waiver, every design all season — and it was the
+  // seventh of the seven inputs on this panel, five lines below six siblings that already survived
+  // a reload. It is also the one input here a flyer takes a go/no-go from, which is the argument for
+  // remembering it and the argument for the guard: `NumberField`'s floor refuses a negative entry
+  // in words, and nothing refuses one that comes back out of storage, so the read is guarded too.
+  const [ceilingM, setCeilingM] = usePersistedNumber("mc.ceilingM", 0, (n) => n >= 0);
 
   const dispersions = useMemo<Dispersions>(
     () => ({
@@ -559,7 +567,13 @@ function Report({
   // to a whole unit for the field: a waiver is quoted in whole feet or metres, and 3,937.007874 ft
   // in the box would be a conversion artefact, not the flyer's number. The rounding never reaches
   // the state — it is written back only if the flyer actually edits the field.
-  const ceiling = ceilingM > 0 ? Math.round(units === "imperial" ? mToFt(ceilingM) : ceilingM) : 0;
+  // ...except where a whole unit is 0, which is a SEV-1 and not a rounding preference: the box goes
+  // empty over its "optional" placeholder while `exceed` below goes on answering from the real
+  // figure. Reachable in two keystrokes — type 1 in imperial (0.3048 m) and toggle to metric — and
+  // what a flyer then reads is "Chance over ceiling 100%" with the waiver caution under it, against
+  // a ceiling they can neither see nor clear. `editableWhole` keeps two significant figures rather
+  // than rounding a live value away; see its docblock.
+  const ceiling = ceilingM > 0 ? d.editableWhole(units === "imperial" ? mToFt(ceilingM) : ceilingM) : 0;
   const onCeiling = (v: number) => onCeilingM(v > 0 ? (units === "imperial" ? ftToM(v) : v) : 0);
   const exceed = ceilingM > 0 ? exceedanceProbability(result, ceilingM) : NaN;
   // How often the dispersed flights land firm (>7.6 m/s) or hard (>10.7 m/s) — the recovery-adequacy

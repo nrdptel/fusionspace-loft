@@ -14,91 +14,102 @@ failure the invariant list exists to prevent.
 
 | | what | state |
 |---|---|---|
-| R12 increment 25 | a boattail the design FIELDS made opens the two fields that made it — it had no Properties control at all | **merged, live** (PR #191) |
-| SEV-1 (invariant) | `THIRD-PARTY-NOTICES.md` said RocketPy was not shipped while the build ships it; 23 wheels and 11 licences, one LGPLv3+, named nowhere | **merged, live** (PR #191) |
-| — | `scripts/check-notices.mjs`, wired into `postbuild`: four claims, all four proved able to fail | **merged, live** (PR #191) |
-| R12 increment 26 | SEV-1: a fin set's root stays on the airframe, bounded per STAGE and moved as a rigid GROUP, in the applier every caller goes through | **merged, live** (PR #192) |
-| P18 increment 3 | the flight-log intake is a DROP target as well as a picker — `useFileDrop`, the drag half of `DropZone` extracted for a control that cannot be a card | **merged, live** (PR #193) |
-| — | a print sheet is a STILL: `transition`/`animation` reset in `@media print`, because the accent fade that increment added printed the SCREEN colour on 8 of 24 runs | **merged, live** (PR #193) |
-| R12 increment 27 | the drogue and the payload get their panels; the per-aim mask blanks by ALLOWLIST, so a `designDims` key belonging to no aim is hidden rather than shown | **merged, live** (PR #194) |
-| — | **P19 decomposed** — *The tool remembers the flyer, not just the design*. NOT STARTED, 4 increments, in `ROADMAP.md` | **merged** (PR #194) |
+| SEV-1 | `ValidationPanel` published `mean abs. error N%` — the number a flyer quotes as Loft's accuracy — with no envelope caveat, while `DragCrossCheck` hedged the same flight directly below it | **merged, live** (PR #196) |
+| — | `lib/envelope-surfaces.test.ts` — the census that would have caught it, read out of `ResultsView`'s own JSX; 16 surfaces, each with a written verdict | **merged, live** (PR #196) |
+| SEV-1 | the dispersion panel's waiver ceiling went to an EMPTY box while the panel went on reporting a waiver bust from it — two keystrokes to reach | **merged, live** (PR #196) |
+| SEV-1 | the diagram's zoom control did nothing at all on a phone and never had — 505.3 px/m at 1×, 1.5×, 2×, 4× AND 8× | **merged, live** (PR #196) |
+| P19 increment 1 | persisted call sites **9 → 11**, and `usePersistedNumber` gained the `valid` guard that remembering a number creates the need for | **merged, live** (PR #196) |
+| — | `COMPETITION.md` row 56 added; `MAINTAINING.md` + `AGENTS.md` carry the new shard count | **merged, live** (PR #196) |
 
 **The two questions this run has to answer, answered.**
 
-*What can a flyer DO that they could not before?* **Click the drogue Loft synthesised, or the payload
-bay, and change it where it is drawn** — all three field-made parts are editable from the part now,
-instead of one of three, and instead of scrolling a wall of twenty-odd fields to find the pair that
-made it. **Drop a flight log onto the altitude chart it overlays**, instead of hunting a file picker,
-and drop a `.tsv` the parser has always read and the OS dialog used to hide. And **print a flight card
-from the dark theme and get ink on white**, rather than a sheet whose numbers and axis labels came out
-at 1.00:1 on one run in three.
+*What can a flyer DO that they could not before?* **Magnify the airframe on a phone** — the control
+was there and inert on every rocket at every step, on the one form factor its own docblock names as
+the reason it exists. And **come back to the tool they set up**: the waiver ceiling they entered and
+the magnification they chose both survive a reload, where before only the six dispersion tolerances
+did.
 
-*What is measurably better?* The parts a per-part panel can reach: **1 of 3 field-made parts → 3 of
-3**. The `designDims` keys that could leak onto such a panel: **64 → 11** (the structural ten plus the
-part's own). The flight-log formats the picker offers against the formats the parser reads: **narrower
-→ equal**, pinned by a test that reads the parser's own delimiter list. Text under 3:1 on a dark-theme
-print sheet: **15 nodes on 8 of 24 runs → 0 on 36 of 36**, with 69 elements no longer animating under
-print. And the e2e suite: **293 → 299**, with two new cases whose controls were each driven red.
-
-**The P-track baton list is SPENT and that is now recorded in `ROADMAP.md`.** *After R6 and P5* names
-"P6 — Instrument what flyers actually hit" and "P7 — The suite as one product"; both were overtaken by
-the P6 and P7 that actually shipped, under different subjects. A session reading that list literally
-re-queues finished work. P19 is the first milestone decomposed under the closing instruction instead —
-from the North Star and `COMPETITION.md`'s standing `GAP` rows — with the two runners-up and the reason
-for choosing between them written into the milestone.
+*What is measurably better?* Persisted call sites **9 → 11**. Surfaces publishing a Loft figure with
+no envelope caveat: **1 → 0**, out of 16 censused. The phone's zoom range: **1 usable step of 7 → 7**.
+Ceilings that render as an empty box while being reported from: **every one under 0.5 m → none**. And
+the e2e suite: **299 → 300**, with three new cases, each driven red against its own revert.
 
 **The next slice on each track:**
 
-- **R-track: R12 increment 28 does not exist yet** — R12's queued increments are exhausted at 27.
-  Decompose the next from `COMPETITION.md` row 54's own recommendation, which is the cheapest and is
-  written down: **OpenRocket's per-field `Automatic` switch**, i.e. separate "this part exists" from
-  "what sets its value" — one switchable dimension with a sentence naming what the automatic value
-  tracks, `boattailAftDiameter` tracking its host tube. It is much smaller than promoting a
-  field-made part to an authored one, and unlike promotion it opens no one-way door.
-- **P-track: P19 increment 1** — the waiver ceiling and the three panels that forget they ran. It is
-  the cheapest of P19's four and the *done when* is a count: persisted call sites 9 → 13.
+- **P-track: P19 increment 2** — every table's sort survives, and the parts list stays open.
+  `onSortChange` call sites **2 → 7**. Read the increment's own note about the `allowed` guard's scar
+  first (`MotorSweep.tsx` discards a remembered sort naming a column that no longer sorts, because
+  `col.sortValue!(a)` on a column without one scrambles the array). The fan-out also filed an
+  UNREPRODUCED claim that the parts table's sort cannot reverse at all — `onSortChange` maps "clicked
+  the active key" straight to `"design"` where `DataTable.tsx` documents a three-state cycle. Verify
+  that inside this increment rather than as its own entry.
+- **R-track: R12 increment 28 does not exist yet, and this run did NOT write it.** The R-track got no
+  slice: three Sev-1s and P19 increment 1 filled the first pass. `COMPETITION.md` row 54's own
+  recommendation still stands as the cheapest next step — OpenRocket's per-field `Automatic` switch,
+  `boattailAftDiameter` tracking its host tube — **but the run's scoping fan-out returned three
+  claimed Sev-1s against the boattail that must be reproduced before that increment is written, and
+  one of them says the recommendation is aimed at the wrong thing.** They are in `BACKLOG.md` and
+  summarised below. Reproduce them first; the increment is different depending on the answer.
 
-## What three pre-push reviews caught this run, which is the part worth carrying
+## The three boattail claims that R12 increment 28 has to settle first
 
-**Every one of the three milestones this run shipped had a real defect found by its own pre-push
-review, and two of the three were the SAME defect in different clothes.** The reviews are not a
-formality; on this evidence they are where the increment actually gets finished.
+Returned by the opening fan-out, **NOT reproduced by this session** — they are claims, and
+`MAINTAINING.md` forbids a claim becoming an increment. Each names a file and a gesture, so each is a
+few minutes to settle:
 
-**Increment 26 (fins): four defects, one strictly worse than the Sev-1 being fixed.** The cut and the
-shift shared a stale measurement, so a root of 1.9 m landed the whole set behind the tail; `min`
-stayed 0 while `max` became the group's; `Fin root` had no ceiling at all; and the ceiling read the
-flown tree while the placeholder read the pristine one. **And four measurements quoted in comments were
-wrong** — a 43/17/4 tally summing to 64 in a sentence about 62 sets. *A fix that touches geometry needs
-its numbers re-measured after every change to the fix, not once at the start.*
+1. **`aftmostBodyTube` matches only `kind:"bodytube"`**, so on a design whose tail is already a
+   transition the new boattail is claimed to splice BETWEEN tube and existing transition — a
+   contraction followed by a step back out, with `baseRadius` left on the old tail so the base-drag
+   benefit the field exists for never happens. Claimed on the shipped `demo-boattail.ork` sample and
+   4 corpus `.ork`. **This is the case "its host tube" has to resolve**, so scoping increment 28
+   without settling it scopes the wrong thing.
+2. **The advertised bound is not the enforced bound.** `boattailFairsTo` is claimed to read the tree
+   WITHOUT dimension edits while `addBoattail`'s guard runs after the caliber scale — so a value
+   inside the placeholder's stated range silently builds nothing and says nothing. If it holds, an
+   Automatic exit that tracks the LIVE host diameter removes it by construction, which is the
+   strongest argument for the increment.
+3. **`aftmostBodyTube` scans every stage**, so on a staged design the boattail is claimed to be built
+   on the stage that separates earliest and to leave with it.
 
-**Increment 27 (drogue and payload panels): the increment written to fix a leak shipped the same leak,
-one control to the left.** The drogue's panel carried `mainDeployAltitude` — the altitude the MAIN
-opens at — under the label *Deploy altitude*, on a part `applyDualDeploy` hard-codes to open at
-apogee. A flyer wanting the drogue out higher would have moved the main's deployment: opening speed,
-drift, landing energy. **The mask could not catch it** (that control is gated on nothing and reads
-`edits`, not `designDims`), and **the increment's own e2e could not either**: its assertion for that
-exact string was one of **nineteen of twenty-one absent-label assertions that could not go red under
-any bug**. The decision entry in `ROADMAP.md` had argued carefully about the field NEXT to it.
+Also worth reading before that increment: `lib/ork/adapt.ts` already parses OpenRocket's `auto` token
+and resolves it from neighbours, and `lib/ork/export.ts` deliberately writes explicit radii instead.
+So "automatic" is **not** purely a UI authoring state — the format carries it and Loft flattens it on
+every save. An Automatic switch built without touching that ships a second vocabulary for one idea.
 
-*Three lessons, and the third is the general one.* (1) A leak sweep scoped to `label` cannot see a
-caption, a hint or a `<p>` — the canopy's provenance line is text. (2) An absent-label assertion for a
-label that no bug could produce is not coverage; classify each one against its gate before believing
-the count. (3) **A decision entry that argues carefully about one control is evidence about that
-control and about nothing else on the same row.**
+## What the pre-push review caught this run, which is again the part worth carrying
 
-**P18 increment 3 (flight-log drop): the fix's own polish made a latent defect reachable.** The
-`transition` added so the drop highlight fades animates `background-color` and `color` — the two
-properties `@media print` rewrites — so print styles start a 150 ms fade FROM the screen colour and a
-sheet rasterised inside that window prints the screen. 15 text nodes at 1.00:1 and 1.74:1, on 8 of 24
-runs. **The one-in-three red is the part to carry**: an intermittent test is a defect reported as a
-mood, and the fix was a second, timing-free assertion (count what is still moving under print, with the
-screen count asserted non-zero first) rather than a retry.
+**Three lenses over one diff returned eleven findings and six were real, including two checks that
+could not fail — written in the same commit as the fix they were supposed to protect.**
 
-**The gate must be measured on a QUIET box, and this run proved it twice.** A read-only review agent
-running `npx tsc --noEmit` and `vitest` alongside a shard loop turned shard 2 from 75 passed into **32
-failed** — every one of which passed in isolation. `MAINTAINING.md` says never run two shards
-concurrently; the real rule is broader. Subagents may READ during a gate; they may not run anything
-that competes for the box.
+1. **Both new unit guards were untested at their call sites.** The tests passed `readPersistedNumber`
+   a predicate they had written themselves, so deleting the third argument at `MonteCarlo.tsx` or
+   `RocketDiagram.tsx` left the whole suite green. `ZOOM_STEPS` was not even exported, so the test
+   re-typed the list. **A test that supplies its own version of the thing under test is not a check**,
+   and this is the second time this repo has recorded that shape in a month. Both call sites are now
+   read off the source and asserted, and the control was driven red.
+2. **`scrollWidth <= window.innerWidth` cannot fail.** `e2e/touch.spec.ts` documents it: innerWidth
+   includes the scrollbar and is widened under `isMobile` emulation. It was written as the
+   page-overflow half of a one-way-door guard and asserted nothing. `document.documentElement.clientWidth`.
+3. **A new e2e with no `test.setTimeout` declaring 120 s of its own waits.** It would have died at the
+   config's 60 s mid-wait rather than on an assertion — a red gate that says nothing about the code.
+4. **`page.getByText("2×")` is a substring match across four workspaces that are all mounted at
+   once**, and a cluster design's motor label is written `${count}× `. Scoped to the zoom control's own
+   `role="group"`.
+5. **The census this run added missed four of its own members** — the two sweeps, the dispersion and
+   the RocketPy cross-check take `doc`/`simIndex` rather than a finished flight, and those four are
+   named in `envelope.ts`'s own list of six. Its tag scan also could not cross a `>`, so an arrow
+   function in a prop truncated the attribute list and membership depended on prop ORDER. **The file
+   written to stop a class of blindness had two instances of it.**
+6. **`maxMach ?? 0` would have published "this flight reaches M0.00, outside the drag model's
+   validated subsonic envelope (M ≤ 0.8)"** — a sentence contradicting itself, on the panel the
+   change existed to make honest. Unreachable through the single call site; the props are required now
+   so it stays unreachable through the second.
+
+*The general lesson, and it is not "review harder".* Findings 1, 2 and 5 are all the same failure:
+**a check whose subject is supplied by the check.** A predicate the test wrote, a viewport the browser
+widened, a census whose membership rule matched only the shapes its author had in mind. Ask of every
+new assertion: *what edit, in the production file, makes this red?* If the answer is "none", it is
+narrative.
 
 ## The e2e flake, measured rather than guessed
 

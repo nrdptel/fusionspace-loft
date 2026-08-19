@@ -6,7 +6,8 @@ import { storedCaveat } from "@/lib/validation/stored-status";
 import type { UnitSystem } from "@/lib/display";
 import { fmt } from "@/lib/display";
 import { mToFt, mpsToFtps } from "@/lib/units";
-import { Card, Panel } from "./ui";
+import { transonicReason } from "@/lib/sim/envelope";
+import { Card, Extrapolated, Panel } from "./ui";
 import DataTable from "./DataTable";
 
 /** Shows Loft's engine against the results the design tool (OpenRocket or RockSim) stored in
@@ -65,6 +66,8 @@ export default function ValidationPanel({
   toolName,
   external = false,
   storedStatus,
+  extrapolatedTransonic,
+  maxMach,
 }: {
   report: ValidationReport;
   units: UnitSystem;
@@ -76,6 +79,28 @@ export default function ValidationPanel({
   external?: boolean;
   /** The source tool's own status for this stored run, when it has one. */
   storedStatus?: string;
+  /** Whether LOFT's half of this comparison left the drag model's validated envelope, and the
+   *  Mach it reached — `lib/sim/envelope.ts`'s two facts, passed rather than re-derived so this
+   *  panel and the flight it describes cannot disagree at the boundary.
+   *
+   *  **This panel was the seventh surface, and it was not on the list of six.** `envelope.ts`'s own
+   *  docblock names the surfaces that rendered a supersonic flight's numbers as though they were
+   *  validated — both sweeps, the dispersion, the drag cross-check, the RocketPy cross-check and the
+   *  summary strip — and every one of them was fixed. This one publishes **the mean absolute error
+   *  itself**, which is the single number a flyer quotes as Loft's accuracy, and it published it
+   *  bare. `DragCrossCheck` renders directly BELOW it off the same flight and says *"Loft's curve,
+   *  and the mean gap measured against it, are rough above that"* — so on a supersonic design the
+   *  two agreement figures sat on one screen, one hedged and one not, which is the arrangement
+   *  `envelope.ts` exists to prevent in its own words.
+   *
+   *  **Required, not optional, and the first draft of this fix had them optional.** `transonicReason`
+   *  formats the Mach into its own sentence, so an absent one defaulted through `?? 0` would have
+   *  published *"this flight reaches M0.00, outside the drag model's validated subsonic envelope
+   *  (M ≤ 0.8)"* — a sentence that contradicts itself, on the panel this change exists to make
+   *  honest. Unreachable through the single call site, which always has both; required so that it
+   *  stays unreachable through the second one. */
+  extrapolatedTransonic: boolean;
+  maxMach: number;
 }) {
   return (
     <Panel
@@ -100,6 +125,22 @@ export default function ValidationPanel({
         </Link>
         .
       </p>
+
+      {/* **Loft's half is the extrapolated one, so the marker belongs on the GAP rather than on
+          either column** — the same reasoning `DragCrossCheck` states, and for the same reason: the
+          stored tool's figures carry whatever caveat that tool attached to them and are not Loft's
+          to qualify. The mean absolute error in the header above is measured against a Loft flight
+          that left the validated envelope, and it is the figure this panel exists to publish. */}
+      {extrapolatedTransonic && (
+        <div className="mt-3">
+          <Extrapolated
+            reason={
+              transonicReason(extrapolatedTransonic, maxMach)! +
+              `. Loft's half of every row below, and the mean error measured from them, are rough above that — ${toolName}'s stored figures are not`
+            }
+          />
+        </div>
+      )}
 
       {!external && storedCaveat(storedStatus, toolName) && (
         <Card as="p" tone="warn" className="mt-2 text-sm">

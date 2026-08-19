@@ -94,7 +94,7 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
   therefore its own budget:
 
   ```bash
-  for i in 1 2 3 4; do npx playwright test --shard=$i/4; done   # 2026-08-18: FOUR, and see below
+  for i in 1 2 3 4 5; do npx playwright test --shard=$i/5; done   # 2026-08-19: FIVE, and see below
   ```
 
   Every test still runs; add the counts for the total.
@@ -104,7 +104,11 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
   At 290 (run 19) three failed one case per run — a different case each time, `depth.spec.ts` twice —
   while every one passed in isolation and the thing it measures was 159 px inside its cap; **four
   shards ran 73 + 73 + 73 + 72 = 291 clean.** At **299** (2026-08-18, run 20's last gate) four shards
-  still run clean: 75 + 75 + 75 + 74.**And the run before that one is the counter-example worth
+  still run clean: 75 + 75 + 75 + 74. **At 300 (2026-08-19) four shards failed one case in shard 2 —
+  `smoke.spec.ts`'s field-made-part case, `element(s) not found` — which passed in isolation AND
+  whose whole shard passed alone at 75/75, on a box with nothing else on it. Five shards ran
+  60 + 60 + 60 + 60 + 60 = 300 clean.** One test past the last clean measurement is where it moved,
+  which is worth knowing: the margin at four was gone rather than comfortable.**And the run before that one is the counter-example worth
   keeping**: the same four shards reported 43 passed and **32 failed** in shard 2, every one of which
   passed in isolation — because a read-only review agent was running `npx tsc --noEmit` and `vitest`
   on the same box. The rule above says never run two SHARDS concurrently; the real rule is that the

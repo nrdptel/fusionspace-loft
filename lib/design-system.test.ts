@@ -698,8 +698,17 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  over; `ParameterSweep` stopped when `Figure` did. **A treatment reaching a surface THROUGH
    *  another primitive is adoption working, not adoption lost** — the same rule §9 records for the
    *  caption-vs-body count, arriving here by a different route. A FIFTH surface that needs the
-   *  caveat and reaches neither of those two must still import this. */
-  Extrapolated: 4,
+   *  caveat and reaches neither of those two must still import this.
+   *
+   *  **Five as of 2026-08-19, and the fifth is the sentence above coming true.** `ValidationPanel`
+   *  publishes `mean abs. error N%` — the one figure a flyer quotes as Loft's accuracy — and had
+   *  rendered it bare for its whole life, on a flight that may lie entirely outside the validated
+   *  drag model, while `DragCrossCheck` said so directly below it off the same flight. It reaches
+   *  neither `Readout` nor `Figure`, so it imports this, exactly as the paragraph above says a fifth
+   *  surface must. The census that would have CAUGHT it — rather than counted it afterwards — is
+   *  `lib/envelope-surfaces.test.ts`, which reads the set of flight-fed surfaces out of
+   *  `ResultsView`'s own JSX instead of enumerating imports. */
+  Extrapolated: 5,
   /** §5's `Readout` — the labelled-value-with-unit treatment, and the one a flyer reads every number
    *  through.
    *

@@ -12,6 +12,73 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-19 from run 21's opening fan-out. Seven read-only lenses; the two Sev-1s that were
+reproduced were fixed the same run (the dispersion panel's vanishing waiver ceiling, and
+`ValidationPanel` publishing the mean absolute error with no envelope caveat) and are NOT repeated
+here. What follows is what was filed instead. Each was returned by an agent and is marked with whether
+this session reproduced it — an unreproduced finding is a claim, and `MAINTAINING.md` says it may
+never become an increment while it stays one.**
+
+- **REPRODUCED · `components/RocketpyCrossCheck.tsx:396,413,418` hand-rolls four primitives in
+  twenty-five lines.** `Failure` re-spells `ErrorState`; a raw `<details>` re-spells `Disclosure`;
+  `border-red-500/20 bg-red-500/5` is a fifth spelling of `danger` against `CARD_TONES.danger`'s
+  `/30` + `/10`; and `text-[11px]` is scoped by §3 to *"axis ticks and diagram annotations only"* while
+  this is a Python traceback. It is the panel a flyer opens when the second solver refuses, which is
+  the worst place in the app for four vocabulary breaches.
+- **REPRODUCED · `components/ui.tsx:1561` — `Disclosure` draws a sunken CONTAINER at the CONTROL
+  radius**, and its class string is `CARD_TONES.sunken` re-spelled inside the vocabulary file.
+  `components/MassBreakdown.tsx:84` already does the identical job as `<Card as="details"
+  tone="sunken">` at `rounded-xl`. Invisible to both §9 card greps (they need `rounded-xl border` in
+  one literal) and to the outside-primitives count (it *is* the primitives file), so every adopter
+  inherits the drift. Not the same entry as the control-radius list already filed, which names only
+  `MotorSweep:556` and `RocketpyCrossCheck:412`.
+- **REPRODUCED · `app/globals.css` carries 14 spacing declarations at 8 off-scale values**, including
+  `1.25rem` (=5) and `2.25rem` (=9) — the two §4 forbids by name. §9 gained stylesheet checks for
+  radius and font size after the same blindness bit twice; spacing never got one, so all six docs
+  routes read green. `grep -nE '^\s*(padding|margin)[^:]*:' app/globals.css | grep -v ': 0'`.
+- **UNREPRODUCED · `lib/session.ts`'s three record caps are over-subscribed against the ~5 MB origin
+  budget its own comment states**: session 1.5 MB + shelf 2.5 MB + discarded slot 1.5 MB = 5.5 MB
+  before the dispersion and cross-check records. Claimed reachable with eight ~400 kB designs (corpus
+  `Punisher Apprentice.ork` is 418 kB). If true it makes the next two entries ordinary rather than
+  pathological, so it is the one to measure first.
+- **UNREPRODUCED, claimed SEV-1 · `lib/session.ts` — `rememberRecent` silently drops the oldest shelf
+  row, and for a design built with "Start a new design" that row is the only copy.** The explicit "×"
+  on the same shelf says *"the copy Loft was keeping on this device is gone"* and offers an undo;
+  the automatic deletion of the same bytes is claimed to say nothing and offer none. **Verify before
+  scoping** — if it holds it is a one-way door and preempts, and the fix is to make the automatic
+  path use the same notice and undo slot the manual one already has.
+- **UNREPRODUCED, claimed SEV-1 · `lib/session.ts` — `saveSession` discards the boolean `writeSlot`
+  returns**, so a session that was never stored is claimed indistinguishable from one that was. The
+  sibling `saveDiscardedSession` checks the same boolean precisely so it *"only offers a way back that
+  exists"*. The scenario is the product's own: a backgrounded tab reclaimed at the pad.
+- **UNREPRODUCED · `components/ui.tsx:822` — `Extrapolated inline` renders its reason
+  `hidden pointer-coarse:block`, so on a DESKTOP the sentence exists only inside an `<abbr title>`.**
+  Claimed the same for `variant="row"` at `ui.tsx:996`, whose reason lives only in `aria-label`. If it
+  holds, `DESIGN.md` §8 forbids hover-only state and the two most-read surfaces are the ones that have
+  it. Distinct from the `ValidationPanel` Sev-1 fixed this run: that surface had no reason at all,
+  these have one a mouse user cannot reach.
+- **UNREPRODUCED · `components/LoftApp.tsx:4655` — the launch-site field that drives the whole
+  today's-weather path is bare `useState("")`.** The stored forecast expires after an hour by design,
+  so a flyer at their home field is claimed to retype the place name essentially every session. It is
+  a control that forgets and it is NOT in P19's enumeration, which lists the ceiling, the panel flags,
+  the table sorts and the picker's four. Same for a dropped altimeter flight log
+  (`components/ResultsView.tsx:336`), which is the one artifact a flyer cannot regenerate.
+- **UNREPRODUCED · `components/GeometryInspector.tsx:1413` — the parts table cannot reverse a
+  column.** `onSortChange` maps "clicked the active key" straight to `"design"`, so Mass gives
+  heaviest-first only, with no third click. `components/DataTable.tsx:102` describes a three-state
+  cycle; the implementation is claimed to be two-state, which would make lightest-first unreachable on
+  a 47-part design. Squarely P19 increment 2's surface — check it there rather than as its own entry.
+- **UNREPRODUCED · `components/MonteCarlo.tsx`'s `Histogram` clamps the ceiling line into the plot**,
+  so a restored or mistyped `1e9` would draw a ceiling line at the right edge looking like a real limit
+  just above the samples. The `>= 0` guard added this run does not bound the top. An upper bound wants
+  to be a real altitude rather than a magic number — the highest waiver a flyer can hold is the
+  citable one.
+- **UNREPRODUCED · `components/ParameterSweep.tsx:71` — the swept range is hard-wired to
+  `base * RANGE_LO … base * RANGE_HI` with 25 steps and no control for either, and there is no way to
+  APPLY a swept value** (no `onUse`, unlike `MotorSweep.tsx:544`). A flyer reads the optimum off the
+  curve, changes route, and retypes it. This is a capability gap rather than a defect — if it is taken
+  it belongs in `ROADMAP.md`, not here.
+
 **Filed 2026-08-18 from R12 increment 27 — what giving the drogue and the payload panels did not
 answer.**
 
