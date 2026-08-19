@@ -79,6 +79,30 @@ export function fmtEditable(shown: number, decimals = 1, maxDecimals = decimals 
   return shown.toFixed(roundTripDecimals(shown, decimals, maxDecimals, tol));
 }
 
+/** Whole units for an editable field, except where whole units would erase the value.
+ *
+ *  **A field that rounds a live value to nothing reports on a figure the flyer cannot see.** Some
+ *  inputs are quoted in whole units by convention — a waiver ceiling is 3,000 ft or 1,200 m, never
+ *  3,937.007874 — so the field rounds, and rounding is display-only: the state keeps the exact
+ *  figure and the arithmetic runs on it. That is right until the rounding reaches zero. A field
+ *  showing `value={x || ""}` then renders EMPTY, over its "optional" placeholder, while every
+ *  readout downstream goes on answering from the real value.
+ *
+ *  Measured on the dispersion panel, 2026-08-19: a 1 ft ceiling typed in imperial is 0.3048 m, and
+ *  toggling to metric rounded it to 0 — an empty box, and beside it *"Chance over ceiling 100%"* in
+ *  amber, with the waiver caution under it. The flyer cannot read the ceiling, and cannot clear it
+ *  either, because the box they would clear already looks clear. That is a warning a flyer acts on,
+ *  asserted against a number withheld from them.
+ *
+ *  So: whole units when whole units say something, and two significant figures when they do not. The
+ *  small case is not a number anyone quotes a waiver in, which is exactly why it must be visible —
+ *  it is how a flyer finds out the field is holding something they did not mean. */
+export function editableWhole(shown: number): number {
+  if (!Number.isFinite(shown) || shown === 0) return 0;
+  const whole = Math.round(shown);
+  return whole !== 0 ? whole : Number(shown.toPrecision(2));
+}
+
 export interface Quantity {
   value: string;
   unit: string;

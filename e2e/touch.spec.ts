@@ -315,6 +315,34 @@ test.describe("phone layout", () => {
     // scale would be taller than it is wide and no more legible.
     expect(box.height, "the drawing is upright but not using its height budget").toBeGreaterThan(400);
 
+    // **And the zoom control has to move the picture, which on this form factor it did not until
+    // 2026-08-19.** `colW` is `available × zoom` and appeared only in the CALIBER term of the rotated
+    // scale; the rotated drawing is length-bound on every real rocket, so the height term won at
+    // every step. Measured on this exact design and viewport: the scale stayed **505.3 px/m** and the
+    // drawing stayed 480 px long at 1x, 1.5x, 2x, 4x AND 8x, while the readout climbed through all
+    // five. A control reporting a magnification the picture does not have — on the form factor
+    // `ZoomControl`'s own docblock names as the reason it exists ("in a phone column, fit puts the
+    // body wall about eleven pixels apart, which is smaller than the drag handles on it").
+    //
+    // Asserted as GROWTH rather than against a pixel count, so it survives a change to the budget or
+    // to the sample, and both axes, because equal-scale is the diagram's own contract: a magnifier
+    // that stretched one axis would pass a length-only check while drawing a rocket that is not this
+    // rocket.
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await expect(page.getByRole("group", { name: "Diagram zoom" }).getByText("2×")).toBeVisible();
+    const zoomed = (await svg.boundingBox())!;
+    expect(
+      zoomed.height,
+      `zoom moved the readout to 2x and the drawing stayed ${Math.round(box.width)}x${Math.round(box.height)}`,
+    ).toBeGreaterThan(box.height * 1.5);
+    expect(zoomed.width, "the airframe got longer but no wider — the scale is not equal on both axes")
+      .toBeGreaterThan(box.width * 1.5);
+    // Back to fit, so the assertions below read the drawing this test was written against.
+    await page.getByRole("button", { name: "Zoom out" }).click();
+    await page.getByRole("button", { name: "Zoom out" }).click();
+    await expect.poll(async () => Math.round((await svg.boundingBox())!.height)).toBe(Math.round(box.height));
+
     // **Nose at TOP**, which is settled by convention rather than taste: "CG from nose", the station
     // sort, the "at X from the nose" readout and the parts table's design order all read nose-first,
     // and nose-at-bottom would contradict all four.

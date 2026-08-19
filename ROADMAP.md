@@ -7584,10 +7584,81 @@ tell on the one surface every first-time visitor meets.
 
 ## P19 — The tool remembers the flyer, not just the design
 
-**Status: NOT STARTED.** Decomposed 2026-08-18, when P18 shipped and the P-track's baton list below
-turned out to be exhausted — it names P6 and P7, and both shipped long ago under different subjects.
-This is the first P milestone decomposed from the North Star and `COMPETITION.md` rather than taken
-from that list, as the instruction there says to do.
+**Status: IN PROGRESS** — increment 1 shipped 2026-08-19. Decomposed 2026-08-18, when P18 shipped and
+the P-track's baton list below turned out to be exhausted — it names P6 and P7, and both shipped long
+ago under different subjects. This is the first P milestone decomposed from the North Star and
+`COMPETITION.md` rather than taken from that list, as the instruction there says to do.
+
+**Increment 1 — the seventh control of seven, the magnification one route away, and the guard that
+persistence itself creates the need for, 2026-08-19.** Persisted call sites **9 → 11**, pinned by
+`lib/session.test.ts`'s five `readPersistedNumber` cases and by `e2e/smoke.spec.ts`'s *"the waiver
+ceiling and the diagram's magnification survive a reload"*.
+
+**The three `open` flags this increment was scoped around were REFUSED, and the measurement is the
+reason rather than the schedule.** The plan below reads *"the three `open` flags … onto persisted
+flags that still require an explicit Run"*, and the code says that cannot be built as written: on all
+three panels `open` is not a view preference, it is the run trigger. `components/MonteCarlo.tsx`'s
+run effect is `if (!open) { … return }` and then flies; `MotorSweep.tsx` and `ParameterSweep.tsx` have
+the identical shape. So a restored `open` either **flies unbidden** — which is precisely the defect
+`MonteCarlo.tsx`'s own auto-open comment records having been fixed and paid for (*"Opening it on the
+design alone therefore started 300 flights on every load whose stored entry had gone stale … in a
+panel nobody had opened, on the phone §8 is written for"*) — or it renders a panel that is open,
+empty and showing a Run button, which is what CLOSED already looks like plus a Close control. Neither
+is worth a stored key. **The half of "their open panels" that is real is already shipped and is not
+this mechanism**: `saveDispersion`/`loadDispersion` bring back the *cloud*, and the panel auto-opens
+only when there is something to show — the honest way to give the two sweeps the same thing is to give
+them that, not a flag, and it is a whole increment rather than a hook swap. Filed as the milestone's
+new increment 4; see *Decisions taken without the owner*, 2026-08-19.
+
+**What went in instead, and each is a control that forgets by `MAINTAINING.md`'s own list:**
+
+- **`components/MonteCarlo.tsx`'s waiver ceiling** — the seventh input of seven on that panel, five
+  lines below six persisted siblings, and the only one a flyer takes a go/no-go from. It describes
+  the field and the club's waiver, not the design, so it outlives the design exactly as the six
+  tolerances do.
+- **`components/RocketDiagram.tsx`'s magnification** — fit-to-width is the only way to see a 29:1
+  airframe whole and the worst way to work on any part of it, and every reload handed back eleven
+  pixels of body wall.
+
+**And a guard, because remembering a number is what creates the need for one.** `usePersistedNumber`
+took an optional `valid`, the numeric twin of `usePersistedChoice`'s `allowed`. A live entry is
+bounded by `NumberField`, which refuses it in words; nothing that comes back out of `localStorage`
+passes through a control at all. Until a value was remembered a nonsense figure died with the tab —
+remembered, it outlives the mistake. A stored `-100` on the ceiling reads *"Chance over ceiling
+100%"* on the panel's go/no-go readout.
+
+**Four things the review found, all before the push, and each is a different shape. The first is the
+one worth carrying, because remembering a control is what turned it from a nuisance into a lie:**
+
+0. **The zoom control did nothing at all on a phone, and had never done anything.** `colW` is
+   `available × zoom` and it appeared only in the CALIBER term of the rotated layout's scale; a
+   rotated drawing is length-bound on every real rocket, so the height term won at every step.
+   Measured on the bundled 38 mm sample at a 390 px viewport: the scale is **505.3 px/m at 1×, 1.5×,
+   2×, 4× and 8×**, the drawing **124 × 508 px at every one of them**, while the readout climbed
+   through all five. Dead on exactly the form factor `ZoomControl`'s own docblock names as its
+   reason for existing — *"in a phone column, fit puts the body wall about eleven pixels apart, which
+   is smaller than the drag handles on it"*. **Persisting it would have handed that dead reading back
+   on every load**, so the increment fixed it rather than shipping over it: the fit is computed
+   without zoom and scaled after, which is byte-identical at 1× and actually magnifies above it.
+   Pinned by `e2e/touch.spec.ts`, whose failure message prints the 124 × 508 when reverted.
+
+1. **A shared zoom key would have opened a one-way door.** `RocketDiagram` mounts twice — the editor
+   and `AirframeStrip`'s reminder — and only the editor draws a `ZoomControl`. A remembered 2× would
+   have come back to the strip as a two-times-too-wide drawing with **no control anywhere in the app
+   to bring it back**, which is rank 1 on this file's damage list. The strip pins itself to fit.
+2. **`Number("")` is `0`, not `NaN`**, so a blank key restored as a *typed zero* rather than as an
+   absent one — and zero is meaningful on most of these controls (a tolerance of none, a ceiling of
+   none). Blank is treated as absent. Pre-existing, and reachable only by a key some other hand wrote,
+   which is why it had never shown.
+3. **The zoom guard is a membership test, not a range.** `ZoomControl` resolves its position with
+   `STEPS.indexOf(zoom)` and falls back to index 0 on a miss, so an off-step stored value would draw
+   the airframe magnified while the readout beside it said "Fit" and its − button sat disabled — the
+   drawing and its own control describing different rockets.
+
+**The read is a separate exported function so the guard could be asserted at all.** This project's
+unit environment is `node` with no renderer, so a hook's body is reachable only through an e2e, and an
+e2e proves the value came back rather than what happens to the values that must not.
+`readPersistedNumber` is that decision with no React in it.
 
 **Outcome.** A flyer who reloads, restarts the browser, or has a backgrounded tab reclaimed at the pad
 comes back to the tool **they set up** — their sort orders, their catalogue filter, their open panels,
@@ -7640,15 +7711,23 @@ is named in `DESIGN.md` §9 as a deliberate exception **with its reason**; and �
 COUNTS the survivors by discovering the controls rather than listing them, so a control added later
 that forgets fails the gate.
 
-**Size.** 4 increments, smallest first, each independently shippable and each landing its own
-assertion.
+**Size.** 5 increments, smallest first, each independently shippable and each landing its own
+assertion. *(4 as decomposed; increment 1 refused the three `open` flags on measurement and increment
+4 is what the real half of them turned out to be — see the increment 1 record above.)*
 
-1. **The seventh control, and the three panels that forget they ran.** `components/MonteCarlo.tsx:219`
-   onto `usePersistedNumber`, and the three `open` flags (`MonteCarlo.tsx:189`, `MotorSweep.tsx:152`,
-   `ParameterSweep.tsx:282`) onto persisted flags that still require an explicit Run — P17's recorded
-   counter-argument (re-opening re-flies 300 flights) is honoured rather than overruled. ***Done when***
-   the repo-wide count of persisted call sites goes **9 → 13**, and an e2e sets a waiver ceiling,
-   reloads, and reads it back.
+1. **The seventh control, and the magnification one route away.** ***SHIPPED 2026-08-19*** — see the
+   increment 1 record above. `components/MonteCarlo.tsx`'s waiver ceiling and
+   `components/RocketDiagram.tsx`'s zoom onto `usePersistedNumber`, which gained the `valid` guard
+   that persisting a number creates the need for. ***Done when*** the repo-wide count of persisted
+   call sites goes **9 → 11**, and an e2e sets a waiver ceiling, reloads, and reads it back. **MET.**
+
+   *As written this said **9 → 13**, via the three `open` flags (`MonteCarlo.tsx:189`,
+   `MotorSweep.tsx:152`, `ParameterSweep.tsx:282`) "onto persisted flags that still require an
+   explicit Run". That is not buildable as stated and the target moved with it: on all three panels
+   `open` IS the run trigger, so a restored one either flies unbidden — the exact defect
+   `MonteCarlo.tsx`'s auto-open comment records having already been paid for — or renders a state
+   indistinguishable from closed. The real half of "their open panels" is bringing back the RESULT,
+   which increment 4 below now carries.*
 2. **Every table's sort survives, and the parts list stays open.** All 7 `<DataTable` call sites
    through the controlled `sort`/`onSortChange` pair into `usePersistedChoice`, keyed per surface, each
    with its own `allowed` guard. ***Done when*** `onSortChange` call sites go **2 → 7**, a vitest case
@@ -7662,7 +7741,19 @@ assertion.
    part of the increment. ***Done when*** an e2e types a vendor filter, picks a tube, re-opens the
    picker for a second tube and finds the filter still applied, and row 36 is resolved on the
    forgetting clause with the auto-open clause left open and its reason restated.
-4. **The instrument, general rather than enumerative.** A §9 block and its executable copy: an e2e
+4. **The two sweeps come back to the run you left, the way the dispersion already does.** This is
+   the half of *"their open panels"* that survived increment 1's refusal, and it is a stored RESULT
+   rather than a stored flag: `saveDispersion`/`loadDispersion`/`clearDispersion` and
+   `MonteCarlo.tsx`'s `runKey` are the shape to copy, including the two properties that make it
+   honest — the stored run is compared verbatim against a key naming the design, the conditions and
+   the inputs, so a restored answer always belongs to the rocket on screen; and closing the panel
+   clears the stored copy, so a dismissal is not undone by the next navigation. ***Done when***
+   `MotorSweep` and `ParameterSweep` each restore their own last result across a reload without
+   re-flying, an e2e watches the live region to prove no flight was made (the technique
+   `smoke.spec.ts`'s re-fly cases already use — rows identical to the ones they replaced cannot tell
+   "kept" from "re-flown"), and a stale key still re-flies rather than restoring.
+
+5. **The instrument, general rather than enumerative.** A §9 block and its executable copy: an e2e
    sweep that, on each workspace, DISCOVERS every interactive control the way `e2e/touch.spec.ts`
    discovers rects, records each value, reloads, and re-reads. Written against the served export
    (P16's lesson) and written to discover rather than to list (P14's). ***Done when*** §9 carries a
@@ -7742,6 +7833,21 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-19 — P19 increment 1 does NOT persist the three panels' `open` flags, and the milestone's
+  own *done when* was rewritten from 9 → 13 to 9 → 11 rather than met as written.** The plan asked for
+  the flags "onto persisted flags that still require an explicit Run". **Taken: refuse them, and put
+  the real half of what they were reaching for into a new increment 4.** On all three panels `open` is
+  the run trigger, not a view preference — the run effect is `if (!open) { … return }` and then flies —
+  so a restored flag either flies 300 unbidden flights on a phone at the pad, which is the defect
+  `components/MonteCarlo.tsx`'s auto-open comment records having already been fixed once, or renders a
+  state a flyer cannot distinguish from closed. **Rejected: adding an "open but not armed" state to
+  `Panel`,** which is the only way to have both. It would put a Run button and a Close control on a
+  panel showing nothing — closed, plus one extra affordance — and buy a stored key for a distinction
+  without a difference. **Reversal is cheap and named:** if the owner wants the flags remembered
+  anyway, the mechanism is increment 4's stored result, not a boolean. Substituted instead:
+  `RocketDiagram`'s magnification, which is a view preference by every test in `MAINTAINING.md`'s
+  craft list and forgets today.
 
 - **2026-08-18 — `Drogue Ø` is offered on the drogue's OWN property panel, overturning the recorded
   decision that withheld it from every per-part surface.** The comment above the deploy-altitude field

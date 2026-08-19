@@ -358,17 +358,51 @@ export function clearDiscardedSession(): void {
  *  result. Kept apart from the design session above: these are the flyer's own standing assumptions
  *  about their build and their field, so they outlive whichever design is open and survive
  *  "Start fresh". Stored per key; unreadable or unavailable storage just falls back to `initial`,
- *  and the first render always uses `initial` so the server's HTML and the client's agree. */
-export function usePersistedNumber(key: string, initial: number): [number, (v: number) => void] {
+ *  and the first render always uses `initial` so the server's HTML and the client's agree.
+ *
+ *  **`valid` is this hook's `allowed`, and persistence is what creates the need for it.** A number
+ *  typed into a live field is bounded by `NumberField`, which refuses an entry in words rather than
+ *  flying it; but the bound lives on the control, and what comes back out of storage never passes
+ *  through one. Until a value was remembered, a nonsense figure died with the tab. Remembered, it
+ *  outlives the mistake that made it — a hand-edited key, a bound that has since tightened, a value
+ *  written by an older shape of the app — and comes back to a panel that will report from it. So a
+ *  stored number that is no longer admissible falls back to `initial`, exactly as a stored choice
+ *  naming a column that no longer sorts falls back in `usePersistedChoice` below. Finiteness alone
+ *  is the floor and is checked whether or not a caller passes one.
+ *
+ *  **The read is a separate exported function, and that is so the guard can be asserted at all.**
+ *  This project's unit environment is `node` with no renderer, so a hook's body is reachable only
+ *  through an e2e — and an e2e proves the value came back, not what happens to the values that must
+ *  not. `readPersistedNumber` is that decision with no React in it, and `lib/session.test.ts` drives
+ *  it directly. */
+export function readPersistedNumber(key: string, initial: number, valid?: (n: number) => boolean): number {
+  try {
+    const raw = localStorage.getItem(`loft.pref.${key}`);
+    // `Number("")` and `Number("  ")` are **0**, not NaN, so a blank key would restore as a typed
+    // zero rather than as an absent one — and 0 is a meaningful entry on most of these controls (a
+    // tolerance of zero, a ceiling of none). Blank is treated as absent; `String(v)` never writes
+    // it, so this arm is only ever reached by a key some other hand wrote.
+    const n = raw === null || raw.trim() === "" ? NaN : Number(raw);
+    return Number.isFinite(n) && (valid === undefined || valid(n)) ? n : initial;
+  } catch {
+    // storage disabled — keep the default
+    return initial;
+  }
+}
+
+/** The hook over that read: `initial` until the effect runs, then whatever storage admits. */
+export function usePersistedNumber(
+  key: string,
+  initial: number,
+  valid?: (n: number) => boolean,
+): [number, (v: number) => void] {
   const [value, setValue] = useState(initial);
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(`loft.pref.${key}`);
-      const n = raw === null ? NaN : Number(raw);
-      if (Number.isFinite(n)) setValue(n);
-    } catch {
-      // storage disabled — keep the default
-    }
+    setValue(readPersistedNumber(key, initial, valid));
+    // `valid` is a fresh closure on every render at every call site, and `initial` is a literal at
+    // all of them; re-running on either identity would re-read storage on every render. Excluded for
+    // exactly the reason `allowed` is excluded below, and stated the same way.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   const set = useCallback(
     (v: number) => {

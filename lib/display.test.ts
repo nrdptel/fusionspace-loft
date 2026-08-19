@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { changePercent, changeAbsolute, decimalsFor, dynamicPressure, energy, flutterMargin, fmtEditable, fmtSmall, lengthMm, mass, roundTripDecimals, storedRunLabels } from "./display";
+import { changePercent, changeAbsolute, decimalsFor, dynamicPressure, energy, flutterMargin, editableWhole, fmtEditable, fmtSmall, lengthMm, mass, roundTripDecimals, storedRunLabels } from "./display";
 import { mToFt, mpsToMph } from "./units";
 import { RECOMMENDED_FLUTTER_MARGIN } from "./sim/flutter";
 
@@ -301,6 +301,50 @@ describe("roundTripDecimals / fmtEditable", () => {
     for (let mps = 0.05; mps <= 40; mps += 0.05) {
       const shown = Number(fmtEditable(mpsToMph(mps), 0));
       expect(Math.abs(shown - mpsToMph(mps)) / mpsToMph(mps)).toBeLessThanOrEqual(0.001);
+    }
+  });
+});
+
+describe("a whole-unit field that must not round its own value away", () => {
+  // **SEV-1, found and fixed 2026-08-19.** `components/MonteCarlo.tsx`'s waiver ceiling rounds for
+  // display — a waiver is quoted in whole feet or metres — and renders `value={ceiling || ""}`, so a
+  // rounding that reached 0 painted an EMPTY box over the "optional" placeholder while
+  // `exceedanceProbability` went on answering from the real figure. Beside it: "Chance over ceiling
+  // 100%" in amber, with the waiver caution under it. A warning a flyer acts on, computed from a
+  // number the same panel withholds — and one they cannot clear, because the box already looks clear.
+  it("keeps a value whole units would erase", () => {
+    // The two-keystroke path, stated as the property rather than as arithmetic: 1 ft typed in
+    // imperial is 0.3048 m, whole metres of it is 0, and the field spells 0 as an empty box. So the
+    // claim is that the METRIC reading of that same ceiling is still something — asserted against
+    // `editableWhole`, not against `Math.round`, because an assertion about the standard library
+    // cannot go red for anything in this repo.
+    expect(editableWhole(mToFt(0.3048))).toBe(1);
+    expect(editableWhole(0.3048)).toBe(0.3);
+  });
+
+  it("still reads in whole units everywhere a waiver is actually quoted", () => {
+    // The rounding is the point above 1 — 3,937.007874 ft in the box is a conversion artefact, not
+    // the flyer's number — so the fix must not buy visibility by making every ceiling long.
+    expect(editableWhole(mToFt(1200))).toBe(3937);
+    expect(editableWhole(1200)).toBe(1200);
+    expect(editableWhole(914.4)).toBe(914);
+    expect(editableWhole(1.5)).toBe(2);
+  });
+
+  it("passes an absent value straight through as absent", () => {
+    // 0 is how "no ceiling" is spelled, and it must keep rendering as the empty, optional box.
+    expect(editableWhole(0)).toBe(0);
+    expect(editableWhole(NaN)).toBe(0);
+    expect(editableWhole(Infinity)).toBe(0);
+  });
+
+  it("never turns a positive value into a falsy one, across the whole sub-unit range", () => {
+    // The blanket form, and the only one of these four that covers the boundary rather than sampling
+    // it: `value={x || ""}` makes 0 and "" the same thing to the field, so the property under test is
+    // FALSINESS, not size. The spot checks above exist to name the reachable gesture; this is the one
+    // that would catch a rounding rule nobody thought of.
+    for (let m = 0.001; m < 2; m += 0.001) {
+      expect(Boolean(editableWhole(m)), `${m} m must not render as an empty ceiling`).toBe(true);
     }
   });
 });

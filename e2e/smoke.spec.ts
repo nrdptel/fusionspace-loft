@@ -2050,6 +2050,83 @@ test.describe("Loft", () => {
     await expect(flutterHeader).toHaveAttribute("aria-sort", "descending");
   });
 
+  test("the waiver ceiling and the diagram's magnification survive a reload", async ({ page }) => {
+    // Two 300-flight dispersions and a session restore. Every sibling case that reloads across a
+    // dispersion sets its own budget for the same reason; the config's 60 s is shorter than this
+    // test's own declared waits, so without this the run dies mid-wait rather than on an assertion.
+    test.setTimeout(180_000);
+    // **The seventh control of seven on the dispersion panel, and the one a flyer takes a go/no-go
+    // from.** Six dispersion tolerances beside it already outlived a reload; the ceiling — the club's
+    // waiver, the same all season, a property of the field rather than of the design — did not. And
+    // a magnification is the same kind of thing one route away: fit-to-width is the only way to see a
+    // 29:1 airframe whole and the worst way to work on any part of it, so a designer sets 2x and a
+    // reclaimed tab used to hand back eleven pixels of body wall.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.waitForURL(/\/design\/?$/);
+    const svg = page.locator('svg[aria-label*="Scale side-view"]');
+    await expect(svg).toBeVisible();
+    const fit = (await svg.boundingBox())!.width;
+    // Scoped to the zoom control's own group. `getByText("2×")` unscoped is a substring match across
+    // four workspaces that are all mounted at once, and a cluster design's motor label is written
+    // `${count}× ` — two matches, and a strict-mode error rather than a failure that says anything.
+    const zoomReadout = page.getByRole("group", { name: "Diagram zoom" }).getByText(/^\d+(\.\d+)?×$|^Fit$/);
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await expect(zoomReadout).toHaveText("2×");
+
+    await page.getByRole("link", { name: "Sweep" }).click();
+    const panel = page.getByRole("region", { name: /dispersion/i });
+    await panel.getByRole("button", { name: /Run dispersion/ }).click();
+    await panel.getByLabel(/Waiver ceiling/).fill("1200");
+    await expect(panel.getByText("Chance over ceiling")).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
+
+    await page.getByRole("link", { name: "Sweep" }).click();
+    // **The Run button may not be there, and that is P17 working rather than a flake.** A finished
+    // cloud is stored under its own run key, so the panel can come back already open and already
+    // populated — in which case there is nothing to press. Either way what this case is about is the
+    // ceiling, so it opens the panel only if the panel is still closed.
+    const run = panel.getByRole("button", { name: /Run dispersion/ });
+    await expect(async () => {
+      if (await run.isVisible()) await run.click();
+      await expect(panel.getByLabel(/Waiver ceiling/)).toBeVisible();
+    }).toPass({ timeout: 90_000 });
+    await expect(panel.getByLabel(/Waiver ceiling/)).toHaveValue("1200");
+    // The figure is not just in the box — it is being READ. A ceiling nobody set is the absent case
+    // and prints nothing at all, so this readout existing is what proves the value reached the
+    // arithmetic rather than only the input.
+    await expect(panel.getByText("Chance over ceiling")).toBeVisible();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.waitForURL(/\/design\/?$/);
+    await expect(svg).toBeVisible();
+    await expect(zoomReadout).toHaveText("2×");
+    // The readout and the drawing have to agree — a stored value the control cannot represent would
+    // magnify the airframe while the readout beside it said "Fit".
+    await expect.poll(async () => (await svg.boundingBox())!.width).toBeGreaterThan(fit * 1.5);
+
+    // **The strip never comes back zoomed, and it is the reason the guard is not simply shared.**
+    // Both variants mount the same component and only the full one draws a zoom control, so a shared
+    // 2x would hand the flight page's airframe reminder a two-times-too-wide drawing with no control
+    // anywhere in the app to bring it back — a state a flyer enters with no way out.
+    await page.getByRole("link", { name: "Flight" }).click();
+    const strip = page.locator('svg[aria-label*="Airframe reminder"]').first();
+    await expect(strip).toBeVisible();
+    const stripBox = (await strip.boundingBox())!;
+    // `clientWidth`, not `window.innerWidth`: `e2e/touch.spec.ts` records innerWidth as a false green
+    // here — it includes the scrollbar and is widened under emulation, so a scrollbar's width of real
+    // overflow reads as none.
+    const viewportW = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(stripBox.width, "the strip must come back at fit, not at the editor's magnification")
+      .toBeLessThanOrEqual(viewportW);
+  });
+
   test("renaming a design keeps the analyses that were already flown", async ({ page }) => {
     // The name is metadata: it touches neither the airframe nor the flight. It used to be the first
     // field of the analysis cache key, so every keystroke in the rename field re-flew the motor
@@ -8355,6 +8432,29 @@ test.describe("Loft", () => {
     // 3,000 ft is 914 m: the box now says so, and the answer is the same answer.
     await expect(ceiling).toHaveValue("914");
     await expect(chance).toHaveText(imperial);
+
+    // **And the same gesture at the bottom of the range, which was a SEV-1 until 2026-08-19.** The
+    // rounding above is display-only and right — a waiver is quoted in whole units — but it rounded
+    // to ZERO on a small ceiling, and the field renders `value={ceiling || ""}`, so the box went
+    // EMPTY over its "optional" placeholder while the reading beside it went on answering from the
+    // real figure. One typed digit and this same toggle: 1 ft is 0.3048 m.
+    await units.getByRole("button", { name: "Imperial", exact: true }).click();
+    await ceiling.fill("1");
+    await ceiling.blur();
+    await expect(chance).not.toHaveText("");
+    const tiny = await chance.innerText();
+
+    await units.getByRole("button", { name: "Metric", exact: true }).click();
+    // The box still holds the ceiling being checked. What it must never be is empty while the
+    // readout below it is reporting a waiver bust the flyer cannot trace to anything.
+    await expect(ceiling).not.toHaveValue("");
+    await expect(chance).toHaveText(tiny);
+    // And it is still clearable, which is the other half of what an empty-looking box costs: a
+    // flyer who cannot see the ceiling cannot clear it either, because clearing an already-blank
+    // field is a no-op and the warning stays.
+    await ceiling.fill("");
+    await ceiling.blur();
+    await expect(mc.getByText("Chance over ceiling")).toHaveCount(0);
   });
 
   test("the motor sweep's safety flags are readable without a mouse and without colour", async ({ page }) => {

@@ -20,6 +20,7 @@ import { flattenRocket } from "@/lib/model/geometry";
 import type { MotorMark } from "@/lib/sim/setup";
 import { useMeasuredWidth } from "./LineChart";
 import { Button, EmptyState, Segmented, Swatch } from "./ui";
+import { usePersistedNumber } from "@/lib/session";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -33,6 +34,12 @@ import type { UnitSystem } from "@/lib/display";
  *  When the loaded centre of gravity (`cg`) and centre of pressure (`cp`) are supplied — the same
  *  values the results panel reports — they're marked on the airframe so the stability picture (CG
  *  ahead of CP, by the static margin) reads at a glance, which numbers alone can't show. */
+/** The magnifications the zoom control steps through, and the only values the remembered zoom may
+ *  take. Module-level rather than inside `ZoomControl` because the restore guard and the control
+ *  have to agree on the list: a stored value the control cannot represent draws at a magnification
+ *  its own readout denies. */
+export const ZOOM_STEPS = [1, 1.5, 2, 3, 4, 6, 8];
+
 /** The fin dimensions the diagram can edit, in the order the touch chip row offers them. */
 const FIN_FIELDS = ["finStation", "finSweepLength", "finRootChord", "finTipChord", "finSpan"] as const;
 type FinField = (typeof FIN_FIELDS)[number];
@@ -205,7 +212,24 @@ export default function RocketDiagram({
   // and the column scrolls.
   const box = useRef<HTMLElement>(null);
   const available = useMeasuredWidth(box);
-  const [zoom, setZoom] = useState(1);
+  /** **A magnification the flyer chose is a view they set up, so it survives the reload.** Fit is
+   *  the default and the only thing a reload used to give back: a designer working the fin root on a
+   *  29:1 airframe sets 4× to see the wall at all, follows a docs link or has the tab reclaimed at
+   *  the pad, and comes back to an eleven-pixel-wide body — `MAINTAINING.md`'s "a view or sort order
+   *  that resets", on the surface the editor is built around.
+   *
+   *  **`STEPS` is the guard, and it is load-bearing rather than defensive.** `ZoomControl` resolves
+   *  its position with `STEPS.indexOf(zoom)` and falls back to index 0 on a miss — so an off-step
+   *  value out of storage (a step list that has since changed, a hand-edited key) would draw at that
+   *  magnification while the control read "Fit" and its − button sat disabled. The drawing and the
+   *  control would be describing different rockets.
+   *
+   *  **The STRIP never zooms, and that is a one-way door rather than a preference.** Both variants
+   *  mount this component, only the full one draws a `ZoomControl` — so a shared 4× would come back
+   *  to the strip as a four-times-too-wide airframe reminder with no control anywhere to bring it
+   *  back. The strip pins itself to fit, which is what it drew before this and what it draws now. */
+  const [storedZoom, setZoom] = usePersistedNumber("diagram.zoom", 1, (n) => ZOOM_STEPS.includes(n));
+  const zoom = variant === "strip" ? 1 : storedZoom;
 
   // A finger is not a mouse pointer, and the five fin handles sit within 10-22 px of each other at a
   // phone's fit-width: measured on a 412x915 viewport, `document.elementFromPoint` at the centre of
@@ -325,9 +349,31 @@ export default function RocketDiagram({
    *  caliber-bound rather than length-bound, and letting it overflow would push the airframe past the
    *  panel's edge with no way to reach it, because the wrapper scrolls horizontally only. */
   const s = vertical
-    ? Math.min(
+    ? // **Fit, then magnify — and until 2026-08-19 the rotated layout did not magnify at all.**
+      // `colW` is `available × zoom`, and it appeared in the CALIBER term only. The rotated drawing
+      // is length-bound on every real rocket, so the height term won every time and the width term
+      // was never close: measured on the bundled 38 mm sample at a 390 px column, the height term is
+      // **505.3 px/m** and the width term runs **7,490 px/m at 1× to 62,753 at 8×** — so the scale
+      // stayed 505.3 and the drawing stayed 480 px long at 1×, 1.5×, 2×, 4× AND 8×. "Zoom in" moved
+      // the readout three steps and did not change one drawn pixel.
+      //
+      // That is dead on exactly the form factor the control exists FOR: `ZoomControl`'s own docblock
+      // says "in a phone column, fit puts the body wall about eleven pixels apart, which is smaller
+      // than the drag handles on it". A control that reports a magnification the picture does not
+      // have is the "drawing and control describing different rockets" case, arriving from the other
+      // direction — and remembering the zoom, which the flyer-preference work above does, would have
+      // handed that dead reading back on every load.
+      //
+      // So the fit is computed WITHOUT zoom — `available`, not `colW`, or the magnification would be
+      // counted twice — and the whole thing is scaled after. At 1× the two forms are identical, which
+      // is what keeps this a fix rather than a re-layout: `colW === available` there. Above 1× the
+      // rotated airframe grows down the page and the page scrolls, which is where a phone's length
+      // already goes; it never grows wider than its column, because the caliber term is still in the
+      // fit.
+      zoom *
+      Math.min(
         (VERTICAL_HEIGHT_BUDGET - 2 * padY) / o.length,
-        (colW - 2 * padY) / (2 * frameExtent),
+        (available - 2 * padY) / (2 * frameExtent),
       )
     : variant === "strip"
       ? Math.min(
@@ -1287,7 +1333,7 @@ export default function RocketDiagram({
  *  which is smaller than the drag handles on it. Zooming keeps the airframe to scale and lets the
  *  column scroll, the same escape hatch the desktop tools' rocket figures give. */
 function ZoomControl({ zoom, onZoom }: { zoom: number; onZoom: (z: number) => void }) {
-  const STEPS = [1, 1.5, 2, 3, 4, 6, 8];
+  const STEPS = ZOOM_STEPS;
   const i = STEPS.indexOf(zoom);
   const at = i < 0 ? 0 : i;
   return (
