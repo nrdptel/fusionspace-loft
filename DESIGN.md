@@ -104,11 +104,54 @@ extraction rather than a repaint.
 | Role | Value | Use for |
 |---|---|---|
 | `hairline` | `border-zinc-200 dark:border-zinc-800` | container edges, dividers, table rules |
-| `control` | `border-zinc-300 dark:border-zinc-700` | inputs, selects, secondary buttons — anything the flyer acts on |
+| `control` | **`border-zinc-500 dark:border-zinc-500`** | inputs, selects, secondary buttons — anything the flyer acts on |
 
-Two, deliberately. The control border is one step darker so an interactive edge is distinguishable
-from a decorative one without reading the element. Do not mix them: a card is `hairline`, an input
-inside it is `control`.
+Two, deliberately. The control border carries **more contrast against the surface** so an
+interactive edge is distinguishable from a decorative one without reading the element. Do not mix
+them: a card is `hairline`, an input inside it is `control`.
+
+**"Contrast", not "darker" — and the word matters since 2026-08-20.** This paragraph read *"one step
+darker"* for as long as both roles lived on the light half of the ramp. They no longer do: in dark
+mode `control` is `zinc-500` and `hairline` is `zinc-800`, so the control border is now the LIGHTER
+of the two, and describing it as darker would send the next session looking for a bug. What is
+constant in both themes is the direction that actually means something — 4.62:1 against 1.22:1 in
+light, 3.67:1 against 1.19:1 in dark — which is what `lib/design-system.test.ts` pins.
+
+**`control` was `border-zinc-300 dark:border-zinc-700` until 2026-08-20, and it failed WCAG 1.4.11
+in both themes — light by more than a factor of two.** The success criterion asks 3:1 of *"visual
+information required to identify user interface components"*, and on every control this system
+draws, the border IS that information: §5 gives `TextField`, `Select` and `Button variant="secondary"`
+a transparent fill, so the edge is the only thing separating the control from the surface behind it.
+Measured on the rasterised Tailwind 4 zinc ramp, against the worst surface each value can sit on:
+
+| value | light (page / sunken) | dark (page / raised) | verdict |
+|---|---|---|---|
+| `zinc-300` / `zinc-700` (old) | **1.48 / 1.42** | 1.91 / **1.70** | fails both, by 2.1× and 1.8× |
+| `zinc-400` / `zinc-600` | 2.62 / **2.51** | 2.58 / **2.29** | still fails both |
+| **`zinc-500` (new)** | 4.83 / **4.62** | 4.12 / **3.67** | passes both |
+
+`zinc-500` is not a preference, it is the FIRST value on the ramp that clears 3:1 on both — one
+step lighter fails light at 2.51 and one step darker fails dark at 2.29, so there is no
+intermediate choice to argue about.
+
+**And the symmetry here is measured, not assumed** — which matters, because one value for both
+themes is exactly the mistake `tertiary` below records. There it was symmetry inherited from a
+palette table and never rated; here the two themes were rated separately and the same shade
+happened to be the answer to both, because zinc-500 sits near the middle of the ramp and both page
+grounds are near its ends. If the surfaces move, re-rate it rather than preserving the symmetry.
+
+**`hairline` is deliberately NOT raised with it.** WCAG 1.4.11 exempts *"visual information … that
+is purely decorative"*, and a card edge is: the card is not a control, nothing about its state is
+read off its border, and darkening every container rule to 4.6:1 would put a heavier line around
+every surface in the app than around the controls on it — inverting the hierarchy this table's
+whole first paragraph exists to state. The gap between the two roles is what carries the meaning,
+and raising `control` widens it from one ramp step to three.
+
+**Where this landed first.** The measurement and the census that pins it were taken in the sibling
+repo on 2026-08-20 (`lib/design-system.test.ts` → *"gives §2 `control` a border a flyer can find"*
+and *"has no neutral border under 3:1 outside the ones named"*). This table is binding in both, so
+it moves in both in the same run; converting this app's own call sites onto it is this repo's P-track
+work, and until that lands its controls are conforming to a rule this file no longer states.
 
 **One container border WIDTH — 1 px — whatever the container is for, a drop target included.** This
 is about WIDTH, not colour: which of the two colours above a container takes is the rule already

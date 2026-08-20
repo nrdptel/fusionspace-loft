@@ -654,7 +654,7 @@ export function Segmented<T extends string>({
     <div
       role="group"
       aria-label={ariaLabel}
-      className="inline-flex rounded-md border border-zinc-300 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-900"
+      className="inline-flex rounded-md border border-zinc-500 bg-zinc-100 p-0.5 dark:border-zinc-500 dark:bg-zinc-900"
     >
       {options.map((o) => {
         const active = o.value === value;
@@ -1079,7 +1079,7 @@ export function Select({
   return (
     <select
       className={cx(
-        "rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100",
+        "rounded-md border border-zinc-500 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-600 dark:border-zinc-500 dark:bg-zinc-900 dark:text-zinc-100",
         TOUCH_TARGET,
         className,
       )}
@@ -1779,7 +1779,7 @@ export function NumberField({
           className={`mt-1.5 flex items-center rounded-md border bg-white transition dark:bg-zinc-900 ${
             refused !== null
               ? "border-amber-500 dark:border-amber-500"
-              : "border-zinc-300 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 dark:border-zinc-700"
+              : "border-zinc-500 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 dark:border-zinc-500"
           }`}
         >
           <input
