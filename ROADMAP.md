@@ -2595,6 +2595,80 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 29 — WRITTEN 2026-08-20, not started. An automatic dimension is a thing the FORMAT
+already carries, and Loft drops it on essentially every modern file it reads.**
+
+`COMPETITION.md` row 54 has named a per-field `Automatic` switch as the cheapest next step since
+2026-08-18. Increment 28 corrected what it was aimed at; this entry scopes what is left, and the
+scoping moved it twice. **Read all of it before writing code — three of the five findings below
+contradict the obvious plan.**
+
+**1. The switch cannot be on the boattail's EXIT, and OpenRocket's own vocabulary says why.** Its
+message catalogue names three states for an automatic diameter, verbatim:
+*"Uses the diameter of the previous/next component."* · *"There is no previous/next component to take
+the diameter of."* · *"The previous/next component already has its auto setting turned on."* A
+transition's FORE radius resolves from the previous body's aft radius and its AFT radius from the
+NEXT body's fore radius — independently, and a real design carries both at once with different
+values. A Loft boattail is by construction the aft-most part of the stack, so it has no next
+component and its exit has no referent. **What Loft could make automatic is the FORE end, and Loft
+already derives that unconditionally.** So the increment is not "an Automatic exit"; it is
+*automatic dimensions as a concept the model can hold*, with the boattail being the one part that
+does not need one.
+
+**2. The real gap is a ROUND TRIP, and it is measurable today.** `lib/ork/xml.ts`'s `parseNum` takes
+the number out of `auto 0.025` and returns it, so a field the source tool marked automatic arrives in
+Loft's model indistinguishable from a hand-typed one — and OpenRocket persists the manual value
+behind an automatic field precisely so both facts survive, which is why the two-token form is what
+real files carry. Only the bare `auto` form reaches `resolveAutoRadii` as `NaN`
+(`fixtures/src/demo-quirks.ork.xml` lines 18, 23 and 39 are the repo's only examples). So **Loft
+reads the number correctly and loses the auto-ness**, and `lib/ork/export.ts` then writes an explicit
+radius — deliberately, with a comment saying so. A flyer who opens an OpenRocket design in Loft and
+saves it back has silently converted every automatic dimension into a hand-typed one.
+
+**3. And there is a live import divergence at a STAGE BOUNDARY, which is the question this ledger has
+never answered.** `lib/ork/adapt.ts`'s `resolveAutoRadii` iterates per stage and resets its
+`prevAft`/`nextFore` cursors at each stage, so a booster stage's first component with an auto FORE
+radius never sees the previous stage's aft radius: it falls through to that stage's largest known
+radius and raises the *"no neighbour could supply one"* warning. **OpenRocket resolves across a
+serial stage boundary** — verified on two independent real multi-stage designs published by one
+university team, where the booster's first transition carries `<foreradius>auto X</foreradius>` and X
+is the previous stage's last body-tube radius to the final digit, while the same component's
+`<aftradius>` resolves forward inside its own stage. So "no reference component" means the end of the
+whole rocket, not the end of a stage. **RASAero II is reported to take the opposite position** and
+grey the boattail front diameter out on a booster because the previous stage already set it —
+`UNVERIFIED`, and worth settling before copying either.
+
+**4. `alreadyAuto` is a REFUSAL, not a chain.** OpenRocket disables the control when the component it
+would take the diameter from is itself automatic, which removes a whole class of resolution bug
+before it exists. Whatever Loft builds must not resolve auto→auto transitively.
+
+**5. The model has no way to say "derived", and that is the crux.** `Transition.foreRadius`,
+`Transition.aftRadius`, `NoseCone.aftRadius` and `BodyTube.outerRadius` are bare numbers. The only
+provenance machinery in `lib/model/types.ts` (`massFrom`, `cgFrom`, `cdFrom`) is DESCRIPTIVE — it
+records where a number came from, never that it should be recomputed — and none of it is exported.
+Matching the format means a per-field flag beside the value, on three component kinds.
+
+***Done when*** an `.ork` carrying `auto <n>` on a nose cone, a body tube and a transition imports
+with the auto-ness intact, exports carrying `auto <n>` again, and a corpus round-trip case asserts
+that **no automatic field is silently converted to a hand-typed one** on any real design; a booster
+stage's first component with an auto fore radius resolves from the previous stage rather than from
+its own stage's largest radius, driven on a fixture of that shape; and an auto field whose reference
+is itself auto is refused with the catalogue's own wording rather than chained.
+
+**Size.** 3–4 increments. Smallest first is the round trip (2 above), because it is the one a flyer
+loses data to today and because it does not need any UI at all. The stage-boundary fix (3) is a
+second, independent slice with its own fixture. A visible switch (1, 4, 5) is last and is the only
+part that needs a design decision.
+
+**CLEAN-ROOM NOTE, and it is a warning for the next run.** Everything above is from OpenRocket's
+resource strings, its public pull-request prose, its published file specification, and real `.ork`
+data files — the same standard `COMPETITION.md`'s rows already hold. **One agent in this run's
+scoping fan-out fetched two OpenRocket `.java` files**, which the CLEAN-ROOM invariant forbids;
+nothing from that agent's output is used here or anywhere in the repo, and the facts above were
+re-established independently from clean sources. When a fan-out is aimed at a GPL-licensed
+competitor, say so in the agent's own instructions — this one said "clean-room" in the return
+contract and not in the prohibition, and that was not enough.
+
 **Increment 28 — a boattail fairs to the tail it is on, and states the bound it enforces,
 2026-08-20. SEV-1.** The three claims run 21's fan-out left for this increment to settle were all
 reproduced, and two of them turned out to be one defect wearing two faces.
@@ -7855,12 +7929,38 @@ out to be a sweep of the e2e suite rather than a hook swap.)*
    column that cannot sort would otherwise announce "sorted by Δ, descending" over rows the body left
    in the caller's order, on a header with no button to clear it — three of the four columns in
    `components/RocketpyCrossCheck.tsx` are exactly that shape.
-3. **The catalogue remembers, which closes `COMPETITION.md` row 36's forgetting half.** `text`,
-   `maker` and `fitsOnly` persisted; `open` deliberately NOT, because auto-open is the half row 36
-   itself calls *"a product decision and not obviously theirs to win"* — and saying so in the row is
-   part of the increment. ***Done when*** an e2e types a vendor filter, picks a tube, re-opens the
-   picker for a second tube and finds the filter still applied, and row 36 is resolved on the
-   forgetting clause with the auto-open clause left open and its reason restated.
+3. **The catalogue remembers.** ***SHIPPED 2026-08-20*** — `text`, `maker` and `fitsOnly` persisted
+   per KIND, `open` deliberately not, and `COMPETITION.md` row 36 resolved on its forgetting clause
+   with the auto-open clause left open and its reason restated. Pinned by `e2e/smoke.spec.ts`'s *"the
+   catalogue comes back to the filter you left it on, and not to another kind's"* and by
+   `lib/session.test.ts`'s five `readPersistedText` cases. **MET.**
+
+   **Two things this increment had to decide that the plan did not name.**
+
+   *The key carries the KIND, and the e2e proves it rather than assuming it.* Ten of the eleven
+   vendors publishing body tubes also publish canopies, so a single key carries a tube filter into
+   the parachute catalogue and narrows it on a vendor the flyer never chose there. The first draft of
+   the cross-kind assertion passed with the kind removed from the key — the read-through guard below
+   was answering it — so it now picks a vendor common to both catalogues, which only the key can stop.
+
+   *A stored vendor is read THROUGH the list it can be honoured against.* The catalogue is a lazily
+   imported chunk and has not arrived when the stored value is read, so no allowlist could judge it —
+   which is why `usePersistedText` guards LENGTH and a caller predicate rather than membership, and
+   why the call site resolves `makerShown` once and drives both the `<select>`'s value and the filter
+   from it. A vendor that has since left the catalogue then reads as *Every vendor* in the control
+   AND filters nothing, which are one fact rather than two. That is the same read-through R12
+   increment 28 gave the boattail's exit against its own moving ceiling, and it is worth naming as a
+   pattern: **when a stored value can outlive the set that makes it meaningful, resolve it once and
+   let the control and the behaviour share the answer.**
+
+   **Two hooks were added and a third was not.** `usePersistedText` (with `MAX_PERSISTED_TEXT`, so a
+   paste of a document into a search box is not something this origin then carries) and
+   `usePersistedFlag` (`usePersistedChoice` over `"on"`/`"off"` rather than a fourth storage shape —
+   a boolean written as `"true"`/`"false"` has the ambiguity `Number("")` has, where a key some other
+   hand wrote reads as a deliberate choice). `readPersistedText` is exported for the reason its two
+   siblings are: the unit environment is `node` with no renderer, so a hook body is reachable only
+   through an e2e, and an e2e proves the value came back rather than what happens to the values that
+   must not.
 4. **The two sweeps come back to the run you left, the way the dispersion already does.** This is
    the half of *"their open panels"* that survived increment 1's refusal, and it is a stored RESULT
    rather than a stored flag: `saveDispersion`/`loadDispersion`/`clearDispersion` and

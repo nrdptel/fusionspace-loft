@@ -16,6 +16,8 @@ only the owner can register, and the sibling repo this container cannot reach.
 | SEV-1 | that ceiling reached the design wall and **not the cone's own popover**, because the aim mask blanks every `designDims` key a derived part does not name — found by the pre-push review, in this run's own fix | **merged, live** (PR #198) |
 | SEV-1 | a stale exit outside a ceiling another field had moved dropped the whole part in silence; it clamps now, and the field reads its value back through the same ceiling | **merged, live** (PR #198) |
 | P19 increment 2 | `onSortChange` call sites **2 → 7**; persisted flyer-set controls **11 → 17** | **merged, live** (PR #198) |
+| P19 increment 3 | the catalogue's search, vendor filter and caliber toggle survive a close, a re-open and a reload, keyed per kind; `COMPETITION.md` row 36's forgetting half **RESOLVED** | **PR #199** |
+| — | **R12 increment 29 written, not started** — and the scoping moved what the increment IS, twice | **PR #199** |
 | — | the parts table **could not reverse on any column** — found while converting it | **merged, live** (PR #198) |
 | — | three intermittent e2e cases fixed with assertions rather than retries | **merged, live** (PR #198) |
 | — | `COMPETITION.md` row 57 added; row 54 corrected on what its own recommendation was aimed at | **merged, live** (PR #198) |
@@ -29,29 +31,30 @@ any table's sort**: five sortable columns on the parts table offered ten orders 
 because the host threw away the direction the primitive had computed for it.
 
 *What is measurably better?* Tables that remember the sort a flyer put them in: **1 of 7 → 7 of 7**.
-Persisted flyer-set controls: **11 → 17**. Boattail ceilings that are advertised but not enforced:
+Persisted flyer-set controls: **11 → 20** (the catalogue's three filters land in increment 3). Boattail ceilings that are advertised but not enforced:
 **every one → none**, driven over 210 ceilings on 35 real designs in both unit systems. Surfaces
 carrying the boattail's field with two different promises: **2 → 1**. e2e suite **300 → 303**, with
 three cases that were intermittent now deterministic (6/6, 6/6, 4/4 on repeat).
 
 **The next slice on each track:**
 
-- **R-track: R12 increment 29.** Increment 28 settled all three boattail claims and the answer moves
-  what comes next. `COMPETITION.md` row 54's recommendation — an `Automatic` exit tracking "its host
-  tube" — was aimed at the wrong thing: host RESOLUTION was the defect and it is fixed, so an
-  Automatic switch is now a smaller, cleaner piece of work rather than a fix in disguise. **Read new
-  row 57 and the candidate notes in it first**: OpenRocket's `Automatic` is a THREE-state contract
-  (`auto`, no-reference-component, already-auto), it is stored in the FILE (`<foreradius>auto</foreradius>`
-  on a transition is literally this field), and `lib/ork/adapt.ts` already parses that token while
-  `lib/ork/export.ts` deliberately flattens it. So "automatic" is not a UI authoring state here — the
-  format carries it, and an Automatic switch built without touching the export ships a second
-  vocabulary for one idea. The unanswered question is what it does at a stage boundary.
-- **P-track: P19 increment 3** — the catalogue remembers its text, vendor and fits-only filters,
-  which closes `COMPETITION.md` row 36's forgetting half. The picker's SORT is already persisted per
-  KIND (`picker.sort.<kind>`), and the reason the key carries the kind is in `PartPicker.tsx`: a
-  canopy's columns are not a body tube's, and `usePersistedSort` reads its allowlist once at mount.
-  Follow that shape for the filters or a remembered vendor will survive into a picker that has no
-  such vendor.
+- **R-track: R12 increment 29 is WRITTEN and not started — read its entry in `ROADMAP.md` before
+  writing any code, because the scoping contradicts the obvious plan in three places.** The switch
+  cannot be on the boattail's EXIT: a boattail is by construction the aft-most part of the stack, so
+  it has no next component to take a diameter from and no referent in the vocabulary the switch would
+  borrow. The real gap is a ROUND TRIP — `lib/ork/xml.ts`'s `parseNum` takes the number out of
+  `auto 0.025` and drops the token, and the exporter then writes an explicit radius, so opening a
+  design and saving it back silently converts every automatic dimension into a hand-typed one. And
+  there is a live import divergence at a stage boundary: `resolveAutoRadii` resets its neighbour
+  cursors per stage where OpenRocket resolves across one, verified on two independent real
+  multi-stage designs. Smallest first is the round trip; it needs no UI at all.
+- **P-track: P19 increment 4** — the two sweeps come back to the run you left, the way the dispersion
+  panel already does. It is a stored RESULT rather than a stored flag, and the increment 1 record in
+  `ROADMAP.md` says why a flag cannot work: on all three panels `open` IS the run trigger, so a
+  restored one either flies unbidden or renders a state indistinguishable from closed.
+  `saveDispersion`/`loadDispersion`/`clearDispersion` and `MonteCarlo.tsx`'s `runKey` are the shape to
+  copy, including the two properties that make it honest — the stored run compared verbatim against a
+  key naming the design, the conditions and the inputs, and a dismissal that clears the stored copy.
 
 ## What the pre-push review caught this run, which is again the part worth carrying
 
@@ -120,14 +123,28 @@ otherwise. Measured on shard 1 of 5 this run: **1 failure in 3 runs at the defau
 `--workers=1`**, at 2.0 min per shard against 1.2. A fourth case of this shape should become a shared
 `goOffline(page)` helper rather than a fourth one-off.
 
-## What production is serving
+## What production is serving, walked after PR #198 merged
 
-Walked after the merge by fetching the service worker's own `BUILD_ASSETS` precache manifest and
-every URL in it — not the index page's `<script>` tags, which name only some of the chunks. See the
-report for the SHA and the counts. A browser cannot reach the live site from this container (the
-agent proxy; see *The environment*), so a production walk is `curl` plus string probes, and the
-browser journey is run against `out/` after checking the served stylesheet's hash matches the local
-one.
+Walked by fetching the service worker's own precache manifest and every URL in it — not the index
+page's `<script>` tags, which name only some of the chunks. Before the merge the live build token was
+`9580c5173cba`; after it, `9100174c9a48`.
+
+**71 precached paths, 70 answered 200, and the one that did not is expected**: `/docs/` is the host's
+308 to `/docs`. This run's own strings are in the served chunks — the boattail hint's *"Fairs to"* and
+the staged clause *"so it leaves with that stage"* are both **PRESENT**. `"Sort by Vendor"` is
+absent, and that is correct rather than a gap: the catalogue is the app's one dynamic import and its
+chunk is deliberately outside the precache list.
+
+**So the production gap for PR #198 is zero.** PR #199 was in CI at the time this was written; the
+next session should re-walk and confirm.
+
+A browser cannot reach the live site from this container (the agent proxy; see *The environment*), so
+a production walk is `curl` plus string probes over the precache manifest, and the browser journey is
+run against the local `out/`. This run's cold walk on the built export read the boattail field at
+`max="31.6"` with the hint *"Fairs to 32 mm — the aft end of Boattail. Up to 31.6 mm here."*, and the
+flight moved **905 → 912 m** with the cone on it — higher, which is the direction the field's own
+documentation promises and the opposite of what it did before this run. 0 console errors. Two tables'
+sorts survived a reload in the same walk.
 
 ## What the sibling repo is OWED
 

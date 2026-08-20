@@ -14,6 +14,32 @@ big for one pass. Newest first.
 
 **Filed 2026-08-20, run 22.**
 
+- **REPRODUCED (by reading, on the repo's own fixture) · `lib/ork/xml.ts`'s `parseNum` takes the
+  NUMBER out of `auto 0.025` and drops the token**, so a dimension the source tool marked automatic
+  arrives indistinguishable from a hand-typed one — and `lib/ork/export.ts` then writes an explicit
+  radius. A flyer who opens an OpenRocket design in Loft and saves it back has silently converted
+  every automatic dimension into a hand-typed one. The bare `auto` form is the only one that reaches
+  `resolveAutoRadii`, and `fixtures/src/demo-quirks.ork.xml` lines 18, 23 and 39 are this repo's only
+  examples of it. **Not a wrong number** — the cached value the token carries is the right one at
+  save time — which is why this is filed rather than preempting. Scoped as R12 increment 29's first
+  slice; read that entry before picking this up.
+- **REPRODUCED (by reading) · `lib/ork/adapt.ts`'s `resolveAutoRadii` resets its neighbour cursors at
+  every stage**, so a booster stage's first component with an auto FORE radius never sees the
+  previous stage's aft radius: it falls back to that stage's largest known radius and warns.
+  OpenRocket resolves across a serial stage boundary — verified on two independent real multi-stage
+  designs where the booster's first transition carries `<foreradius>auto X</foreradius>` with X the
+  previous stage's last body-tube radius to the final digit. **Unreachable on today's corpus**,
+  because no corpus file combines bare `auto` with a stage boundary, which is why it is filed rather
+  than fixed: the fixture has to be built before the fix can be driven red. R12 increment 29's second
+  slice.
+- **PROCESS · a scoping agent fetched two OpenRocket `.java` files.** The CLEAN-ROOM invariant forbids
+  reading GPL source, and nothing from that agent's output reached the repo — every fact in R12
+  increment 29 was re-established from resource strings, public pull-request prose, the published file
+  specification and real `.ork` data files. The instruction that failed said "clean-room" in the
+  return contract rather than in the prohibitions. **When a fan-out is aimed at a GPL-licensed
+  competitor, put the prohibition in the HARD RULES block with the file extensions named.**
+
+
 - **FIXED THIS RUN, recorded because the CLASS is the finding · three intermittent e2e cases, one
   shape: a test that treats "not there yet" as "not there".** All three went red under in-shard
   parallelism and passed alone, which is the signature `MAINTAINING.md` warns reads exactly like a

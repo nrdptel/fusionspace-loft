@@ -2027,6 +2027,69 @@ test.describe("Loft", () => {
     await expect(panel.getByLabel(/Motor impulse/i)).toHaveValue("8");
   });
 
+  test("the catalogue comes back to the filter you left it on, and not to another kind's", async ({ page }) => {
+    // **P19 increment 3, and it closes the forgetting half of `COMPETITION.md` row 36** — which says
+    // in that file's own words that the forgetting is "not a decision, it is the 'controls that
+    // forget' tell on the newest surface in the app". A flyer picking couplers for one build filters
+    // to the same vendor every time they open this, and the picker threw all three filters away on
+    // every close.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+
+    // `combobox`, not `getByLabel` — the catalogue table has a Vendor COLUMN too, and its header is
+    // a label for every cell under it.
+    const vendorSelect = page.getByRole("combobox", { name: "Vendor" });
+    const openPicker = async (name: RegExp) => {
+      await page.getByRole("button", { name }).first().click();
+      await expect(vendorSelect).toBeVisible({ timeout: 30_000 });
+    };
+    const rowCount = () =>
+      page.locator("table", { has: page.getByRole("button", { name: /^Sort by Vendor$/ }) }).locator("tbody tr").count();
+
+    await openPicker(/Pick a real body tube/);
+    const all = await rowCount();
+    expect(all, "the catalogue must arrive with rows, or the filter proves nothing").toBeGreaterThan(20);
+    // **A vendor that publishes BOTH tubes and canopies**, so the cross-kind assertion at the end is
+    // decided by the storage KEY and not by the read-through guard beside it. Ten of the catalogue's
+    // eleven tube vendors also publish canopies; picking any vendor at all would leave that assertion
+    // passing on `makerShown` alone, which is a different mechanism and would let the key regress
+    // unnoticed.
+    const vendors = await vendorSelect.locator("option").allInnerTexts();
+    const vendor = vendors.find((v) => /Estes|LOC Precision|Quest|SEMROC|Madcow/.test(v))!;
+    expect(vendor, "a vendor common to both catalogues must exist, or the last assertion proves nothing").toBeTruthy();
+    await vendorSelect.selectOption(vendor);
+    const filtered = await rowCount();
+    expect(filtered, "the vendor filter must actually narrow the list").toBeLessThan(all);
+
+    // Close and re-open — the journey the milestone names, a flyer picking a second tube.
+    await page.getByRole("button", { name: "Close the parts list" }).first().click();
+    await expect(vendorSelect).toHaveCount(0);
+    await openPicker(/Pick a real body tube/);
+    await expect(vendorSelect, "the vendor filter did not survive re-opening").toHaveValue(vendor);
+    expect(await rowCount()).toBe(filtered);
+
+    // …and across a reload, which is the seam the whole milestone is about.
+    await page.reload();
+    await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await openPicker(/Pick a real body tube/);
+    await expect(vendorSelect, "the vendor filter did not survive a reload").toHaveValue(vendor);
+
+    // **And it does NOT cross to another kind.** A vendor that publishes body tubes may publish no
+    // parachutes, and a filter carried across would hide every row while the select read as though it
+    // were narrowing sensibly. The key carries the kind.
+    await page.getByRole("button", { name: "Close the parts list" }).first().click();
+    await expect(vendorSelect).toHaveCount(0);
+    await openPicker(/Pick a real parachute/);
+    await expect(
+      vendorSelect,
+      "a filter set on tubes must not follow into canopies — and this vendor publishes both, so only the per-kind key can stop it",
+    ).toHaveValue("");
+    expect(await rowCount(), "and the canopy list must be unfiltered").toBeGreaterThan(20);
+  });
+
   test("every table's sort survives a reload, not just the one that had it", async ({ page }) => {
     // **P19 increment 2.** One of seven tables remembered its sort; the other six snapped back to the
     // default on every reload, on a product whose own stated scenario is a no-signal pad check where

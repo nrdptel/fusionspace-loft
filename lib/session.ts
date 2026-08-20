@@ -463,6 +463,74 @@ export function usePersistedChoice<T extends string>(key: string, initial: T, al
   return [value, set];
 }
 
+/** A free-text view the flyer set — a catalogue search, a vendor filter typed rather than chosen.
+ *
+ *  **The third hook, and it exists because the other two cannot express this.** `usePersistedChoice`
+ *  validates against an allowlist, which a search box has no finite version of;
+ *  `usePersistedNumber` is a number. What replaces the allowlist here is a LENGTH bound and a
+ *  caller-supplied `valid`, because the failure a stored string can cause is different in kind: not
+ *  a crash on an unknown key, but a filter that quietly hides every row while the box that would
+ *  explain it is off screen, or a value some other hand wrote growing without limit in an origin's
+ *  storage budget.
+ *
+ *  **A stored value that is no longer meaningful is the CALLER's problem, and this cannot solve it.**
+ *  A vendor filter remembered while picking a parachute names a vendor no body-tube row has, and no
+ *  guard here can know that — the catalogue is a lazily imported chunk that has not arrived when this
+ *  runs. The rule at the call site is the one the boattail's exit uses: read the value THROUGH the
+ *  set it can be honoured against, so the control and the thing it drives cannot disagree. Keying per
+ *  kind stops the cross-kind case; the read-through stops the rest. */
+export const MAX_PERSISTED_TEXT = 64;
+
+export function readPersistedText(key: string, initial: string, valid?: (v: string) => boolean): string {
+  try {
+    const raw = localStorage.getItem(`loft.pref.${key}`);
+    if (raw === null || raw.length > MAX_PERSISTED_TEXT) return initial;
+    return valid === undefined || valid(raw) ? raw : initial;
+  } catch {
+    // storage disabled — keep the default
+    return initial;
+  }
+}
+
+/** The hook over that read. Writes are bounded by the same length, so a paste of a whole document
+ *  into a search box is not a thing this origin then carries around. */
+export function usePersistedText(
+  key: string,
+  initial: string,
+  valid?: (v: string) => boolean,
+): [string, (v: string) => void] {
+  const [value, setValue] = useState(initial);
+  useEffect(() => {
+    setValue(readPersistedText(key, initial, valid));
+    // `valid` is a fresh closure at every call site and `initial` a literal; re-running on either
+    // identity would re-read storage on every render. Excluded exactly as the two hooks above do.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const set = useCallback(
+    (v: string) => {
+      setValue(v);
+      try {
+        localStorage.setItem(`loft.pref.${key}`, v.slice(0, MAX_PERSISTED_TEXT));
+      } catch {
+        // as above
+      }
+    },
+    [key],
+  );
+  return [value, set];
+}
+
+/** A flyer-set switch — a filter that is on or off. `usePersistedChoice` over two words rather than a
+ *  fourth storage shape: a boolean written as `"true"`/`"false"` has the same ambiguity
+ *  `Number("")` has, where a key some other hand wrote reads as a deliberate choice. Two named values
+ *  and an allowlist give the same guard every other preference here gets. */
+export function usePersistedFlag(key: string, initial: boolean): [boolean, (v: boolean) => void] {
+  const [value, set] = usePersistedChoice<"on" | "off">(key, initial ? "on" : "off", FLAG_CHOICES);
+  return [value === "on", useCallback((v: boolean) => set(v ? "on" : "off"), [set])];
+}
+
+const FLAG_CHOICES = ["on", "off"] as const;
+
 /** --- the recent-designs shelf ------------------------------------------------------------------
  *
  *  Loft holds one design at a time, but a flyer working across a build does not: a booster and its
