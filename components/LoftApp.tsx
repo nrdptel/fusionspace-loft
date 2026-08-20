@@ -2115,10 +2115,16 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               if (!boattailBaseTree) return undefined;
               const host = boattailHost(boattailBaseTree);
               if (!host) return undefined;
-              const si = boattailBaseTree.stages.findIndex((st) => st.components.some((c) => c.id === host.id));
+              // `stageIndex` off the walk, not a second `findIndex` over the stages: `flattenRocket`
+              // already carries it, and re-deriving what the model states is how the two drift.
+              const si = flattenRocket(boattailBaseTree).find((p) => p.component.id === host.id)?.stageIndex ?? 0;
               return {
                 name: host.name || KIND_LABEL[host.kind] || host.kind,
-                stage: boattailBaseTree.stages.length > 1 ? boattailBaseTree.stages[si]?.name : undefined,
+                // **`si > 0`, not `stages.length > 1`.** Stages are ordered nose→tail and the TOP one
+                // never separates — `lib/sim/setup.ts` says so outright — so a clause about leaving
+                // with the stage is false exactly when the host sits on stage 0 of a staged design.
+                // Undefined means the sentence is not said at all rather than said wrongly.
+                stage: si > 0 ? boattailBaseTree.stages[si]?.name : undefined,
               };
             })(),
             unreachableBodyTubes: unreachableBodyTubeCount(designBase),
@@ -3182,15 +3188,10 @@ function DesignEditor({
   const toDispSpan = (m: number | undefined) =>
     m === undefined ? "" : d.fmtEditable(imperial ? m * 39.3701 : m * 1000, imperial ? 2 : 0);
   const fromSpan = (v: string) => (v === "" ? undefined : imperial ? Number(v) / 39.3701 : Number(v) / 1000);
-  /** A CEILING in display units. `toDispSpan` rounds to nearest, which is right for a value and wrong
-   *  for a bound: half a millimetre of rounding upward puts the number `NumberField` will commit on
-   *  blur outside the bound the applier enforces, and the part is then dropped in silence — which is
-   *  the defect the bound exists to remove, re-entering through its own ceiling. Floored to the same
-   *  digits the field displays, so what a flyer can type is always inside it. */
-  const floorDispSpan = (m: number) => {
-    const p = imperial ? 100 : 1;
-    return Math.floor((imperial ? m * 39.3701 : m * 1000) * p) / p;
-  };
+  /** A CEILING in display units — floored to the digits the field shows, never rounded. `d.spanCeiling`
+   *  carries why, and lives in `lib/` so the checks that prove a ceiling is reachable can put it
+   *  through the same arithmetic a keystroke does instead of re-implementing it. */
+  const floorDispSpan = (m: number) => d.spanCeiling(m, imperial);
   // How to refer to the part a group of fields is holding. The design's own name where that name tells
   // it apart from its siblings; otherwise where the part SITS, which is what a flyer reads off the
   // diagram and the one description that stays true however the parts table beside it is sorted — a
@@ -3549,7 +3550,7 @@ function DesignEditor({
               // case, arriving one milestone later: every other key named here is an AIMED field and
               // is therefore blanked under the boattail's own aim, so a popover on the tail cone
               // would open the group empty. `boattailFairsTo` is not aimed at anything and is
-              // undefined exactly when there is no aft tube for a cone to fair to.
+              // undefined exactly when there is no aft BODY PART for a cone to fair to.
               //
               // **The `only === "boattail"` half is load-bearing and a first draft left it out.**
               // Because `boattailFairsTo` is NOT an aimed field, nothing blanks it — so the bare
@@ -3848,7 +3849,16 @@ function DesignEditor({
                   {(!only || only === "boattail") && designDims.boattailFairsTo !== undefined && (
                     <NumberField
                       label={`Boattail exit (${spanU})`}
-                      value={toDispSpan(edits.boattailAftDiameter)}
+                      // **Read through the ceiling, because the ceiling moves.** `NumberField` holds a
+                      // LIVE entry inside `max`, but nothing re-applies that bound to a value already
+                      // committed — type a legal exit, then halve the caliber, and the box goes on
+                      // showing a figure the applier has since clamped. `addBoattail` clamps to the
+                      // same number, so the two cannot disagree about what is on the rocket.
+                      value={toDispSpan(
+                        edits.boattailAftDiameter !== undefined && designDims.boattailExitMax !== undefined
+                          ? Math.min(edits.boattailAftDiameter, designDims.boattailExitMax)
+                          : edits.boattailAftDiameter,
+                      )}
                       placeholder={`< ${toDispSpan(designDims.boattailFairsTo)}`}
                       onChange={(v) => onEdit({ boattailAftDiameter: orNone(fromSpan(v)) })}
                       min={0}
@@ -3859,9 +3869,16 @@ function DesignEditor({
                       // a percent inside the contraction it refuses on, so everything this admits is
                       // built. Floored rather than rounded — see `floorDispSpan`.
                       max={designDims.boattailExitMax !== undefined ? floorDispSpan(designDims.boattailExitMax) : undefined}
+                      // A `hint` SUPPRESSES `NumberField`'s automatic range sentence — `guidance` is
+                      // `hint ?? ranged` — so this one has to state the ceiling itself or the field
+                      // shows the fairing diameter and never the number it will actually hold you to.
+                      // Two figures rather than one because they answer different questions: what the
+                      // cone MEETS, and what you may type.
                       hint={
-                        designDims.boattailFairsTo !== undefined && designDims.boattailFairsToPart
-                          ? `Fairs to ${toDispSpan(designDims.boattailFairsTo)} ${spanU} — the aft end of ${designDims.boattailFairsToPart.name}${designDims.boattailFairsToPart.stage ? ` on ${designDims.boattailFairsToPart.stage}, which separates before apogee` : ""}.`
+                        designDims.boattailFairsTo !== undefined &&
+                        designDims.boattailExitMax !== undefined &&
+                        designDims.boattailFairsToPart
+                          ? `Fairs to ${toDispSpan(designDims.boattailFairsTo)} ${spanU} — the aft end of ${designDims.boattailFairsToPart.name}${designDims.boattailFairsToPart.stage ? ` on ${designDims.boattailFairsToPart.stage}, so it leaves with that stage` : ""}. Up to ${floorDispSpan(designDims.boattailExitMax)} ${spanU} here.`
                           : undefined
                       }
                     />

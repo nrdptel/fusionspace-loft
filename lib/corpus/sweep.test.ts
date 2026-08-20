@@ -41,6 +41,7 @@ import {
   maxBodyRadius,
   statedCGBounds,
   canHostInsideMass,
+  aftOuterRadius,
 } from "../model/geometry";
 import type { Rocket, RocketComponent } from "../model/types";
 import {
@@ -74,6 +75,7 @@ import {
   ADD_KINDS,
 } from "../model/edit";
 import { dryMassProperties, localBodyCGx, massByComponent, statedCGReachesDesign, statedMassHolder } from "../sim/mass";
+import { spanCeiling, spanToMetres } from "../display";
 import { barrowman } from "../sim/aero";
 
 const CORPUS_DIR = process.env.LOFT_CORPUS_DIR ?? resolve(process.cwd(), "corpus");
@@ -353,24 +355,18 @@ function corpusFiles(): { path: string; name: string }[] {
  *  recognises and what KNOWN_ISSUES is keyed on. */
 const shortName = (name: string): string => name.split("__").pop() ?? name;
 
-/** The diameter a part presents at its aft end, or `undefined` for a part that is not part of the
- *  mould line at all. Deliberately spelled here rather than imported: the boattail case below asks
- *  "is anything BEHIND the cone wider than its exit", which has to see every body part the model can
- *  produce — so a helper that shares `edit.ts`'s own idea of a host would go blind in exactly the way
- *  the defect did. */
-function isBodyDiameter(c: RocketComponent): number | undefined {
-  if (c.kind === "bodytube") return c.outerRadius * 2;
-  if (c.kind === "transition" || c.kind === "nosecone") return c.aftRadius * 2;
-  if (c.kind === "innertube" || c.kind === "tubecoupler") return undefined; // inside the airframe
-  return undefined;
-}
-
-/** The two roundings `components/LoftApp.tsx` puts a ceiling through before a flyer can type it —
- *  whole millimetres, or hundredths of an inch. A bound is only real if it survives the conversion
- *  the field displays it in, and the imperial one is the tighter of the two on a small design. */
-const DISPLAY_ROUNDINGS: readonly [string, (m: number) => number, (v: number) => number][] = [
-  ["mm", (m) => m * 1000, (v) => v / 1000],
-  ["in", (m) => m * 39.3701 * 100, (v) => v / 100 / 39.3701],
+/** The two unit systems `components/LoftApp.tsx` puts a ceiling through before a flyer can type it.
+ *  A bound is only real if it survives the conversion the field displays it in, and the imperial one
+ *  is the tighter of the two on a small design.
+ *
+ *  **The conversion is `lib/display.ts`'s own, not a copy of it.** A first draft spelled the two
+ *  roundings here — `m * 1000` floored, `m * 39.3701 * 100` floored — which made the case a proof
+ *  that two implementations agree rather than a proof that the field's ceiling is reachable. Changing
+ *  the component's rounding would have left this green. It is the failure mode this repo has recorded
+ *  three times: a check whose subject is supplied by the check. */
+const UNIT_SYSTEMS: readonly [string, boolean][] = [
+  ["mm", false],
+  ["in", true],
 ];
 
 /** How far the outer mould line steps at the joint immediately behind `id`, in metres of DIAMETER,
@@ -2357,17 +2353,25 @@ suite("real-design corpus", () => {
       if (!cone) {
         dropped.push(`${shortName(f.name)}: no cone built at 70% of ${(fairsTo * 1000).toFixed(1)} mm`);
       } else {
+        // **The invariant, stated as "the cone is the tail" rather than as "nothing behind it is
+        // wider".** A first draft asked the second question with a filter on `xFore >= cone's aft
+        // end`, which cannot see a part that STARTS ahead of the cone and reaches past it — an
+        // absolutely-placed aft tube does exactly that, and it is the worst mould line of all. Being
+        // the aft-most body part in the whole tree is the property that makes the step impossible,
+        // and it is one comparison.
+        const bodies = flattenRocket(out).filter((p) => aftOuterRadius(p.component) !== undefined);
+        const last = bodies.reduce((a, b) => (b.xFore + b.length > a.xFore + a.length ? b : a));
+        if (last.component.id !== cone.component.id) {
+          const w = aftOuterRadius(last.component)! * 2;
+          stepped.push(
+            `${shortName(f.name)}: ${last.component.kind} "${last.component.name}" (⌀${(w * 1000).toFixed(1)} mm) ends behind the boattail, not the boattail`,
+          );
+        }
+        // And it really contracts: a "boattail" that flares or sits flush removes no base area.
         const exit = (cone.component as { aftRadius: number }).aftRadius * 2;
-        const behind = flattenRocket(out).filter(
-          (p) => p.xFore + 1e-9 >= cone.xFore + cone.length && isBodyDiameter(p.component) !== undefined,
-        );
-        for (const b of behind) {
-          const w = isBodyDiameter(b.component)!;
-          if (w > exit + 1e-9) {
-            stepped.push(
-              `${shortName(f.name)}: ${b.component.kind} "${b.component.name}" is ${(w * 1000).toFixed(1)} mm behind a ${(exit * 1000).toFixed(1)} mm exit`,
-            );
-          }
+        const fore = (cone.component as { foreRadius: number }).foreRadius * 2;
+        if (!(exit < fore)) {
+          stepped.push(`${shortName(f.name)}: the cone runs ${(fore * 1000).toFixed(1)} → ${(exit * 1000).toFixed(1)} mm`);
         }
       }
 
@@ -2381,8 +2385,9 @@ suite("real-design corpus", () => {
         const edits = factor === 1 ? {} : { bodyDiameter: pristine * factor };
         const max = boattailExitMax(boattailBase(rocket, edits));
         if (max === undefined || !(max > 0)) continue;
-        for (const [label, toDisp, fromDisp] of DISPLAY_ROUNDINGS) {
-          const typed = fromDisp(Math.floor(toDisp(max)));
+        for (const [label, imperial] of UNIT_SYSTEMS) {
+          // Exactly what a flyer can type: the ceiling through the field's own display conversion.
+          const typed = spanToMetres(spanCeiling(max, imperial), imperial);
           if (!(typed > 0)) continue;
           ceilings++;
           const built = applyGeometryEdits(rocket, {
@@ -2390,10 +2395,21 @@ suite("real-design corpus", () => {
             boattailLength: 0.04,
             boattailAftDiameter: typed,
           });
-          const made = flattenRocket(built).some((p) => p.component.id === derivedPartId(boattailHost(boattailBase(rocket, edits))!.id, "boattail"));
+          const id = derivedPartId(boattailHost(boattailBase(rocket, edits))!.id, "boattail");
+          const made = flattenRocket(built).find((p) => p.component.id === id);
           if (!made) {
             dropped.push(
               `${shortName(f.name)} @${factor}x ${label}: the field would offer ${(typed * 1000).toFixed(3)} mm against a ceiling of ${(max * 1000).toFixed(3)} mm and nothing was built`,
+            );
+            continue;
+          }
+          // **Built is not enough — it has to be built at the number that was typed.** A clamp that
+          // quietly substituted some other exit would leave `dropped` empty while the field showed a
+          // figure the rocket does not have, which is the defect this whole case exists for.
+          const flew = (made.component as { aftRadius: number }).aftRadius * 2;
+          if (Math.abs(flew - typed) > 1e-9) {
+            dropped.push(
+              `${shortName(f.name)} @${factor}x ${label}: offered ${(typed * 1000).toFixed(3)} mm, flew ${(flew * 1000).toFixed(3)} mm`,
             );
           }
         }

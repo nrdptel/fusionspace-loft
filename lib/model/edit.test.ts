@@ -60,7 +60,7 @@ import {
   boattailBase,
   boattailExitMax,
   boattailHost,
-  BOATTAIL_MAX_EXIT_FRACTION,
+
   unreachableParachuteCount,
   primaryParachutePart,
   aimsOf,
@@ -1211,11 +1211,21 @@ describe("applyGeometryEdits — add a boattail (structural add)", () => {
     expect(bt.foreRadius).toBeCloseTo((dia0 * 0.5) / 2, 9);
   });
 
-  it("skips a boattail that wouldn't contract (exit ≥ body), keeping a valid design", () => {
+  it("clamps a boattail that wouldn't contract (exit ≥ body) instead of dropping it in silence", () => {
+    // **This used to assert the drop, and the drop was the defect.** A flared "boattail" must never
+    // be built — that part is unchanged — but returning the design untouched is the silent no-op the
+    // whole family of fixes here exists to remove: the panel goes on describing a part the flight
+    // does not contain. The value is not reachable by typing (the field carries `boattailExitMax` as
+    // its `max`); it is reachable by typing a legal exit and then MOVING the ceiling with another
+    // field, which no live bound re-applies. So the widest legal cone is built, and
+    // `components/LoftApp.tsx` reads the field's own value through the same ceiling so the two agree.
     const rocket = newDesign().rocket;
     const dia0 = primaryBodyDiameter(rocket)!;
     const edited = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: dia0 * 1.2 });
-    expect(boattailOf(edited)).toBeUndefined(); // no flared "boattail" is added
+    const bt = boattailOf(edited);
+    expect(bt, "the part the panel describes has to be on the rocket").toBeTruthy();
+    expect(bt!.aftRadius * 2).toBeCloseTo(boattailExitMax(rocket)!, 9);
+    expect(bt!.aftRadius, "and it still contracts — never a flare").toBeLessThan(bt!.foreRadius);
   });
 
   it("raises apogee by cutting base drag — the design lever it exists for", () => {
@@ -1257,10 +1267,14 @@ describe("applyGeometryEdits — add a boattail (structural add)", () => {
     // Appended, never spliced: nothing at all sits behind the cone.
     const cone = flattenRocket(withBt).find((p) => p.component.id === derivedPartId(boattailHost(rocket)!.id, "boattail"))!;
     expect(cone, "the cone is built at all").toBeTruthy();
-    const behind = flattenRocket(withBt).filter(
-      (p) => p.xFore > cone.xFore + 1e-9 && (p.component.kind === "bodytube" || p.component.kind === "transition"),
+    // Stated as "the cone IS the tail", which is the property that makes a step impossible, rather
+    // than as "nothing starts after it" — a part placed absolutely can begin ahead of the cone and
+    // still end behind it, and that is the worst mould line of the lot.
+    const bodies = flattenRocket(withBt).filter((p) => aftOuterRadius(p.component) !== undefined);
+    const last = bodies.reduce((a, b) => (b.xFore + b.length > a.xFore + a.length ? b : a));
+    expect(last.component.id, `the aft-most body part is ${last.component.kind} "${last.component.name}"`).toBe(
+      cone.component.id,
     );
-    expect(behind.map((p) => p.component.name), "a body part behind the boattail").toEqual([]);
     const flown = runFlight(withBt, { configId: cfg }).result.summary.apogee;
     expect(flown, `${flown.toFixed(2)} m against ${base.toFixed(2)} m as designed`).toBeGreaterThan(base);
   });
@@ -1271,23 +1285,50 @@ describe("applyGeometryEdits — add a boattail (structural add)", () => {
     // then made the promise and the enforcement two different numbers, on the one field in the app
     // that carried no `max` at all — so a value inside the advertised range was taken, displayed, and
     // dropped in silence.
-    const rocket = await load("demo-single-deploy.ork");
+    // `demo-quirks.ork`, not the single-deploy sample: its aft tube is ⌀44 mm and its longest,
+    // forward one ⌀66 mm, so "which part did the bound come from" is a question with two different
+    // answers here. On a design whose parts are all one caliber the case cannot tell a correct host
+    // from any other, and passes either way.
+    const rocket = await load("demo-quirks.ork");
     const pristine = boattailFairsToDiameter(rocket)!;
+    expect(pristine, "the bound is the AFT tube's caliber, not the widest one's").toBeCloseTo(0.044, 9);
     for (const factor of [2, 0.5]) {
       const edits = { bodyDiameter: pristine * factor };
       const base = boattailBase(rocket, edits);
-      // The bound MOVES with the caliber, which is the whole claim.
-      expect(boattailFairsToDiameter(base)!).toBeCloseTo(pristine * factor, 9);
+      // The bound MOVES with the caliber, which is the whole claim. Measured against the flown tree's
+      // own aft face rather than against the arithmetic that produced it: `aftOuterRadius` of the part
+      // `boattailHost` picks is what the applier fairs to, so a bound derived any other way shows up
+      // here as a disagreement rather than as two spellings of one formula.
+      const host = boattailHost(base)!;
+      expect(boattailFairsToDiameter(base)!).toBeCloseTo(aftOuterRadius(host)! * 2, 9);
       const max = boattailExitMax(base)!;
-      expect(max).toBeCloseTo(pristine * factor * BOATTAIL_MAX_EXIT_FRACTION, 9);
-      // Exactly the ceiling the field offers is built, not refused.
+      // A ceiling that does not contract is not a ceiling; a ceiling far inside is a field that
+      // refuses most of its own range. Both ends stated, so no single value of the fraction passes.
+      expect(max, "the ceiling must contract").toBeLessThan(aftOuterRadius(host)! * 2);
+      expect(max, "and must not give away more than a hundredth of the range").toBeGreaterThan(
+        aftOuterRadius(host)! * 2 * 0.98,
+      );
+      // Exactly the ceiling the field offers is built, and built AT that exit.
       const out = applyGeometryEdits(rocket, { ...edits, boattailLength: 0.05, boattailAftDiameter: max });
-      const id = derivedPartId(boattailHost(base)!.id, "boattail");
-      expect(
-        flattenRocket(out).some((p) => p.component.id === id),
-        `a ${(max * 1000).toFixed(3)} mm exit at ${factor}x caliber is inside the advertised bound and must build`,
-      ).toBe(true);
+      const id = derivedPartId(host.id, "boattail");
+      const made = flattenRocket(out).find((p) => p.component.id === id)?.component as { aftRadius: number } | undefined;
+      expect(made, `a ${(max * 1000).toFixed(3)} mm exit at ${factor}x caliber is inside the advertised bound and must build`).toBeTruthy();
+      expect(made!.aftRadius * 2, "and must fly at the number the field offered").toBeCloseTo(max, 9);
     }
+
+    // And the door the ceiling MOVING opens: a value that was legal before the caliber edit is
+    // clamped to the new ceiling rather than dropped, so the flight always holds the part the panel
+    // says it does. `components/LoftApp.tsx` reads the field's own value through the same ceiling.
+    const wasLegal = pristine * 0.9;
+    const shrunk = { bodyDiameter: pristine * 0.5, boattailLength: 0.05, boattailAftDiameter: wasLegal };
+    const clamped = applyGeometryEdits(rocket, shrunk);
+    const ceiling = boattailExitMax(boattailBase(rocket, shrunk))!;
+    expect(wasLegal, "the fixture must actually put the old value outside the new bound").toBeGreaterThan(ceiling);
+    const cone = flattenRocket(clamped).find(
+      (p) => p.component.id === derivedPartId(boattailHost(boattailBase(rocket, shrunk))!.id, "boattail"),
+    )?.component as { aftRadius: number } | undefined;
+    expect(cone, "a stale exit must clamp, not drop the part in silence").toBeTruthy();
+    expect(cone!.aftRadius * 2).toBeCloseTo(ceiling, 9);
   });
 });
 
@@ -2086,10 +2127,15 @@ describe("the boattail's advertised bound is the bound that is enforced", () => 
     // A value under the ADVERTISED bound is accepted and builds a cone...
     const ok = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: fairsTo * 0.8 });
     expect(flattenRocket(ok).some((p) => p.component.name === "Boattail")).toBe(true);
-    // ...and one at or above it is refused, which is exactly why the field must not advertise the wider
-    // tube: 60 mm sits inside the forward tube's 66 mm and is silently dropped.
-    const refused = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: 0.06 });
-    expect(flattenRocket(refused).some((p) => p.component.name === "Boattail")).toBe(false);
+    // ...and one at or above it is held to the ceiling, which is exactly why the field must not
+    // advertise the wider tube: 60 mm sits inside the forward tube's 66 mm and outside the aft
+    // tube's 44 mm, so a field quoting 66 would let a flyer type a number the tail cannot take.
+    const held = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: 0.06 });
+    const cone = flattenRocket(held).find(
+      (p) => p.component.id === derivedPartId(boattailHost(rocket)!.id, "boattail"),
+    )?.component as { aftRadius: number } | undefined;
+    expect(cone, "clamped to the ceiling rather than dropped without a word").toBeTruthy();
+    expect(cone!.aftRadius * 2).toBeCloseTo(boattailExitMax(rocket)!, 9);
   });
 });
 

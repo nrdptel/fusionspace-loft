@@ -2239,27 +2239,16 @@ export function primaryFinish(rocket: Rocket): SurfaceFinish {
  *
  *  Top-level only, because that is the list the insert can splice into; a nested part has no
  *  unambiguous aft slot and the caller skips the boattail rather than placing it wrongly. */
-export function boattailHost(rocket: Rocket): BoattailHost | undefined {
+export function boattailHost(rocket: Rocket): RocketComponent | undefined {
   const topLevel = new Set(rocket.stages.flatMap((s) => s.components.map((c) => c.id)));
-  const body = flattenRocket(rocket).filter(
-    (p) => isBoattailHost(p.component) && topLevel.has(p.component.id),
-  );
+  // `isBody` and `aftOuterRadius`, both from `./geometry` and both already the answer to this exact
+  // question — "is this part of the mould line" and "what does it present at its aft end". A first
+  // version of this spelled both again here, three lines each, and `canAnchorAfter` was already the
+  // third caller of the pair. A rule in three places is how a gap survives in two of them, which is
+  // the sentence `addOptionsFor` in this file was written under.
+  const body = flattenRocket(rocket).filter((p) => isBody(p.component) && topLevel.has(p.component.id));
   if (!body.length) return undefined;
-  return body.reduce((a, b) => (b.xFore + b.length > a.xFore + a.length ? b : a)).component as BoattailHost;
-}
-
-/** The parts whose aft end is a body cross-section a cone can fair to. */
-export type BoattailHost = BodyTube | Transition | NoseCone;
-
-function isBoattailHost(c: RocketComponent): c is BoattailHost {
-  return c.kind === "bodytube" || c.kind === "transition" || c.kind === "nosecone";
-}
-
-/** The diameter (m) a host presents at its aft end — a tube's own caliber, a cone's or a
- *  transition's exit. One expression, so the field's bound and the applier's fore radius cannot
- *  come from two readings of the same part. */
-function aftDiameterOf(c: BoattailHost): number {
-  return c.kind === "bodytube" ? c.outerRadius * 2 : c.aftRadius * 2;
+  return body.reduce((a, b) => (b.xFore + b.length > a.xFore + a.length ? b : a)).component;
 }
 
 /** The caliber a boattail would fair to — the aft-most top-level body part's aft diameter (m).
@@ -2274,26 +2263,26 @@ function aftDiameterOf(c: BoattailHost): number {
  *  is what a caller outside the applier should ask. */
 export function boattailFairsToDiameter(rocket: Rocket): number | undefined {
   const host = boattailHost(rocket);
-  return host ? aftDiameterOf(host) : undefined;
+  const r = host && aftOuterRadius(host);
+  return r === undefined ? undefined : r * 2;
 }
 
-/** How much of the part it fairs to a boattail's exit may keep, on the FIELD that advertises it.
+/** How much of the part it fairs to a boattail's exit may keep. The one ceiling, advertised by the
+ *  field and applied by `addBoattail`.
  *
  *  **The exact fraction is a choice; holding it in ONE place is not** — the same sentence
  *  `INTERNAL_MAX_BORE_FRACTION` carries, and for the same reason.
  *
- *  **It sits one percent inside the applier's own refusal point deliberately, and that gap is the
- *  mechanism rather than a safety margin.** The applier refuses anything that does not CONTRACT
- *  (`aftRadius * 2 < fairsTo`) — an open bound, which no `max` on a number field can express: a field
- *  maxed at exactly the fairing diameter accepts that value, `NumberField.commit` pulls a larger
- *  entry to it on blur, and the applier then drops the whole part in silence. And the field's ceiling
- *  does not even arrive as that number: it goes out through a metres→mm or metres→inches conversion
- *  and a display rounding, so "equal" is not a thing the two sides can agree on to the last bit of a
- *  double. A closed ceiling a full percent inside the open one makes every value the field admits a
- *  value the applier builds, whatever the rounding did — which is the only property that matters, and
- *  it is the one `lib/model/edit.test.ts` pins over the corpus in both unit systems.
+ *  **Why a closed bound just inside 1.0 rather than "must contract".** A boattail that does not
+ *  contract is not one, which is an OPEN bound — and no `max` on a number field can express one: a
+ *  field maxed at exactly the fairing diameter accepts that value, `NumberField.commit` pulls a
+ *  larger entry to it on blur, and an applier refusing equality then drops the whole part in silence.
+ *  The ceiling does not even arrive at the field as this number: it goes out through a metres→mm or
+ *  metres→inches conversion and a display rounding, so "equal" is not something the two sides can
+ *  agree on to the last bit of a double. A closed ceiling a percent inside makes every value the
+ *  field admits a value the applier builds, whatever the rounding did.
  *
- *  What it costs: an exit between 99% and 100% of what the cone fairs to cannot be typed. That is a
+ *  What it costs: an exit between 99% and 100% of what the cone fairs to cannot be reached. That is a
  *  taper of under one percent over the cone's whole length, which is not a tail cone. */
 export const BOATTAIL_MAX_EXIT_FRACTION = 0.99;
 
@@ -2340,11 +2329,18 @@ export function boattailBase(rocket: Rocket, edits: GeometryEdits): Rocket {
  *  the caller keeps the un-boattailed design rather than a malformed one. */
 function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket {
   const host = boattailHost(rocket);
-  if (!host) return rocket;
-  const fairsTo = aftDiameterOf(host);
-  // The open bound: a boattail that does not contract is not one. `boattailExitMax` is what the FIELD
-  // advertises and sits a percent inside this, so everything the field admits is built here.
-  if (!(length > 0) || !(aftRadius > 0) || !(aftRadius * 2 < fairsTo)) return rocket;
+  const max = boattailExitMax(rocket);
+  const foreRadius = host && aftOuterRadius(host);
+  if (!host || max === undefined || foreRadius === undefined) return rocket;
+  if (!(length > 0) || !(aftRadius > 0)) return rocket;
+  // **Too wide is CLAMPED, not dropped, and that is the whole difference between this and the defect
+  // it replaced.** `boattailExitMax` is what the field advertises and `NumberField` holds a live
+  // entry to it — but the ceiling MOVES: type a legal exit, then halve the caliber, and a value the
+  // field accepted an hour ago is outside a bound nothing re-applied. Dropping the part there is the
+  // silent no-op all over again, reached by two fields instead of one. Building the widest legal cone
+  // means the flight always contains the part the panel says it does; the field shows the same
+  // clamped figure, because `components/LoftApp.tsx` reads its value through this same ceiling.
+  aftRadius = Math.min(aftRadius, max / 2);
   const boattail: Transition = {
     // `derivedPartId` rather than the spelling inline: the same rule was written out at all three
     // synthesis sites, and a property surface that has to ADDRESS one of these parts is a fourth
@@ -2354,9 +2350,9 @@ function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket 
     kind: "transition",
     placement: { method: "after", offset: 0 },
     length,
-    foreRadius: fairsTo / 2,
+    foreRadius,
     aftRadius,
-    thickness: host.thickness,
+    thickness: "thickness" in host ? host.thickness : undefined,
     shape: "conical",
     material: host.material,
     finish: host.finish,
@@ -3785,7 +3781,13 @@ export const DERIVED_PARTS = [
     aim: "boattail",
     name: "Boattail",
     fields: ["boattailLength", "boattailAftDiameter"],
-    dims: ["boattailFairsTo"],
+    // **All three keys, and the two that were missing were a Sev-1 on this very panel.**
+    // `maskAimedDims` blanks every `designDims` key a derived aim does not name, so an exit field
+    // that reads its ceiling from `boattailExitMax` and its guidance from `boattailFairsToPart` got
+    // neither inside the boattail's own popover — the surface increment 25 built precisely so the
+    // cone could be edited AS a part. Unbounded there, bounded on the wall below it: the same field,
+    // two different promises, and the popover is the one a flyer reaches by clicking the cone.
+    dims: ["boattailFairsTo", "boattailExitMax", "boattailFairsToPart"],
   },
   {
     suffix: "drogue",

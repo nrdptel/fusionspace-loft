@@ -4754,7 +4754,10 @@ test.describe("Loft", () => {
     //    body into a ⌀32 mm tail cone, and 38 is what the field used to promise — so the cone was
     //    spliced ahead of that tail, the base area it exists to remove stayed, and the apogee moved
     //    17.72 m the WRONG WAY.
-    await expect(exit, "the ceiling must be the tail cone's exit, not the body tube's caliber").toHaveAttribute("max", "31");
+    // 31.6, not 31: `d.spanCeiling` floors at the precision the field would DISPLAY, and
+    // `fmtEditable` grows a decimal here because whole millimetres would misstate 31.68. A ceiling
+    // rounded down to a whole number would refuse a value the placeholder beside it calls legal.
+    await expect(exit, "the ceiling must be the tail cone's exit, not the body tube's caliber").toHaveAttribute("max", "31.6");
     await expect(page.getByText(/Fairs to 32 mm — the aft end of Boattail/)).toBeVisible();
 
     // 2. AND IT MOVES WITH A CALIBER WHAT-IF. Halve the airframe: everything downstream of
@@ -4763,14 +4766,14 @@ test.describe("Loft", () => {
     const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
     expect(designDia).toBeCloseTo(38, 0);
     await bodyDia.fill("19");
-    await expect(exit, "the ceiling did not follow the airframe being flown").toHaveAttribute("max", "15");
+    await expect(exit, "the ceiling did not follow the airframe being flown").toHaveAttribute("max", "15.84");
 
     // 3. AND A VALUE OUTSIDE IT CANNOT SIT THERE LOOKING ACCEPTED. 25 mm is inside what the field
     //    promised before the caliber edit and outside what the applier will build after it — the exact
     //    window the defect lived in. `NumberField` pulls it to the bound on blur.
     await exit.fill("25");
     await exit.blur();
-    await expect(exit, "an out-of-range exit must be pulled to the stated ceiling, not kept").toHaveValue("15");
+    await expect(exit, "an out-of-range exit must be pulled to the stated ceiling, not kept").toHaveValue("15.84");
 
     // …and the cone the field now describes is really in the flight. Both fields make it, so the
     // length goes in here rather than at the top: the whole point of the assertions above is that they
@@ -4780,6 +4783,40 @@ test.describe("Loft", () => {
     const table = page.locator("table", { has: page.getByText("Station") });
     const cones = table.locator("tr").filter({ has: page.locator('[data-kind="transition"]') });
     await expect(cones, "the design's own tail cone plus the one these fields made").toHaveCount(2);
+
+    // **4. AND THE SAME BOUND INSIDE THE CONE'S OWN POPOVER.** `maskAimedDims` blanks every
+    // `designDims` key a derived aim does not name, so a ceiling and a hint added to the wall below
+    // reach the popover only if `DERIVED_PARTS`' boattail entry names them. It did not: the surface
+    // increment 25 built precisely so the cone could be edited AS a part had the unbounded field,
+    // with the bounded one five hundred pixels away on the same screen.
+    await cones.last().click();
+    await page.getByRole("button", { name: "Properties", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByLabel(/Boattail exit/)).toBeVisible();
+    await expect(
+      dialog.getByRole("spinbutton", { name: /Boattail exit/ }),
+      "the popover's own copy of the field must carry the same ceiling",
+    ).toHaveAttribute("max", "15.84");
+    await expect(dialog.getByText(/Fairs to 16 mm/)).toBeVisible();
+  });
+
+  test("on a staged design the boattail's hint names the stage, and claims nothing about when it goes", async ({ page }) => {
+    // Stages stack nose→tail, so the aft end of the STACK is on the booster and a cone built there
+    // leaves with it. A first draft of this hint said "which separates before apogee" — and
+    // `demo-payload-separation.ork` is a one-click sample whose booster parts on an ejection charge
+    // AFTER apogee, which `lib/sim/flight.test.ts` pins outright. A hint that states a fact the
+    // solver contradicts is worse than one that states less, and five corpus designs carry the same
+    // ejection separation.
+    await page.goto("/");
+    await page.getByRole("button", { name: /Payload separation/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await expect(page.getByRole("spinbutton", { name: /Boattail exit/ })).toBeVisible();
+    await expect(
+      page.getByText(/the aft end of .*, so it leaves with that stage\./),
+      "a staged design must name the stage the cone is built on",
+    ).toBeVisible();
+    await expect(page.getByText(/separates before apogee/), "and must not claim when it goes").toHaveCount(0);
   });
 
   test("an airframe typed narrower than its own motor is refused, not flown", async ({ page }) => {
