@@ -78,7 +78,10 @@ import {
   primaryBodyDiameter,
   fittingMaxOuterDiameter,
   fittingUnitMass,
-  aftmostBodyDiameter,
+  boattailBase,
+  boattailFairsToDiameter,
+  boattailExitMax,
+  boattailHost,
   primaryFinish,
   primaryAirframeMaterial,
   SURFACE_FINISHES,
@@ -1236,6 +1239,20 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     [doc, edits],
   );
 
+  /** The tree the BOATTAIL's own bound is measured on — everything the flyer has edited, without the
+   *  boattail itself.
+   *
+   *  A second memo rather than a use of `flownForReadback`, because that one is circular here: the
+   *  aft-most body part of a tree that already carries a boattail IS the boattail, so the cone would
+   *  fair to its own exit and the ceiling would walk away from the flyer on every keystroke. This is
+   *  the exact tree `applyGeometryEdits` is holding at the moment it calls `addBoattail`, which is
+   *  what makes the advertised bound and the enforced one the same measurement rather than two that
+   *  happen to agree today. */
+  const boattailBaseTree = useMemo(
+    () => (doc ? boattailBase(doc.rocket, edits) : null),
+    [doc, edits],
+  );
+
   /** The design a booster is seeded FROM, which is NOT `removableFrom`. `applyAddedStages` runs first in
    *  the pipeline, on the pristine rocket plus the stages already authored — an added tube, a removal or
    *  a reorder is invisible to it. Asking `canAddStage` the fully-structured tree instead disagrees with
@@ -2076,11 +2093,34 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             })(),
             bodyDiameter: primaryBodyDiameter(designBase, edits.bodyTubeId),
             bodyTubePart: primaryBodyTubePart(designBase, edits.bodyTubeId),
-            // The boattail's exit is validated against the tube the cone ATTACHES to — the aft-most one
-            // — so the bound the field advertises has to come from there too. Quoting the picked tube's
-            // caliber promised a limit the validator never used, and a value inside the advertised
-            // range was then a silent no-op.
-            boattailFairsTo: aftmostBodyDiameter(designBase),
+            // The boattail's exit is validated against the part the cone ATTACHES to — the aft-most
+            // body part — so the bound the field advertises has to come from there too. Quoting the
+            // picked tube's caliber promised a limit the validator never used, and a value inside the
+            // advertised range was then a silent no-op.
+            //
+            // **Read from `boattailBaseTree`, not from `designBase`, and that is the second half of
+            // the same defect.** `designBase` is the design plus its STRUCTURE edits — it has never
+            // seen `scaleAirframeRadii`, which is what a caliber what-if goes through. Measured on
+            // `demo-single-deploy.ork` at a caliber of ×0.5: this advertised "< 38.0 mm" while the
+            // flown tail was ⌀19.0 mm, so a typed 34.2 mm built nothing, said nothing, and left the
+            // field showing 34.2 against a flight with no boattail in it.
+            boattailFairsTo: boattailBaseTree ? boattailFairsToDiameter(boattailBaseTree) : undefined,
+            boattailExitMax: boattailBaseTree ? boattailExitMax(boattailBaseTree) : undefined,
+            // What the cone actually meets, in words, because a bare ceiling does not say WHICH part
+            // it came from — and on 8 of the 35 corpus designs that part is a transition the flyer
+            // can see at the tail, not the tube above it. The stage rides along on a staged design
+            // for the reason `keepFinsOnAirframe` bounds per stage: the aft end of the STACK is on
+            // the booster, so the cone is built there and separates with it.
+            boattailFairsToPart: (() => {
+              if (!boattailBaseTree) return undefined;
+              const host = boattailHost(boattailBaseTree);
+              if (!host) return undefined;
+              const si = boattailBaseTree.stages.findIndex((st) => st.components.some((c) => c.id === host.id));
+              return {
+                name: host.name || KIND_LABEL[host.kind] || host.kind,
+                stage: boattailBaseTree.stages.length > 1 ? boattailBaseTree.stages[si]?.name : undefined,
+              };
+            })(),
             unreachableBodyTubes: unreachableBodyTubeCount(designBase),
             // The transition readbacks take the picked one for the same reason every other aim does:
             // the value shown to edit FROM has to be the part the edit is written TO. 12 of the 35
@@ -2230,6 +2270,8 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             bodyTubePart: undefined,
             unreachableBodyTubes: 0,
             boattailFairsTo: undefined,
+            boattailExitMax: undefined,
+            boattailFairsToPart: undefined,
             transitionLength: undefined,
             transitionAftDiameter: undefined,
             transitionPart: undefined,
@@ -2274,7 +2316,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     // picked one. `flownForReadback` is one too, and a stale one is exactly the defect the station
     // readback exists to fix: it is the only entry here that moves when a DIMENSION edit lands, so
     // leaving it out would freeze the station at whatever it was when a selection last changed.
-    [doc, designBase, flownForReadback, edits.finSetId, edits.bodyTubeId, edits.bodyDiameter, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId, edits.fittingId],
+    [doc, designBase, flownForReadback, boattailBaseTree, edits.finSetId, edits.bodyTubeId, edits.bodyDiameter, edits.transitionId, edits.massObjectId, edits.parachuteId, edits.internalId, edits.fittingId],
   );
 
   return (
@@ -3066,6 +3108,8 @@ function DesignEditor({
     bodyTubePart?: AimedPart;
     unreachableBodyTubes: number;
     boattailFairsTo?: number;
+    boattailExitMax?: number;
+    boattailFairsToPart?: { name: string; stage?: string };
     transitionLength?: number;
     transitionAftDiameter?: number;
     transitionPart?: AimedPart;
@@ -3138,6 +3182,15 @@ function DesignEditor({
   const toDispSpan = (m: number | undefined) =>
     m === undefined ? "" : d.fmtEditable(imperial ? m * 39.3701 : m * 1000, imperial ? 2 : 0);
   const fromSpan = (v: string) => (v === "" ? undefined : imperial ? Number(v) / 39.3701 : Number(v) / 1000);
+  /** A CEILING in display units. `toDispSpan` rounds to nearest, which is right for a value and wrong
+   *  for a bound: half a millimetre of rounding upward puts the number `NumberField` will commit on
+   *  blur outside the bound the applier enforces, and the part is then dropped in silence — which is
+   *  the defect the bound exists to remove, re-entering through its own ceiling. Floored to the same
+   *  digits the field displays, so what a flyer can type is always inside it. */
+  const floorDispSpan = (m: number) => {
+    const p = imperial ? 100 : 1;
+    return Math.floor((imperial ? m * 39.3701 : m * 1000) * p) / p;
+  };
   // How to refer to the part a group of fields is holding. The design's own name where that name tells
   // it apart from its siblings; otherwise where the part SITS, which is what a flyer reads off the
   // diagram and the one description that stays true however the parts table beside it is sorted — a
@@ -3779,9 +3832,10 @@ function DesignEditor({
 
                       Gated on `boattailFairsTo` rather than on `bodyDiameter`, and that is a fix
                       rather than a workaround for the blanking: the exit is validated against the
-                      aft-most tube, `aftmostBodyDiameter` is undefined exactly when no boattail can
-                      be attached at all, and `bodyDiameter` answers for the PICKED tube — a
-                      different component whenever the flyer has aimed the body fields elsewhere. */}
+                      aft-most body part, `boattailFairsToDiameter` is undefined exactly when no
+                      boattail can be attached at all, and `bodyDiameter` answers for the PICKED
+                      tube — a different component whenever the flyer has aimed the body fields
+                      elsewhere. */}
                   {(!only || only === "boattail") && designDims.boattailFairsTo !== undefined && (
                     <NumberField
                       label={`Boattail length (${spanU})`}
@@ -3797,7 +3851,19 @@ function DesignEditor({
                       value={toDispSpan(edits.boattailAftDiameter)}
                       placeholder={`< ${toDispSpan(designDims.boattailFairsTo)}`}
                       onChange={(v) => onEdit({ boattailAftDiameter: orNone(fromSpan(v)) })}
-                    min={0}
+                      min={0}
+                      // Until now this field carried no `max` at all: an exit at or above what the
+                      // cone fairs to was taken, displayed, and then dropped by the applier without a
+                      // word, leaving the field showing a number no part of the flight had.
+                      // `boattailExitMax` is read off the same tree the applier builds from and sits
+                      // a percent inside the contraction it refuses on, so everything this admits is
+                      // built. Floored rather than rounded — see `floorDispSpan`.
+                      max={designDims.boattailExitMax !== undefined ? floorDispSpan(designDims.boattailExitMax) : undefined}
+                      hint={
+                        designDims.boattailFairsTo !== undefined && designDims.boattailFairsToPart
+                          ? `Fairs to ${toDispSpan(designDims.boattailFairsTo)} ${spanU} — the aft end of ${designDims.boattailFairsToPart.name}${designDims.boattailFairsToPart.stage ? ` on ${designDims.boattailFairsToPart.stage}, which separates before apogee` : ""}.`
+                          : undefined
+                      }
                     />
                   )}
                 </div>

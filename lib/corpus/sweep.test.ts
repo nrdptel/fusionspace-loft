@@ -56,6 +56,11 @@ import {
   removalRefusal,
   transitionDefaults,
   newPartId,
+  boattailBase,
+  boattailExitMax,
+  boattailFairsToDiameter,
+  boattailHost,
+  derivedPartId,
   aimEditsAt,
   primaryMassObject,
   primaryNose,
@@ -347,6 +352,26 @@ function corpusFiles(): { path: string; name: string }[] {
 /** The corpus names files `<family>__<source>__<original name>`; the original is what a reader
  *  recognises and what KNOWN_ISSUES is keyed on. */
 const shortName = (name: string): string => name.split("__").pop() ?? name;
+
+/** The diameter a part presents at its aft end, or `undefined` for a part that is not part of the
+ *  mould line at all. Deliberately spelled here rather than imported: the boattail case below asks
+ *  "is anything BEHIND the cone wider than its exit", which has to see every body part the model can
+ *  produce — so a helper that shares `edit.ts`'s own idea of a host would go blind in exactly the way
+ *  the defect did. */
+function isBodyDiameter(c: RocketComponent): number | undefined {
+  if (c.kind === "bodytube") return c.outerRadius * 2;
+  if (c.kind === "transition" || c.kind === "nosecone") return c.aftRadius * 2;
+  if (c.kind === "innertube" || c.kind === "tubecoupler") return undefined; // inside the airframe
+  return undefined;
+}
+
+/** The two roundings `components/LoftApp.tsx` puts a ceiling through before a flyer can type it —
+ *  whole millimetres, or hundredths of an inch. A bound is only real if it survives the conversion
+ *  the field displays it in, and the imperial one is the tighter of the two on a small design. */
+const DISPLAY_ROUNDINGS: readonly [string, (m: number) => number, (v: number) => number][] = [
+  ["mm", (m) => m * 1000, (v) => v / 1000],
+  ["in", (m) => m * 39.3701 * 100, (v) => v / 100 / 39.3701],
+];
 
 /** How far the outer mould line steps at the joint immediately behind `id`, in metres of DIAMETER,
  *  computed from the flattened geometry alone.
@@ -2292,6 +2317,96 @@ suite("real-design corpus", () => {
     expect(weighed, "no fitting carried a mass — the mass half proves nothing").toBeGreaterThan(10);
     expect(drifted, "a ceiling the panel advertises that the applier does not enforce").toEqual([]);
     expect(inertMass, "a fitting whose count reaches the drag but not the mass").toEqual([]);
+  }, 300_000);
+
+  it("puts a boattail on every real design's actual tail, and builds every exit the field would offer", async () => {
+    // **Two Sev-1s from one root, and the corpus is what found both.** The anchor used to be the
+    // aft-most body TUBE, so a design whose tail is already a transition had the cone spliced BETWEEN
+    // the tube and that transition — a contraction followed by a step back OUT to the tube's own
+    // caliber, which the drag model flies in full. And the ceiling the field advertised was measured
+    // on the pristine tree while the applier measures it after `scaleAirframeRadii`, so a caliber
+    // what-if made the promise and the enforcement two different numbers on the one field in the app
+    // with no `max` at all.
+    //
+    // Driven over every real design rather than the one a unit test builds, because "the tail is a
+    // transition" is a property of files rather than of a shape anyone would think to construct.
+    const stepped: string[] = [];
+    const dropped: string[] = [];
+    let tails = 0;
+    let transitionTails = 0;
+    let ceilings = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const rocket = doc.rocket;
+      const host = boattailHost(rocket);
+      if (!host) continue;
+      tails++;
+      if (host.kind !== "bodytube") transitionTails++;
+
+      // 1. NOTHING BEHIND THE CONE IS WIDER THAN ITS EXIT. The exact shape the splice produced, asked
+      //    of the mould line rather than of the insertion index, so a future anchor that is wrong in
+      //    some other way still fails here.
+      const fairsTo = boattailFairsToDiameter(rocket)!;
+      const out = applyGeometryEdits(rocket, { boattailLength: 0.04, boattailAftDiameter: fairsTo * 0.7 });
+      // Found by its DERIVED ID, never by its name. Two corpus designs already carry a part called
+      // "Boattail" — one of them two of them — so a name match picks the design's own tail cone and
+      // then reports every part behind it as a step this edit caused. It cost this case one wrong
+      // failure before it cost a session anything.
+      const coneId = derivedPartId(host.id, "boattail");
+      const cone = flattenRocket(out).find((p) => p.component.id === coneId);
+      if (!cone) {
+        dropped.push(`${shortName(f.name)}: no cone built at 70% of ${(fairsTo * 1000).toFixed(1)} mm`);
+      } else {
+        const exit = (cone.component as { aftRadius: number }).aftRadius * 2;
+        const behind = flattenRocket(out).filter(
+          (p) => p.xFore + 1e-9 >= cone.xFore + cone.length && isBodyDiameter(p.component) !== undefined,
+        );
+        for (const b of behind) {
+          const w = isBodyDiameter(b.component)!;
+          if (w > exit + 1e-9) {
+            stepped.push(
+              `${shortName(f.name)}: ${b.component.kind} "${b.component.name}" is ${(w * 1000).toFixed(1)} mm behind a ${(exit * 1000).toFixed(1)} mm exit`,
+            );
+          }
+        }
+      }
+
+      // 2. EVERY CEILING THE FIELD WOULD OFFER IS ONE THE APPLIER BUILDS — under a caliber what-if in
+      //    both directions, and after the metres→mm and metres→inches rounding the field puts it
+      //    through. A ceiling that survives the arithmetic and is then dropped in silence is the
+      //    original defect wearing a units conversion.
+      const pristine = 2 * maxBodyRadius(rocket);
+      if (!(pristine > 0)) continue;
+      for (const factor of [1, 2, 0.5]) {
+        const edits = factor === 1 ? {} : { bodyDiameter: pristine * factor };
+        const max = boattailExitMax(boattailBase(rocket, edits));
+        if (max === undefined || !(max > 0)) continue;
+        for (const [label, toDisp, fromDisp] of DISPLAY_ROUNDINGS) {
+          const typed = fromDisp(Math.floor(toDisp(max)));
+          if (!(typed > 0)) continue;
+          ceilings++;
+          const built = applyGeometryEdits(rocket, {
+            ...edits,
+            boattailLength: 0.04,
+            boattailAftDiameter: typed,
+          });
+          const made = flattenRocket(built).some((p) => p.component.id === derivedPartId(boattailHost(boattailBase(rocket, edits))!.id, "boattail"));
+          if (!made) {
+            dropped.push(
+              `${shortName(f.name)} @${factor}x ${label}: the field would offer ${(typed * 1000).toFixed(3)} mm against a ceiling of ${(max * 1000).toFixed(3)} mm and nothing was built`,
+            );
+          }
+        }
+      }
+    }
+    console.log(
+      `boattail anchors across ${files.length} design files: ${tails} designs can take one, ${transitionTails} of them end in a transition rather than a tube; ${ceilings} advertised ceilings driven, ${stepped.length} step out behind the cone`,
+    );
+    expect(files.length, "no design was read — that branch proves nothing").toBeGreaterThan(20);
+    expect(transitionTails, "no design ends in a transition — the case this exists for is unexercised").toBeGreaterThan(4);
+    expect(ceilings, "no ceiling was driven — the second half proves nothing").toBeGreaterThan(50);
+    expect(stepped, "a part behind the boattail wider than its exit — the cone contracts and the airframe steps back out").toEqual([]);
+    expect(dropped, "a value the field would offer that the applier silently refuses").toEqual([]);
   }, 300_000);
 
   it("finds no real design that leads with anything but a nose cone", async () => {

@@ -4735,6 +4735,53 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeLessThan(before);
   });
 
+  test("the boattail fairs to the tail it is on, and its ceiling follows the airframe being flown", async ({ page }) => {
+    // **Two Sev-1s, and only an e2e can pin the wiring half.** `lib/model/edit.test.ts` proves the
+    // model resolves the aft-most BODY part and bounds the exit against the FLOWN tree; what it cannot
+    // see is which tree `components/LoftApp.tsx` hands the bound to the field. That was the whole
+    // defect: the applier measured after `scaleAirframeRadii` and the field measured before, on the
+    // one field in the design panel that carried no `max` at all — so a value the placeholder called
+    // legal was taken, displayed, and dropped without a word.
+    await page.goto("/");
+    await page.getByRole("button", { name: /Boattail . elliptical fins/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+
+    const exit = page.getByRole("spinbutton", { name: /Boattail exit/ });
+    await expect(exit).toBeVisible();
+
+    // 1. IT FAIRS TO THE DESIGN'S OWN TAIL CONE, NOT THE TUBE ABOVE IT. This sample closes ⌀38 mm of
+    //    body into a ⌀32 mm tail cone, and 38 is what the field used to promise — so the cone was
+    //    spliced ahead of that tail, the base area it exists to remove stayed, and the apogee moved
+    //    17.72 m the WRONG WAY.
+    await expect(exit, "the ceiling must be the tail cone's exit, not the body tube's caliber").toHaveAttribute("max", "31");
+    await expect(page.getByText(/Fairs to 32 mm — the aft end of Boattail/)).toBeVisible();
+
+    // 2. AND IT MOVES WITH A CALIBER WHAT-IF. Halve the airframe: everything downstream of
+    //    `scaleAirframeRadii` halves with it, and the ceiling the field states has to as well.
+    const bodyDia = page.getByRole("spinbutton", { name: /Body diameter/ });
+    const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
+    expect(designDia).toBeCloseTo(38, 0);
+    await bodyDia.fill("19");
+    await expect(exit, "the ceiling did not follow the airframe being flown").toHaveAttribute("max", "15");
+
+    // 3. AND A VALUE OUTSIDE IT CANNOT SIT THERE LOOKING ACCEPTED. 25 mm is inside what the field
+    //    promised before the caliber edit and outside what the applier will build after it — the exact
+    //    window the defect lived in. `NumberField` pulls it to the bound on blur.
+    await exit.fill("25");
+    await exit.blur();
+    await expect(exit, "an out-of-range exit must be pulled to the stated ceiling, not kept").toHaveValue("15");
+
+    // …and the cone the field now describes is really in the flight. Both fields make it, so the
+    // length goes in here rather than at the top: the whole point of the assertions above is that they
+    // are true of a bound the flyer reads BEFORE anything is built.
+    await page.getByRole("spinbutton", { name: /Boattail length/ }).fill("40");
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+    const cones = table.locator("tr").filter({ has: page.locator('[data-kind="transition"]') });
+    await expect(cones, "the design's own tail cone plus the one these fields made").toHaveCount(2);
+  });
+
   test("an airframe typed narrower than its own motor is refused, not flown", async ({ page }) => {
     // **The Sev-1 this exists for.** The Body diameter field carried only an UPPER guard, so a tube
     // shrunk below the motor inside it still flew — and it read HIGH, because a thinner airframe is

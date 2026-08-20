@@ -56,7 +56,11 @@ import {
   AIRFRAME_MATERIALS,
   unreachableFinSetCount,
   unreachableBodyTubeCount,
-  aftmostBodyDiameter,
+  boattailFairsToDiameter,
+  boattailBase,
+  boattailExitMax,
+  boattailHost,
+  BOATTAIL_MAX_EXIT_FRACTION,
   unreachableParachuteCount,
   primaryParachutePart,
   aimsOf,
@@ -1222,6 +1226,69 @@ describe("applyGeometryEdits — add a boattail (structural add)", () => {
     // Contracting the base removes most of the base drag, so the same motor flies higher.
     expect(flown).toBeGreaterThan(base);
   });
+
+  it("raises it on a design whose tail is ALREADY a cone, which is where it used to lower it", async () => {
+    // **The Sev-1 this case exists for, on the shipped sample that carries the shape.** The case above
+    // has always run on `newDesign()`, whose tail is a body tube, so the one geometry the anchor got
+    // wrong was the one nothing flew: a design ending in a transition had the new cone spliced BETWEEN
+    // the tube and that transition. `lib/sim/aero.ts` takes `baseRadius` from whichever component ends
+    // aft-most, so the base area the field exists to remove stayed exactly where it was — while the
+    // new cone's own pressure drag and mass were charged in full, and the mould line stepped back OUT
+    // from the cone's exit to the tube's caliber in between.
+    //
+    // Measured on `fixtures/demo-boattail.ork` (⌀38 mm body closing to a ⌀32 mm tail cone), a 60 mm
+    // cone exiting at 70% of what it fairs to:
+    //
+    //   | anchor                  | fairs to | apogee                        |
+    //   |-------------------------|----------|-------------------------------|
+    //   | as designed             | —        | 905.33 m                      |
+    //   | aft-most TUBE (the bug) | 38.0 mm  | 887.61 m — **17.72 m LOWER**  |
+    //   | aft-most BODY PART      | 32.0 mm  | 911.18 m — 5.85 m higher      |
+    //
+    // A field labelled as cutting the largest drag source on a blunt-based rocket, moving the number a
+    // flyer sizes their motor against by eighteen metres in the wrong direction, with nothing said.
+    const rocket = await load("demo-boattail.ork");
+    const cfg = rocket.defaultConfigId ?? rocket.configurations[0]?.id;
+    const base = runFlight(rocket, { configId: cfg }).result.summary.apogee;
+    const fairsTo = boattailFairsToDiameter(rocket)!;
+    // The design's own tail cone, not the tube above it — 32 mm, not 38.
+    expect(fairsTo).toBeCloseTo(0.032, 9);
+    const withBt = applyGeometryEdits(rocket, { boattailLength: 0.06, boattailAftDiameter: fairsTo * 0.7 });
+    // Appended, never spliced: nothing at all sits behind the cone.
+    const cone = flattenRocket(withBt).find((p) => p.component.id === derivedPartId(boattailHost(rocket)!.id, "boattail"))!;
+    expect(cone, "the cone is built at all").toBeTruthy();
+    const behind = flattenRocket(withBt).filter(
+      (p) => p.xFore > cone.xFore + 1e-9 && (p.component.kind === "bodytube" || p.component.kind === "transition"),
+    );
+    expect(behind.map((p) => p.component.name), "a body part behind the boattail").toEqual([]);
+    const flown = runFlight(withBt, { configId: cfg }).result.summary.apogee;
+    expect(flown, `${flown.toFixed(2)} m against ${base.toFixed(2)} m as designed`).toBeGreaterThan(base);
+  });
+
+  it("advertises a ceiling the applier builds, on the tree that is actually flown", async () => {
+    // The second half of the same defect: the field read its bound off the design plus its STRUCTURE
+    // edits, which never see `scaleAirframeRadii`, while the applier reads it after. A caliber what-if
+    // then made the promise and the enforcement two different numbers, on the one field in the app
+    // that carried no `max` at all — so a value inside the advertised range was taken, displayed, and
+    // dropped in silence.
+    const rocket = await load("demo-single-deploy.ork");
+    const pristine = boattailFairsToDiameter(rocket)!;
+    for (const factor of [2, 0.5]) {
+      const edits = { bodyDiameter: pristine * factor };
+      const base = boattailBase(rocket, edits);
+      // The bound MOVES with the caliber, which is the whole claim.
+      expect(boattailFairsToDiameter(base)!).toBeCloseTo(pristine * factor, 9);
+      const max = boattailExitMax(base)!;
+      expect(max).toBeCloseTo(pristine * factor * BOATTAIL_MAX_EXIT_FRACTION, 9);
+      // Exactly the ceiling the field offers is built, not refused.
+      const out = applyGeometryEdits(rocket, { ...edits, boattailLength: 0.05, boattailAftDiameter: max });
+      const id = derivedPartId(boattailHost(base)!.id, "boattail");
+      expect(
+        flattenRocket(out).some((p) => p.component.id === id),
+        `a ${(max * 1000).toFixed(3)} mm exit at ${factor}x caliber is inside the advertised bound and must build`,
+      ).toBe(true);
+    }
+  });
 });
 
 describe("applyGeometryEdits — dual-deploy recovery", () => {
@@ -2011,7 +2078,7 @@ describe("the boattail's advertised bound is the bound that is enforced", () => 
     const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
     const fwd = tubes[0].component.id;
 
-    const fairsTo = aftmostBodyDiameter(rocket)!;
+    const fairsTo = boattailFairsToDiameter(rocket)!;
     expect(fairsTo).toBeCloseTo(0.044, 9);
     // Not the same as the picked tube's caliber, so the two really can disagree.
     expect(primaryBodyDiameter(rocket, fwd)).toBeCloseTo(0.066, 9);

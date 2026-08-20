@@ -12,6 +12,21 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-20, run 22.**
+
+- **REPRODUCED (once in six shard runs) · `e2e/touch.spec.ts:1174` — "the in-page contents chips are
+  targets too" can pass by measuring almost nothing, and it went red once under shard pressure.** The
+  loop `continue`s when `nav.count() === 0`, which is there for `/docs/changelog` (legitimately has no
+  contents nav) — but it cannot tell that page apart from a route whose nav had not rendered when it
+  was counted. Measured on the built export: `/docs` 4 chips, `/docs/methods` 14, `/docs/validation` 9,
+  `/docs/limitations` 3, `/docs/faq` 27, `/docs/changelog` none — **57 against a floor of 40**, so
+  losing the FAQ's 27 alone takes it red, and that is the shape of the one failure seen (shard 5 of 5,
+  reported `seen` under 40; the same shard passed 60/60 on re-run and the case passed 8/8 with
+  `--repeat-each`). The durable fix is per-route expectation rather than a silent skip: name the one
+  route that has no nav and assert every other route HAS one, so a nav that failed to render is a
+  failure rather than a subtraction. Same class as run 20's print-contrast finding — an intermittent
+  is a defect reported as a mood.
+
 **Filed 2026-08-19 from run 21's opening fan-out. Seven read-only lenses; the two Sev-1s that were
 reproduced were fixed the same run (the dispersion panel's vanishing waiver ceiling, and
 `ValidationPanel` publishing the mean absolute error with no envelope caveat) and are NOT repeated
