@@ -633,7 +633,7 @@ export default function PartPicker({
 
 
   const control =
-    "mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+    "mt-1 w-full rounded-md border border-zinc-500 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-600 dark:border-zinc-500 dark:bg-zinc-900 dark:text-zinc-100";
 
   return (
     <div className="mt-3">
