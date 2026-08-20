@@ -14,18 +14,27 @@ big for one pass. Newest first.
 
 **Filed 2026-08-20, run 22.**
 
-- **REPRODUCED (once in six shard runs) · `e2e/touch.spec.ts:1174` — "the in-page contents chips are
-  targets too" can pass by measuring almost nothing, and it went red once under shard pressure.** The
-  loop `continue`s when `nav.count() === 0`, which is there for `/docs/changelog` (legitimately has no
-  contents nav) — but it cannot tell that page apart from a route whose nav had not rendered when it
-  was counted. Measured on the built export: `/docs` 4 chips, `/docs/methods` 14, `/docs/validation` 9,
-  `/docs/limitations` 3, `/docs/faq` 27, `/docs/changelog` none — **57 against a floor of 40**, so
-  losing the FAQ's 27 alone takes it red, and that is the shape of the one failure seen (shard 5 of 5,
-  reported `seen` under 40; the same shard passed 60/60 on re-run and the case passed 8/8 with
-  `--repeat-each`). The durable fix is per-route expectation rather than a silent skip: name the one
-  route that has no nav and assert every other route HAS one, so a nav that failed to render is a
-  failure rather than a subtraction. Same class as run 20's print-contrast finding — an intermittent
-  is a defect reported as a mood.
+- **FIXED THIS RUN, recorded because the CLASS is the finding · three intermittent e2e cases, one
+  shape: a test that treats "not there yet" as "not there".** All three went red under in-shard
+  parallelism and passed alone, which is the signature `MAINTAINING.md` warns reads exactly like a
+  real failure.
+  - `e2e/docs.spec.ts:39` waited for six precached URLs and then walked **seven** — `/docs/changelog`
+    was in the list it visits and not in the list it waits for, so with the network gone before the
+    precache reached it the navigation died `net::ERR_INTERNET_DISCONNECTED`. The wait is now derived
+    from the array the loop walks. 6/6 with `--repeat-each`.
+  - `e2e/rocketpy-selfhosted.spec.ts:296` was the only offline case in the suite that flipped
+    `setOffline(true)` on a page with **no service-worker controller at all** — no `ready`, no cache
+    check. Now waits for both. 6/6.
+  - `e2e/touch.spec.ts:1174` skipped any docs route whose contents nav it could not find, which is
+    right for `/docs/changelog` and indistinguishable from a nav that had not rendered. Measured on
+    the built export: 4 + 14 + 9 + 3 + 27 + 0 = **57 chips against a floor of 40**, so losing the
+    FAQ's 27 alone takes it red while reading as a page that legitimately has none. The one route
+    with no nav is now named and asserted to have none. 4/4.
+  **What is still open is the general question**: `playwright.config.ts` runs `workers: 1` in CI and
+  the local default otherwise, and the local default is what surfaces these. Measured on shard 1 of 5
+  this run: 1 failure in 3 runs at the default, 0 in 2 at `--workers=1`, at 2.0 min per shard against
+  1.2. A fourth case of this shape should stop being fixed one at a time and become a shared
+  `goOffline(page)` helper that every offline case takes.
 
 **Filed 2026-08-19 from run 21's opening fan-out. Seven read-only lenses; the two Sev-1s that were
 reproduced were fixed the same run (the dispersion panel's vanishing waiver ceiling, and
