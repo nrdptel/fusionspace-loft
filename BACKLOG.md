@@ -12,6 +12,30 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-20, run 22.**
+
+- **FIXED THIS RUN, recorded because the CLASS is the finding · three intermittent e2e cases, one
+  shape: a test that treats "not there yet" as "not there".** All three went red under in-shard
+  parallelism and passed alone, which is the signature `MAINTAINING.md` warns reads exactly like a
+  real failure.
+  - `e2e/docs.spec.ts:39` waited for six precached URLs and then walked **seven** — `/docs/changelog`
+    was in the list it visits and not in the list it waits for, so with the network gone before the
+    precache reached it the navigation died `net::ERR_INTERNET_DISCONNECTED`. The wait is now derived
+    from the array the loop walks. 6/6 with `--repeat-each`.
+  - `e2e/rocketpy-selfhosted.spec.ts:296` was the only offline case in the suite that flipped
+    `setOffline(true)` on a page with **no service-worker controller at all** — no `ready`, no cache
+    check. Now waits for both. 6/6.
+  - `e2e/touch.spec.ts:1174` skipped any docs route whose contents nav it could not find, which is
+    right for `/docs/changelog` and indistinguishable from a nav that had not rendered. Measured on
+    the built export: 4 + 14 + 9 + 3 + 27 + 0 = **57 chips against a floor of 40**, so losing the
+    FAQ's 27 alone takes it red while reading as a page that legitimately has none. The one route
+    with no nav is now named and asserted to have none. 4/4.
+  **What is still open is the general question**: `playwright.config.ts` runs `workers: 1` in CI and
+  the local default otherwise, and the local default is what surfaces these. Measured on shard 1 of 5
+  this run: 1 failure in 3 runs at the default, 0 in 2 at `--workers=1`, at 2.0 min per shard against
+  1.2. A fourth case of this shape should stop being fixed one at a time and become a shared
+  `goOffline(page)` helper that every offline case takes.
+
 - **2026-08-20 — four border sites wear the OLD `control` value on things that are not controls, and
   `lib/design-system.test.ts` sanctions that pair only until they are converted.** §2's `control`
   moved to `zinc-500` this run (WCAG 1.4.11 — the old pair renders **1.48:1** light and **1.70:1**
@@ -32,6 +56,7 @@ big for one pass. Newest first.
   sibling additionally shipped two CENSUSES for this — one over neutral borders, one over every
   operable control whatever hue it wears — which this repo does not have; its border check counts
   values against a sanctioned set and never rates a ratio. Worth copying when this is taken.
+
 
 **Filed 2026-08-19 from run 21's opening fan-out. Seven read-only lenses; the two Sev-1s that were
 reproduced were fixed the same run (the dispersion panel's vanishing waiver ceiling, and

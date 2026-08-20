@@ -13,7 +13,7 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import type { CatalogPart } from "@/lib/components/db";
 import RocketDiagram from "./RocketDiagram";
-import DataTable, { type Column } from "./DataTable";
+import DataTable, { usePersistedSort, type Column } from "./DataTable";
 import PartPicker from "./PartPicker";
 import { Button, Card, EmptyState, Popover } from "./ui";
 
@@ -292,15 +292,33 @@ const PART_COLUMNS = (
  *  read-only, and both are the surface a from-scratch builder/editor grows further manipulation on
  *  top of. */
 
-/** How the parts table is ordered. "design" is the airframe's own order, nose to tail — the order a
- *  flyer reads their own rocket in, and the default. The rest sort a column, heaviest/longest first
- *  on the numeric ones, because that is the question being asked when you sort them. */
-// `"cg"` is here because the Balance column is sortable, and the `as PartSort` cast at the
-// `onSortChange` call site is what would otherwise launder a key this union does not know into the
-// component's own pre-sort — whose `switch` would then match nothing and silently collapse to design
-// order. Benign while `DataTable` re-sorts by the column's own `sortValue`, and exactly the kind of
-// dead branch an unsound cast hides; the union and the switch below are kept in step by hand.
-type PartSort = "design" | "name" | "type" | "station" | "mass" | "cg";
+/** The column list `usePersistedSort` validates a remembered sort against.
+ *
+ *  Built from `PART_COLUMNS` itself rather than written out: its arguments are what the CELLS need,
+ *  and only each column's `key` and whether it carries a `sortValue` are read here, neither of which
+ *  any argument can change. A hand-written list is exactly what the deleted `PartSort` union was, and
+ *  it had already drifted from the columns it claimed to name — three of the eight cannot sort at all
+ *  and the union never said so. */
+const PART_SORT_COLUMNS = PART_COLUMNS(
+  "metric",
+  new Map() as ReturnType<typeof massByComponent>,
+  () => ({ text: "", muted: false }),
+  true,
+  () => undefined,
+  () => undefined,
+);
+
+/** How the parts table is ordered. `null` is the airframe's own order, nose to tail — the order a
+ *  flyer reads their own rocket in, and the default; the rest is `DataTable`'s own sort model.
+ *
+ *  **A hand-written union and a `switch` used to live here, and both are gone.** The union named the
+ *  five sortable columns a second time, the `switch` re-derived each one's ordering value a second
+ *  time, and an `as PartSort` cast at the call site laundered anything else into a branch that
+ *  matched nothing. Every part of that was a second copy of what `PART_COLUMNS` already declares, and
+ *  the copies had already drifted: the switch fixed Mass to heaviest-first and Component to A→Z, so
+ *  the reverse of either was unreachable however many times you clicked. `DataTable` sorts on the
+ *  column's own `sortValue` with a stable comparator, and rows arrive here in design order, so ties
+ *  still read nose-to-tail with nothing spelled twice. */
 
 /** The six authoring gestures, as the palette words them — one row per `ADD_KINDS` entry.
  *
@@ -613,7 +631,10 @@ export default function GeometryInspector({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [partsOpen, setPartsOpen] = useState(false);
-  const [sort, setSort] = useState<PartSort>("design");
+  // Which column the parts table is sorted on, remembered per browser. A flyer who works down their
+  // build by mass is doing that across every design they open, not once — `MAINTAINING.md` lists "a
+  // view or sort order that resets" as a tell, and this is the surface a design is read on.
+  const [sort, setSort] = usePersistedSort("parts.sort", PART_SORT_COLUMNS);
   // Keep the pick shown here in step with the aims the edit model holds. Two paths move one without a
   // click: restoring a session arrives with an aim and no pick, and "Reset to as-designed" clears the
   // aims while the row stays highlighted — after which the next click on that row toggles it OFF and
@@ -792,34 +813,10 @@ export default function GeometryInspector({
     return c ? c.name || KIND_LABEL[c.kind] || c.kind : undefined;
   };
 
-  // The table's rows in the chosen order. Sorting is stable against the design order, so parts that
-  // tie on a column still read nose-to-tail rather than shuffling.
+  // The table's rows in the DESIGN's order. `DataTable` sorts them from here on the chosen column's
+  // own `sortValue`, with a stable comparator — so parts that tie still read nose-to-tail, and the
+  // ordering rule for each column is written once, in `PART_COLUMNS`.
   const rows = parts.map((p, i) => ({ p, i }));
-  if (sort !== "design") {
-    const key = (r: { p: (typeof parts)[number] }) => {
-      switch (sort) {
-        case "name":
-          return (r.p.component.name || kindLabel(r.p.component)).toLowerCase();
-        case "type":
-          return kindLabel(r.p.component).toLowerCase();
-        case "station":
-          return r.p.xFore;
-        case "mass":
-          return -(masses.get(r.p.component.id)?.mass ?? 0); // heaviest first
-        // A part with no balance point of its own sorts last, whichever way the column runs — the
-        // same place `compareCells` puts a non-finite value, so the pre-sort and `DataTable` agree
-        // rather than fighting over the em-dash rows.
-        case "cg":
-          return masses.get(r.p.component.id)?.cg ?? Number.POSITIVE_INFINITY;
-      }
-    };
-    rows.sort((a, b) => {
-      const ka = key(a);
-      const kb = key(b);
-      if (ka === kb) return a.i - b.i;
-      return ka < kb ? -1 : 1;
-    });
-  }
 
   /** Which mass marks this design actually shows, so the caption's key names only those. A legend for
    *  a mark nobody can see is noise on every design that computes all of its own masses. */
@@ -1398,19 +1395,18 @@ export default function GeometryInspector({
           </summary>
           <DataTable
             className="mt-2"
-            columns={PART_COLUMNS(units, masses, massCell, sort === "design", hostName, hostLabel)}
+            columns={PART_COLUMNS(units, masses, massCell, sort === null, hostName, hostLabel)}
             rows={rows}
             rowKey={({ p }, i) => `${p.component.id}-${i}`}
             caption="Every part the importer read, with its station and mass"
             exportName={rocket.name || "design"}
             exportSuffix="parts"
-            // The sort is CONTROLLED because this table has a third state the primitive's own
-            // asc/desc cycle cannot hold: clicking the active column a second time returns to the
-            // DESIGN's own nose-to-tail order — the order a flyer reads their own rocket in — rather
-            // than reversing. `null` is that order, and it is why a `persistKey` on the primitive
-            // would not have worked here.
-            sort={sort === "design" ? null : { key: sort, dir: sort === "mass" ? -1 : 1 }}
-            onSortChange={(next) => setSort(next === null || next.key === sort ? "design" : (next.key as PartSort))}
+            // CONTROLLED so the sort can outlive the component. The three-state cycle — the column's
+            // own direction, the other one, then the design's nose-to-tail order — is the primitive's
+            // now; this used to map it here and dropped the direction on the way, so the table
+            // reversed on no column at all.
+            sort={sort}
+            onSortChange={setSort}
             // Seven things on the `<tr>`, none of them a styling choice: the row is the pick target,
             // it links the diagram on hover AND on focus, and it has a keyboard path. `aria-selected`
             // is rendered on EVERY row rather than only the picked one — present-and-false is what

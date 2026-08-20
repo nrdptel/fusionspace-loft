@@ -11,10 +11,10 @@ import { LIFTOFF_TWR_GUIDELINE, RAIL_EXIT_GUIDELINE_MPS } from "@/lib/sim/simula
 import { runMotorSweep } from "@/lib/sim/sweep-client";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mpsToFtps } from "@/lib/units";
-import { usePersistedChoice, useSettled } from "@/lib/session";
+import { useSettled } from "@/lib/session";
 import type { CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
-import DataTable, { type Column } from "./DataTable";
+import DataTable, { usePersistedSort, type Column } from "./DataTable";
 import { compareCells } from "@/lib/table-sort";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -366,17 +366,6 @@ const COLUMNS: Column<MotorSweepRow>[] = [
   { key: "optimumDelay", label: "Delay", sortDir: -1, sortValue: (r) => r.optimumDelay, cell: () => null },
 ];
 
-/** Every "<column>:<direction>" the sort can be in, so a remembered value from a build with a
- *  different column set is discarded rather than leaving the table sorted on nothing. */
-// Only columns that can ACTUALLY sort. The guard's job is to discard a remembered value from a build
-// with a different column set; derived from every column it also admitted `use:asc`/`use:desc`, and
-// `use` has no `sortValue` — so a stored value of that shape reached `col.sortValue!(a)` behind a
-// non-null assertion and took the workspace down on render rather than falling back.
-const SORT_CHOICES: readonly string[] = COLUMNS.filter((c) => c.sortValue).flatMap((c) => [
-  `${c.key}:asc`,
-  `${c.key}:desc`,
-]);
-
 function SweepTable({
   rows,
   units,
@@ -401,14 +390,15 @@ function SweepTable({
   motorSwap?: { manufacturer?: string; designation: string };
 }) {
   // Which column the table is sorted on is a view the flyer chose deliberately — someone picking a
-  // motor on flutter margin is doing that across every design they open, not once. Direction rides
-  // along in the same stored value so the pair can't come back inconsistent. The primitive takes the
-  // sort as a CONTROLLED pair for exactly this: persistence here validates against the column list
-  // rather than writing and reading back, and this panel also needs to KNOW the order, because its
-  // own CSV comes out in the order on screen.
-  const [stored, setStored] = usePersistedChoice<string>("motorSweep.sort", "apogee:desc", SORT_CHOICES);
-  const [key, dir] = stored.split(":") as [string, "asc" | "desc"];
-  const sort = { key, dir: (dir === "asc" ? 1 : -1) as 1 | -1 };
+  // motor on flutter margin is doing that across every design they open, not once.
+  //
+  // **This panel was the only table in the app that remembered, and it spelled the whole mechanism
+  // out here.** All seven do now, so the spelling moved into `usePersistedSort` and this call site
+  // keeps only what is its own: the default column, and the fact that it needs to KNOW the order
+  // because its own CSV comes out in the order on screen. The scar the hook inherits is this file's —
+  // an allowlist derived from every column admitted `use:asc`, whose column has no `sortValue`, and a
+  // stored one of those took the workspace down on render.
+  const [sort, setSort] = usePersistedSort("motorSweep.sort", COLUMNS, "apogee");
 
   // The unit-bearing cells, kept here rather than in COLUMNS because they close over `units`. The
   // amber flag rides on a span INSIDE the cell: colour inherits, so the rendered result is identical
@@ -518,8 +508,11 @@ function SweepTable({
 
   // Sorted here as well as inside the table, because the CSV must come out in the order on SCREEN —
   // a table you sorted and then exported unsorted is a different table from the one you were reading.
-  const col = COLUMNS.find((c) => c.key === sort.key && c.sortValue) ?? COLUMNS[0];
-  const sorted = [...rows].sort((a, b) => compareCells(col.sortValue!(a), col.sortValue!(b), sort.dir));
+  // `null` is the third state the primitive now produces — the caller's own order, which is the order
+  // the sweep computed the candidates in — so the CSV is left alone rather than sorted on a fallback
+  // column nobody chose.
+  const col = sort && (COLUMNS.find((c) => c.key === sort.key && c.sortValue) ?? COLUMNS[0]);
+  const sorted = col ? [...rows].sort((a, b) => compareCells(col.sortValue!(a), col.sortValue!(b), sort!.dir)) : rows;
 
   // The design's own row against the flight the flyer actually read — see `ballisticGap` for why a
   // small difference is the method rather than a discrepancy.
@@ -541,9 +534,7 @@ function SweepTable({
         rowKey={(r) => `${r.manufacturer}|${r.designation}`}
         caption="Motors swept over this airframe"
         sort={sort}
-        onSortChange={(next) =>
-          setStored(next ? `${next.key}:${next.dir === 1 ? "asc" : "desc"}` : "apogee:desc")
-        }
+        onSortChange={setSort}
         rowProps={(r) => (r.isDesign ? { className: "bg-indigo-50/70 dark:bg-indigo-500/10" } : {})}
         empty="No motor of this casing flew — widen the casing on the design, or pick a motor by hand."
       />

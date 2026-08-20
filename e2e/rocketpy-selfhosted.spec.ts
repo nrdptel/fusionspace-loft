@@ -306,6 +306,14 @@ test.describe("when the second solver stops", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Cross-check" }).click();
 
+    // Wait for the worker to be CONTROLLING before the network goes, exactly as `e2e/docs.spec.ts`
+    // and `e2e/offline.spec.ts` do. Without it this was the only offline case in the suite that
+    // flipped the switch on an uncontrolled page, and it failed under in-shard parallelism while
+    // passing alone — the app's own chrome is served from the cache like everything else, so an
+    // offline page with no controller has nothing to render from.
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.waitForFunction(() => !!navigator.serviceWorker?.controller, null, { timeout: 20000 });
+
     await page.context().setOffline(true);
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
     await panel.getByRole("button", { name: "Run RocketPy" }).click();

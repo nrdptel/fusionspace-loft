@@ -302,3 +302,31 @@ export function storedRunLabels(
     return out;
   });
 }
+
+/** A span CEILING in the digits an editable field will show it in — floored, never rounded.
+ *
+ *  **A bound and a value need opposite roundings, and the field puts both through the same
+ *  conversion.** `fmtEditable` rounds to nearest, which is right for a value and wrong for a limit:
+ *  half a millimetre upward puts the number `NumberField` will commit on blur outside the bound the
+ *  applier enforces, and the part is then dropped in silence — the exact defect the boattail's exit
+ *  ceiling exists to remove, re-entering through its own ceiling.
+ *
+ *  **It floors at the precision the field would DISPLAY, not at a fixed one.** `fmtEditable` grows a
+ *  decimal where whole units would misstate the value, so a fixed floor to whole millimetres could
+ *  refuse a value the placeholder beside it is showing as legal.
+ *
+ *  Exported from here, and not spelled in the component, because the checks that prove a ceiling is
+ *  reachable have to put it through the same arithmetic a flyer's keystroke does. A test that
+ *  re-implements the conversion it is verifying proves only that two copies agree. */
+export function spanCeiling(m: number, imperial: boolean): number {
+  const shown = imperial ? m * 39.3701 : m * 1000;
+  const digits = (fmtEditable(shown, imperial ? 2 : 0).split(".")[1] ?? "").length;
+  const p = 10 ** digits;
+  return Math.floor(shown * p) / p;
+}
+
+/** The inverse of `spanCeiling`'s conversion — display units back to metres — so a caller proving a
+ *  ceiling is reachable uses the same two functions the field does rather than its own pair. */
+export function spanToMetres(shown: number, imperial: boolean): number {
+  return imperial ? shown / 39.3701 : shown / 1000;
+}

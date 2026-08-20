@@ -12,7 +12,7 @@ import { loadCrossCheck, saveCrossCheck } from "@/lib/session";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { Button, Card, Extrapolated, Panel } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
-import DataTable from "./DataTable";
+import DataTable, { usePersistedSort, type Column } from "./DataTable";
 
 /** Loft's own ballistic ascent, for a like-for-like comparison against RocketPy. */
 interface LoftBallistic {
@@ -256,6 +256,7 @@ export default function RocketpyCrossCheck({
   // change exactly as before.
   useEffect(() => () => abortRef.current?.abort(), []);
 
+
   return (
     <Panel
       label="RocketPy cross-check"
@@ -455,38 +456,7 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
   // columns share the assumption rather than testing it. Stated above the table, because a flyer
   // reading close agreement here is reading it as confirmation.
   const extrapolatedWhy = transonicReason(loft.extrapolatedTransonic, loft.maxMach);
-  return (
-    <div className="mt-3">
-      {/* A withheld CELL in a data table has nowhere to carry its reason — the em dash is the whole
-          cell — so the sentence goes above the table, in the slot the transonic caveat already uses.
-          Without it the row reads as a solver that declined to answer rather than a design that has
-          no figure to answer with. */}
-      {loft.marginUndefinedWhy && (
-        <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
-          <strong className="font-medium">Static margin is withheld on Loft&rsquo;s side:</strong>{" "}
-          {loft.marginUndefinedWhy} RocketPy&rsquo;s own figure is still shown, and the &Delta; is not.
-        </p>
-      )}
-      {extrapolatedWhy && (
-        <div className="mb-3">
-          <Extrapolated
-            reason={`${extrapolatedWhy}. RocketPy is fed Loft's own drag curve, so both columns share that estimate and the difference between them cannot show it`}
-          />
-        </div>
-      )}
-      {/* The disagreement between two independent solvers is exactly the number a flyer takes
-          elsewhere to argue with, and until now it was trapped in the DOM — no sort, no copy, no
-          export. Column order is deliberate and unchanged: the outside number first, Loft second,
-          then how Loft differs from it, matching the stored-results comparison next door. Two tables
-          on adjacent tabs that put the reference on opposite sides make every glance a re-read. */}
-      <DataTable
-        rows={rows}
-        rowKey={(r) => r.label}
-        exportName="rocketpy-cross-check"
-        exportSuffix="cross-check"
-        caption="Loft against RocketPy, metric by metric"
-        empty="Nothing to compare yet — run RocketPy above and its figures appear here beside Loft's."
-        columns={[
+  const columns: Column<(typeof rows)[number]>[] = [
           {
             key: "label",
             label: "Metric",
@@ -521,7 +491,50 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
               return /\d/.test(raw) ? raw : "";
             },
           },
-        ]}
+        ];
+
+  // Opens in the order the two solvers are compared in — apogee first, the order the caveats under
+  // the table are written in — so the caller's own order is the default and a remembered sort is a
+  // deliberate act. Three of these four columns carry no `sortValue`, which is exactly why the
+  // allowlist is derived from the columns rather than written out: a guard built the other way admits
+  // `rp`, `loft` and `delta`, and a stored one of those announces "sorted by Δ" over rows nothing
+  // reordered, on a header with no button to clear it.
+  const [sort, setSort] = usePersistedSort("crosscheck.sort", columns);
+
+  return (
+    <div className="mt-3">
+      {/* A withheld CELL in a data table has nowhere to carry its reason — the em dash is the whole
+          cell — so the sentence goes above the table, in the slot the transonic caveat already uses.
+          Without it the row reads as a solver that declined to answer rather than a design that has
+          no figure to answer with. */}
+      {loft.marginUndefinedWhy && (
+        <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+          <strong className="font-medium">Static margin is withheld on Loft&rsquo;s side:</strong>{" "}
+          {loft.marginUndefinedWhy} RocketPy&rsquo;s own figure is still shown, and the &Delta; is not.
+        </p>
+      )}
+      {extrapolatedWhy && (
+        <div className="mb-3">
+          <Extrapolated
+            reason={`${extrapolatedWhy}. RocketPy is fed Loft's own drag curve, so both columns share that estimate and the difference between them cannot show it`}
+          />
+        </div>
+      )}
+      {/* The disagreement between two independent solvers is exactly the number a flyer takes
+          elsewhere to argue with, and until now it was trapped in the DOM — no sort, no copy, no
+          export. Column order is deliberate and unchanged: the outside number first, Loft second,
+          then how Loft differs from it, matching the stored-results comparison next door. Two tables
+          on adjacent tabs that put the reference on opposite sides make every glance a re-read. */}
+      <DataTable
+        sort={sort}
+        onSortChange={setSort}
+        rows={rows}
+        rowKey={(r) => r.label}
+        exportName="rocketpy-cross-check"
+        exportSuffix="cross-check"
+        caption="Loft against RocketPy, metric by metric"
+        empty="Nothing to compare yet — run RocketPy above and its figures appear here beside Loft's."
+        columns={columns}
       />
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Ballistic ascent to apogee (recovery and wind removed), RocketPy fed Loft&apos;s Cd(Mach) — a

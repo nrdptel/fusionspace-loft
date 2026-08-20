@@ -9,7 +9,7 @@ import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
 import AirframeStrip from "./AirframeStrip";
 import { WORKSPACES, type Workspace } from "@/lib/workspaces";
-import DataTable from "./DataTable";
+import DataTable, { usePersistedSort, type Column } from "./DataTable";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
@@ -2374,34 +2374,7 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
     };
   });
 
-  return (
-    <Panel label="Flight phases" title="Flight phases">
-      {/* `COMPETITION.md` row 25 calls this table a lead no competitor offers — and until it took the
-          primitive, its numbers could not leave the page at all. Phases are in flight order and that
-          IS the meaning of the table, so the Phase column is deliberately the only sortable one: it
-          restores the order after a flyer has sorted by another.
-
-          **This component used to `return null` above when `rows` was empty, and the comment here
-          used to say that made `empty` unreachable.** Both are gone. The guard was the last thing
-          standing between a flyer and a panel that vanishes: the primitive's `empty` copy was already
-          written, already required, and provably never rendered — which is the exact shape of the
-          `MassBreakdown` defect that made this rule a rule. Deleting the guard costs nothing on any
-          reachable path (`staged` gates this whole component, and a staged flight has phases) and
-          means the surface can no longer disappear from under its own heading. */}
-      <DataTable
-        className="mt-3"
-        rows={rows}
-        rowKey={(_, i) => String(i)}
-        exportName={rocket.name || "design"}
-        exportSuffix="flight-phases"
-        caption="Each phase of the staged flight, in order"
-        // Says only what is true of an empty row set. The copy this replaces — "a design that never
-        // sheds a stage flies as one" — named a cause that cannot produce this state: a staged design
-        // that never sheds still yields ONE phase, which is a one-row table with its own note below.
-        // It was written while a `return null` above made it unrenderable, and reviewing the copy is
-        // what a guard like that stops anyone from doing.
-        empty="No phase boundaries came back from this flight. A staged flight that reaches a separation tables each phase here."
-        columns={[
+  const columns: Column<(typeof rows)[number]>[] = [
           {
             key: "phase",
             label: "Phase",
@@ -2480,7 +2453,43 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
             csvLabel: `Speed (${d.speed(0, units).unit})`,
             csv: (r) => (r.velocity !== undefined ? csvQuantity(d.speed(r.velocity, units)) : "not logged"),
           },
-        ]}
+        ];
+
+  // Opens in the flight's own order — the order the phases happened — which is the caller's order and
+  // the only one this table means anything in. Exactly one column can sort (`phase`, on the row's own
+  // index), so this is the surface the allowlist has least to admit and most to refuse.
+  const [sort, setSort] = usePersistedSort("phases.sort", columns);
+
+  return (
+    <Panel label="Flight phases" title="Flight phases">
+      {/* `COMPETITION.md` row 25 calls this table a lead no competitor offers — and until it took the
+          primitive, its numbers could not leave the page at all. Phases are in flight order and that
+          IS the meaning of the table, so the Phase column is deliberately the only sortable one: it
+          restores the order after a flyer has sorted by another.
+
+          **This component used to `return null` above when `rows` was empty, and the comment here
+          used to say that made `empty` unreachable.** Both are gone. The guard was the last thing
+          standing between a flyer and a panel that vanishes: the primitive's `empty` copy was already
+          written, already required, and provably never rendered — which is the exact shape of the
+          `MassBreakdown` defect that made this rule a rule. Deleting the guard costs nothing on any
+          reachable path (`staged` gates this whole component, and a staged flight has phases) and
+          means the surface can no longer disappear from under its own heading. */}
+      <DataTable
+        className="mt-3"
+        sort={sort}
+        onSortChange={setSort}
+        rows={rows}
+        rowKey={(_, i) => String(i)}
+        exportName={rocket.name || "design"}
+        exportSuffix="flight-phases"
+        caption="Each phase of the staged flight, in order"
+        // Says only what is true of an empty row set. The copy this replaces — "a design that never
+        // sheds a stage flies as one" — named a cause that cannot produce this state: a staged design
+        // that never sheds still yields ONE phase, which is a one-row table with its own note below.
+        // It was written while a `return null` above made it unrenderable, and reviewing the copy is
+        // what a guard like that stops anyone from doing.
+        empty="No phase boundaries came back from this flight. A staged flight that reaches a separation tables each phase here."
+        columns={columns}
       />
       {/* Both notes explain the TABLE's columns, so neither may render when the table has been
           replaced by its empty state — a legend for columns that are not on screen is the same

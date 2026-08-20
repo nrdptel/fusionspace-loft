@@ -2595,6 +2595,90 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 28 — a boattail fairs to the tail it is on, and states the bound it enforces,
+2026-08-20. SEV-1.** The three claims run 21's fan-out left for this increment to settle were all
+reproduced, and two of them turned out to be one defect wearing two faces.
+
+**Claim 1 — CONFIRMED, and it is the Sev-1.** `aftmostBodyTube` matched only `kind: "bodytube"`, so
+a design whose tail is already a transition had the new cone spliced BETWEEN the tube and that tail.
+**8 of the 35 corpus designs end in a transition** — `APEX_K_Dart.ork`, `Base drag hack
+(short-wide).ork`, `01.One-stage.ork`, `02.Two-stage.ork`, `03.Three-stage.ork`,
+`Complex.Two-Stage.CDX1`, `Show-off.CDX1`, `TubeFins1.rkt`, across three source tools — plus the
+shipped `demo-boattail.ork` sample. `lib/sim/aero.ts` takes `baseRadius` from whichever component
+ends aft-most, so the base area the field exists to remove stayed exactly where it was while the
+cone's own pressure drag and mass were charged in full, and the mould line stepped back OUT in
+between. Measured on the sample, a 60 mm cone exiting at 70% of what it fairs to:
+
+| anchor | fairs to | apogee |
+|---|---|---|
+| as designed | — | 905.33 m |
+| aft-most TUBE (the defect) | 38.0 mm | **887.61 m — 17.72 m LOWER** |
+| aft-most BODY PART | 32.0 mm | 911.18 m — 5.85 m higher |
+
+On `Show-off.CDX1` the two readings are 69.3 mm of tube against a real tail of 6.3 mm — eleven times
+the diameter the cone would actually meet.
+
+**Claim 2 — CONFIRMED, and worse than filed.** The exit field carried **no `max` at all**, and the
+ceiling it advertised in its placeholder came off `designBase` — the design plus its STRUCTURE edits,
+which never see `scaleAirframeRadii`. The applier reads it after. Measured on `demo-single-deploy`
+at a caliber what-if of ×0.5: the field promised "< 38.0 mm" against a flown tail of ⌀19.0 mm, so a
+typed 34.2 mm built nothing, said nothing, and left the box showing a number no part of the flight
+had. One function answers both now (`boattailExitMax`, off `boattailBase` — the flown tree WITHOUT
+the cone, because the aft-most body part of a tree that already has one IS the cone).
+
+**Claim 3 — CONFIRMED as a fact and REJECTED as a defect, which is the useful half.** The anchor does
+scan every stage, and on all 7 staged corpus designs it lands on the last stage index — the one that
+separates earliest. But stages stack nose→tail, so *the aft end of the stack IS the last stage*:
+there is no other placement that does not put a contraction in the middle of the attached vehicle,
+which is the geometry `aftmostBodyTube`'s own docblock was written to prevent. What was missing was
+not a different stage, it was **saying so**, and the hint now names the stage the cone is built on.
+It deliberately does NOT say when that stage goes: the bundled `demo-payload-separation.ork` parts on
+an ejection charge AFTER apogee — `lib/sim/flight.test.ts` pins exactly that — and five more corpus
+designs carry the same event.
+
+**And `COMPETITION.md` row 54's recommendation was aimed at the wrong thing, which is what settling
+the claims was for.** An `Automatic` exit tracking "its host tube" would still have been measured off
+the tube, and still spliced ahead of the old tail. Host RESOLUTION was the defect, not the exit value.
+The row is updated rather than resolved.
+
+**The bound is CLOSED, one percent inside the applier's own refusal point, and that gap is the
+mechanism.** A contraction is an open bound (`exit < fairsTo`) and no `max` on a number field can
+express one: a field maxed at exactly the fairing diameter accepts that value, `NumberField.commit`
+pulls a larger entry to it on blur, and an applier refusing equality drops the part in silence. The
+ceiling also does not reach the field as that number — it goes through a metres→mm or metres→inches
+conversion and a display rounding — so "equal" is not something the two sides can agree on to the
+last bit of a double. `BOATTAIL_MAX_EXIT_FRACTION = 0.99` makes every value the field admits a value
+the applier builds, whatever the rounding did. What it costs is an exit between 99% and 100% of the
+fairing diameter, which is a taper of under one percent and not a tail cone.
+
+**What the pre-push review found in this increment, and both were Sev-1s in the fix itself:**
+
+1. **The bound reached the design wall and not the cone's own popover.** `maskAimedDims` blanks every
+   `designDims` key a derived aim does not name, and `DERIVED_PARTS`' boattail entry still named one
+   key while the field had grown to three. So the popover increment 25 built precisely so the cone
+   could be edited AS a part kept the unbounded field — advertising a ceiling with nothing enforcing
+   it, beside a bounded copy of itself. `DERIVED_PARTS`' own docblock predicted this: *"A derived part
+   whose bounds ever depend on caliber has to name it here."* Driven red by reverting the entry:
+   `max=""`.
+2. **The ceiling MOVES, and nothing re-applied it.** Type a legal exit, then halve the caliber, and a
+   value the field accepted is outside a bound nothing re-checks. The applier dropped the part there —
+   the silent no-op again, reached by two fields instead of one. It clamps now, and the field reads
+   its own value back through the same ceiling, so the box and the rocket cannot disagree about what
+   is on the tail.
+
+Four more from the same review: the hint suppressed `NumberField`'s own range sentence and then never
+stated the ceiling; the separation clause above; `isBoattailHost`/`aftDiameterOf` were second
+spellings of `isBody`/`aftOuterRadius`, both already imported into that file and already serving
+`canAnchorAfter`; and the corpus case re-implemented the display rounding it was meant to exercise,
+so it proved two copies agreed rather than that the ceiling is reachable — the conversion moved to
+`lib/display.ts` as `spanCeiling`/`spanToMetres` and both the field and the check read it.
+
+***Pinned by*** `lib/corpus/sweep.test.ts`'s *"puts a boattail on every real design's actual tail, and
+builds every exit the field would offer"* — 35 designs, 8 of them transition-tailed, **210 advertised
+ceilings driven in both unit systems, 0 stepping out behind the cone**, each built cone asserted to
+fly at the exit that was typed; `lib/model/edit.test.ts`'s apogee case on the shipped fixture; and
+three `e2e/smoke.spec.ts` cases covering the wall, the popover and the staged hint.
+
 **Increment 26 — a fin set's root stays on the airframe, and the group is what moves, 2026-08-18.
 SEV-1.** The Fin position field shipped with `min={0} positive` and no `max`, on the one field a
 flyer sizes fins against. Typing 1030 mm on the bundled 950 mm `demo-single-deploy` put the whole set
@@ -7711,9 +7795,10 @@ is named in `DESIGN.md` §9 as a deliberate exception **with its reason**; and �
 COUNTS the survivors by discovering the controls rather than listing them, so a control added later
 that forgets fails the gate.
 
-**Size.** 5 increments, smallest first, each independently shippable and each landing its own
+**Size.** 6 increments, smallest first, each independently shippable and each landing its own
 assertion. *(4 as decomposed; increment 1 refused the three `open` flags on measurement and increment
-4 is what the real half of them turned out to be — see the increment 1 record above.)*
+4 is what the real half of them turned out to be; increment 6 is the half of increment 2 that turned
+out to be a sweep of the e2e suite rather than a hook swap.)*
 
 1. **The seventh control, and the magnification one route away.** ***SHIPPED 2026-08-19*** — see the
    increment 1 record above. `components/MonteCarlo.tsx`'s waiver ceiling and
@@ -7728,13 +7813,48 @@ assertion. *(4 as decomposed; increment 1 refused the three `open` flags on meas
    `MonteCarlo.tsx`'s auto-open comment records having already been paid for — or renders a state
    indistinguishable from closed. The real half of "their open panels" is bringing back the RESULT,
    which increment 4 below now carries.*
-2. **Every table's sort survives, and the parts list stays open.** All 7 `<DataTable` call sites
-   through the controlled `sort`/`onSortChange` pair into `usePersistedChoice`, keyed per surface, each
-   with its own `allowed` guard. ***Done when*** `onSortChange` call sites go **2 → 7**, a vitest case
-   fails if a `<DataTable` host holds its sort in a bare `useState`, and an e2e sorts the parts table,
-   reloads, and finds the same first row. **The `allowed` guard is load-bearing and has a scar**:
-   `components/MotorSweep.tsx:369-375` discards a remembered sort naming a column that no longer sorts,
-   because `col.sortValue!(a)` on a column without one scrambles the whole array.
+2. **Every table's sort survives.** ***SHIPPED 2026-08-20*** — `onSortChange` call sites **2 → 7**,
+   pinned by `lib/table-surfaces.test.ts` (which DISCOVERS the hosts rather than listing them),
+   `lib/table-sort.test.ts`, `lib/session.test.ts`'s five `readPersistedChoice` cases, and
+   `e2e/smoke.spec.ts`'s *"every table's sort survives a reload, not just the one that had it"*.
+   **MET.**
+
+   *As written this was "…and the parts list stays open", and that half was withdrawn on measurement
+   rather than on schedule.* **Eleven e2e cases across three files open that disclosure by clicking
+   it** — `smoke.spec.ts:76, 1929, 2489, 2514, 2960`, `touch.spec.ts:273, 577, 900, 1452`,
+   `contrast.spec.ts:254` — so persisting `partsOpen` turns every one of them into a close on any
+   second visit inside one context. That is its own slice with its own sweep of the suite, not a flag
+   flip, and it is increment 6 below. The *done when* above never named it; the title did.
+
+   **The mechanism moved into the primitive rather than being copied six more times, and the reason
+   is the scar this entry already carried.** `components/MotorSweep.tsx` was the only table in the app
+   that remembered, it spelled the four rules out inline, and it got one of them wrong — its allowlist
+   was derived from every column, so it admitted `use:asc`, whose column has no `sortValue`, and a
+   stored value of that shape reached `col.sortValue!(a)` behind a non-null assertion and took the
+   workspace down on render. One correct hand-written copy out of one is not a rate to build six more
+   on. `usePersistedSort` in `components/DataTable.tsx` is the four rules once — one stored value for
+   key and direction, an allowlist derived from `columns.filter(c => c.sortValue)`, a third state for
+   the caller's own order, and a storage key that varies when the admissible column set does (the
+   catalogue picker's columns depend on the kind of part being picked). **And the controlled pair is
+   now REQUIRED on the primitive**, so the half-conversion this increment could most easily have
+   shipped — passing `onSortChange` and forgetting `sort`, after which the header moves nothing in
+   silence — is a compile error instead of a defect.
+
+   **Two things came out of the conversion that were not its subject, and the first is the larger.**
+   The parts table **could not reverse, on any column**: `GeometryInspector` mapped "clicked the
+   active column" straight to design order and discarded the direction `DataTable.click` had already
+   computed. Mass opened heaviest-first and had no lightest-first; Component opened A→Z and had no
+   Z→A — five sortable columns, ten orders, **four of them reachable** — while `DataTable`'s own
+   docblock described a three-state cycle that existed nowhere in the code. The cycle is the
+   primitive's now (first direction → the other → the caller's order), which fixes the table and makes
+   the docblock true in the same change. And a hand-written `PartSort` union, a `switch` re-deriving
+   each column's ordering value, and an unsound `as PartSort` cast are gone: all three duplicated what
+   `PART_COLUMNS` declares, and the duplicate is what had fixed each column to one direction.
+
+   `aria-sort` is now gated on the column having a comparator in BOTH arms. A stored key naming a
+   column that cannot sort would otherwise announce "sorted by Δ, descending" over rows the body left
+   in the caller's order, on a header with no button to clear it — three of the four columns in
+   `components/RocketpyCrossCheck.tsx` are exactly that shape.
 3. **The catalogue remembers, which closes `COMPETITION.md` row 36's forgetting half.** `text`,
    `maker` and `fitsOnly` persisted; `open` deliberately NOT, because auto-open is the half row 36
    itself calls *"a product decision and not obviously theirs to win"* — and saying so in the row is
@@ -7759,6 +7879,14 @@ assertion. *(4 as decomposed; increment 1 refused the three `open` flags on meas
    (P16's lesson) and written to discover rather than to list (P14's). ***Done when*** §9 carries a
    target in the same form as the hover block's — `0 controls that forget, and >= N controls SEEN` —
    and reverting any one site from increments 1–3 turns it red.
+
+6. **The parts list stays open** — withdrawn from increment 2 on measurement, and it is a sweep of
+   the e2e suite rather than a flag flip. Eleven cases across three files OPEN that disclosure by
+   clicking it, so a persisted `partsOpen` closes it under them on any second visit within one
+   context. ***Done when*** `partsOpen` rides `usePersistedChoice` with a two-entry allowlist, every
+   one of the eleven call sites is converted to a state-independent open (assert-then-click, or a
+   helper that opens only when closed), and an e2e opens the list, reloads, and finds it open. **Read
+   the increment 2 record above for the list of eleven before scoping this.**
 
 **Deliberately NOT in the four.** The unit system is a SCOPE change, not a hook swap:
 `components/LoftApp.tsx:443` holds it in `useState` and `units` is a field of `SavedSession`, so it is

@@ -2209,7 +2209,8 @@ export function primaryFinish(rocket: Rocket): SurfaceFinish {
   return "unfinished";
 }
 
-/** The airframe's aft-most top-level body tube — the one a tail cone belongs behind.
+/** The airframe's aft-most top-level part that ends in a body cross-section — the part a tail cone
+ *  belongs behind, and the part its exit has to fair to.
  *
  *  Deliberately neither the longest tube nor the picked one. Not the picked one because a boattail
  *  CONTRACTS the base, so putting one behind whatever tube a flyer happened to be reading inserts a
@@ -2220,58 +2221,149 @@ export function primaryFinish(rocket: Rocket): SurfaceFinish {
  *  forward tube and taking it to 700 mm put the boattail at station 889 mm, contracting 54 mm to 40 mm
  *  and re-expanding through the transition behind it, instead of at 1,121 mm on the tail.
  *
- *  Top-level only, because that is the list the insert can splice into; a nested tube has no
+ *  **And not the aft-most TUBE either, which is what it resolved until now — that is the same defect
+ *  in its third form, and the corpus is what found it.** A design whose tail is already a transition
+ *  had the new cone spliced BETWEEN the tube and that transition, because the tube was what this
+ *  matched: `demo-boattail.ork` (a shipped sample) went 38.0 mm of body → a 40 mm cone contracting to
+ *  26.6 mm → **a step back out to 38.0 mm** → the file's own cone closing at 32.0 mm. A boattail whose
+ *  base-drag benefit is undone by an 11.4 mm expansion 40 mm behind it, and the drag model flies every
+ *  millimetre of it. **8 of the 35 corpus designs end in a transition** rather than a tube — across
+ *  OpenRocket, RASAero and RockSim files alike — and on `Show-off.CDX1` the gap is 69.3 mm of tube
+ *  against a real tail of 6.3 mm, so the cone was advertised as fairing to eleven times the diameter
+ *  it would actually meet. Matching the aft-most *body* part instead removes the splice by
+ *  construction: there is nothing behind it to step back out to.
+ *
+ *  A nose cone counts, because a design can be a single cone on nothing and its base is still a base.
+ *  Fins, launch lugs and mass objects do not: they are attached to the airframe rather than part of
+ *  its mould line, and the aft end of a fin is not a diameter anything can fair to.
+ *
+ *  Top-level only, because that is the list the insert can splice into; a nested part has no
  *  unambiguous aft slot and the caller skips the boattail rather than placing it wrongly. */
-export function aftmostBodyTube(rocket: Rocket): BodyTube | undefined {
+export function boattailHost(rocket: Rocket): RocketComponent | undefined {
   const topLevel = new Set(rocket.stages.flatMap((s) => s.components.map((c) => c.id)));
-  const tubes = flattenRocket(rocket).filter(
-    (p) => p.component.kind === "bodytube" && topLevel.has(p.component.id),
-  );
-  if (!tubes.length) return undefined;
-  return tubes.reduce((a, b) => (b.xFore + b.length > a.xFore + a.length ? b : a)).component as BodyTube;
+  // `isBody` and `aftOuterRadius`, both from `./geometry` and both already the answer to this exact
+  // question — "is this part of the mould line" and "what does it present at its aft end". A first
+  // version of this spelled both again here, three lines each, and `canAnchorAfter` was already the
+  // third caller of the pair. A rule in three places is how a gap survives in two of them, which is
+  // the sentence `addOptionsFor` in this file was written under.
+  const body = flattenRocket(rocket).filter((p) => isBody(p.component) && topLevel.has(p.component.id));
+  if (!body.length) return undefined;
+  return body.reduce((a, b) => (b.xFore + b.length > a.xFore + a.length ? b : a)).component;
 }
 
-/** The caliber a boattail would fair to — the aft-most top-level tube's outer diameter (m). The field
- *  that bounds the cone's exit has to quote THIS, not the picked tube's: the exit is validated against
- *  the tube the cone attaches to, and a placeholder naming a different component promises a bound the
- *  validator does not use, so a value inside the advertised range is silently ignored. Undefined for a
- *  design with no top-level body tube, which is also the case where no boattail can be added. */
-export function aftmostBodyDiameter(rocket: Rocket): number | undefined {
-  const tube = aftmostBodyTube(rocket);
-  return tube ? tube.outerRadius * 2 : undefined;
+/** The caliber a boattail would fair to — the aft-most top-level body part's aft diameter (m).
+ *
+ *  The field that bounds the cone's exit has to quote THIS: the exit is validated against the part
+ *  the cone attaches to, and a placeholder naming a different component promises a bound the
+ *  validator does not use, so a value inside the advertised range is silently ignored. Undefined for
+ *  a design with no top-level body part, which is also the case where no boattail can be added.
+ *
+ *  **Measured on the tree that is FLOWN, never on the pristine one.** A caliber what-if scales the
+ *  whole outer mould line, so the diameter this answers moves with it — see `boattailExitMax`, which
+ *  is what a caller outside the applier should ask. */
+export function boattailFairsToDiameter(rocket: Rocket): number | undefined {
+  const host = boattailHost(rocket);
+  const r = host && aftOuterRadius(host);
+  return r === undefined ? undefined : r * 2;
 }
 
-/** Append a conical boattail after the airframe's aft-most body tube. Sized from the *edited* tube, so
+/** How much of the part it fairs to a boattail's exit may keep. The one ceiling, advertised by the
+ *  field and applied by `addBoattail`.
+ *
+ *  **The exact fraction is a choice; holding it in ONE place is not** — the same sentence
+ *  `INTERNAL_MAX_BORE_FRACTION` carries, and for the same reason.
+ *
+ *  **Why a closed bound just inside 1.0 rather than "must contract".** A boattail that does not
+ *  contract is not one, which is an OPEN bound — and no `max` on a number field can express one: a
+ *  field maxed at exactly the fairing diameter accepts that value, `NumberField.commit` pulls a
+ *  larger entry to it on blur, and an applier refusing equality then drops the whole part in silence.
+ *  The ceiling does not even arrive at the field as this number: it goes out through a metres→mm or
+ *  metres→inches conversion and a display rounding, so "equal" is not something the two sides can
+ *  agree on to the last bit of a double. A closed ceiling a percent inside makes every value the
+ *  field admits a value the applier builds, whatever the rounding did.
+ *
+ *  What it costs: an exit between 99% and 100% of what the cone fairs to cannot be reached. That is a
+ *  taper of under one percent over the cone's whole length, which is not a tail cone. */
+export const BOATTAIL_MAX_EXIT_FRACTION = 0.99;
+
+/** The widest exit (m) a boattail may have on this tree — the bound the field advertises and the
+ *  applier enforces, read from the same function so the two cannot disagree.
+ *
+ *  **This is the third place in this file where a bound quoted from one place and applied from
+ *  another turned out to be a promise the validator never made**, and the second time on this exact
+ *  field. The first was the picked tube's caliber against the aft-most tube's. This one is the
+ *  PRISTINE tree against the flown one: `components/LoftApp.tsx` read the fairing diameter off the
+ *  design plus its structure edits, while the applier reads it after `scaleAirframeRadii`. Measured
+ *  on `demo-single-deploy.ork` at a caliber what-if of ×0.5: the field went on advertising
+ *  "< 38.0 mm" while the flown tube was ⌀19.0 mm, so a typed 34.2 mm — comfortably inside the stated
+ *  range — built nothing, said nothing, and left the field showing 34.2 against a flight with no
+ *  boattail in it at all.
+ *
+ *  **Takes the BASE tree, not the design and its edits**, because there is exactly one tree this is
+ *  a true statement about and naming it in the signature is what stops a caller reaching for the
+ *  wrong one. Outside the applier, `boattailBase` below is how you get it; inside, it is the value
+ *  `applyGeometryEdits` is already holding when it calls `addBoattail`.
+ *
+ *  A caller converting this into display units must round it DOWN — see the fraction above. */
+export function boattailExitMax(base: Rocket): number | undefined {
+  const fairsTo = boattailFairsToDiameter(base);
+  return fairsTo === undefined ? undefined : fairsTo * BOATTAIL_MAX_EXIT_FRACTION;
+}
+
+/** The tree a boattail's own bound is measured on: everything the flyer has edited, **without** the
+ *  boattail itself.
+ *
+ *  Asking the fully-flown tree would be circular — the aft-most body part of a tree that already has
+ *  a boattail on it IS the boattail, so the cone would end up fairing to its own exit and every
+ *  keystroke would move the bound under the flyer. This is the exact tree the applier holds at the
+ *  moment it calls `addBoattail`, which is what makes the field's bound and the applier's the same
+ *  measurement rather than two that happen to agree. */
+export function boattailBase(rocket: Rocket, edits: GeometryEdits): Rocket {
+  return applyGeometryEdits(rocket, { ...edits, boattailLength: undefined, boattailAftDiameter: undefined });
+}
+
+/** Append a conical boattail after the airframe's aft-most body part. Sized from the *edited* tree, so
  *  it fairs to whatever diameter the other what-ifs left (e.g. after a caliber change), and its exit
- *  is clamped just inside the body so it can only contract, never flare. Skips silently when there's
- *  no top-level body tube to attach to, or the requested exit isn't a valid contraction — the caller
- *  keeps the un-boattailed design rather than a malformed one. */
+ *  is bounded by `boattailExitMax` so it can only contract, never flare or sit flush. Skips silently
+ *  when there's no top-level body part to attach to, or the requested exit isn't a valid contraction —
+ *  the caller keeps the un-boattailed design rather than a malformed one. */
 function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket {
-  const tube = aftmostBodyTube(rocket);
-  if (!tube || !(length > 0) || !(aftRadius > 0) || !(aftRadius < tube.outerRadius)) return rocket;
+  const host = boattailHost(rocket);
+  const max = boattailExitMax(rocket);
+  const foreRadius = host && aftOuterRadius(host);
+  if (!host || max === undefined || foreRadius === undefined) return rocket;
+  if (!(length > 0) || !(aftRadius > 0)) return rocket;
+  // **Too wide is CLAMPED, not dropped, and that is the whole difference between this and the defect
+  // it replaced.** `boattailExitMax` is what the field advertises and `NumberField` holds a live
+  // entry to it — but the ceiling MOVES: type a legal exit, then halve the caliber, and a value the
+  // field accepted an hour ago is outside a bound nothing re-applied. Dropping the part there is the
+  // silent no-op all over again, reached by two fields instead of one. Building the widest legal cone
+  // means the flight always contains the part the panel says it does; the field shows the same
+  // clamped figure, because `components/LoftApp.tsx` reads its value through this same ceiling.
+  aftRadius = Math.min(aftRadius, max / 2);
   const boattail: Transition = {
     // `derivedPartId` rather than the spelling inline: the same rule was written out at all three
     // synthesis sites, and a property surface that has to ADDRESS one of these parts is a fourth
     // caller. Its docblock carries why the id is UUID-shaped and why it is derived from the host.
-    id: derivedPartId(tube.id, "boattail"),
+    id: derivedPartId(host.id, "boattail"),
     name: "Boattail",
     kind: "transition",
     placement: { method: "after", offset: 0 },
     length,
-    foreRadius: tube.outerRadius,
+    foreRadius,
     aftRadius,
-    thickness: tube.thickness,
+    thickness: "thickness" in host ? host.thickness : undefined,
     shape: "conical",
-    material: tube.material,
-    finish: tube.finish,
+    material: host.material,
+    finish: host.finish,
     children: [],
   };
-  // Insert immediately after the primary tube in whichever stage's top-level list holds it, so the
-  // boattail stacks onto the aft of the airframe. A nested body tube (unusual) has no obvious aft
+  // Insert immediately after the host part in whichever stage's top-level list holds it, so the
+  // boattail stacks onto the aft of the airframe. A nested body part (unusual) has no obvious aft
   // slot, so the boattail is skipped there rather than placed ambiguously.
   let inserted = false;
   const stages = rocket.stages.map((s) => {
-    const idx = s.components.findIndex((c) => c.id === tube.id);
+    const idx = s.components.findIndex((c) => c.id === host.id);
     if (idx === -1) return s;
     inserted = true;
     return { ...s, components: [...s.components.slice(0, idx + 1), boattail, ...s.components.slice(idx + 1)] };
@@ -3689,7 +3781,13 @@ export const DERIVED_PARTS = [
     aim: "boattail",
     name: "Boattail",
     fields: ["boattailLength", "boattailAftDiameter"],
-    dims: ["boattailFairsTo"],
+    // **All three keys, and the two that were missing were a Sev-1 on this very panel.**
+    // `maskAimedDims` blanks every `designDims` key a derived aim does not name, so an exit field
+    // that reads its ceiling from `boattailExitMax` and its guidance from `boattailFairsToPart` got
+    // neither inside the boattail's own popover — the surface increment 25 built precisely so the
+    // cone could be edited AS a part. Unbounded there, bounded on the wall below it: the same field,
+    // two different promises, and the popover is the one a flyer reaches by clicking the cone.
+    dims: ["boattailFairsTo", "boattailExitMax", "boattailFairsToPart"],
   },
   {
     suffix: "drogue",
@@ -4581,13 +4679,13 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   //    part a flyer is most likely to want back is the one they cannot take out.
   //  - adds before the dimension edits, so `bodyTubeId` can aim at an authored tube and `bodyLength`
   //    edits it — the whole point of authoring being an edit of the same model, not a second mechanism.
-  //    It also means `aftmostBodyTube`, which anchors a boattail, sees a tube that was added behind it.
+  //    It also means `boattailHost`, which anchors a boattail, sees a part that was added behind it.
   //  - STAGES before everything, because a stage is the level above a component: an authored part has
   //    to be able to anchor onto the booster's seed tube, a removal has to be able to reach into it, and
   //    a reorder has to see it in the stack. Applied last, none of those could address it at all.
   //  - moves AFTER removals, so an entry naming a part or an anchor that has been deleted simply drops
   //    instead of resolving against a tree that still has it; and BEFORE the dimension edits, so
-  //    `aftmostBodyTube`, `nextTopLevel` and `transitionDefaults` all see the order the flyer built
+  //    `boattailHost`, `nextTopLevel` and `transitionDefaults` all see the order the flyer built
   //    rather than the order the file arrived in.
   //  - MOUNT-ADDS twice, and both positions are load-bearing. Before the stages, so a booster can be
   //    authored on a design whose aft tube had no mount to clone — the 2 real designs this operation

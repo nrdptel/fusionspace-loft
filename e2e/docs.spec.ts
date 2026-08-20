@@ -41,21 +41,6 @@ test.describe("Docs", () => {
     // gets asked. Each page must come back as ITSELF offline — a shell fallback that answers
     // every /docs/* URL with the landing page is worse than a plain error, because it reads
     // as though the limitations log simply has nothing to say.
-    await page.goto("/", { waitUntil: "networkidle" });
-    await page.waitForFunction(
-      async () => {
-        if (!navigator.serviceWorker?.controller) return false;
-        for (const u of ["/", "/docs", "/docs/methods", "/docs/limitations", "/docs/validation", "/docs/faq"]) {
-          if (!(await caches.match(u))) return false;
-        }
-        return true;
-      },
-      null,
-      { timeout: 20000 },
-    );
-
-    await context.setOffline(true);
-
     // A phrase that appears on that page and nowhere else in the docs.
     const pages: [string, RegExp][] = [
       ["/docs", /The three pages that matter/],
@@ -65,6 +50,28 @@ test.describe("Docs", () => {
       ["/docs/faq", /^FAQ$/],
       ["/docs/changelog", /^Changelog$/],
     ];
+
+    await page.goto("/", { waitUntil: "networkidle" });
+    // **The wait is derived from the list this test WALKS, and it used not to be.** A hand-written
+    // copy named six URLs while the loop below visits seven: `/docs/changelog` was never waited for,
+    // so with the network gone before the precache reached it the navigation died with
+    // `net::ERR_INTERNET_DISCONNECTED` and the case read as a broken offline promise. It failed under
+    // in-shard parallelism and passed 8 of 8 alone, which is the signature of a race and not of a
+    // defect in the app. Read the key space out of the declaration, never copy it.
+    const needed = ["/", ...pages.map(([path]) => path)];
+    await page.waitForFunction(
+      async (urls) => {
+        if (!navigator.serviceWorker?.controller) return false;
+        for (const u of urls) {
+          if (!(await caches.match(u))) return false;
+        }
+        return true;
+      },
+      needed,
+      { timeout: 20000 },
+    );
+
+    await context.setOffline(true);
     for (const [path, mark] of pages) {
       await page.goto(path, { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: mark }).first(), `${path} offline`).toBeVisible();

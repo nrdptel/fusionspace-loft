@@ -40,8 +40,8 @@ export default function Faq() {
           the airframe: moving them aft moves the centre of pressure aft and stiffens the static margin,
           the classic trim complement to nose ballast (which shifts the centre of gravity forward). You
           can also <em>add</em> a boattail (a tail cone: set a length and an exit diameter narrower
-          than the body) to cut the base drag, the single largest drag source on a blunt-based
-          rocket, add a <em>payload / av-bay mass</em> — the electronics, tracker, or nose weight a
+          than whatever the tail presents — the field states that limit) to cut the base drag, the
+          single largest drag source on a blunt-based rocket, add a <em>payload / av-bay mass</em> — the electronics, tracker, or nose weight a
           real rocket carries — at a station of your choice (leave the position blank and it sits
           mid-body), which adds to the loaded mass and moves the CG toward it, or switch to{" "}
           <em>dual-deploy</em> recovery (set a main-deploy altitude and a drogue

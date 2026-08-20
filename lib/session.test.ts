@@ -29,6 +29,7 @@ import {
   saveDispersion,
   clearDispersion,
   readPersistedNumber,
+  readPersistedChoice,
 } from "./session";
 
 /** A minimal localStorage stand-in — the tests run in Node, and the point is the module's own
@@ -968,5 +969,47 @@ describe("a remembered number, and what storage is not allowed to hand back", ()
       diagram,
       "the diagram's zoom must pass a ZOOM_STEPS membership guard, not a bare default",
     ).toMatch(/usePersistedNumber\(\s*"diagram\.zoom"\s*,\s*1\s*,\s*\([a-z]+\)\s*=>\s*ZOOM_STEPS\.includes\([a-z]+\)\s*\)/);
+  });
+});
+
+describe("a remembered CHOICE, and the allowlist that is the whole safety of it", () => {
+  // **The read is exported for the reason the number's is**, and it became load-bearing when six
+  // tables took this hook at once: the unit environment is `node` with no renderer, so a hook's body
+  // is reachable only through an e2e — and an e2e proves a value came back, never what happens to the
+  // values that must not. `allowed` is what stands between a stored key and `col.sortValue!(a)`.
+  const CHOICES = ["none", "mass:asc", "mass:desc"] as const;
+
+  it("hands back a stored choice the caller admits", () => {
+    localStorage.setItem("loft.pref.parts.sort", "mass:desc");
+    expect(readPersistedChoice("parts.sort", "none", CHOICES)).toBe("mass:desc");
+  });
+
+  it("falls back to the default rather than to a key the caller refuses", () => {
+    // The exact shape that took a workspace down on render: a column that exists but cannot sort.
+    localStorage.setItem("loft.pref.parts.sort", "dims:asc");
+    expect(readPersistedChoice("parts.sort", "none", CHOICES)).toBe("none");
+  });
+
+  it("refuses a key from an older build whose column is gone entirely", () => {
+    localStorage.setItem("loft.pref.parts.sort", "retired:desc");
+    expect(readPersistedChoice("parts.sort", "none", CHOICES)).toBe("none");
+  });
+
+  it("treats an unset key as the default without consulting the allowlist", () => {
+    localStorage.removeItem("loft.pref.parts.sort");
+    expect(readPersistedChoice("parts.sort", "none", CHOICES)).toBe("none");
+  });
+
+  it("keeps the default when storage itself refuses to answer", () => {
+    // A private-mode browser or a blocked origin throws on `getItem`. A view preference is never
+    // worth a workspace that will not render.
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("storage disabled");
+      },
+      setItem: () => {},
+      removeItem: () => {},
+    });
+    expect(readPersistedChoice("parts.sort", "none", CHOICES)).toBe("none");
   });
 });

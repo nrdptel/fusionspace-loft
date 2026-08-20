@@ -91,7 +91,15 @@ test.describe("Loft", () => {
     const heaviest = await massOf(0);
     expect(heaviest).toBeGreaterThan(0);
     expect(heaviest).toBeGreaterThanOrEqual(await massOf(1));
-    // Clicking the active heading returns to the design's own nose-to-tail order.
+    // **Three states, and the middle one did not exist.** The host mapped "clicked the active
+    // column" straight to design order and threw away the direction the primitive had already
+    // computed, so Mass opened heaviest-first and had no lightest-first — five sortable columns, ten
+    // orders, four of them reachable. The second click now reverses…
+    await table.getByRole("button", { name: /Mass/ }).click();
+    const lightest = await massOf(0);
+    expect(lightest, "the second click on the active column must reverse it").toBeLessThan(heaviest);
+    expect(lightest).toBeLessThanOrEqual(await massOf(1));
+    // …and the third returns to the design's own nose-to-tail order.
     await table.getByRole("button", { name: /Mass/ }).click();
     await expect(table.locator("tbody tr").first()).toContainText("Nose cone");
 
@@ -2017,6 +2025,53 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Sweep" }).click();
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
     await expect(panel.getByLabel(/Motor impulse/i)).toHaveValue("8");
+  });
+
+  test("every table's sort survives a reload, not just the one that had it", async ({ page }) => {
+    // **P19 increment 2.** One of seven tables remembered its sort; the other six snapped back to the
+    // default on every reload, on a product whose own stated scenario is a no-signal pad check where
+    // reloading is what a phone does to you. This drives the two ends of the range — the parts table,
+    // which a design is read on, and the mass breakdown, which is the panel a flyer opens to decide
+    // where the weight is — because they take the hook by two different routes: one from a module
+    // constant built out of its own column builder, one from an array declared in the component body.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    // Both tables live on the Design workspace.
+    await page.getByRole("link", { name: "Design" }).click();
+
+    // The mass breakdown opens heaviest-first; reversing it is a state only the new second click can
+    // reach at all — the host used to map that click to "back to the caller's order".
+    const massSummary = page.locator("summary", { hasText: "Mass & balance" });
+    await massSummary.click();
+    const massTable = page.locator("table", { has: page.getByRole("button", { name: /^Sort by CG from nose/ }) }).first();
+    const massHeader = massTable.locator("th", { has: page.getByRole("button", { name: /^Sort by Mass$/ }) });
+    await expect(massHeader, "the breakdown opens heaviest-first").toHaveAttribute("aria-sort", "descending");
+    await massTable.getByRole("button", { name: /^Sort by Mass$/ }).click();
+    await expect(massHeader, "the second click reverses rather than clearing").toHaveAttribute("aria-sort", "ascending");
+
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const parts = page.locator("table").first();
+    const firstPart = async () => (await parts.locator("tbody tr").first().innerText()).slice(0, 40);
+    // CONTROL: the design's own order leads with the nose cone, so a sort that did nothing at all
+    // would leave the assertion after the reload passing on the default.
+    await expect(parts.locator("tbody tr").first()).toContainText("Nose cone");
+    await parts.getByRole("button", { name: /^Sort by Component/ }).click();
+    const sortedFirst = await firstPart();
+    expect(sortedFirst).not.toContain("Nose cone");
+
+    await page.reload();
+    await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    await expect
+      .poll(firstPart, { message: "the parts table forgot its sort" })
+      .toBe(sortedFirst);
+
+    await massSummary.click();
+    await expect(massHeader, "the mass breakdown forgot its sort").toHaveAttribute("aria-sort", "ascending");
   });
 
   test("the sweep's axis and the motor table's sort survive a reload", async ({ page }) => {
@@ -4733,6 +4788,90 @@ test.describe("Loft", () => {
 
     // A fatter airframe has a bigger frontal area (more drag) and more tube material, so it flies lower.
     await expect.poll(apogee).toBeLessThan(before);
+  });
+
+  test("the boattail fairs to the tail it is on, and its ceiling follows the airframe being flown", async ({ page }) => {
+    // **Two Sev-1s, and only an e2e can pin the wiring half.** `lib/model/edit.test.ts` proves the
+    // model resolves the aft-most BODY part and bounds the exit against the FLOWN tree; what it cannot
+    // see is which tree `components/LoftApp.tsx` hands the bound to the field. That was the whole
+    // defect: the applier measured after `scaleAirframeRadii` and the field measured before, on the
+    // one field in the design panel that carried no `max` at all — so a value the placeholder called
+    // legal was taken, displayed, and dropped without a word.
+    await page.goto("/");
+    await page.getByRole("button", { name: /Boattail . elliptical fins/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+
+    const exit = page.getByRole("spinbutton", { name: /Boattail exit/ });
+    await expect(exit).toBeVisible();
+
+    // 1. IT FAIRS TO THE DESIGN'S OWN TAIL CONE, NOT THE TUBE ABOVE IT. This sample closes ⌀38 mm of
+    //    body into a ⌀32 mm tail cone, and 38 is what the field used to promise — so the cone was
+    //    spliced ahead of that tail, the base area it exists to remove stayed, and the apogee moved
+    //    17.72 m the WRONG WAY.
+    // 31.6, not 31: `d.spanCeiling` floors at the precision the field would DISPLAY, and
+    // `fmtEditable` grows a decimal here because whole millimetres would misstate 31.68. A ceiling
+    // rounded down to a whole number would refuse a value the placeholder beside it calls legal.
+    await expect(exit, "the ceiling must be the tail cone's exit, not the body tube's caliber").toHaveAttribute("max", "31.6");
+    await expect(page.getByText(/Fairs to 32 mm — the aft end of Boattail/)).toBeVisible();
+
+    // 2. AND IT MOVES WITH A CALIBER WHAT-IF. Halve the airframe: everything downstream of
+    //    `scaleAirframeRadii` halves with it, and the ceiling the field states has to as well.
+    const bodyDia = page.getByRole("spinbutton", { name: /Body diameter/ });
+    const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
+    expect(designDia).toBeCloseTo(38, 0);
+    await bodyDia.fill("19");
+    await expect(exit, "the ceiling did not follow the airframe being flown").toHaveAttribute("max", "15.84");
+
+    // 3. AND A VALUE OUTSIDE IT CANNOT SIT THERE LOOKING ACCEPTED. 25 mm is inside what the field
+    //    promised before the caliber edit and outside what the applier will build after it — the exact
+    //    window the defect lived in. `NumberField` pulls it to the bound on blur.
+    await exit.fill("25");
+    await exit.blur();
+    await expect(exit, "an out-of-range exit must be pulled to the stated ceiling, not kept").toHaveValue("15.84");
+
+    // …and the cone the field now describes is really in the flight. Both fields make it, so the
+    // length goes in here rather than at the top: the whole point of the assertions above is that they
+    // are true of a bound the flyer reads BEFORE anything is built.
+    await page.getByRole("spinbutton", { name: /Boattail length/ }).fill("40");
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const table = page.locator("table", { has: page.getByText("Station") });
+    const cones = table.locator("tr").filter({ has: page.locator('[data-kind="transition"]') });
+    await expect(cones, "the design's own tail cone plus the one these fields made").toHaveCount(2);
+
+    // **4. AND THE SAME BOUND INSIDE THE CONE'S OWN POPOVER.** `maskAimedDims` blanks every
+    // `designDims` key a derived aim does not name, so a ceiling and a hint added to the wall below
+    // reach the popover only if `DERIVED_PARTS`' boattail entry names them. It did not: the surface
+    // increment 25 built precisely so the cone could be edited AS a part had the unbounded field,
+    // with the bounded one five hundred pixels away on the same screen.
+    await cones.last().click();
+    await page.getByRole("button", { name: "Properties", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByLabel(/Boattail exit/)).toBeVisible();
+    await expect(
+      dialog.getByRole("spinbutton", { name: /Boattail exit/ }),
+      "the popover's own copy of the field must carry the same ceiling",
+    ).toHaveAttribute("max", "15.84");
+    await expect(dialog.getByText(/Fairs to 16 mm/)).toBeVisible();
+  });
+
+  test("on a staged design the boattail's hint names the stage, and claims nothing about when it goes", async ({ page }) => {
+    // Stages stack nose→tail, so the aft end of the STACK is on the booster and a cone built there
+    // leaves with it. A first draft of this hint said "which separates before apogee" — and
+    // `demo-payload-separation.ork` is a one-click sample whose booster parts on an ejection charge
+    // AFTER apogee, which `lib/sim/flight.test.ts` pins outright. A hint that states a fact the
+    // solver contradicts is worse than one that states less, and five corpus designs carry the same
+    // ejection separation.
+    await page.goto("/");
+    await page.getByRole("button", { name: /Payload separation/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await expect(page.getByRole("spinbutton", { name: /Boattail exit/ })).toBeVisible();
+    await expect(
+      page.getByText(/the aft end of .*, so it leaves with that stage\./),
+      "a staged design must name the stage the cone is built on",
+    ).toBeVisible();
+    await expect(page.getByText(/separates before apogee/), "and must not claim when it goes").toHaveCount(0);
   });
 
   test("an airframe typed narrower than its own motor is refused, not flown", async ({ page }) => {

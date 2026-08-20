@@ -1153,12 +1153,23 @@ test.describe("phone layout", () => {
     // All SIX routes, including `/docs/changelog`, which the case above does not visit. Both
     // dimensions, per this milestone. Counted as well as measured, so a nav that rendered no chips
     // cannot pass by being empty — the failure mode the case above guards with its `toBe(5)`.
+    // **The one route with no contents nav is NAMED, and it used to be inferred.** The loop skipped
+    // any route whose nav it could not find, which is right for `/docs/changelog` — short enough not
+    // to need one — and indistinguishable from a route whose nav had simply not rendered yet. Under
+    // shard pressure that turned a missing render into a subtraction: measured on the built export
+    // the six routes carry 4 + 14 + 9 + 3 + 27 + 0 = 57 chips against a floor of 40, so losing the
+    // FAQ's 27 alone takes the case red while reading as a page that legitimately has none.
+    const NO_CONTENTS_NAV = "/docs/changelog";
     let seen = 0;
-    for (const route of ROUTES.filter((r) => r.startsWith("/docs")).concat("/docs/changelog")) {
+    for (const route of ROUTES.filter((r) => r.startsWith("/docs")).concat(NO_CONTENTS_NAV)) {
       await page.goto(route);
       const nav = page.getByRole("navigation", { name: "Jump to a section of this page" });
-      if ((await nav.count()) === 0) continue; // a page short enough not to need one
+      if (route === NO_CONTENTS_NAV) {
+        await expect(nav, `${route} is the one route with no contents nav`).toHaveCount(0);
+        continue;
+      }
       const links = nav.getByRole("link");
+      await expect(links.first(), `${route}: contents chips`).toBeVisible();
       const n = await links.count();
       expect(n, `${route}: contents chips`).toBeGreaterThan(0);
       for (let i = 0; i < n; i++) {

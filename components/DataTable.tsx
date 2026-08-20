@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { TOUCH_TARGET_SQUARE, cx } from "@/lib/ui-tokens";
-import { compareCells } from "@/lib/table-sort";
+import { compareCells, sortChoices, sortFromChoice, sortToChoice, type TableSort } from "@/lib/table-sort";
 import { withPreamble, type CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { EmptyState } from "./ui";
+import { usePersistedChoice } from "@/lib/session";
 
 /** One column of a `DataTable` — `DESIGN.md` §5, which names this primitive and says "every table is
  *  this one".
@@ -27,7 +28,12 @@ export interface Column<R> {
    *  and wrong for a measurement: someone clicking "Apogee" wants the highest, not the lowest. The
    *  motor sweep had encoded that per column before it took the primitive — biggest first for a
    *  number, A→Z for a name — and a table that opens every column ascending makes a flyer click
-   *  twice to ask the question they meant. */
+   *  twice to ask the question they meant.
+   *
+   *  **It is also where the three-state cycle counts FROM**, so a column a table OPENS on has to
+   *  declare it. `components/MassBreakdown.tsx` opens heaviest-first and had left this at the
+   *  default: the table then sat one step into a cycle whose first step it had never taken, and the
+   *  next click cleared the sort instead of reversing it. */
   sortDir?: 1 | -1;
   cell: (row: R) => React.ReactNode;
   /** Render this column's cell as `<th scope="row">` rather than `<td>` — the column that NAMES the
@@ -53,6 +59,46 @@ export interface Column<R> {
    *  `Loft`, whose VALUE flips with the unit toggle, under one filename, with no unit anywhere in
    *  the file. Defaults to `label`, so a column that needs nothing says nothing. */
   csvLabel?: string;
+}
+
+
+/** A table's sort, remembered per browser and validated against the table's own columns.
+ *
+ *  **Six of the seven tables in this app forgot their sort, and the seventh spelled this out by
+ *  hand.** `MAINTAINING.md` lists "a view or sort order that resets" as a tell; the reason it stayed
+ *  true here is that the correct version has four parts a call site keeps getting wrong — key and
+ *  direction in ONE stored value so the pair cannot come back inconsistent, an allowlist derived from
+ *  the columns that can ACTUALLY sort (a key naming a column with no `sortValue` reached
+ *  `col.sortValue!(a)` and took `components/MotorSweep.tsx` down on render), a third state for the
+ *  caller's own order, and a `key` that changes when the admissible column set does. This is those
+ *  four, once.
+ *
+ *  `columns` is read for its keys, so it may be rebuilt every render; the stored value is read once,
+ *  at mount, and the allowlist with it — which is why a surface whose columns CHANGE (the catalogue
+ *  picker, whose column set depends on the kind of part being picked) must vary `key` alongside them
+ *  rather than relying on the list.
+ *
+ *  **`initialKey` is a KEY and not a `{key, dir}` pair, and that is a guard rather than a
+ *  convenience.** The direction a table opens in is the same fact as the direction its column sorts
+ *  on its first click — `Column.sortDir` — and the three-state cycle counts from that fact. A caller
+ *  allowed to state the pair can state a direction the column does not declare, and
+ *  `components/MassBreakdown.tsx` did: it opened heaviest-first with the column left at the default
+ *  ascending, so the table sat one step into a cycle whose first step it had never taken and the next
+ *  click cleared the sort instead of reversing it. Taking the direction from the column makes the two
+ *  the same number by construction. Omit `initialKey` for a table that opens in the caller's own
+ *  order, which is most of them. */
+export function usePersistedSort<R>(
+  key: string,
+  columns: Column<R>[],
+  initialKey?: string,
+): [TableSort, (next: TableSort) => void] {
+  const initial: TableSort =
+    initialKey === undefined
+      ? null
+      : { key: initialKey, dir: columns.find((c) => c.key === initialKey)?.sortDir ?? 1 };
+  const allowed = sortChoices(columns);
+  const [stored, setStored] = usePersistedChoice(key, sortToChoice(initial), allowed);
+  return [sortFromChoice(stored), (next: TableSort) => setStored(sortToChoice(next))];
 }
 
 /** The one table.
@@ -88,7 +134,6 @@ export default function DataTable<R>({
   /** Minimum table width before the wrapper starts scrolling. `ValidationPanel` is the one table that
    *  needs it: its four columns compress into unreadability before the viewport does. */
   minWidth,
-  initialSort,
   /** Controlled sort. Pass BOTH to hold the sort model outside the table — needed when it must
    *  survive the component (`MotorSweep` persists it per browser, validated against its own column
    *  list) or when the surface computes something from it (that same panel exports its CSV in the
@@ -98,10 +143,13 @@ export default function DataTable<R>({
    *  not a write-and-read-back: the stored value is validated against the current column set so a
    *  remembered sort from an older build is discarded rather than leaving the table sorted on a
    *  column that no longer exists, and key and direction ride in ONE stored string so the pair cannot
-   *  come back inconsistent. A `persistKey` signature holds none of that, and it could not express a
-   *  third state — the parts table's third click returns to the design's own nose-to-tail order,
-   *  which is `null`, not a `{key, dir}`. */
-  sort: controlledSort,
+   *  come back inconsistent. `lib/table-sort.ts` holds that spelling and derives each surface's
+   *  allowlist from the columns that can actually sort; a `persistKey` signature holds none of it.
+   *
+   *  **`null` is the caller's own order and the primitive produces it**, on the third click of one
+   *  column — see `click` below. This used to say the parts table mapped that itself, and the mapping
+   *  it actually had discarded the direction, so that table could not reverse at all. */
+  sort,
   onSortChange,
   /** A totals row, keyed by column. Rendered in a `<tfoot>` — which is what it is, semantically, and
    *  which also keeps it OUT of the sort: a dry total that sorted into the middle of the parts it
@@ -132,9 +180,14 @@ export default function DataTable<R>({
    *  timestamp — the filename carries the first and nobody asked for the second. */
   csvPreamble?: string[];
   minWidth?: string;
-  initialSort?: { key: string; dir: 1 | -1 };
-  sort?: { key: string; dir: 1 | -1 } | null;
-  onSortChange?: (next: { key: string; dir: 1 | -1 } | null) => void;
+  /** **Required, both of them, and that is the guard.** Every table in this app persists its sort
+   *  through `usePersistedSort`, and an optional pair let a call site pass `onSortChange` while
+   *  forgetting `sort` — after which the header still moves nothing, no test fails unless one asserts
+   *  row order, and the table is permanently unsorted in silence. Required, the compiler says so at
+   *  the call site. A table that genuinely wants no memory passes the hook with its own key anyway;
+   *  there is no cheaper correct option to reach for. */
+  sort: { key: string; dir: 1 | -1 } | null;
+  onSortChange: (next: { key: string; dir: 1 | -1 } | null) => void;
   footer?: Record<string, React.ReactNode>;
   /** `DESIGN.md` §5: a surface with no empty state is not finished, and "No data" is forbidden — say
    *  what would fill it. Required rather than optional for exactly that reason. */
@@ -142,10 +195,6 @@ export default function DataTable<R>({
   rowProps?: (row: R, i: number) => React.HTMLAttributes<HTMLTableRowElement> & { className?: string };
   className?: string;
 }) {
-  const [ownSort, setOwnSort] = useState<{ key: string; dir: 1 | -1 } | null>(initialSort ?? null);
-  const controlled = onSortChange !== undefined;
-  const sort = controlled ? controlledSort ?? null : ownSort;
-
   const sorted = useMemo(() => {
     if (!sort) return rows;
     const col = columns.find((c) => c.key === sort.key);
@@ -181,14 +230,31 @@ export default function DataTable<R>({
     return <EmptyState what={empty} className={className} />;
   }
 
+  /** The three-state cycle: the column's own first direction, then the other one, then back to the
+   *  order the CALLER handed in.
+   *
+   *  **The third state lived in one host and was documented here as though it lived in the
+   *  primitive**, and the two descriptions did not match. `components/GeometryInspector.tsx` mapped
+   *  "clicked the active column" straight to design order, throwing away the flipped direction this
+   *  function had already computed — so the parts table never reversed at all. Mass opened
+   *  heaviest-first and had no lightest-first; Component opened A→Z and had no Z→A. Five sortable
+   *  columns, ten orders, four of them reachable.
+   *
+   *  It belongs here because every one of the seven tables has a caller order worth returning to —
+   *  the design's nose-to-tail order, the flight's own phase order, the registry's, the catalogue's —
+   *  and because a host that has to write the mapping itself is a host that can write it wrongly.
+   *  A caller that does not want the third state does not have to do anything: two clicks reach both
+   *  directions and the third is a deliberate act. */
   const click = (key: string) => {
     const col = columns.find((c) => c.key === key);
-    const next: { key: string; dir: 1 | -1 } =
-      sort?.key === key
-        ? { key, dir: (sort.dir === 1 ? -1 : 1) as 1 | -1 }
-        : { key, dir: col?.sortDir ?? 1 };
-    if (controlled) onSortChange!(next);
-    else setOwnSort(next);
+    const first = col?.sortDir ?? 1;
+    const next: { key: string; dir: 1 | -1 } | null =
+      sort?.key !== key
+        ? { key, dir: first }
+        : sort.dir === first
+          ? { key, dir: (first === 1 ? -1 : 1) as 1 | -1 }
+          : null;
+    onSortChange(next);
   };
 
   return (
@@ -212,7 +278,22 @@ export default function DataTable<R>({
                       !last && "pr-4",
                       c.align === "right" && "text-right",
                     )}
-                    aria-sort={active ? (sort!.dir === 1 ? "ascending" : "descending") : c.sortValue ? "none" : undefined}
+                    // Gated on `c.sortValue` in BOTH arms, not just the inactive one. The sort model
+                    // is now restored from storage, and a stored key naming a column that cannot sort
+                    // would have announced "sorted by Δ, ascending" over rows the body left in the
+                    // caller's order — because the `!col?.sortValue` guard above returns them
+                    // untouched — with no button on that header to clear it. The `allowed` list in
+                    // `lib/table-sort.ts` refuses such a key; this is the second lock, on the surface
+                    // where the lie would be told.
+                    aria-sort={
+                      active && c.sortValue
+                        ? sort!.dir === 1
+                          ? "ascending"
+                          : "descending"
+                        : c.sortValue
+                          ? "none"
+                          : undefined
+                    }
                   >
                     {c.sortValue ? (
                       <button

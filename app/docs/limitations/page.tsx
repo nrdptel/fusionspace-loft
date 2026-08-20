@@ -236,8 +236,12 @@ export default function Limitations() {
         surface finish and airframe material apply to the whole tree; body diameter reads the picked
         tube but scales the entire outer mould line, so the airframe stays faired rather than stepping
         at one tube; and fin position slides every set together, keeping the design&apos;s spacing. A
-        boattail is anchored to the <em>aft-most</em> tube
-        whatever is picked, because a tail cone part-way up an airframe is not a tail cone.
+        boattail is anchored to the <em>aft-most part of the airframe</em>{" "}whatever is picked,
+        because a tail cone part-way up an airframe is not a tail cone — and it fairs to whatever that
+        part presents, which on a design that already ends in a cone is that cone&apos;s exit rather
+        than the caliber of the tube above it. The exit field states the resulting ceiling and holds
+        you to it, measured on the airframe you are flying, so a caliber what-if moves the limit with
+        the rocket.
       </p>
       <DocsH3>A fin set&apos;s root stays on the airframe</DocsH3>
       <p>
