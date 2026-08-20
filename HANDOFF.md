@@ -4,7 +4,16 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Pick up first
 
-**Nothing here needs an owner decision that is not already parked.** `OWNER-NOTES.md` has 12 open
+**The defect ledger carries FOUR Sev-1-class entries at the end of this run, and none of them is
+this run's.** Two are reproduced with measurements — `components/MonteCarlo.tsx`'s rail-angle 1σ
+field, the only one of six dispersions with no `max` and no sampler cap, whose draws reach the drift
+radius and the waiver exceedance percentage; and `lib/rasaero/adapt.ts` placing every body part
+`{after, offset: 0}` while never reading a part's own `<Location>`, measured at **+11.7%** and
+**+14.3%** overall length on two of the four `.CDX1` files. Two are unreproduced claims against
+`lib/session.ts`. All four predate this run and each was filed with a reason for deferring; **weigh
+them against the next milestone before scoping, because four is the highest this count has been.**
+
+**Nothing else here needs an owner decision that is not already parked.** `OWNER-NOTES.md` has 12 open
 notes, all carrying a verdict from the run that first saw them (2026-08-08), none pending; its
 *Awaiting the owner* section holds 11 entries and the two newest are still live — the signing key
 only the owner can register, and the sibling repo this container cannot reach.
@@ -16,8 +25,8 @@ only the owner can register, and the sibling repo this container cannot reach.
 | SEV-1 | that ceiling reached the design wall and **not the cone's own popover**, because the aim mask blanks every `designDims` key a derived part does not name — found by the pre-push review, in this run's own fix | **merged, live** (PR #198) |
 | SEV-1 | a stale exit outside a ceiling another field had moved dropped the whole part in silence; it clamps now, and the field reads its value back through the same ceiling | **merged, live** (PR #198) |
 | P19 increment 2 | `onSortChange` call sites **2 → 7**; persisted flyer-set controls **11 → 17** | **merged, live** (PR #198) |
-| P19 increment 3 | the catalogue's search, vendor filter and caliber toggle survive a close, a re-open and a reload, keyed per kind; `COMPETITION.md` row 36's forgetting half **RESOLVED** | **PR #199** |
-| — | **R12 increment 29 written, not started** — and the scoping moved what the increment IS, twice | **PR #199** |
+| P19 increment 3 | the catalogue's search, vendor filter and caliber toggle survive a close, a re-open and a reload, keyed per kind; `COMPETITION.md` row 36's forgetting half **RESOLVED** | **merged** (PR #199), deploy in flight |
+| — | **R12 increment 29 written, not started** — and the scoping moved what the increment IS, twice | **merged** (PR #199) |
 | — | the parts table **could not reverse on any column** — found while converting it | **merged, live** (PR #198) |
 | — | three intermittent e2e cases fixed with assertions rather than retries | **merged, live** (PR #198) |
 | — | `COMPETITION.md` row 57 added; row 54 corrected on what its own recommendation was aimed at | **merged, live** (PR #198) |
@@ -135,8 +144,11 @@ the staged clause *"so it leaves with that stage"* are both **PRESENT**. `"Sort 
 absent, and that is correct rather than a gap: the catalogue is the app's one dynamic import and its
 chunk is deliberately outside the precache list.
 
-**So the production gap for PR #198 is zero.** PR #199 was in CI at the time this was written; the
-next session should re-walk and confirm.
+**So the production gap for PR #198 is zero.** PR #199 merged at the end of this run and its deploy
+had not yet rolled when this was written — the live token was still `9100174c9a48`. **The next
+session's first walk should confirm it**, and the string to look for is the catalogue's own, which
+lives in the app chunk rather than the dynamic one: `picker.maker.` in a served chunk, or the vendor
+filter surviving a reload in a browser walk against `out/`.
 
 A browser cannot reach the live site from this container (the agent proxy; see *The environment*), so
 a production walk is `curl` plus string probes over the precache manifest, and the browser journey is
