@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 
-import DataTable, { type Column } from "./DataTable";
+import DataTable, { usePersistedSort, type Column } from "./DataTable";
 import { Button, Card, Select } from "./ui";
 import { TOUCH_TARGET, cx } from "@/lib/ui-tokens";
 import { mToIn } from "@/lib/units";
@@ -618,6 +618,20 @@ export default function PartPicker({
     },
   ], [imperial, unit, onPick, db, kind, maxLength, maxOuterDiameter]);
 
+  /** The catalogue's sort, remembered per KIND rather than per picker.
+   *
+   *  **The key carries the kind because the admissible columns do.** A canopy row states line count
+   *  and line length where a tube row states inner diameter, wall and stock, so a sort remembered
+   *  while picking a parachute names a column that does not exist while picking a body tube — and
+   *  `usePersistedSort` reads its allowlist once, at mount, against whatever columns it was handed.
+   *  Varying the key is what makes the guard see the right list; a single key would have handed the
+   *  refusal to a check that had already run.
+   *
+   *  Outer diameter ascending was this table's `initialSort`, and it stays the default: a flyer
+   *  picking a tube is looking for a caliber. */
+  const [sort, setSort] = usePersistedSort(`picker.sort.${kind}`, columns, "od");
+
+
   const control =
     "mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 
@@ -871,7 +885,8 @@ export default function PartPicker({
                       ? `${p.manufacturer}/${p.partNumber}/${p.diameter ?? ""}/${p.lineCount ?? ""}`
                       : `${p.manufacturer}/${p.partNumber}/${p.outerDiameter ?? ""}/${p.length ?? ""}/${p.innerDiameter ?? ""}/${p.description ?? ""}/${i}`
                   }
-                  initialSort={{ key: "od", dir: 1 }}
+                  sort={sort}
+                  onSortChange={setSort}
                   // A nose row states three more figures than a tube row — contour, shoulder and
                   // wall — and squeezing them into the tube width collapses the shoulder pair onto
                   // two lines on every row. The table scrolls inside its own container either way.

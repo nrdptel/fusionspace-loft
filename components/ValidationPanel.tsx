@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import type { ValidationReport } from "@/lib/validation/compare";
+import type { MetricComparison, ValidationReport } from "@/lib/validation/compare";
 import { storedCaveat } from "@/lib/validation/stored-status";
 import type { UnitSystem } from "@/lib/display";
 import { fmt } from "@/lib/display";
 import { mToFt, mpsToFtps } from "@/lib/units";
 import { transonicReason } from "@/lib/sim/envelope";
 import { Card, Extrapolated, Panel } from "./ui";
-import DataTable from "./DataTable";
+import DataTable, { usePersistedSort, type Column } from "./DataTable";
 
 /** Shows Loft's engine against the results the design tool (OpenRocket or RockSim) stored in
  *  the imported design, metric by metric. This is the honest accuracy record: the numbers are
@@ -102,72 +102,7 @@ export default function ValidationPanel({
   extrapolatedTransonic: boolean;
   maxMach: number;
 }) {
-  return (
-    <Panel
-      label="Validation"
-      title={external ? "Stated figures vs Loft" : `${toolName} vs Loft`}
-      aside={
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">
-          mean abs. error{" "}
-          <span className="font-mono text-zinc-700 dark:text-zinc-300">{fmt(report.mape, 1)}%</span>
-        </span>
-      }
-    >
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        Loft&apos;s engine against the results stored in{" "}
-        {storedName ? <span className="italic">{storedName}</span> : "this design"}
-        {external
-          ? ` — figures the file states, marked in it as not produced by ${toolName}'s own simulator, so treat them as a reference point rather than a second solver's answer`
-          : ""}
-        . Differences are expected — the point is to show them, not hide them. See{" "}
-        <Link href="/docs/validation" className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400">
-          how this is measured
-        </Link>
-        .
-      </p>
-
-      {/* **Loft's half is the extrapolated one, so the marker belongs on the GAP rather than on
-          either column** — the same reasoning `DragCrossCheck` states, and for the same reason: the
-          stored tool's figures carry whatever caveat that tool attached to them and are not Loft's
-          to qualify. The mean absolute error in the header above is measured against a Loft flight
-          that left the validated envelope, and it is the figure this panel exists to publish. */}
-      {extrapolatedTransonic && (
-        <div className="mt-3">
-          <Extrapolated
-            reason={
-              transonicReason(extrapolatedTransonic, maxMach)! +
-              `. Loft's half of every row below, and the mean error measured from them, are rough above that — ${toolName}'s stored figures are not`
-            }
-          />
-        </div>
-      )}
-
-      {!external && storedCaveat(storedStatus, toolName) && (
-        <Card as="p" tone="warn" className="mt-2 text-sm">
-          {storedCaveat(storedStatus, toolName)}
-        </Card>
-      )}
-
-      {/* The cross-check a flyer most wants to paste into a build thread, and until now it could not
-          leave the page: no sort, no copy, no export. `minWidth` is kept from the hand-rolled version
-          — these four columns compress into unreadability well before the viewport does. */}
-      <DataTable
-        className="mt-3"
-        rows={report.comparisons}
-        rowKey={(c) => c.key}
-        minWidth="30rem"
-        exportName={toolName}
-        exportSuffix="validation"
-        // **The withheld metrics travel with the file.** The card below names them on screen; the
-        // export used to come back with eight rows and nothing saying a ninth was withheld or why,
-        // which reads as "the file stored less" rather than "we did not measure it" — the same
-        // caveat-on-one-surface shape the withholding was built to end.
-        csvPreamble={report.withheld.map(
-          (w) => `Not compared — ${w.label.toLowerCase()}: ${w.reason}`,
-        )}
-        caption={`Loft against ${toolName}'s stored results, metric by metric`}
-        empty="No metric in this design's stored run can be compared yet — import a design whose tool saved a simulation, and every figure it stored appears here beside Loft's."
-        columns={[
+  const columns: Column<MetricComparison>[] = [
           {
             key: "label",
             label: "Metric",
@@ -240,7 +175,82 @@ export default function ValidationPanel({
             // has to guess the meaning of.
             csv: (c) => (Number.isFinite(c.pctError) ? Math.round(c.pctError * 10) / 10 : ""),
           },
-        ]}
+        ];
+
+  // Opens in the order the comparison was built — metric by metric, the order the caveats below it
+  // are written in — so the default is the caller's own and a remembered sort is a deliberate act.
+  // Keyed on the SURFACE, not the tool: `toolName` changes with every import and a per-tool key would
+  // forget the sort the moment a flyer opened a RockSim file after an OpenRocket one.
+  const [sort, setSort] = usePersistedSort("validation.sort", columns);
+
+  return (
+    <Panel
+      label="Validation"
+      title={external ? "Stated figures vs Loft" : `${toolName} vs Loft`}
+      aside={
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">
+          mean abs. error{" "}
+          <span className="font-mono text-zinc-700 dark:text-zinc-300">{fmt(report.mape, 1)}%</span>
+        </span>
+      }
+    >
+      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+        Loft&apos;s engine against the results stored in{" "}
+        {storedName ? <span className="italic">{storedName}</span> : "this design"}
+        {external
+          ? ` — figures the file states, marked in it as not produced by ${toolName}'s own simulator, so treat them as a reference point rather than a second solver's answer`
+          : ""}
+        . Differences are expected — the point is to show them, not hide them. See{" "}
+        <Link href="/docs/validation" className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400">
+          how this is measured
+        </Link>
+        .
+      </p>
+
+      {/* **Loft's half is the extrapolated one, so the marker belongs on the GAP rather than on
+          either column** — the same reasoning `DragCrossCheck` states, and for the same reason: the
+          stored tool's figures carry whatever caveat that tool attached to them and are not Loft's
+          to qualify. The mean absolute error in the header above is measured against a Loft flight
+          that left the validated envelope, and it is the figure this panel exists to publish. */}
+      {extrapolatedTransonic && (
+        <div className="mt-3">
+          <Extrapolated
+            reason={
+              transonicReason(extrapolatedTransonic, maxMach)! +
+              `. Loft's half of every row below, and the mean error measured from them, are rough above that — ${toolName}'s stored figures are not`
+            }
+          />
+        </div>
+      )}
+
+      {!external && storedCaveat(storedStatus, toolName) && (
+        <Card as="p" tone="warn" className="mt-2 text-sm">
+          {storedCaveat(storedStatus, toolName)}
+        </Card>
+      )}
+
+      {/* The cross-check a flyer most wants to paste into a build thread, and until now it could not
+          leave the page: no sort, no copy, no export. `minWidth` is kept from the hand-rolled version
+          — these four columns compress into unreadability well before the viewport does. */}
+      <DataTable
+        className="mt-3"
+        sort={sort}
+        onSortChange={setSort}
+        rows={report.comparisons}
+        rowKey={(c) => c.key}
+        minWidth="30rem"
+        exportName={toolName}
+        exportSuffix="validation"
+        // **The withheld metrics travel with the file.** The card below names them on screen; the
+        // export used to come back with eight rows and nothing saying a ninth was withheld or why,
+        // which reads as "the file stored less" rather than "we did not measure it" — the same
+        // caveat-on-one-surface shape the withholding was built to end.
+        csvPreamble={report.withheld.map(
+          (w) => `Not compared — ${w.label.toLowerCase()}: ${w.reason}`,
+        )}
+        caption={`Loft against ${toolName}'s stored results, metric by metric`}
+        empty="No metric in this design's stored run can be compared yet — import a design whose tool saved a simulation, and every figure it stored appears here beside Loft's."
+        columns={columns}
       />
 
       {/* What the file stored and this flight cannot answer. Said out loud, because the alternative

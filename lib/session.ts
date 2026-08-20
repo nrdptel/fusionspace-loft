@@ -422,16 +422,30 @@ export function usePersistedNumber(
  *  which metric it plots, which column the motor table is sorted on. Not the flyer's input the way
  *  a dispersion tolerance is, but a view they set up deliberately, and having it snap back to the
  *  default on the next design is the same small betrayal. `allowed` guards against a stored value
- *  that no longer exists (a renamed axis, a dropped column). */
+ *  that no longer exists (a renamed axis, a dropped column).
+ *
+ *  **The read is a separate exported function for the reason `readPersistedNumber`'s is**, and it
+ *  became load-bearing when six tables took this hook at once. The unit environment is `node` with no
+ *  renderer, so a hook's body is reachable only through an e2e — and an e2e proves a value came back,
+ *  never what happens to the values that must NOT. `allowed` is the whole safety of this mechanism:
+ *  `components/MotorSweep.tsx` records a stored key that passed a wrongly-derived guard and took the
+ *  workspace down on render, and three of `components/RocketpyCrossCheck.tsx`'s four columns are that
+ *  same shape. `readPersistedChoice` is that guard with no React in it, and `lib/session.test.ts`
+ *  drives it directly. */
+export function readPersistedChoice<T extends string>(key: string, initial: T, allowed: readonly T[]): T {
+  try {
+    const raw = localStorage.getItem(`loft.pref.${key}`) as T | null;
+    return raw !== null && allowed.includes(raw) ? raw : initial;
+  } catch {
+    // storage disabled — keep the default
+    return initial;
+  }
+}
+
 export function usePersistedChoice<T extends string>(key: string, initial: T, allowed: readonly T[]): [T, (v: T) => void] {
   const [value, setValue] = useState<T>(initial);
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(`loft.pref.${key}`) as T | null;
-      if (raw !== null && allowed.includes(raw)) setValue(raw);
-    } catch {
-      // storage disabled — keep the default
-    }
+    setValue(readPersistedChoice(key, initial, allowed));
     // `allowed` is a literal list at every call site; re-running on its identity would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);

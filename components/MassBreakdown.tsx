@@ -10,7 +10,7 @@ import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { Card } from "./ui";
-import DataTable from "./DataTable";
+import DataTable, { usePersistedSort, type Column } from "./DataTable";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -80,37 +80,9 @@ export default function MassBreakdown({
     ["Dry total", round(toMass(total.mass), 4), "", 100, round(toLen(total.cg), 1), ""],
   ];
 
-  return (
-    <Card as="details" pad={false} className="group">
-      <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        <span className="flex items-center gap-2">
-          Mass &amp; balance · dry {d.q(d.mass(total.mass, units))}
-          {edited && (
-            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
-              with your edits
-            </span>
-          )}
-        </span>
-        <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
-      </summary>
-      <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        {/* The rows arrive heaviest-first, which is the reading this panel is FOR, so that stays the
-            initial sort — but a flyer checking an import against a build sheet wants the part order or
-            the station order too, and could not have either. The dry total is a `tfoot`, so it stays
-            put whatever the sort: a total that sorted into the middle of the parts it totals would be
-            worse than no total. */}
-        <DataTable
-          rows={rows}
-          rowKey={(p, i) => `${p.source}-${i}`}
-          caption="Dry structural mass, part by part"
-          empty="No structural mass was parsed from this design — import a design with components and every part's mass appears here."
-          footer={{
-            source: "Dry total",
-            mass: d.q(d.mass(total.mass, units)),
-            pct: "100%",
-            cg: `CG ${d.q(d.lengthMm(total.cg, units))}`,
-          }}
-          columns={[
+  // Heaviest-first is the reading this panel is FOR, so it is the default rather than the caller's
+  // own order — and it is a real sort, so a third click returns to the order the rows arrive in.
+  const columns: Column<PointMass>[] = [
             {
               key: "source",
               label: "Component",
@@ -118,7 +90,12 @@ export default function MassBreakdown({
               sortValue: (p) => p.source,
               cell: (p) => <span className="font-sans font-normal text-zinc-700 dark:text-zinc-200">{p.source}</span>,
             },
-            { key: "mass", label: "Mass", sortValue: (p) => p.mass, cell: (p) => d.q(d.mass(p.mass, units)) },
+            // `sortDir` declared rather than left to default, and it is load-bearing now that the
+            // sort is remembered: it is the direction the primitive treats as this column's FIRST,
+            // so the three-state cycle counts from it. Left off, a table opening heaviest-first sat
+            // one step into a cycle whose first step it had never taken, and the next click cleared
+            // the sort instead of reversing it.
+            { key: "mass", label: "Mass", sortDir: -1, sortValue: (p) => p.mass, cell: (p) => d.q(d.mass(p.mass, units)) },
             {
               // **The third surface to answer "whose number is this", and the last one that did not.**
               // The parts table gained a *Mass from* column and the identify line gained the words;
@@ -162,7 +139,43 @@ export default function MassBreakdown({
               cell: (p) => <span className="text-zinc-500 dark:text-zinc-400">{cgProvenanceOf(p)}</span>,
               csv: (p) => cgProvenanceOf(p),
             },
-          ]}
+          ];
+
+  const [sort, setSort] = usePersistedSort("mass.sort", columns, "mass");
+
+  return (
+    <Card as="details" pad={false} className="group">
+      <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <span className="flex items-center gap-2">
+          Mass &amp; balance · dry {d.q(d.mass(total.mass, units))}
+          {edited && (
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+              with your edits
+            </span>
+          )}
+        </span>
+        <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
+      </summary>
+      <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+        {/* The rows arrive heaviest-first, which is the reading this panel is FOR, so that stays the
+            initial sort — but a flyer checking an import against a build sheet wants the part order or
+            the station order too, and could not have either. The dry total is a `tfoot`, so it stays
+            put whatever the sort: a total that sorted into the middle of the parts it totals would be
+            worse than no total. */}
+        <DataTable
+          sort={sort}
+          onSortChange={setSort}
+          rows={rows}
+          rowKey={(p, i) => `${p.source}-${i}`}
+          caption="Dry structural mass, part by part"
+          empty="No structural mass was parsed from this design — import a design with components and every part's mass appears here."
+          footer={{
+            source: "Dry total",
+            mass: d.q(d.mass(total.mass, units)),
+            pct: "100%",
+            cg: `CG ${d.q(d.lengthMm(total.cg, units))}`,
+          }}
+          columns={columns}
         />
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
           {/* "are in the liftoff mass above" was an unconditional promise, and this panel takes no

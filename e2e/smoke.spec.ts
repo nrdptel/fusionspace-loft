@@ -91,7 +91,15 @@ test.describe("Loft", () => {
     const heaviest = await massOf(0);
     expect(heaviest).toBeGreaterThan(0);
     expect(heaviest).toBeGreaterThanOrEqual(await massOf(1));
-    // Clicking the active heading returns to the design's own nose-to-tail order.
+    // **Three states, and the middle one did not exist.** The host mapped "clicked the active
+    // column" straight to design order and threw away the direction the primitive had already
+    // computed, so Mass opened heaviest-first and had no lightest-first — five sortable columns, ten
+    // orders, four of them reachable. The second click now reverses…
+    await table.getByRole("button", { name: /Mass/ }).click();
+    const lightest = await massOf(0);
+    expect(lightest, "the second click on the active column must reverse it").toBeLessThan(heaviest);
+    expect(lightest).toBeLessThanOrEqual(await massOf(1));
+    // …and the third returns to the design's own nose-to-tail order.
     await table.getByRole("button", { name: /Mass/ }).click();
     await expect(table.locator("tbody tr").first()).toContainText("Nose cone");
 
@@ -2017,6 +2025,53 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Sweep" }).click();
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
     await expect(panel.getByLabel(/Motor impulse/i)).toHaveValue("8");
+  });
+
+  test("every table's sort survives a reload, not just the one that had it", async ({ page }) => {
+    // **P19 increment 2.** One of seven tables remembered its sort; the other six snapped back to the
+    // default on every reload, on a product whose own stated scenario is a no-signal pad check where
+    // reloading is what a phone does to you. This drives the two ends of the range — the parts table,
+    // which a design is read on, and the mass breakdown, which is the panel a flyer opens to decide
+    // where the weight is — because they take the hook by two different routes: one from a module
+    // constant built out of its own column builder, one from an array declared in the component body.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    // Both tables live on the Design workspace.
+    await page.getByRole("link", { name: "Design" }).click();
+
+    // The mass breakdown opens heaviest-first; reversing it is a state only the new second click can
+    // reach at all — the host used to map that click to "back to the caller's order".
+    const massSummary = page.locator("summary", { hasText: "Mass & balance" });
+    await massSummary.click();
+    const massTable = page.locator("table", { has: page.getByRole("button", { name: /^Sort by CG from nose/ }) }).first();
+    const massHeader = massTable.locator("th", { has: page.getByRole("button", { name: /^Sort by Mass$/ }) });
+    await expect(massHeader, "the breakdown opens heaviest-first").toHaveAttribute("aria-sort", "descending");
+    await massTable.getByRole("button", { name: /^Sort by Mass$/ }).click();
+    await expect(massHeader, "the second click reverses rather than clearing").toHaveAttribute("aria-sort", "ascending");
+
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const parts = page.locator("table").first();
+    const firstPart = async () => (await parts.locator("tbody tr").first().innerText()).slice(0, 40);
+    // CONTROL: the design's own order leads with the nose cone, so a sort that did nothing at all
+    // would leave the assertion after the reload passing on the default.
+    await expect(parts.locator("tbody tr").first()).toContainText("Nose cone");
+    await parts.getByRole("button", { name: /^Sort by Component/ }).click();
+    const sortedFirst = await firstPart();
+    expect(sortedFirst).not.toContain("Nose cone");
+
+    await page.reload();
+    await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    await expect
+      .poll(firstPart, { message: "the parts table forgot its sort" })
+      .toBe(sortedFirst);
+
+    await massSummary.click();
+    await expect(massHeader, "the mass breakdown forgot its sort").toHaveAttribute("aria-sort", "ascending");
   });
 
   test("the sweep's axis and the motor table's sort survive a reload", async ({ page }) => {
