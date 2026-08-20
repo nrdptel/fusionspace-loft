@@ -135,11 +135,11 @@ never become an increment while it stays one.**
   a control that forgets and it is NOT in P19's enumeration, which lists the ceiling, the panel flags,
   the table sorts and the picker's four. Same for a dropped altimeter flight log
   (`components/ResultsView.tsx:336`), which is the one artifact a flyer cannot regenerate.
-- **UNREPRODUCED · `components/GeometryInspector.tsx:1413` — the parts table cannot reverse a
-  column.** `onSortChange` maps "clicked the active key" straight to `"design"`, so Mass gives
-  heaviest-first only, with no third click. `components/DataTable.tsx:102` describes a three-state
-  cycle; the implementation is claimed to be two-state, which would make lightest-first unreachable on
-  a 47-part design. Squarely P19 increment 2's surface — check it there rather than as its own entry.
+- ~~**UNREPRODUCED · `components/GeometryInspector.tsx:1413` — the parts table cannot reverse a
+  column.**~~ **REPRODUCED AND FIXED 2026-08-20 by P19 increment 2**, and it was exactly as filed:
+  five sortable columns, ten orders, four of them reachable. The three-state cycle
+  `components/DataTable.tsx` described now lives in the primitive rather than in a host that could —
+  and did — write it wrongly.
 - **UNREPRODUCED · `components/MonteCarlo.tsx`'s `Histogram` clamps the ceiling line into the plot**,
   so a restored or mistyped `1e9` would draw a ceiling line at the right edge looking like a real limit
   just above the samples. The `>= 0` guard added this run does not bound the top. An upper bound wants
@@ -365,8 +365,10 @@ are the next preemptions, not queue items.**
 - **`e2e/touch-landscape.spec.ts:64,73` — the landscape scan is height-only (`x.h < 44`)** and its
   selector omits `input`, `summary` and `label:has(input.sr-only)`. The width-vs-height blindness P15
   increment 2 fixed in portrait — where 82 controls once failed — is still live in landscape.
-- **`components/DataTable.tsx:145` — sort is local `useState` for every table but the motor sweep's**,
-  so parts, validation, RocketPy and phase all reset on remount.
+- ~~**`components/DataTable.tsx:145` — sort is local `useState` for every table but the motor sweep's**,
+  so parts, validation, RocketPy and phase all reset on remount.~~ **FIXED 2026-08-20 by P19
+  increment 2** — `onSortChange` call sites 2 → 7 through one hook, and the controlled pair is
+  required on the primitive so the next table cannot forget.
 - **`components/GeometryInspector.tsx:1419` — `tabIndex: 0` on every row: 47 tab stops on a 47-part
   design**, while `components/ui.tsx:711` already implements roving tabindex with Arrow/Home/End.
 - **`public/pyodide/**` (41 MB) is excluded from precache** (`gen-sw-precache.mjs:123`), so a flyer
