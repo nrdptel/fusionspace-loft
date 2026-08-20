@@ -12,6 +12,27 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **2026-08-20 — four border sites wear the OLD `control` value on things that are not controls, and
+  `lib/design-system.test.ts` sanctions that pair only until they are converted.** §2's `control`
+  moved to `zinc-500` this run (WCAG 1.4.11 — the old pair renders **1.48:1** light and **1.70:1**
+  dark against the 3:1 a control boundary owes) and the seven genuine controls moved with it. These
+  four did not, because each is wearing the wrong ROLE rather than a wrong value and each wants a
+  decision rather than a sweep: `components/DataTable.tsx:287` is a table rule (§2 puts rules under
+  `hairline`, but this one is a heavier rule below the body rows, so flattening it to `hairline`
+  loses a deliberate step); `components/ImportPanel.tsx:223` is a list container;
+  `components/ui.tsx:69` is the dashed empty-state card tone; and `components/SectionNav.tsx:72` is
+  the you-are-here chip, whose resting sibling is `hairline` — so whatever the current-state chip
+  becomes has to stay distinguishable from it, which is a border-vocabulary question rather than a
+  value. Reproduce: `grep -rn 'border-zinc-300' components app`. **When they are converted, delete
+  `border-zinc-300` and `border-zinc-700` from `SANCTIONED` and from `PAIR` in
+  `lib/design-system.test.ts`** — the comment there says so, and the budget stays 0 either way, so a
+  genuinely new off-system value still fails today.
+
+  The identical four exist in the sibling repo and are filed there too, with the same reading. The
+  sibling additionally shipped two CENSUSES for this — one over neutral borders, one over every
+  operable control whatever hue it wears — which this repo does not have; its border check counts
+  values against a sanctioned set and never rates a ratio. Worth copying when this is taken.
+
 **Filed 2026-08-19 from run 21's opening fan-out. Seven read-only lenses; the two Sev-1s that were
 reproduced were fixed the same run (the dispersion panel's vanishing waiver ceiling, and
 `ValidationPanel` publishing the mean absolute error with no envelope caveat) and are NOT repeated

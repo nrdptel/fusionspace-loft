@@ -162,7 +162,7 @@ import type { UnitSystem } from "@/lib/display";
  *  stripped it off this field along with them — the phone suite's hit-target scan caught the result
  *  at 218x24 px against §8's 44 px minimum, which is what that scan is for. */
 const TREAT_INPUT =
-  "rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+  "rounded-md border border-zinc-500 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-600 dark:border-zinc-500 dark:bg-zinc-900 dark:text-zinc-100";
 
 const FINISH_LABELS: Record<SurfaceFinish, string> = {
   mirror: "Mirror",
@@ -2366,7 +2366,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
                 value={doc.rocket.name}
                 onChange={(e) => renameDesign(e.target.value)}
                 placeholder="Design name"
-                className={`min-w-0 max-w-[11rem] rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-sm font-medium text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
+                className={`min-w-0 max-w-[11rem] rounded-md border border-zinc-500 bg-white px-2.5 py-1 text-sm font-medium text-zinc-800 outline-none focus:border-indigo-600 dark:border-zinc-500 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
               />
               {fileName && fileName !== doc.rocket.name && (
                 <span className="hidden truncate text-xs text-zinc-500 dark:text-zinc-400 sm:inline" title={fileName}>

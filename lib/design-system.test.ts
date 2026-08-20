@@ -397,8 +397,10 @@ const BUDGET = {
    *  radius at or above 4 px renders as exactly 4 px, and `rounded-md` — already sanctioned — is
    *  pixel-identical. A budget of 1 with owner machinery behind it, for zero pixels. */
   offSystemRadius: 0,
-  /** Border colours that are not in the system at ALL — every `border-zinc-*` token, minus the four
-   *  §2 sanctions: `zinc-200`/`zinc-800` for `hairline` and `zinc-300`/`zinc-700` for `control`.
+  /** Border colours that are not in the system at ALL — every `border-zinc-*` token, minus the ones
+   *  §2 sanctions: `zinc-200`/`zinc-800` for `hairline` and, since 2026-08-20, `zinc-500` for
+   *  `control` in both themes (the old `zinc-300`/`zinc-700` pair is sanctioned transitionally —
+   *  see the check itself).
    *
    *  **§2 says "Two, deliberately" and until 2026-08-11 nothing checked it.** Radius, spacing, type,
    *  `<select>`, chart and focus were all ratcheted; the one token that section calls the readability
@@ -894,7 +896,24 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     // does not govern — the same split the radius check makes between value and side. A bare
     // `border` sets width, not colour, and inherits whatever the cascade gives it.
     const BORDERS = /\bborder-zinc-[0-9]{2,3}\b/g;
-    const SANCTIONED = new Set(["border-zinc-200", "border-zinc-800", "border-zinc-300", "border-zinc-700"]);
+    //
+    // **`control` moved to `zinc-500` on 2026-08-20** — see §2, where the reason is WCAG 1.4.11:
+    // the old pair rendered 1.48:1 in light and 1.70:1 in dark against the 3:1 a control boundary
+    // owes, and `zinc-500` is the first value on the ramp clearing it in both themes. The old pair
+    // stays sanctioned TRANSITIONALLY, because four sites in this app still wear it and none of
+    // them is a control: `components/DataTable.tsx:287` (a table rule), `components/ImportPanel.tsx:223`
+    // (a list container), `components/ui.tsx:69` (the dashed empty-state card tone) and
+    // `components/SectionNav.tsx:72` (the you-are-here chip). Each is wearing the wrong ROLE rather
+    // than a wrong value, so each wants a decision rather than a sweep — they are in `BACKLOG.md`
+    // with that reading. **Delete `zinc-300`/`zinc-700` from this set when they are converted**; the
+    // budget stays 0 either way, so a NEW off-system value still fails today.
+    const SANCTIONED = new Set([
+      "border-zinc-200",
+      "border-zinc-800",
+      "border-zinc-500",
+      "border-zinc-300",
+      "border-zinc-700",
+    ]);
     const offSystem = (m: string) => !SANCTIONED.has(m);
     const { total, byFile } = countMatches(uiCode, BORDERS, offSystem);
     expect(total, `off-system border colours, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offSystemBorder);
@@ -917,7 +936,15 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
    *  one light or more than one dark, where the pairing cannot be attributed. It fires only where the
    *  answer is unambiguous, and the two it does fire on are real. */
   it("never pairs one border rung with the other's dark half", () => {
-    const PAIR: Record<string, string> = { "border-zinc-200": "border-zinc-800", "border-zinc-300": "border-zinc-700" };
+    const PAIR: Record<string, string> = {
+      "border-zinc-200": "border-zinc-800",
+      // `control` is one value in both themes since 2026-08-20, and §2 says out loud that the
+      // symmetry is measured rather than inherited — zinc-500 is the first shade clearing 3:1 on
+      // both grounds, which happens to be the same shade. The old pair is kept while the four
+      // non-control sites still wear it.
+      "border-zinc-500": "border-zinc-500",
+      "border-zinc-300": "border-zinc-700",
+    };
     const mismatched: string[] = [];
     for (const f of ui) {
       if (f.path.endsWith(".css")) continue;
