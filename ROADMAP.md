@@ -2595,6 +2595,80 @@ would put a number on screen that no file asked for.
 **Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
 Selecting a component is now how you edit it.
 
+**Increment 29 — WRITTEN 2026-08-20, not started. An automatic dimension is a thing the FORMAT
+already carries, and Loft drops it on essentially every modern file it reads.**
+
+`COMPETITION.md` row 54 has named a per-field `Automatic` switch as the cheapest next step since
+2026-08-18. Increment 28 corrected what it was aimed at; this entry scopes what is left, and the
+scoping moved it twice. **Read all of it before writing code — three of the five findings below
+contradict the obvious plan.**
+
+**1. The switch cannot be on the boattail's EXIT, and OpenRocket's own vocabulary says why.** Its
+message catalogue names three states for an automatic diameter, verbatim:
+*"Uses the diameter of the previous/next component."* · *"There is no previous/next component to take
+the diameter of."* · *"The previous/next component already has its auto setting turned on."* A
+transition's FORE radius resolves from the previous body's aft radius and its AFT radius from the
+NEXT body's fore radius — independently, and a real design carries both at once with different
+values. A Loft boattail is by construction the aft-most part of the stack, so it has no next
+component and its exit has no referent. **What Loft could make automatic is the FORE end, and Loft
+already derives that unconditionally.** So the increment is not "an Automatic exit"; it is
+*automatic dimensions as a concept the model can hold*, with the boattail being the one part that
+does not need one.
+
+**2. The real gap is a ROUND TRIP, and it is measurable today.** `lib/ork/xml.ts`'s `parseNum` takes
+the number out of `auto 0.025` and returns it, so a field the source tool marked automatic arrives in
+Loft's model indistinguishable from a hand-typed one — and OpenRocket persists the manual value
+behind an automatic field precisely so both facts survive, which is why the two-token form is what
+real files carry. Only the bare `auto` form reaches `resolveAutoRadii` as `NaN`
+(`fixtures/src/demo-quirks.ork.xml` lines 18, 23 and 39 are the repo's only examples). So **Loft
+reads the number correctly and loses the auto-ness**, and `lib/ork/export.ts` then writes an explicit
+radius — deliberately, with a comment saying so. A flyer who opens an OpenRocket design in Loft and
+saves it back has silently converted every automatic dimension into a hand-typed one.
+
+**3. And there is a live import divergence at a STAGE BOUNDARY, which is the question this ledger has
+never answered.** `lib/ork/adapt.ts`'s `resolveAutoRadii` iterates per stage and resets its
+`prevAft`/`nextFore` cursors at each stage, so a booster stage's first component with an auto FORE
+radius never sees the previous stage's aft radius: it falls through to that stage's largest known
+radius and raises the *"no neighbour could supply one"* warning. **OpenRocket resolves across a
+serial stage boundary** — verified on two independent real multi-stage designs published by one
+university team, where the booster's first transition carries `<foreradius>auto X</foreradius>` and X
+is the previous stage's last body-tube radius to the final digit, while the same component's
+`<aftradius>` resolves forward inside its own stage. So "no reference component" means the end of the
+whole rocket, not the end of a stage. **RASAero II is reported to take the opposite position** and
+grey the boattail front diameter out on a booster because the previous stage already set it —
+`UNVERIFIED`, and worth settling before copying either.
+
+**4. `alreadyAuto` is a REFUSAL, not a chain.** OpenRocket disables the control when the component it
+would take the diameter from is itself automatic, which removes a whole class of resolution bug
+before it exists. Whatever Loft builds must not resolve auto→auto transitively.
+
+**5. The model has no way to say "derived", and that is the crux.** `Transition.foreRadius`,
+`Transition.aftRadius`, `NoseCone.aftRadius` and `BodyTube.outerRadius` are bare numbers. The only
+provenance machinery in `lib/model/types.ts` (`massFrom`, `cgFrom`, `cdFrom`) is DESCRIPTIVE — it
+records where a number came from, never that it should be recomputed — and none of it is exported.
+Matching the format means a per-field flag beside the value, on three component kinds.
+
+***Done when*** an `.ork` carrying `auto <n>` on a nose cone, a body tube and a transition imports
+with the auto-ness intact, exports carrying `auto <n>` again, and a corpus round-trip case asserts
+that **no automatic field is silently converted to a hand-typed one** on any real design; a booster
+stage's first component with an auto fore radius resolves from the previous stage rather than from
+its own stage's largest radius, driven on a fixture of that shape; and an auto field whose reference
+is itself auto is refused with the catalogue's own wording rather than chained.
+
+**Size.** 3–4 increments. Smallest first is the round trip (2 above), because it is the one a flyer
+loses data to today and because it does not need any UI at all. The stage-boundary fix (3) is a
+second, independent slice with its own fixture. A visible switch (1, 4, 5) is last and is the only
+part that needs a design decision.
+
+**CLEAN-ROOM NOTE, and it is a warning for the next run.** Everything above is from OpenRocket's
+resource strings, its public pull-request prose, its published file specification, and real `.ork`
+data files — the same standard `COMPETITION.md`'s rows already hold. **One agent in this run's
+scoping fan-out fetched two OpenRocket `.java` files**, which the CLEAN-ROOM invariant forbids;
+nothing from that agent's output is used here or anywhere in the repo, and the facts above were
+re-established independently from clean sources. When a fan-out is aimed at a GPL-licensed
+competitor, say so in the agent's own instructions — this one said "clean-room" in the return
+contract and not in the prohibition, and that was not enough.
+
 **Increment 28 — a boattail fairs to the tail it is on, and states the bound it enforces,
 2026-08-20. SEV-1.** The three claims run 21's fan-out left for this increment to settle were all
 reproduced, and two of them turned out to be one defect wearing two faces.
