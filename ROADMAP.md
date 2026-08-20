@@ -7855,12 +7855,38 @@ out to be a sweep of the e2e suite rather than a hook swap.)*
    column that cannot sort would otherwise announce "sorted by Δ, descending" over rows the body left
    in the caller's order, on a header with no button to clear it — three of the four columns in
    `components/RocketpyCrossCheck.tsx` are exactly that shape.
-3. **The catalogue remembers, which closes `COMPETITION.md` row 36's forgetting half.** `text`,
-   `maker` and `fitsOnly` persisted; `open` deliberately NOT, because auto-open is the half row 36
-   itself calls *"a product decision and not obviously theirs to win"* — and saying so in the row is
-   part of the increment. ***Done when*** an e2e types a vendor filter, picks a tube, re-opens the
-   picker for a second tube and finds the filter still applied, and row 36 is resolved on the
-   forgetting clause with the auto-open clause left open and its reason restated.
+3. **The catalogue remembers.** ***SHIPPED 2026-08-20*** — `text`, `maker` and `fitsOnly` persisted
+   per KIND, `open` deliberately not, and `COMPETITION.md` row 36 resolved on its forgetting clause
+   with the auto-open clause left open and its reason restated. Pinned by `e2e/smoke.spec.ts`'s *"the
+   catalogue comes back to the filter you left it on, and not to another kind's"* and by
+   `lib/session.test.ts`'s five `readPersistedText` cases. **MET.**
+
+   **Two things this increment had to decide that the plan did not name.**
+
+   *The key carries the KIND, and the e2e proves it rather than assuming it.* Ten of the eleven
+   vendors publishing body tubes also publish canopies, so a single key carries a tube filter into
+   the parachute catalogue and narrows it on a vendor the flyer never chose there. The first draft of
+   the cross-kind assertion passed with the kind removed from the key — the read-through guard below
+   was answering it — so it now picks a vendor common to both catalogues, which only the key can stop.
+
+   *A stored vendor is read THROUGH the list it can be honoured against.* The catalogue is a lazily
+   imported chunk and has not arrived when the stored value is read, so no allowlist could judge it —
+   which is why `usePersistedText` guards LENGTH and a caller predicate rather than membership, and
+   why the call site resolves `makerShown` once and drives both the `<select>`'s value and the filter
+   from it. A vendor that has since left the catalogue then reads as *Every vendor* in the control
+   AND filters nothing, which are one fact rather than two. That is the same read-through R12
+   increment 28 gave the boattail's exit against its own moving ceiling, and it is worth naming as a
+   pattern: **when a stored value can outlive the set that makes it meaningful, resolve it once and
+   let the control and the behaviour share the answer.**
+
+   **Two hooks were added and a third was not.** `usePersistedText` (with `MAX_PERSISTED_TEXT`, so a
+   paste of a document into a search box is not something this origin then carries) and
+   `usePersistedFlag` (`usePersistedChoice` over `"on"`/`"off"` rather than a fourth storage shape —
+   a boolean written as `"true"`/`"false"` has the ambiguity `Number("")` has, where a key some other
+   hand wrote reads as a deliberate choice). `readPersistedText` is exported for the reason its two
+   siblings are: the unit environment is `node` with no renderer, so a hook body is reachable only
+   through an e2e, and an e2e proves the value came back rather than what happens to the values that
+   must not.
 4. **The two sweeps come back to the run you left, the way the dispersion already does.** This is
    the half of *"their open panels"* that survived increment 1's refusal, and it is a stored RESULT
    rather than a stored flag: `saveDispersion`/`loadDispersion`/`clearDispersion` and

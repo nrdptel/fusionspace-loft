@@ -30,6 +30,8 @@ import {
   clearDispersion,
   readPersistedNumber,
   readPersistedChoice,
+  readPersistedText,
+  MAX_PERSISTED_TEXT,
 } from "./session";
 
 /** A minimal localStorage stand-in — the tests run in Node, and the point is the module's own
@@ -1011,5 +1013,52 @@ describe("a remembered CHOICE, and the allowlist that is the whole safety of it"
       removeItem: () => {},
     });
     expect(readPersistedChoice("parts.sort", "none", CHOICES)).toBe("none");
+  });
+});
+
+describe("a remembered free-text filter, and the two things a length bound is for", () => {
+  // The catalogue's search box has no finite set of legal values, so the allowlist that guards every
+  // other preference here has nothing to check against. What replaces it is a LENGTH bound, and the
+  // failure it prevents is different in kind from a crash: a value some other hand wrote growing
+  // without limit inside an origin's storage budget, which `lib/session.ts` already caps for the
+  // session record and the recents shelf.
+  it("hands back a stored filter", () => {
+    localStorage.setItem("loft.pref.picker.maker.bodytube", "Estes");
+    expect(readPersistedText("picker.maker.bodytube", "")).toBe("Estes");
+  });
+
+  it("refuses a stored value longer than the bound rather than truncating it", () => {
+    // Truncation would hand back a DIFFERENT filter and apply it silently — a search for the first
+    // sixty-four characters of something is not the thing that was stored.
+    localStorage.setItem("loft.pref.picker.search.bodytube", "x".repeat(MAX_PERSISTED_TEXT + 1));
+    expect(readPersistedText("picker.search.bodytube", "")).toBe("");
+    localStorage.setItem("loft.pref.picker.search.bodytube", "x".repeat(MAX_PERSISTED_TEXT));
+    expect(readPersistedText("picker.search.bodytube", "")).toHaveLength(MAX_PERSISTED_TEXT);
+  });
+
+  it("honours a caller's own predicate on top of the length bound", () => {
+    localStorage.setItem("loft.pref.picker.maker.bodytube", "  ");
+    expect(readPersistedText("picker.maker.bodytube", "", (v) => v.trim() !== "")).toBe("");
+  });
+
+  it("treats an unset key and unreadable storage alike, as the default", () => {
+    localStorage.removeItem("loft.pref.picker.maker.bodytube");
+    expect(readPersistedText("picker.maker.bodytube", "")).toBe("");
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("storage disabled");
+      },
+      setItem: () => {},
+      removeItem: () => {},
+    });
+    expect(readPersistedText("picker.maker.bodytube", "")).toBe("");
+  });
+
+  it("keeps an empty string as a real stored value, which is what CLEARING a filter is", () => {
+    // The one place this differs from `readPersistedNumber`, deliberately: `Number("")` is 0, so a
+    // blank there is treated as absent. A blank FILTER is the flyer having cleared it, and coming
+    // back to a filter they removed is the betrayal this milestone is about.
+    localStorage.setItem("loft.pref.picker.search.bodytube", "");
+    expect(readPersistedText("picker.search.bodytube", "BT-60")).toBe("");
   });
 });

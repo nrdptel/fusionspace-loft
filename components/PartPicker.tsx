@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
+import { usePersistedFlag, usePersistedText } from "@/lib/session";
 
 import DataTable, { usePersistedSort, type Column } from "./DataTable";
 import { Button, Card, Select } from "./ui";
@@ -275,9 +276,24 @@ export default function PartPicker({
   const [db, setDb] = useState<typeof import("@/lib/components/db") | null>(null);
   const [sources, setSources] = useState<readonly CatalogSource[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [text, setText] = useState("");
-  const [maker, setMaker] = useState("");
-  const [fitsOnly, setFitsOnly] = useState(false);
+  /** The three filters, remembered per KIND.
+   *
+   *  `COMPETITION.md` row 36 says it in the file's own words: OpenRocket's preset dialog persists its
+   *  sort order and its filter across sessions, and **"the forgetting half is not a decision, it is
+   *  the 'controls that forget' tell on the newest surface in the app"**. A flyer picking couplers for
+   *  a build is filtering to the same vendor every time they open this.
+   *
+   *  **Per kind for the same reason the sort is** — a vendor that publishes canopies may publish no
+   *  body tubes, and a search for "BT-60" means nothing in the parachute catalogue. The key carries
+   *  the kind so a remembered filter cannot cross between them.
+   *
+   *  **`open` is deliberately NOT remembered**, and that is the half row 36 calls *"a product decision
+   *  and not obviously theirs to win"*. OpenRocket opens its chooser automatically when a component is
+   *  created, with a preference to turn that off; Loft's picker is opt-in beside the fields. Auto-open
+   *  is a different question from forgetting, and it stays open in that row. */
+  const [text, setText] = usePersistedText(`picker.search.${kind}`, "");
+  const [maker, setMaker] = usePersistedText(`picker.maker.${kind}`, "");
+  const [fitsOnly, setFitsOnly] = usePersistedFlag(`picker.fitsOnly.${kind}`, false);
   const searchId = useId();
   const makerId = useId();
 
@@ -324,6 +340,16 @@ export default function PartPicker({
     return [...new Set(parts.map((p) => p.manufacturer))].sort((a, b) => a.localeCompare(b));
   }, [parts]);
 
+  /** The vendor filter as it can actually be HONOURED, which is not always what storage handed back.
+   *
+   *  The catalogue is a lazily imported chunk, so `makers` is empty at the moment the stored value is
+   *  read and no allowlist could have judged it then. A vendor that has since left the catalogue — or
+   *  one written by an older build — would otherwise filter every row away while the select beside it
+   *  rendered "All vendors", which is a surface reporting a state it is not in. One expression drives
+   *  both the control and the filter, so they cannot disagree; the same read-through the boattail's
+   *  exit uses against its own moving ceiling. */
+  const makerShown = maker && makers.includes(maker) ? maker : "";
+
   const rows = useMemo(() => {
     if (!parts) return [];
     const q = text.trim().toLowerCase();
@@ -331,7 +357,7 @@ export default function PartPicker({
     // its own fit clauses, so the two cannot answer differently for the same question.
     const tol = 0.0005;
     return parts.filter((p) => {
-      if (maker && p.manufacturer !== maker) return false;
+      if (makerShown && p.manufacturer !== makerShown) return false;
       if (q && !p.partNumber.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q))
         return false;
       if (fitsOnly) {
@@ -340,7 +366,7 @@ export default function PartPicker({
       }
       return true;
     });
-  }, [parts, text, maker, fitsOnly, currentOuterDiameter]);
+  }, [parts, text, makerShown, fitsOnly, currentOuterDiameter]);
 
   const unit = imperial ? "in" : "mm";
 
@@ -742,7 +768,10 @@ export default function PartPicker({
                   </span>
                   <Select
                     id={makerId}
-                    value={maker}
+                    // `makerShown`, never the stored value — see its note. A vendor the current
+                    // catalogue does not have reads as "Every vendor" here AND filters nothing, which
+                    // are the same fact rather than two.
+                    value={makerShown}
                     onChange={(e) => setMaker(e.target.value)}
                     className={cx(control, TOUCH_TARGET)}
                   >
